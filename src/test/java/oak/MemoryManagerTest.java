@@ -1,7 +1,6 @@
 package oak;
 
 import javafx.util.Pair;
-import oak.IntComparator;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -10,7 +9,6 @@ import org.junit.rules.ExpectedException;
 import java.nio.ByteBuffer;
 import java.util.Comparator;
 import java.util.Map;
-import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
 import static junit.framework.TestCase.assertFalse;
@@ -19,13 +17,13 @@ import static org.junit.Assert.assertEquals;
 
 public class MemoryManagerTest {
 
-    private SimpleMemoryPoolImpl pool;
+    private SynchrobenchMemoryPoolImpl pool;
     private OakMemoryManager memoryManager;
 
 
     @Before
     public void init() {
-        pool = new SimpleMemoryPoolImpl(100);
+        pool = new SynchrobenchMemoryPoolImpl(100);
         memoryManager = new OakMemoryManager(pool);
     }
 

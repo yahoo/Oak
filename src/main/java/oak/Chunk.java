@@ -38,7 +38,7 @@ public class Chunk {
     private static final double SORTED_REBALANCE_RATIO = 1.6;
 
     // when chunk is frozen, all of the elements in pending puts array will be this OpData
-    private static final OpData FROZEN_OP_DATA = new OpData(0, 0, 0);
+    private static final OpData FROZEN_OP_DATA = new OpData(OakMap.Operation.NO_OP, 0, 0, 0);
 
     /*-------------- Members --------------*/
 
@@ -115,11 +115,13 @@ public class Chunk {
     }
 
     static class OpData {
+        OakMap.Operation op;
         int entryIndex;
         int handleIndex;
         int prevHandleIndex;
 
-        OpData(int entryIndex, int handleIndex, int prevHandleIndex) {
+        OpData(OakMap.Operation op, int entryIndex, int handleIndex, int prevHandleIndex) {
+            this.op = op;
             this.entryIndex = entryIndex;
             this.handleIndex = handleIndex;
             this.prevHandleIndex = prevHandleIndex;
@@ -128,7 +130,7 @@ public class Chunk {
 
     /*-------------- Methods --------------*/
 
-    static int getIndex(){
+    static int getIndex() {
         // TODO use hash instead of modulo
         return (int) (Thread.currentThread().getId() % MAX_THREADS);
     }
@@ -416,26 +418,26 @@ public class Chunk {
             return true;
         }
 
-        int handle = opData.handleIndex;
-        int expected = opData.prevHandleIndex;
-        int now = get(opData.entryIndex, OFFSET_HANDLE_INDEX);
+        OakMap.Operation operation = opData.op;
 
-        if (opData.handleIndex < 0) {
+        if (operation == OakMap.Operation.REMOVE) {
             return true; // this is a remove, no need to try again and return doesn't matter
         }
 
+        int handle = opData.handleIndex;
+        int now = get(opData.entryIndex, OFFSET_HANDLE_INDEX);
+
         if (now == handle) {
             return true; // someone helped
-        } else if (expected < 0) { // and now != handle
-            return false; // someone took this space
-        } else if (expected > 0 && now < 0) {
+        } else if (now < 0) {
             opData.prevHandleIndex = -1;
             return pointToValue(opData); // remove completed, try again
-        } else {
-            assert expected > 0 && now > 0;
-            return false; // someone took this space
+        } else if (operation == OakMap.Operation.PUT_IF_ABSENT) {
+            return false; // to late
         }
-
+        // this is a put, try again
+        opData.prevHandleIndex = now;
+        return pointToValue(opData);
     }
 
     /**

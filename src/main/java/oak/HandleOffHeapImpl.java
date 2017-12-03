@@ -55,7 +55,7 @@ class HandleOffHeapImpl extends Handle {
         }
         int pos = value.position();
         int rem = value.remaining();
-        if(this.value.remaining() >= rem){ // try to reuse old space
+        if (this.value.remaining() >= rem) { // try to reuse old space
             for (int j = 0; j < rem; j++) {
                 this.value.put(j, value.get(pos + j));
             }

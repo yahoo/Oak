@@ -282,7 +282,7 @@ class Rebalancer {
         }
 
         // set pointer to value
-        Chunk.OpData opData = new Chunk.OpData(ei, hi, -1);  // prev and op don't matter
+        Chunk.OpData opData = new Chunk.OpData(OakMap.Operation.NO_OP, ei, hi, -1);  // prev and op don't matter
         c.pointToValueCAS(opData, false);
 
         return true;

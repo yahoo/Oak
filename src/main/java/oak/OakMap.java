@@ -1,9 +1,7 @@
 package oak;
 
 import java.nio.ByteBuffer;
-import java.util.Collection;
 import java.util.Map;
-import java.util.Set;
 import java.util.function.Consumer;
 
 public interface OakMap {

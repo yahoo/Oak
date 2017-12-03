@@ -6,7 +6,7 @@ import java.nio.ByteBuffer;
 
 interface MemoryPool {
 
-    Pair<Integer, ByteBuffer> allocate(int capacity);
+    Pair<Integer, ByteBuffer> allocate(int capacity); // TODO long capacity
 
     void free(int i, ByteBuffer bb);
 

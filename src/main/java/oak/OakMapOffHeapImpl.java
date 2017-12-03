@@ -32,14 +32,18 @@ public class OakMapOffHeapImpl implements OakMap, AutoCloseable {
         this(Integer.MAX_VALUE);
     }
 
-    public OakMapOffHeapImpl(int capacity) { // TODO capacity long
+    public OakMapOffHeapImpl(int capacity) {
+        this(Integer.MAX_VALUE, new SynchrobenchMemoryPoolImpl(capacity));
+    }
+
+    public OakMapOffHeapImpl(int capacity, MemoryPool memoryPool) { // TODO capacity long
         ByteBuffer bb = ByteBuffer.allocate(1).put(Byte.MIN_VALUE);
         bb.rewind();
         this.minKey = bb;
 
         this.comparator = Comparator.naturalOrder();
 
-        this.memoryManager = new OakMemoryManager(new SimpleMemoryPoolImpl(capacity));
+        this.memoryManager = new OakMemoryManager(memoryPool);
 
         this.skiplist = new ConcurrentSkipListMap<>();
         Chunk head = new Chunk(this.minKey, null, comparator, memoryManager);
@@ -55,14 +59,18 @@ public class OakMapOffHeapImpl implements OakMap, AutoCloseable {
      * init with capacity = 2g
      */
     public OakMapOffHeapImpl(Comparator<ByteBuffer> comparator, ByteBuffer minKey) {
-        this(Integer.MAX_VALUE,comparator,minKey);
+        this(Integer.MAX_VALUE, comparator, minKey);
     }
 
     public OakMapOffHeapImpl(int capacity, Comparator<ByteBuffer> comparator, ByteBuffer minKey) {
+        this(Integer.MAX_VALUE, comparator, minKey, new SynchrobenchMemoryPoolImpl(capacity));
+    }
+
+    public OakMapOffHeapImpl(int capacity, Comparator<ByteBuffer> comparator, ByteBuffer minKey, MemoryPool memoryPool) {
         this.minKey = minKey;
         this.comparator = comparator;
 
-        this.memoryManager = new OakMemoryManager(new SimpleMemoryPoolImpl(capacity));
+        this.memoryManager = new OakMemoryManager(memoryPool);
 
         this.skiplist = new ConcurrentSkipListMap<>(comparator);
         Chunk head = new Chunk(this.minKey, null, comparator, memoryManager);
@@ -74,25 +82,22 @@ public class OakMapOffHeapImpl implements OakMap, AutoCloseable {
         valueFactory = new ValueFactory(true);
     }
 
-    // TODO add constructor with pool as a parameter
-
     /*-------------- Closable --------------*/
 
     /**
      * cleans off heap memory
      */
     @Override
-    public void close(){
+    public void close() {
         memoryManager.pool.clean();
     }
 
     /*-------------- size --------------*/
 
     /**
-     *
      * @return current off heap memory usage in bytes
      */
-    public long size(){
+    public long size() {
         return memoryManager.pool.allocated();
     }
 
@@ -258,7 +263,7 @@ public class OakMapOffHeapImpl implements OakMap, AutoCloseable {
         Rebalancer.RebalanceResult result = rebalance(c, key, value, Operation.PUT_IF_ABSENT);
         assert result != null;
         if (!result.success) { // rebalance helped put
-            return putIfAbsent(key, value,false);
+            return putIfAbsent(key, value, false);
         }
         memoryManager.stopThread();
         return result.putIfAbsent;
@@ -349,7 +354,7 @@ public class OakMapOffHeapImpl implements OakMap, AutoCloseable {
 
         c.writeValue(hi, valueFactory.createValue(value, memoryManager)); // write value in place
 
-        Chunk.OpData opData = new Chunk.OpData(ei, hi, prevHi);
+        Chunk.OpData opData = new Chunk.OpData(Operation.PUT, ei, hi, prevHi);
 
         // publish put
         if (!c.publish(opData)) {
@@ -379,7 +384,7 @@ public class OakMapOffHeapImpl implements OakMap, AutoCloseable {
             throw new NullPointerException();
         }
 
-        if(startThread) {
+        if (startThread) {
             memoryManager.startThread();
         }
 
@@ -388,7 +393,7 @@ public class OakMapOffHeapImpl implements OakMap, AutoCloseable {
         c = iterateChunks(c, key);
 
         Chunk.LookUp lookUp = c.lookUp(key);
-        if (lookUp != null && lookUp.handle != null){
+        if (lookUp != null && lookUp.handle != null) {
             memoryManager.stopThread();
             return false;
         }
@@ -399,7 +404,7 @@ public class OakMapOffHeapImpl implements OakMap, AutoCloseable {
         if (state == Chunk.State.INFANT) {
             // the infant is already connected so rebalancer won't add this put
             rebalance(c.creator(), null, null, Operation.NO_OP);
-            return putIfAbsent(key, value,false);
+            return putIfAbsent(key, value, false);
         }
         if (state == Chunk.State.FROZEN || state == Chunk.State.RELEASED) {
             return rebalancePutIfAbsent(c, key, value);
@@ -434,7 +439,7 @@ public class OakMapOffHeapImpl implements OakMap, AutoCloseable {
 
         c.writeValue(hi, valueFactory.createValue(value, memoryManager)); // write value in place
 
-        Chunk.OpData opData = new Chunk.OpData(ei, hi, prevHi);
+        Chunk.OpData opData = new Chunk.OpData(Operation.PUT_IF_ABSENT, ei, hi, prevHi);
 
         // publish put
         if (!c.publish(opData)) {
@@ -478,13 +483,13 @@ public class OakMapOffHeapImpl implements OakMap, AutoCloseable {
                 return;  // someone else used this entry
             }
 
-            if (lookUp == null || lookUp.handle == null){
+            if (lookUp == null || lookUp.handle == null) {
                 memoryManager.stopThread();
                 return;
             }
 
             if (logical) {
-                if (!lookUp.handle.remove(memoryManager)){
+                if (!lookUp.handle.remove(memoryManager)) {
                     memoryManager.stopThread();
                     return;
                 }
@@ -511,7 +516,7 @@ public class OakMapOffHeapImpl implements OakMap, AutoCloseable {
 
             assert lookUp.entryIndex > 0;
             assert lookUp.handleIndex > 0;
-            Chunk.OpData opData = new Chunk.OpData(lookUp.entryIndex, -1, lookUp.handleIndex);
+            Chunk.OpData opData = new Chunk.OpData(Operation.REMOVE, lookUp.entryIndex, -1, lookUp.handleIndex);
 
             // publish
             if (!c.publish(opData)) {

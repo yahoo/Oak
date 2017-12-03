@@ -287,10 +287,7 @@ public class OakMapOnHeapImpl implements OakMap {
                 rebalancePut(c, key, value);
                 return;
             }
-            int prevEi = c.linkEntry(ei, key, true);
-            if (prevEi != ei) {
-                return;
-            }
+            ei = c.linkEntry(ei, key, true);
         }
 
         int hi = c.allocateHandle(handleFactory);
@@ -301,7 +298,7 @@ public class OakMapOnHeapImpl implements OakMap {
 
         c.writeValue(hi, valueFactory.createValue(value, null)); // write value in place
 
-        Chunk.OpData opData = new Chunk.OpData(ei, hi, prevHi);
+        Chunk.OpData opData = new Chunk.OpData(Operation.PUT, ei, hi, prevHi);
 
         // publish put
         if (!c.publish(opData)) {
@@ -358,10 +355,7 @@ public class OakMapOnHeapImpl implements OakMap {
             if (ei == -1) {
                 return rebalancePutIfAbsent(c, key, value);
             }
-            int newEi = c.linkEntry(ei, key, true);
-            if (newEi != ei) {
-                return false;
-            }
+            ei = c.linkEntry(ei, key, true);
         }
 
         int hi = c.allocateHandle(handleFactory);
@@ -371,7 +365,7 @@ public class OakMapOnHeapImpl implements OakMap {
 
         c.writeValue(hi, valueFactory.createValue(value, null)); // write value in place
 
-        Chunk.OpData opData = new Chunk.OpData(ei, hi, prevHi);
+        Chunk.OpData opData = new Chunk.OpData(Operation.PUT_IF_ABSENT, ei, hi, prevHi);
 
         // publish put
         if (!c.publish(opData)) {
@@ -437,7 +431,7 @@ public class OakMapOnHeapImpl implements OakMap {
 
             assert lookUp.entryIndex > 0;
             assert lookUp.handleIndex > 0;
-            Chunk.OpData opData = new Chunk.OpData(lookUp.entryIndex, -1, lookUp.handleIndex);
+            Chunk.OpData opData = new Chunk.OpData(Operation.REMOVE, lookUp.entryIndex, -1, lookUp.handleIndex);
 
             // publish
             if (!c.publish(opData)) {

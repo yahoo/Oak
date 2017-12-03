@@ -3,14 +3,13 @@ package oak;
 import javafx.util.Pair;
 import sun.misc.Cleaner;
 
-import java.awt.*;
 import java.lang.reflect.Field;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.concurrent.atomic.AtomicInteger;
 
-class SimpleMemoryPoolImpl implements MemoryPool {
+class SynchrobenchMemoryPoolImpl implements MemoryPool {
 
     final ByteBuffer largeBuffer; // TODO add more buffers
     final AtomicInteger allocated;
@@ -18,7 +17,7 @@ class SimpleMemoryPoolImpl implements MemoryPool {
     final ArrayList<LinkedList<Pair<Integer, ByteBuffer>>> freeIntArray;
     final ArrayList<LinkedList<Pair<Integer, ByteBuffer>>> freeKeysArray;
 
-    SimpleMemoryPoolImpl(long capacity) {
+    SynchrobenchMemoryPoolImpl(long capacity) {
         assert capacity > 0;
         assert capacity <= Integer.MAX_VALUE;
         this.capacity = (int) capacity;
