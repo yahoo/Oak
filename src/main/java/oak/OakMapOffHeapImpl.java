@@ -29,14 +29,10 @@ public class OakMapOffHeapImpl implements OakMap, AutoCloseable {
      * init with capacity = 2g
      */
     public OakMapOffHeapImpl() {
-        this(Integer.MAX_VALUE);
+        this(new SimpleNoFreeMemoryPoolImpl(Integer.MAX_VALUE));
     }
 
-    public OakMapOffHeapImpl(int capacity) {
-        this(Integer.MAX_VALUE, new SynchrobenchMemoryPoolImpl(capacity));
-    }
-
-    public OakMapOffHeapImpl(int capacity, MemoryPool memoryPool) { // TODO capacity long
+    public OakMapOffHeapImpl(MemoryPool memoryPool) { // TODO capacity long
         ByteBuffer bb = ByteBuffer.allocate(1).put(Byte.MIN_VALUE);
         bb.rewind();
         this.minKey = bb;
@@ -59,14 +55,10 @@ public class OakMapOffHeapImpl implements OakMap, AutoCloseable {
      * init with capacity = 2g
      */
     public OakMapOffHeapImpl(Comparator<ByteBuffer> comparator, ByteBuffer minKey) {
-        this(Integer.MAX_VALUE, comparator, minKey);
+        this(comparator, minKey, new SimpleNoFreeMemoryPoolImpl(Integer.MAX_VALUE));
     }
 
-    public OakMapOffHeapImpl(int capacity, Comparator<ByteBuffer> comparator, ByteBuffer minKey) {
-        this(Integer.MAX_VALUE, comparator, minKey, new SynchrobenchMemoryPoolImpl(capacity));
-    }
-
-    public OakMapOffHeapImpl(int capacity, Comparator<ByteBuffer> comparator, ByteBuffer minKey, MemoryPool memoryPool) {
+    public OakMapOffHeapImpl(Comparator<ByteBuffer> comparator, ByteBuffer minKey, MemoryPool memoryPool) {
         this.minKey = minKey;
         this.comparator = comparator;
 
