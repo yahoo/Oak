@@ -1,6 +1,7 @@
 package oak;
 
 import java.nio.BufferOverflowException;
+import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 
 public class WritableOakBufferImpl extends WritableOakBuffer {
@@ -92,6 +93,9 @@ public class WritableOakBufferImpl extends WritableOakBuffer {
     public boolean hasRemaining() {
         return handle.hasRemaining();
     }
+
+    @Override
+    public ByteBuffer getByteBuffer() { return handle.getByteBuffer(); }
 
     @Override
     public byte get(int index) {

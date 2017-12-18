@@ -91,6 +91,12 @@ abstract class Handle extends WritableOakBuffer {
     }
 
     @Override
+    ByteBuffer getByteBuffer() {
+        assert writeLock.isHeldByCurrentThread();
+        return value;
+    }
+
+    @Override
     public byte get() {
         return value.get();
     }

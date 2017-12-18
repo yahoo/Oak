@@ -92,6 +92,12 @@ public abstract class WritableOakBuffer extends OakBuffer {
      */
     abstract WritableOakBuffer rewind();
 
+    /**
+     *
+     * @return the actual ByteBuffer
+     */
+    abstract ByteBuffer getByteBuffer();
+
     // -- Singleton get/put methods --
 
     /**

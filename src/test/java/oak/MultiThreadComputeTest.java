@@ -1,6 +1,5 @@
 package oak;
 
-import oak.IntComparator;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -12,7 +11,6 @@ import java.util.function.Consumer;
 
 import static junit.framework.TestCase.assertTrue;
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
 
 public class MultiThreadComputeTest {
 
@@ -31,11 +29,18 @@ public class MultiThreadComputeTest {
         oak = new OakMapOnHeapImpl(comparator, min);
         latch = new CountDownLatch(1);
         threads = new ArrayList<>(NUM_THREADS);
+//        func = buffer -> {
+//            if (buffer.getInt(0) == 0) {
+//                buffer.putInt(0, 1);
+//            }
+//        };
         func = buffer -> {
-            if (buffer.getInt(0) == 0) {
-                buffer.putInt(0, 1);
+            ByteBuffer bb = buffer.getByteBuffer();
+            if (bb.getInt(0) == 0) {
+                bb.putInt(0, 1);
             }
         };
+
     }
 
     class RunThreads implements Runnable {
@@ -59,7 +64,7 @@ public class MultiThreadComputeTest {
                 bb = ByteBuffer.allocate(4);
                 bb.putInt(i);
                 bb.flip();
-                oak.put(bb, bb);
+                oak.putIfAbsent(bb, bb);
             }
 
             bb = ByteBuffer.allocate(4);
@@ -67,11 +72,6 @@ public class MultiThreadComputeTest {
             bb.flip();
             OakBuffer buffer = oak.getHandle(bb);
             assertTrue(buffer != null);
-
-            bb.putInt(0, Chunk.MAX_ITEMS);
-            OakBuffer delBuffer = oak.getHandle(bb);
-            boolean check = false;
-            if (delBuffer != null) check = true;
 
             for (int i = 3 * Chunk.MAX_ITEMS; i < 4 * Chunk.MAX_ITEMS; i++) {
                 bb = ByteBuffer.allocate(4);
@@ -101,19 +101,6 @@ public class MultiThreadComputeTest {
                 bb.flip();
                 oak.remove(bb);
             }
-
-            if (check) {
-                try {
-                    delBuffer.getInt(0);
-                } catch (NullPointerException ex) {
-                    check = false;
-                    bb = ByteBuffer.allocate(4);
-                    bb.putInt(Chunk.MAX_ITEMS);
-                    bb.flip();
-                    assertTrue(oak.getHandle(bb) == null);
-                }
-            }
-            assertFalse(check);
 
             for (int i = 5 * Chunk.MAX_ITEMS; i < 6 * Chunk.MAX_ITEMS; i++) {
                 bb = ByteBuffer.allocate(4);
