@@ -50,7 +50,7 @@ public class SingleThreadTest {
             ByteBuffer bb = ByteBuffer.allocate(4);
             bb.putInt(i);
             bb.flip();
-            OakBuffer buffer = oak.getHandle(bb);
+            OakBuffer buffer = oak.get(bb);
             assertTrue(buffer != null);
             TestCase.assertEquals(i, buffer.getInt(0));
         }
@@ -58,7 +58,7 @@ public class SingleThreadTest {
         ByteBuffer bb = ByteBuffer.allocate(4);
         bb.putInt(10);
         bb.flip();
-        OakBuffer buffer = oak.getHandle(bb);
+        OakBuffer buffer = oak.get(bb);
         assertTrue(buffer != null);
         TestCase.assertEquals(10, buffer.getInt(0));
         boolean check = false;
@@ -72,7 +72,7 @@ public class SingleThreadTest {
         bb2.putInt(11);
         bb2.flip();
         oak.put(bb, bb2);
-        buffer = oak.getHandle(bb);
+        buffer = oak.get(bb);
         assertTrue(buffer != null);
         TestCase.assertEquals(11, buffer.getInt(0));
     }
@@ -89,7 +89,7 @@ public class SingleThreadTest {
             ByteBuffer bb = ByteBuffer.allocate(4);
             bb.putInt(i);
             bb.flip();
-            OakBuffer buffer = oak.getHandle(bb);
+            OakBuffer buffer = oak.get(bb);
             assertTrue(buffer != null);
             TestCase.assertEquals(i, buffer.getInt(0));
         }
@@ -106,7 +106,7 @@ public class SingleThreadTest {
             ByteBuffer bb = ByteBuffer.allocate(4);
             bb.putInt(i);
             bb.flip();
-            OakBuffer buffer = oak.getHandle(bb);
+            OakBuffer buffer = oak.get(bb);
             assertTrue(buffer != null);
             TestCase.assertEquals(i, buffer.getInt(0));
         }
@@ -125,7 +125,7 @@ public class SingleThreadTest {
             ByteBuffer bb = ByteBuffer.allocate(4);
             bb.putInt(i);
             bb.flip();
-            OakBuffer buffer = oak.getHandle(bb);
+            OakBuffer buffer = oak.get(bb);
             assertTrue(buffer == null);
         }
         assertEquals(1, countNumOfChunks());
@@ -137,7 +137,7 @@ public class SingleThreadTest {
             ByteBuffer bb = ByteBuffer.allocate(4);
             bb.putInt(i);
             bb.flip();
-            OakBuffer buffer = oak.getHandle(bb);
+            OakBuffer buffer = oak.get(bb);
             assertTrue(buffer == null);
         }
         for (int i = 0; i < 4 * Chunk.MAX_ITEMS; i++) {
@@ -151,7 +151,7 @@ public class SingleThreadTest {
             ByteBuffer bb = ByteBuffer.allocate(4);
             bb.putInt(i);
             bb.flip();
-            OakBuffer buffer = oak.getHandle(bb);
+            OakBuffer buffer = oak.get(bb);
             assertTrue(buffer != null);
             TestCase.assertEquals(i, buffer.getInt(0));
         }
@@ -173,14 +173,14 @@ public class SingleThreadTest {
             ByteBuffer bb = ByteBuffer.allocate(4);
             bb.putInt(i);
             bb.flip();
-            OakBuffer buffer = oak.getHandle(bb);
+            OakBuffer buffer = oak.get(bb);
             assertTrue(buffer == null);
         }
         for (int i = 0; i < Chunk.MAX_ITEMS; i++) {
             ByteBuffer bb = ByteBuffer.allocate(4);
             bb.putInt(i);
             bb.flip();
-            OakBuffer buffer = oak.getHandle(bb);
+            OakBuffer buffer = oak.get(bb);
             assertTrue(buffer != null);
             TestCase.assertEquals(i, buffer.getInt(0));
         }
@@ -188,7 +188,7 @@ public class SingleThreadTest {
             ByteBuffer bb = ByteBuffer.allocate(4);
             bb.putInt(i);
             bb.flip();
-            OakBuffer buffer = oak.getHandle(bb);
+            OakBuffer buffer = oak.get(bb);
             assertTrue(buffer != null);
             TestCase.assertEquals(i, buffer.getInt(0));
         }
@@ -202,14 +202,14 @@ public class SingleThreadTest {
             ByteBuffer bb = ByteBuffer.allocate(4);
             bb.putInt(i);
             bb.flip();
-            OakBuffer buffer = oak.getHandle(bb);
+            OakBuffer buffer = oak.get(bb);
             assertTrue(buffer == null);
         }
         for (int i = 3 * Chunk.MAX_ITEMS; i < 4 * Chunk.MAX_ITEMS; i++) {
             ByteBuffer bb = ByteBuffer.allocate(4);
             bb.putInt(i);
             bb.flip();
-            OakBuffer buffer = oak.getHandle(bb);
+            OakBuffer buffer = oak.get(bb);
             assertTrue(buffer != null);
             TestCase.assertEquals(i, buffer.getInt(0));
         }
@@ -223,7 +223,7 @@ public class SingleThreadTest {
             ByteBuffer bb = ByteBuffer.allocate(4);
             bb.putInt(i);
             bb.flip();
-            OakBuffer buffer = oak.getHandle(bb);
+            OakBuffer buffer = oak.get(bb);
             assertTrue(buffer == null);
         }
         Assert.assertTrue(countNumOfChunks() < countNow);
@@ -237,7 +237,7 @@ public class SingleThreadTest {
             ByteBuffer bb = ByteBuffer.allocate(4);
             bb.putInt(i);
             bb.flip();
-            OakBuffer buffer = oak.getHandle(bb);
+            OakBuffer buffer = oak.get(bb);
             assertTrue(buffer != null);
             TestCase.assertEquals(i, buffer.getInt(0));
         }
@@ -248,7 +248,7 @@ public class SingleThreadTest {
     public ExpectedException thrown = ExpectedException.none();
 
     @Test
-    public void testCompute() {
+    public void testComputeIf() {
         Consumer<WritableOakBuffer> func = writableOakBuffer -> {
             if (writableOakBuffer.getInt() == 0) writableOakBuffer.putInt(0, 1);
         };
@@ -257,11 +257,11 @@ public class SingleThreadTest {
         key.flip();
         assertFalse(oak.computeIfPresent(key, func));
         assertTrue(oak.putIfAbsent(key, key));
-        OakBuffer buffer = oak.getHandle(key);
+        OakBuffer buffer = oak.get(key);
         assertTrue(buffer != null);
         assertEquals(0, buffer.getInt(0));
         assertTrue(oak.computeIfPresent(key, func));
-        buffer = oak.getHandle(key);
+        buffer = oak.get(key);
         assertTrue(buffer != null);
         assertEquals(1, buffer.getInt(0));
         assertEquals(4, buffer.remaining());
@@ -282,6 +282,50 @@ public class SingleThreadTest {
         };
         oak.put(key, key);
         assertTrue(oak.computeIfPresent(key, func2));
+        assertEquals(8, buffer.remaining());
+        assertEquals(0, buffer.getInt(0));
+        assertEquals(1, buffer.getInt(4));
+        oak.remove(key);
+        assertFalse(oak.computeIfPresent(key, func2));
+        thrown.expect(NullPointerException.class);
+        assertEquals(8, buffer.remaining());
+    }
+
+    @Test
+    public void testCompute() {
+        Consumer<WritableOakBuffer> func = writableOakBuffer -> {
+            if (writableOakBuffer.getInt() == 0) writableOakBuffer.putInt(0, 1);
+        };
+        ByteBuffer key = ByteBuffer.allocate(4);
+        key.putInt(0);
+        key.flip();
+        assertFalse(oak.computeIfPresent(key, func));
+        oak.putIfAbsentComputeIfPresent(key,() -> key,func);
+        OakBuffer buffer = oak.get(key);
+        assertTrue(buffer != null);
+        assertEquals(0, buffer.getInt(0));
+        oak.putIfAbsentComputeIfPresent(key,() -> key,func);
+        buffer = oak.get(key);
+        assertTrue(buffer != null);
+        assertEquals(1, buffer.getInt(0));
+        assertEquals(4, buffer.remaining());
+        ByteBuffer two = ByteBuffer.allocate(4);
+        two.putInt(2);
+        two.flip();
+        oak.put(key, two);
+        assertEquals(4, buffer.remaining());
+        assertEquals(2, buffer.getInt(0));
+        assertTrue(oak.computeIfPresent(key, func));
+        assertEquals(4, buffer.remaining());
+        assertEquals(2, buffer.getInt(0));
+        Consumer<WritableOakBuffer> func2 = writableOakBuffer -> {
+            if (writableOakBuffer.getInt() == 0) {
+                writableOakBuffer.putInt(0, 0);
+                writableOakBuffer.putInt(1);
+            }
+        };
+        oak.put(key, key);
+        oak.putIfAbsentComputeIfPresent(key,() -> key,func2);
         assertEquals(8, buffer.remaining());
         assertEquals(0, buffer.getInt(0));
         assertEquals(1, buffer.getInt(4));

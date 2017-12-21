@@ -120,7 +120,7 @@ public class ComputeTest {
 
         for (int i = 0; i < numOfEntries; i++) {
             key.putInt(0, i);
-            OakBuffer buffer = oak.getHandle(key);
+            OakBuffer buffer = oak.get(key);
             if (buffer == null) {
                 continue;
             }

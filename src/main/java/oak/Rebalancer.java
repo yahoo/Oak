@@ -4,6 +4,7 @@ import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 
 class Rebalancer {
 
@@ -111,7 +112,7 @@ class Rebalancer {
      * @return if managed to CAS to newChunk list of rebalance
      * if we did then the put was inserted
      */
-    RebalanceResult createNewChunks(ByteBuffer key, ByteBuffer value, OakMap.Operation operation) {
+    RebalanceResult createNewChunks(ByteBuffer key, ByteBuffer value, Consumer<WritableOakBuffer> function, OakMap.Operation operation) {
 
         if (this.newChunks.get() != null) {
             return new RebalanceResult(false, false); // this was done by another thread already
@@ -174,7 +175,7 @@ class Rebalancer {
 
         boolean putIfAbsent = true;
         if (operation != OakMap.Operation.NO_OP) { // help this op (for lock freedom)
-            putIfAbsent = helpOp(newChunks, key, value, operation);
+            putIfAbsent = helpOp(newChunks, key, value, function, operation);
         }
 
         // if fail here, another thread succeeded, and op is effectively gone
@@ -246,7 +247,7 @@ class Rebalancer {
      * insert/remove this key and value to one of the newChunks
      * the key is guaranteed to be in the range of keys in the new chunk
      */
-    private boolean helpOp(List<Chunk> newChunks, ByteBuffer key, ByteBuffer value, OakMap.Operation operation) {
+    private boolean helpOp(List<Chunk> newChunks, ByteBuffer key, ByteBuffer value, Consumer<WritableOakBuffer> function, OakMap.Operation operation) {
         assert key != null;
         assert operation == OakMap.Operation.REMOVE || value != null;
         assert operation != OakMap.Operation.REMOVE || value == null;
@@ -256,9 +257,18 @@ class Rebalancer {
         // look for key
         Chunk.LookUp lookUp = c.lookUp(key);
 
-        if (lookUp != null && lookUp.handle != null && operation == OakMap.Operation.PUT_IF_ABSENT) {
-            return false;
+        if (lookUp != null && lookUp.handle != null) {
+            if(operation == OakMap.Operation.PUT_IF_ABSENT) {
+                return false;
+            } else if(operation == OakMap.Operation.PUT) {
+                lookUp.handle.put(value, memoryManager);
+                return true;
+            } else if (operation == OakMap.Operation.COMPUTE) {
+                lookUp.handle.compute(function, memoryManager);
+                return true;
+            }
         }
+        // TODO handle.put or handle.compute
 
         int ei;
         if (lookUp == null) { // no entry
@@ -282,7 +292,7 @@ class Rebalancer {
         }
 
         // set pointer to value
-        Chunk.OpData opData = new Chunk.OpData(OakMap.Operation.NO_OP, ei, hi, -1);  // prev and op don't matter
+        Chunk.OpData opData = new Chunk.OpData(OakMap.Operation.NO_OP, ei, hi, -1, null);  // prev and op don't matter
         c.pointToValueCAS(opData, false);
 
         return true;

@@ -96,7 +96,7 @@ public class FillTest {
                     }
                     continue;
                 }
-                if(oak.getHandle(myKey) == null){
+                if(oak.get(myKey) == null){
                     System.out.println("error");
                 }
             }
@@ -170,7 +170,7 @@ public class FillTest {
                 }
                 continue;
             }
-            OakBuffer buffer = oak.getHandle(key);
+            OakBuffer buffer = oak.get(key);
             if (buffer == null) {
                 System.out.println("buffer != null i==" + i);
                 return;

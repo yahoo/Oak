@@ -1,6 +1,5 @@
 package oak;
 
-import oak.IntComparator;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -44,7 +43,7 @@ public class SingleThreadIteratorTest {
             ByteBuffer bb = ByteBuffer.allocate(4);
             bb.putInt(i);
             bb.flip();
-            OakBuffer buffer = oak.getHandle(bb);
+            OakBuffer buffer = oak.get(bb);
             assertTrue(buffer != null);
             assertEquals((int) i, buffer.getInt(0));
         }
@@ -71,14 +70,14 @@ public class SingleThreadIteratorTest {
             ByteBuffer bb = ByteBuffer.allocate(4);
             bb.putInt(i);
             bb.flip();
-            OakBuffer buffer = oak.getHandle(bb);
+            OakBuffer buffer = oak.get(bb);
             assertTrue(buffer == null);
         }
         for (i = Chunk.MAX_ITEMS; i < 2 * Chunk.MAX_ITEMS; i++) {
             ByteBuffer bb = ByteBuffer.allocate(4);
             bb.putInt(i);
             bb.flip();
-            OakBuffer buffer = oak.getHandle(bb);
+            OakBuffer buffer = oak.get(bb);
             assertTrue(buffer != null);
             assertEquals((int) i, buffer.getInt(0));
         }
@@ -105,7 +104,7 @@ public class SingleThreadIteratorTest {
             ByteBuffer bb = ByteBuffer.allocate(4);
             bb.putInt(i);
             bb.flip();
-            OakBuffer buffer = oak.getHandle(bb);
+            OakBuffer buffer = oak.get(bb);
             assertTrue(buffer == null);
         }
         for (i = 0; i < 2 * Chunk.MAX_ITEMS; i++) {
@@ -124,14 +123,14 @@ public class SingleThreadIteratorTest {
         ByteBuffer bb = ByteBuffer.allocate(4);
         bb.putInt(0);
         bb.flip();
-        OakBuffer buffer = oak.getHandle(bb);
+        OakBuffer buffer = oak.get(bb);
         assertTrue(buffer != null);
         assertEquals(0, buffer.getInt(0));
 
         bb = ByteBuffer.allocate(4);
         bb.putInt((2 * Chunk.MAX_ITEMS - 1));
         bb.flip();
-        buffer = oak.getHandle(bb);
+        buffer = oak.get(bb);
         assertTrue(buffer != null);
         assertEquals((2 * Chunk.MAX_ITEMS - 1), buffer.getInt(0));
 
@@ -243,7 +242,7 @@ public class SingleThreadIteratorTest {
             ByteBuffer bb = ByteBuffer.allocate(4);
             bb.putInt(i);
             bb.flip();
-            OakBuffer buffer = oak.getHandle(bb);
+            OakBuffer buffer = oak.get(bb);
             assertTrue(buffer != null);
             assertEquals((int) i, buffer.getInt(0));
         }
@@ -308,7 +307,7 @@ public class SingleThreadIteratorTest {
             ByteBuffer bb = ByteBuffer.allocate(4);
             bb.putInt(i);
             bb.flip();
-            OakBuffer buffer = oak.getHandle(bb);
+            OakBuffer buffer = oak.get(bb);
             assertTrue(buffer != null);
             assertEquals((int) i, buffer.getInt(0));
         }
@@ -364,7 +363,7 @@ public class SingleThreadIteratorTest {
             ByteBuffer bb = ByteBuffer.allocate(4);
             bb.putInt(i);
             bb.flip();
-            OakBuffer buffer = oak.getHandle(bb);
+            OakBuffer buffer = oak.get(bb);
             assertTrue(buffer != null);
             assertEquals((int) i, buffer.getInt(0));
         }

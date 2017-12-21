@@ -19,6 +19,7 @@ public class MultiThreadComputeTest {
     private ArrayList<Thread> threads;
     private CountDownLatch latch;
     private Consumer<WritableOakBuffer> func;
+    private Consumer<WritableOakBuffer> emptyFunc;
 
     @Before
     public void init() {
@@ -39,6 +40,9 @@ public class MultiThreadComputeTest {
             if (bb.getInt(0) == 0) {
                 bb.putInt(0, 1);
             }
+        };
+        emptyFunc = buffer -> {
+            ByteBuffer bb = buffer.getByteBuffer();
         };
 
     }
@@ -67,10 +71,18 @@ public class MultiThreadComputeTest {
                 oak.putIfAbsent(bb, bb);
             }
 
+            for (int i = 0; i < 4 * Chunk.MAX_ITEMS; i++) {
+                bb = ByteBuffer.allocate(4);
+                bb.putInt(i);
+                bb.flip();
+                ByteBuffer finalBb2 = bb;
+                oak.putIfAbsentComputeIfPresent(bb, () -> finalBb2, emptyFunc);
+            }
+
             bb = ByteBuffer.allocate(4);
             bb.putInt(0);
             bb.flip();
-            OakBuffer buffer = oak.getHandle(bb);
+            OakBuffer buffer = oak.get(bb);
             assertTrue(buffer != null);
 
             for (int i = 3 * Chunk.MAX_ITEMS; i < 4 * Chunk.MAX_ITEMS; i++) {
@@ -91,6 +103,14 @@ public class MultiThreadComputeTest {
                 bb.putInt(i);
                 bb.flip();
                 oak.computeIfPresent(bb, func);
+            }
+
+            for (int i = 0; i < Chunk.MAX_ITEMS; i++) {
+                bb = ByteBuffer.allocate(4);
+                bb.putInt(i);
+                bb.flip();
+                ByteBuffer finalBb = bb;
+                oak.putIfAbsentComputeIfPresent(bb, () -> finalBb, func);
             }
 
             assertEquals(1, buffer.getInt(0));
@@ -121,6 +141,14 @@ public class MultiThreadComputeTest {
                 bb.putInt(i);
                 bb.flip();
                 oak.putIfAbsent(bb, bb);
+            }
+
+            for (int i = 3 * Chunk.MAX_ITEMS; i < 4 * Chunk.MAX_ITEMS; i++) {
+                bb = ByteBuffer.allocate(4);
+                bb.putInt(i);
+                bb.flip();
+                ByteBuffer finalBb1 = bb;
+                oak.putIfAbsentComputeIfPresent(bb, () -> finalBb1, emptyFunc);
             }
 
             for (int i = 3 * Chunk.MAX_ITEMS; i < 4 * Chunk.MAX_ITEMS; i++) {
@@ -177,7 +205,7 @@ public class MultiThreadComputeTest {
             ByteBuffer bb = ByteBuffer.allocate(4);
             bb.putInt(i);
             bb.flip();
-            OakBuffer buffer = oak.getHandle(bb);
+            OakBuffer buffer = oak.get(bb);
             assertTrue(buffer != null);
             if (i == 0) {
                 assertEquals(1, buffer.getInt(0));
@@ -193,14 +221,14 @@ public class MultiThreadComputeTest {
             ByteBuffer bb = ByteBuffer.allocate(4);
             bb.putInt(i);
             bb.flip();
-            OakBuffer buffer = oak.getHandle(bb);
+            OakBuffer buffer = oak.get(bb);
             assertTrue(buffer == null);
         }
         for (int i = 2 * Chunk.MAX_ITEMS; i < 3 * Chunk.MAX_ITEMS; i++) {
             ByteBuffer bb = ByteBuffer.allocate(4);
             bb.putInt(i);
             bb.flip();
-            OakBuffer buffer = oak.getHandle(bb);
+            OakBuffer buffer = oak.get(bb);
             assertTrue(buffer != null);
             assertEquals(i, buffer.getInt(0));
         }
@@ -208,7 +236,7 @@ public class MultiThreadComputeTest {
             ByteBuffer bb = ByteBuffer.allocate(4);
             bb.putInt(i);
             bb.flip();
-            OakBuffer buffer = oak.getHandle(bb);
+            OakBuffer buffer = oak.get(bb);
             assertTrue(buffer == null);
         }
 
@@ -216,7 +244,7 @@ public class MultiThreadComputeTest {
             ByteBuffer bb = ByteBuffer.allocate(4);
             bb.putInt(i);
             bb.flip();
-            OakBuffer buffer = oak.getHandle(bb);
+            OakBuffer buffer = oak.get(bb);
             assertTrue(buffer != null);
             assertEquals(i, buffer.getInt(0));
         }

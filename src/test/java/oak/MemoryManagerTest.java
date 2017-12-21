@@ -120,11 +120,11 @@ public class MemoryManagerTest {
 
 
         key.putInt(0,0);
-        OakBuffer buffer = oak.getHandle(key);
+        OakBuffer buffer = oak.get(key);
         assertTrue(buffer != null);
         assertEquals(1, buffer.get(0));
         key.putInt(0,3);
-        buffer = oak.getHandle(key);
+        buffer = oak.get(key);
         assertTrue(buffer != null);
         assertEquals(1, buffer.get(0));
 
@@ -290,7 +290,7 @@ public class MemoryManagerTest {
         ByteBuffer bb = ByteBuffer.allocate(4);
         bb.putInt(0);
         bb.flip();
-        OakBuffer buffer = oak.getHandle(bb);
+        OakBuffer buffer = oak.get(bb);
         assertEquals(3, memoryManager.getValue(memoryManager.timeStamps[1].get()));
         assertTrue(memoryManager.isIdle(memoryManager.timeStamps[1].get()));
         assertTrue(buffer != null);
@@ -311,7 +311,7 @@ public class MemoryManagerTest {
         memoryManager.startThread();
         assertEquals(5, memoryManager.getValue(memoryManager.timeStamps[1].get()));
         assertFalse(memoryManager.isIdle(memoryManager.timeStamps[1].get()));
-        oak.getHandle(bb);
+        oak.get(bb);
         assertFalse(memoryManager.isIdle(memoryManager.timeStamps[1].get()));
         assertEquals(5, memoryManager.getValue(memoryManager.timeStamps[1].get()));
         memoryManager.stopThread();
@@ -364,7 +364,7 @@ public class MemoryManagerTest {
             bb = ByteBuffer.allocateDirect(4);
             bb.putInt(i);
             bb.flip();
-            buffer = oak.getHandle(bb);
+            buffer = oak.get(bb);
             assertTrue(buffer != null);
             assertEquals(i, buffer.getInt(0));
         }
@@ -390,7 +390,7 @@ public class MemoryManagerTest {
                 assertEquals(i, ((OakBuffer) (iter.next())).getInt(0));
                 i++;
             }
-            oak.getHandle(bb);
+            oak.get(bb);
             assertEquals(2 * Chunk.MAX_ITEMS, i);
             assertEquals(10 + 4 * Chunk.MAX_ITEMS, memoryManager.getValue(memoryManager.timeStamps[1].get()));
             assertFalse(memoryManager.isIdle(memoryManager.timeStamps[1].get()));
@@ -433,7 +433,7 @@ public class MemoryManagerTest {
             bb = ByteBuffer.allocateDirect(4);
             bb.putInt(i);
             bb.flip();
-            buffer = oak.getHandle(bb);
+            buffer = oak.get(bb);
             assertTrue(buffer != null);
             assertEquals(i, buffer.getInt(0));
         }
@@ -503,7 +503,7 @@ public class MemoryManagerTest {
             bb = ByteBuffer.allocateDirect(4);
             bb.putInt(i);
             bb.flip();
-            OakBuffer buffer = oak.getHandle(bb);
+            OakBuffer buffer = oak.get(bb);
             assertTrue(buffer != null);
             assertEquals(i, buffer.getInt(0));
         }
@@ -523,15 +523,15 @@ public class MemoryManagerTest {
         ByteBuffer bb = ByteBuffer.allocateDirect(4);
         bb.putInt(0,0);
         oak.put(bb,bb);
-        OakBuffer buffer = oak.getHandle(bb);
+        OakBuffer buffer = oak.get(bb);
         assertTrue(buffer != null);
         assertEquals(0, buffer.getInt(0));
         oak.computeIfPresent(bb, func);
-        buffer = oak.getHandle(bb);
+        buffer = oak.get(bb);
         assertTrue(buffer != null);
         assertEquals(1, buffer.getInt(0));
         oak.computeIfPresent(bb, func);
-        buffer = oak.getHandle(bb);
+        buffer = oak.get(bb);
         assertTrue(buffer != null);
         assertEquals(1, buffer.getInt(0));
         func = buf -> {
@@ -541,7 +541,7 @@ public class MemoryManagerTest {
             }
         };
         oak.computeIfPresent(bb, func);
-        buffer = oak.getHandle(bb);
+        buffer = oak.get(bb);
         assertTrue(buffer != null);
         assertEquals(1, buffer.getInt(0));
         assertEquals(1, buffer.getInt(4));

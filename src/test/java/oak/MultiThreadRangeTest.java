@@ -1,6 +1,5 @@
 package oak;
 
-import oak.IntComparator;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -90,7 +89,7 @@ public class MultiThreadRangeTest {
             ByteBuffer bb = ByteBuffer.allocate(4);
             bb.putInt(i);
             bb.flip();
-            OakBuffer buffer = oak.getHandle(bb);
+            OakBuffer buffer = oak.get(bb);
             if (buffer != null) size++;
         }
         assertEquals(5 * Chunk.MAX_ITEMS, size);

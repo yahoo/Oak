@@ -12,6 +12,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicMarkableReference;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.AtomicReferenceArray;
+import java.util.function.Consumer;
 
 public class Chunk {
 
@@ -38,7 +39,7 @@ public class Chunk {
     private static final double SORTED_REBALANCE_RATIO = 1.6;
 
     // when chunk is frozen, all of the elements in pending puts array will be this OpData
-    private static final OpData FROZEN_OP_DATA = new OpData(OakMap.Operation.NO_OP, 0, 0, 0);
+    private static final OpData FROZEN_OP_DATA = new OpData(OakMap.Operation.NO_OP, 0, 0, 0, null);
 
     /*-------------- Members --------------*/
 
@@ -119,12 +120,14 @@ public class Chunk {
         int entryIndex;
         int handleIndex;
         int prevHandleIndex;
+        Consumer<WritableOakBuffer> function;
 
-        OpData(OakMap.Operation op, int entryIndex, int handleIndex, int prevHandleIndex) {
+        OpData(OakMap.Operation op, int entryIndex, int handleIndex, int prevHandleIndex, Consumer<WritableOakBuffer> function) {
             this.op = op;
             this.entryIndex = entryIndex;
             this.handleIndex = handleIndex;
             this.prevHandleIndex = prevHandleIndex;
+            this.function = function;
         }
     }
 
@@ -434,6 +437,12 @@ public class Chunk {
             return pointToValue(opData); // remove completed, try again
         } else if (operation == OakMap.Operation.PUT_IF_ABSENT) {
             return false; // to late
+        } else if (operation == OakMap.Operation.COMPUTE){
+            Handle h = handles[now];
+            if(h != null){
+                h.compute(opData.function,memoryManager);
+            }
+            return true;
         }
         // this is a put, try again
         opData.prevHandleIndex = now;

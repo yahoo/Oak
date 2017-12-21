@@ -3,6 +3,7 @@ package oak;
 import java.nio.ByteBuffer;
 import java.util.Map;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 public interface OakMap {
 
@@ -49,17 +50,28 @@ public interface OakMap {
      * {@code null} if this map contains no mapping for the key
      * @throws NullPointerException if the specified key is null
      */
-    OakBuffer getHandle(ByteBuffer key);
+    OakBuffer get(ByteBuffer key);
 
     /**
      * Updates the value for the specified key
      *
-     * @param key              key with which the specified value is to be associated
-     * @param updatingFunction the function to update a value
+     * @param key      key with which the specified value is to be associated
+     * @param function the function to update a value
      * @return {@code false} if there was no mapping for the key
-     * @throws NullPointerException if the specified key or the updatingFunction is null
+     * @throws NullPointerException if the specified key or the function is null
      */
-    boolean computeIfPresent(ByteBuffer key, Consumer<WritableOakBuffer> updatingFunction);
+    boolean computeIfPresent(ByteBuffer key, Consumer<WritableOakBuffer> function);
+
+    /**
+     * If the specified key is not already associated
+     * with a value, associate it with a constructed value.
+     * Else, updates the value for the specified key.
+     *
+     * @param key         key with which the specified value is to be associated
+     * @param constructor the function to construct a value
+     * @param function    the function to update a value
+     */
+    void putIfAbsentComputeIfPresent(ByteBuffer key, Supplier<ByteBuffer> constructor, Consumer<WritableOakBuffer> function);
 
     /*-------------- SubMap --------------*/
 
@@ -172,7 +184,8 @@ public interface OakMap {
         NO_OP,
         PUT,
         PUT_IF_ABSENT,
-        REMOVE
+        REMOVE,
+        COMPUTE
     }
 
 }
