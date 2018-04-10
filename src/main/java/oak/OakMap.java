@@ -53,6 +53,15 @@ public interface OakMap {
     OakBuffer get(ByteBuffer key);
 
     /**
+     * Returns a read only view of the minimal key in the map,
+     * or {@code null} if this map contains no keys.
+     *
+     * @return a read only view of the minimal key in the map,
+     * or {@code null} if this map contains no keys.
+     */
+    //ByteBuffer getMinKey();
+
+    /**
      * Updates the value for the specified key
      *
      * @param key      key with which the specified value is to be associated

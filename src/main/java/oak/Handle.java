@@ -49,49 +49,49 @@ abstract class Handle extends WritableOakBuffer {
     }
 
     @Override
-    WritableOakBuffer position(int newPosition) {
+    public WritableOakBuffer position(int newPosition) {
         assert writeLock.isHeldByCurrentThread();
         value.position(newPosition);
         return this;
     }
 
     @Override
-    WritableOakBuffer mark() {
+    public WritableOakBuffer mark() {
         assert writeLock.isHeldByCurrentThread();
         value.mark();
         return this;
     }
 
     @Override
-    WritableOakBuffer reset() {
+    public WritableOakBuffer reset() {
         assert writeLock.isHeldByCurrentThread();
         value.reset();
         return this;
     }
 
     @Override
-    WritableOakBuffer clear() {
+    public WritableOakBuffer clear() {
         assert writeLock.isHeldByCurrentThread();
         value.clear();
         return this;
     }
 
     @Override
-    WritableOakBuffer flip() {
+    public WritableOakBuffer flip() {
         assert writeLock.isHeldByCurrentThread();
         value.flip();
         return this;
     }
 
     @Override
-    WritableOakBuffer rewind() {
+    public WritableOakBuffer rewind() {
         assert writeLock.isHeldByCurrentThread();
         value.rewind();
         return this;
     }
 
     @Override
-    ByteBuffer getByteBuffer() {
+    public ByteBuffer getByteBuffer() {
         assert writeLock.isHeldByCurrentThread();
         return value;
     }
@@ -109,7 +109,7 @@ abstract class Handle extends WritableOakBuffer {
     }
 
     @Override
-    int capacity() {
+    public int capacity() {
         return value.capacity();
     }
 
@@ -129,7 +129,7 @@ abstract class Handle extends WritableOakBuffer {
     }
 
     @Override
-    int position() {
+    public int position() {
         return value.position();
     }
 
@@ -149,7 +149,7 @@ abstract class Handle extends WritableOakBuffer {
     }
 
     @Override
-    int limit() {
+    public int limit() {
         return value.limit();
     }
 
@@ -169,7 +169,7 @@ abstract class Handle extends WritableOakBuffer {
     }
 
     @Override
-    int remaining() {
+    public int remaining() {
         return value.remaining();
     }
 
@@ -189,7 +189,7 @@ abstract class Handle extends WritableOakBuffer {
     }
 
     @Override
-    boolean hasRemaining() {
+    public boolean hasRemaining() {
         return value.hasRemaining();
     }
 
@@ -229,7 +229,7 @@ abstract class Handle extends WritableOakBuffer {
     }
 
     @Override
-    WritableOakBuffer put(int index, byte b) {
+    public WritableOakBuffer put(int index, byte b) {
         assert writeLock.isHeldByCurrentThread();
         value.put(index, b);
         return this;
@@ -242,14 +242,14 @@ abstract class Handle extends WritableOakBuffer {
     }
 
     @Override
-    WritableOakBuffer put(byte[] src, int offset, int length) {
+    public WritableOakBuffer put(byte[] src, int offset, int length) {
         assert writeLock.isHeldByCurrentThread();
         value.put(src, offset, length);
         return this;
     }
 
     @Override
-    ByteOrder order() {
+    public ByteOrder order() {
         return value.order();
     }
 
@@ -269,25 +269,25 @@ abstract class Handle extends WritableOakBuffer {
     }
 
     @Override
-    WritableOakBuffer order(ByteOrder bo) {
+    public WritableOakBuffer order(ByteOrder bo) {
         value.order(bo);
         return this;
     }
 
     @Override
-    char getChar() {
+    public char getChar() {
         return value.getChar();
     }
 
     @Override
-    WritableOakBuffer putChar(char value) {
+    public WritableOakBuffer putChar(char value) {
         assert writeLock.isHeldByCurrentThread();
         this.value.putChar(value);
         return this;
     }
 
     @Override
-    char getChar(int index) {
+    public char getChar(int index) {
         return value.getChar(index);
     }
 
@@ -307,26 +307,26 @@ abstract class Handle extends WritableOakBuffer {
     }
 
     @Override
-    WritableOakBuffer putChar(int index, char value) {
+    public WritableOakBuffer putChar(int index, char value) {
         assert writeLock.isHeldByCurrentThread();
         this.value.putChar(index, value);
         return this;
     }
 
     @Override
-    short getShort() {
+    public short getShort() {
         return value.getShort();
     }
 
     @Override
-    WritableOakBuffer putShort(short value) {
+    public WritableOakBuffer putShort(short value) {
         assert writeLock.isHeldByCurrentThread();
         this.value.putShort(value);
         return this;
     }
 
     @Override
-    short getShort(int index) {
+    public short getShort(int index) {
         return value.getShort(index);
     }
 
@@ -346,26 +346,26 @@ abstract class Handle extends WritableOakBuffer {
     }
 
     @Override
-    WritableOakBuffer putShort(int index, short value) {
+    public WritableOakBuffer putShort(int index, short value) {
         assert writeLock.isHeldByCurrentThread();
         this.value.putShort(index, value);
         return this;
     }
 
     @Override
-    int getInt() {
+    public int getInt() {
         return value.getInt();
     }
 
     @Override
-    WritableOakBuffer putInt(int value) {
+    public WritableOakBuffer putInt(int value) {
         assert writeLock.isHeldByCurrentThread();
         this.value.putInt(value);
         return this;
     }
 
     @Override
-    int getInt(int index) {
+    public int getInt(int index) {
         return value.getInt(index);
     }
 
@@ -385,26 +385,26 @@ abstract class Handle extends WritableOakBuffer {
     }
 
     @Override
-    WritableOakBuffer putInt(int index, int value) {
+    public WritableOakBuffer putInt(int index, int value) {
         assert writeLock.isHeldByCurrentThread();
         this.value.putInt(index, value);
         return this;
     }
 
     @Override
-    long getLong() {
+    public long getLong() {
         return value.getLong();
     }
 
     @Override
-    WritableOakBuffer putLong(long value) {
+    public WritableOakBuffer putLong(long value) {
         assert writeLock.isHeldByCurrentThread();
         this.value.putLong(value);
         return this;
     }
 
     @Override
-    long getLong(int index) {
+    public long getLong(int index) {
         return value.getLong(index);
     }
 
@@ -424,26 +424,26 @@ abstract class Handle extends WritableOakBuffer {
     }
 
     @Override
-    WritableOakBuffer putLong(int index, long value) {
+    public WritableOakBuffer putLong(int index, long value) {
         assert writeLock.isHeldByCurrentThread();
         this.value.putLong(index, value);
         return this;
     }
 
     @Override
-    float getFloat() {
+    public float getFloat() {
         return value.getFloat();
     }
 
     @Override
-    WritableOakBuffer putFloat(float value) {
+    public WritableOakBuffer putFloat(float value) {
         assert writeLock.isHeldByCurrentThread();
         this.value.putFloat(value);
         return this;
     }
 
     @Override
-    float getFloat(int index) {
+    public float getFloat(int index) {
         return value.getFloat(index);
     }
 
@@ -463,26 +463,26 @@ abstract class Handle extends WritableOakBuffer {
     }
 
     @Override
-    WritableOakBuffer putFloat(int index, float value) {
+    public WritableOakBuffer putFloat(int index, float value) {
         assert writeLock.isHeldByCurrentThread();
         this.value.putFloat(index, value);
         return this;
     }
 
     @Override
-    double getDouble() {
+    public double getDouble() {
         return value.getDouble();
     }
 
     @Override
-    WritableOakBuffer putDouble(double value) {
+    public WritableOakBuffer putDouble(double value) {
         assert writeLock.isHeldByCurrentThread();
         this.value.putDouble(value);
         return this;
     }
 
     @Override
-    double getDouble(int index) {
+    public double getDouble(int index) {
         return value.getDouble(index);
     }
 
@@ -502,7 +502,7 @@ abstract class Handle extends WritableOakBuffer {
     }
 
     @Override
-    WritableOakBuffer putDouble(int index, double value) {
+    public WritableOakBuffer putDouble(int index, double value) {
         assert writeLock.isHeldByCurrentThread();
         this.value.putDouble(index, value);
         return this;

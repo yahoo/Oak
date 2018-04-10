@@ -653,6 +653,30 @@ public class OakMapOffHeapImpl implements OakMap, AutoCloseable {
         return lookUp == null || lookUp.handle == null ? null : new OakBufferImpl(lookUp.handle);
     }
 
+    public ByteBuffer getMinKey() {
+        memoryManager.startThread();
+        Chunk c = skiplist.firstEntry().getValue();
+        ByteBuffer minKey = c.readMinKey();
+        memoryManager.stopThread();
+        return minKey;
+    }
+
+    public ByteBuffer getMaxKey() {
+        memoryManager.startThread();
+        Chunk c = skiplist.lastEntry().getValue();
+        Chunk next = c.next.getReference();
+        // since skiplist isn't updated atomically in split/compaction, the max key might belong in the next chunk
+        // we need to iterate the chunks until we find the last one
+        while (next != null) {
+            c = next;
+            next = c.next.getReference();
+        }
+
+        ByteBuffer maxKey = c.readMaxKey();
+        memoryManager.stopThread();
+        return maxKey;
+    }
+
     public boolean computeIfPresent(ByteBuffer key, Consumer<WritableOakBuffer> function) {
         if (key == null || key.remaining() == 0 || function == null) {
             throw new NullPointerException();

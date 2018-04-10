@@ -9,21 +9,21 @@ public abstract class OakBuffer {
      *
      * @return The capacity of this buffer
      */
-    abstract int capacity() throws NullPointerException;
+    public abstract int capacity() throws NullPointerException;
 
     /**
      * Returns this buffer's position.
      *
      * @return The position of this buffer
      */
-    abstract int position() throws NullPointerException;
+    public abstract int position() throws NullPointerException;
 
     /**
      * Returns this buffer's limit.
      *
      * @return The limit of this buffer
      */
-    abstract int limit() throws NullPointerException;
+    public abstract int limit() throws NullPointerException;
 
     /**
      * Returns the number of elements between the current position and the
@@ -31,7 +31,7 @@ public abstract class OakBuffer {
      *
      * @return The number of elements remaining in this buffer
      */
-    abstract int remaining() throws NullPointerException;
+    public abstract int remaining() throws NullPointerException;
 
     /**
      * Tells whether there are any elements between the current position and
@@ -40,7 +40,7 @@ public abstract class OakBuffer {
      * @return <tt>true</tt> if, and only if, there is at least one element
      * remaining in this buffer
      */
-    abstract boolean hasRemaining() throws NullPointerException;
+    public abstract boolean hasRemaining() throws NullPointerException;
 
     /**
      * Absolute <i>get</i> method.  Reads the byte at the given
@@ -51,7 +51,7 @@ public abstract class OakBuffer {
      * @throws IndexOutOfBoundsException If <tt>index</tt> is negative
      *                                   or not smaller than the buffer's limit
      */
-    abstract byte get(int index) throws NullPointerException;
+    public abstract byte get(int index) throws NullPointerException;
 
     /**
      * Retrieves this buffer's byte order.
@@ -63,7 +63,7 @@ public abstract class OakBuffer {
      *
      * @return This buffer's byte order
      */
-    abstract ByteOrder order() throws NullPointerException;
+    public abstract ByteOrder order() throws NullPointerException;
 
     /**
      * Absolute <i>get</i> method for reading a char value.
@@ -77,7 +77,7 @@ public abstract class OakBuffer {
      *                                   or not smaller than the buffer's limit,
      *                                   minus one
      */
-    abstract char getChar(int index) throws NullPointerException;
+    public abstract char getChar(int index) throws NullPointerException;
 
     /**
      * Absolute <i>get</i> method for reading a short value.
@@ -91,7 +91,7 @@ public abstract class OakBuffer {
      *                                   or not smaller than the buffer's limit,
      *                                   minus one
      */
-    abstract short getShort(int index) throws NullPointerException;
+    public abstract short getShort(int index) throws NullPointerException;
 
     /**
      * Absolute <i>get</i> method for reading an int value.
@@ -105,7 +105,7 @@ public abstract class OakBuffer {
      *                                   or not smaller than the buffer's limit,
      *                                   minus three
      */
-    abstract int getInt(int index) throws NullPointerException;
+    public abstract int getInt(int index) throws NullPointerException;
 
     /**
      * Absolute <i>get</i> method for reading a long value.
@@ -119,7 +119,7 @@ public abstract class OakBuffer {
      *                                   or not smaller than the buffer's limit,
      *                                   minus seven
      */
-    abstract long getLong(int index) throws NullPointerException;
+    public abstract long getLong(int index) throws NullPointerException;
 
     /**
      * Absolute <i>get</i> method for reading a float value.
@@ -133,7 +133,7 @@ public abstract class OakBuffer {
      *                                   or not smaller than the buffer's limit,
      *                                   minus three
      */
-    abstract float getFloat(int index) throws NullPointerException;
+    public abstract float getFloat(int index) throws NullPointerException;
 
     /**
      * Absolute <i>get</i> method for reading a double value.
@@ -147,5 +147,5 @@ public abstract class OakBuffer {
      *                                   or not smaller than the buffer's limit,
      *                                   minus seven
      */
-    abstract double getDouble(int index) throws NullPointerException;
+    public abstract double getDouble(int index) throws NullPointerException;
 }

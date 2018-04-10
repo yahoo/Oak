@@ -185,6 +185,16 @@ public class Chunk {
         return bbThread;
     }
 
+    ByteBuffer readMinKey() {
+        int minEntry = getFirstItemEntryIndex();
+        return readKey(minEntry);
+    }
+
+    ByteBuffer readMaxKey() {
+        int maxEntry = getLastItemEntryIndex();
+        return readKey(maxEntry);
+    }
+
     /**
      * gets the field of specified offset for given item in entry array
      */
@@ -518,6 +528,17 @@ public class Chunk {
         return get(HEAD_NODE, OFFSET_NEXT);
     }
 
+    final int getLastItemEntryIndex() {
+        // find the last sorted entry
+        int entryIndex = sortedCount == 0 ? HEAD_NODE : (sortedCount - 1) * (FIELDS) + 1;
+        int nextEntryIndex = get(entryIndex, OFFSET_NEXT);
+        while (nextEntryIndex != Chunk.NONE) {
+            entryIndex = nextEntryIndex;
+            nextEntryIndex = get(entryIndex, OFFSET_NEXT);
+        }
+        return entryIndex;
+    }
+
     /**
      * freezes chunk so no more changes can be done to it (marks pending items as frozen)
      */
@@ -837,7 +858,8 @@ public class Chunk {
         /**
          * use stack to find a valid next, removed items can't be next
          */
-        private void findNewNextInStack() {
+        private void
+        findNewNextInStack() {
             if (stack.empty()) {
                 next = Chunk.NONE;
                 return;
