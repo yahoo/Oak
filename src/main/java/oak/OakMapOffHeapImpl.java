@@ -873,7 +873,7 @@ public class OakMapOffHeapImpl implements OakMap, AutoCloseable {
     }
     /* ---------------- Sub Map -------------- */
 
-    class SubOakMap implements OakMap {
+    public class SubOakMap implements OakMap {
         /**
          * underlying map
          */
@@ -902,7 +902,7 @@ public class OakMapOffHeapImpl implements OakMap, AutoCloseable {
         /**
          * Creates a new submap, initializing all fields.
          */
-        SubOakMap(OakMapOffHeapImpl oak,
+        public SubOakMap(OakMapOffHeapImpl oak,
                   ByteBuffer fromKey, boolean fromInclusive,
                   ByteBuffer toKey, boolean toInclusive,
                   boolean isDescending) {
