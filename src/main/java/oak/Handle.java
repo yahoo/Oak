@@ -33,6 +33,8 @@ abstract class Handle extends WritableOakBuffer {
 
     abstract void put(ByteBuffer value, OakMemoryManager memoryManager);
 
+    abstract void put(Consumer<ByteBuffer> valueCreator, int capacity, OakMemoryManager memoryManager);
+
     void compute(Consumer<WritableOakBuffer> function, OakMemoryManager memoryManager) {
         writeLock.lock();
         if (isDeleted()) {

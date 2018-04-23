@@ -2,7 +2,9 @@ package oak;
 
 import junit.framework.TestCase;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.ExpectedException;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
@@ -11,6 +13,7 @@ import java.util.function.Consumer;
 
 import static junit.framework.TestCase.assertTrue;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 
 public class OffHeapOakTest {
     private OakMapOffHeapImpl oak;
@@ -144,9 +147,73 @@ public class OffHeapOakTest {
                 ByteBuffer bb = ByteBuffer.allocate(4);
                 bb.putInt(i);
                 bb.flip();
+                oak.putIfAbsentComputeIfPresent(bb, new ValueCreator(i), 4, emptyFunc);
                 oak.putIfAbsentComputeIfPresent(bb, () -> bb, emptyFunc);
             }
 
         }
+    }
+
+    public class ValueCreator implements Consumer<ByteBuffer>  {
+
+        int i;
+
+        public ValueCreator(int i) {
+            this.i = i;
+        }
+
+        @Override
+        public void accept(ByteBuffer byteBuffer) {
+            byteBuffer.putInt(i);
+            byteBuffer.flip();
+        }
+    }
+
+    @Rule
+    public ExpectedException thrown = ExpectedException.none();
+
+    @Test
+    public void testPutIfAbsentComputeIfPresentWithValueCreator() {
+        Consumer<WritableOakBuffer> func = writableOakBuffer -> {
+            if (writableOakBuffer.getInt() == 0) writableOakBuffer.putInt(0, 1);
+        };
+        ByteBuffer key = ByteBuffer.allocate(4);
+        key.putInt(0);
+        key.flip();
+        assertFalse(oak.computeIfPresent(key, func));
+
+        oak.putIfAbsentComputeIfPresent(key,new ValueCreator(0),4,func);
+        OakBuffer buffer = oak.get(key);
+        assertTrue(buffer != null);
+        assertEquals(0, buffer.getInt(0));
+        oak.putIfAbsentComputeIfPresent(key,new ValueCreator(0),4,func);
+        buffer = oak.get(key);
+        assertTrue(buffer != null);
+        assertEquals(1, buffer.getInt(0));
+        assertEquals(4, buffer.remaining());
+        ByteBuffer two = ByteBuffer.allocate(4);
+        two.putInt(2);
+        two.flip();
+        oak.put(key, two);
+        assertEquals(4, buffer.remaining());
+        assertEquals(2, buffer.getInt(0));
+        assertTrue(oak.computeIfPresent(key, func));
+        assertEquals(4, buffer.remaining());
+        assertEquals(2, buffer.getInt(0));
+        Consumer<WritableOakBuffer> func2 = writableOakBuffer -> {
+            if (writableOakBuffer.getInt() == 0) {
+                writableOakBuffer.putInt(0, 0);
+                writableOakBuffer.putInt(1);
+            }
+        };
+        oak.put(key, key);
+        oak.putIfAbsentComputeIfPresent(key,new ValueCreator(0),4,func2);
+        assertEquals(8, buffer.remaining());
+        assertEquals(0, buffer.getInt(0));
+        assertEquals(1, buffer.getInt(4));
+        oak.remove(key);
+        assertFalse(oak.computeIfPresent(key, func2));
+        thrown.expect(NullPointerException.class);
+        assertEquals(8, buffer.remaining());
     }
 }

@@ -3,6 +3,7 @@ package oak;
 import javafx.util.Pair;
 
 import java.nio.ByteBuffer;
+import java.util.function.Consumer;
 
 class HandleOffHeapImpl extends Handle {
 
@@ -68,6 +69,23 @@ class HandleOffHeapImpl extends Handle {
                 this.value.put(j, value.get(pos + j));
             }
         }
+        writeLock.unlock();
+    }
+
+    @Override
+    void put(Consumer<ByteBuffer> valueCreator, int capacity, OakMemoryManager memoryManager) {
+        writeLock.lock();
+        if (isDeleted()) {
+            writeLock.unlock();
+            return;
+        }
+        if (this.value.remaining() < capacity) { // try to reuse old space
+            memoryManager.release(this.i, this.value);
+            Pair<Integer, ByteBuffer> pair = memoryManager.allocate(capacity);
+            this.i = pair.getKey();
+            this.value = pair.getValue();
+        }
+        valueCreator.accept(this.value);
         writeLock.unlock();
     }
 

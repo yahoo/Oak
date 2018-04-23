@@ -858,8 +858,7 @@ public class Chunk {
         /**
          * use stack to find a valid next, removed items can't be next
          */
-        private void
-        findNewNextInStack() {
+        private void findNewNextInStack() {
             if (stack.empty()) {
                 next = Chunk.NONE;
                 return;

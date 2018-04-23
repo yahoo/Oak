@@ -3,6 +3,7 @@ package oak;
 import javafx.util.Pair;
 
 import java.nio.ByteBuffer;
+import java.util.function.Consumer;
 
 class ValueFactory {
 
@@ -30,6 +31,17 @@ class ValueFactory {
                 newVal.put(j, value.get(pos + j));
             }
         }
+        return new Pair<>(i, newVal);
+    }
+
+    Pair<Integer, ByteBuffer> createValue(Consumer<ByteBuffer> valueCreator, int capacity, OakMemoryManager memoryManager) {
+        assert offHeap;
+        ByteBuffer newVal;
+        int i = 0;
+        Pair<Integer, ByteBuffer> pair = memoryManager.allocate(capacity);
+        i = pair.getKey();
+        newVal = pair.getValue();
+        valueCreator.accept(newVal);
         return new Pair<>(i, newVal);
     }
 

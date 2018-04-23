@@ -27,6 +27,7 @@ class Rebalancer {
     private int chunksInRange;
     private int itemsInRange;
     private final Comparator<ByteBuffer> comparator;
+    private final boolean offHeap;
     private final OakMemoryManager memoryManager;
     private final HandleFactory handleFactory;
     private final ValueFactory valueFactory;
@@ -35,6 +36,7 @@ class Rebalancer {
 
     Rebalancer(Chunk chunk, Comparator<ByteBuffer> comparator, boolean offHeap, OakMemoryManager memoryManager, HandleFactory handleFactory, ValueFactory valueFactory) {
         this.comparator = comparator;
+        this.offHeap = offHeap;
         this.memoryManager = memoryManager;
         nextToEngage = new AtomicReference<>(chunk);
         this.first = chunk;
@@ -183,6 +185,84 @@ class Rebalancer {
         return new RebalanceResult(cas, putIfAbsent);
     }
 
+    /**
+     * Split or compact
+     *
+     * @return if managed to CAS to newChunk list of rebalance
+     * if we did then the put was inserted
+     */
+    RebalanceResult createNewChunks(ByteBuffer key, Consumer<ByteBuffer> valueCreator, int capacity, Consumer<WritableOakBuffer> function, OakMap.Operation operation) {
+
+        assert offHeap;
+        if (this.newChunks.get() != null) {
+            return new RebalanceResult(false, false); // this was done by another thread already
+        }
+
+        List<Chunk> frozenChunks = engagedChunks.get();
+
+        ListIterator<Chunk> iterFrozen = frozenChunks.listIterator();
+
+        Chunk firstFrozen = iterFrozen.next();
+        Chunk currFrozen = firstFrozen;
+        Chunk currNewChunk = new Chunk(firstFrozen.minKey, firstFrozen, firstFrozen.comparator, memoryManager);
+
+        int ei = firstFrozen.getFirstItemEntryIndex();
+
+        List<Chunk> newChunks = new LinkedList<>();
+
+        while (true) {
+            ei = currNewChunk.copyPart(currFrozen, ei, LOW_THRESHOLD);
+
+            // if completed reading curr frozen chunk
+            if (ei == Chunk.NONE) {
+                if (!iterFrozen.hasNext())
+                    break;
+
+                currFrozen = iterFrozen.next();
+                ei = currFrozen.getFirstItemEntryIndex();
+
+            } else { // filled new chunk up to LOW_THRESHOLD
+
+                List<Chunk> frozenSuffix = frozenChunks.subList(iterFrozen.previousIndex(), frozenChunks.size());
+                // try to look ahead and add frozen suffix
+                if (canAppendSuffix(frozenSuffix, MAX_RANGE_TO_APPEND)) {
+                    // maybe there is just a little bit copying left
+                    // and we don't want to open a whole new chunk just for it
+                    completeCopy(currNewChunk, ei, frozenSuffix);
+                    break;
+                } else {
+                    // we have to open an new chunk
+                    // TODO do we want to use slice here?
+                    ByteBuffer bb = currFrozen.readKey(ei);
+                    int remaining = bb.remaining();
+                    int position = bb.position();
+                    ByteBuffer newMinKey = ByteBuffer.allocate(remaining);
+                    int myPos = newMinKey.position();
+                    for (int i = 0; i < remaining; i++) {
+                        newMinKey.put(myPos + i, bb.get(i + position));
+                    }
+                    newMinKey.rewind();
+                    Chunk c = new Chunk(newMinKey, firstFrozen, currFrozen.comparator, memoryManager);
+                    currNewChunk.next.set(c, false);
+                    newChunks.add(currNewChunk);
+                    currNewChunk = c;
+                }
+            }
+
+        }
+
+        newChunks.add(currNewChunk);
+
+        boolean putIfAbsent = true;
+        if (operation != OakMap.Operation.NO_OP) { // help this op (for lock freedom)
+            putIfAbsent = helpOp(newChunks, key, valueCreator, capacity, function, operation);
+        }
+
+        // if fail here, another thread succeeded, and op is effectively gone
+        boolean cas = this.newChunks.compareAndSet(null, newChunks);
+        return new RebalanceResult(cas, putIfAbsent);
+    }
+
     private boolean canAppendSuffix(List<Chunk> frozenSuffix, int maxCount) {
         Iterator<Chunk> iter = frozenSuffix.iterator();
         int counter = 0;
@@ -288,6 +368,63 @@ class Rebalancer {
 
 
             c.writeValue(hi, valueFactory.createValue(value, memoryManager)); // write value in place
+
+        }
+
+        // set pointer to value
+        Chunk.OpData opData = new Chunk.OpData(OakMap.Operation.NO_OP, ei, hi, -1, null);  // prev and op don't matter
+        c.pointToValueCAS(opData, false);
+
+        return true;
+    }
+
+    /**
+     * insert/remove this key and value to one of the newChunks
+     * the key is guaranteed to be in the range of keys in the new chunk
+     */
+    private boolean helpOp(List<Chunk> newChunks, ByteBuffer key, Consumer<ByteBuffer> valueCreator, int capacity, Consumer<WritableOakBuffer> function, OakMap.Operation operation) {
+
+        assert offHeap;
+        assert key != null;
+        assert operation == OakMap.Operation.REMOVE || valueCreator != null;
+        assert operation != OakMap.Operation.REMOVE || valueCreator == null;
+
+        Chunk c = findChunkInList(newChunks, key);
+
+        // look for key
+        Chunk.LookUp lookUp = c.lookUp(key);
+
+        if (lookUp != null && lookUp.handle != null) {
+            if(operation == OakMap.Operation.PUT_IF_ABSENT) {
+                return false;
+            } else if(operation == OakMap.Operation.PUT) {
+                lookUp.handle.put(valueCreator, capacity, memoryManager);
+                return true;
+            } else if (operation == OakMap.Operation.COMPUTE) {
+                lookUp.handle.compute(function, memoryManager);
+                return true;
+            }
+        }
+        // TODO handle.put or handle.compute
+
+        int ei;
+        if (lookUp == null) { // no entry
+            if (operation == OakMap.Operation.REMOVE) return true;
+            ei = c.allocateEntryAndKey(key);
+            assert ei > 0; // chunk can't be full
+            int eiLink = c.linkEntry(ei, key, false);
+            assert eiLink == ei; // no one else can insert
+        } else {
+            ei = lookUp.entryIndex;
+        }
+
+        int hi = -1;
+        if (operation != OakMap.Operation.REMOVE) {
+            hi = c.allocateHandle(handleFactory);
+            assert hi > 0; // chunk can't be full
+
+
+            c.writeValue(hi, valueFactory.createValue(valueCreator, capacity, memoryManager)); // write value in place
 
         }
 

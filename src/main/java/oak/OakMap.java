@@ -34,6 +34,19 @@ public interface OakMap {
     boolean putIfAbsent(ByteBuffer key, ByteBuffer value);
 
     /**
+     * If the specified key is not already associated
+     * with a value, associate it with the given value.
+     * Creates a copy of the value in the map.
+     *
+     * @param key   key with which the specified value is to be associated
+     * @param valueCreator  the function to construct a value
+     * @param capacity      the value ByteBuffer size
+     * @return {@code true} if there was no mapping for the key
+     * @throws NullPointerException if the specified key or value is null
+     */
+    boolean putIfAbsent(ByteBuffer key, Consumer<ByteBuffer> valueCreator, int capacity);
+
+    /**
      * Removes the mapping for a key from this map if it is present.
      *
      * @param key key whose mapping is to be removed from the map
@@ -81,6 +94,18 @@ public interface OakMap {
      * @param function    the function to update a value
      */
     void putIfAbsentComputeIfPresent(ByteBuffer key, Supplier<ByteBuffer> constructor, Consumer<WritableOakBuffer> function);
+
+    /**
+     * If the specified key is not already associated
+     * with a value, associate it with a constructed value.
+     * Else, updates the value for the specified key.
+     *
+     * @param key           key with which the specified value is to be associated
+     * @param valueCreator  the function to construct a value
+     * @param capacity      the value ByteBuffer size
+     * @param function      the function to update a value
+     */
+    void putIfAbsentComputeIfPresent(ByteBuffer key, Consumer<ByteBuffer> valueCreator, int capacity, Consumer<WritableOakBuffer> function);
 
     /*-------------- SubMap --------------*/
 

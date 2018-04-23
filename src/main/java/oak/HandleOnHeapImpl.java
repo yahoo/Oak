@@ -61,6 +61,11 @@ class HandleOnHeapImpl extends Handle {
     }
 
     @Override
+    void put(Consumer<ByteBuffer> valueCreator, int capacity, OakMemoryManager memoryManager) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
     void compute(Consumer<WritableOakBuffer> function, OakMemoryManager memoryManager) {
         assert memoryManager == null;
         super.compute(function, memoryManager);

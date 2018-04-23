@@ -392,6 +392,11 @@ public class OakMapOnHeapImpl implements OakMap {
     }
 
     @Override
+    public boolean putIfAbsent(ByteBuffer key, Consumer<ByteBuffer> valueCreator, int capacity) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
     public void putIfAbsentComputeIfPresent(ByteBuffer key, Supplier<ByteBuffer> constructor, Consumer<WritableOakBuffer> function) {
         if (key == null || key.remaining() == 0 || constructor == null || function == null) {
             throw new NullPointerException();
@@ -467,6 +472,11 @@ public class OakMapOnHeapImpl implements OakMap {
 
         checkRebalance(c);
 
+    }
+
+    @Override
+    public void putIfAbsentComputeIfPresent(ByteBuffer key, Consumer<ByteBuffer> valueCreator, int capacity, Consumer<WritableOakBuffer> function) {
+        throw new UnsupportedOperationException();
     }
 
     @Override
@@ -862,8 +872,18 @@ public class OakMapOnHeapImpl implements OakMap {
         }
 
         @Override
+        public boolean putIfAbsent(ByteBuffer key, Consumer<ByteBuffer> valueCreator, int capacity) {
+            return oak.putIfAbsent(key, valueCreator, capacity);
+        }
+
+        @Override
         public void putIfAbsentComputeIfPresent(ByteBuffer key, Supplier<ByteBuffer> constructor, Consumer<WritableOakBuffer> function) {
             oak.putIfAbsentComputeIfPresent(key, constructor, function);
+        }
+
+        @Override
+        public void putIfAbsentComputeIfPresent(ByteBuffer key, Consumer<ByteBuffer> valueCreator, int capacity, Consumer<WritableOakBuffer> function) {
+            oak.putIfAbsentComputeIfPresent(key, valueCreator, capacity, function);
         }
 
         @Override
