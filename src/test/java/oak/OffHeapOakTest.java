@@ -8,8 +8,11 @@ import org.junit.rules.ExpectedException;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.function.Consumer;
+import java.util.function.Function;
 
 import static junit.framework.TestCase.assertTrue;
 import static org.junit.Assert.assertEquals;
@@ -215,5 +218,57 @@ public class OffHeapOakTest {
         assertFalse(oak.computeIfPresent(key, func2));
         thrown.expect(NullPointerException.class);
         assertEquals(8, buffer.remaining());
+    }
+
+    @Test
+    public void testValuesTransformIterator() {
+        for (int i = 0; i < 100; i++) {
+            ByteBuffer key = ByteBuffer.allocate(4);
+            key.putInt(i);
+            key.flip();
+            ByteBuffer value = ByteBuffer.allocate(4);
+            value.putInt(i);
+            value.flip();
+            oak.put(key, value);
+        }
+
+        Function<ByteBuffer,Integer> function = new Function<ByteBuffer, Integer>() {
+            @Override
+            public Integer apply(ByteBuffer byteBuffer) {
+                return byteBuffer.getInt();
+            }
+        };
+        Iterator<Integer> iter = oak.valuesTransformIterator(function);
+
+        for (int i = 0; i < 100; i++) {
+            assertEquals(i, (int) iter.next());
+        }
+    }
+
+    @Test
+    public void testEntriesTransformIterator() {
+        for (int i = 0; i < 100; i++) {
+            ByteBuffer key = ByteBuffer.allocate(4);
+            key.putInt(i);
+            key.flip();
+            ByteBuffer value = ByteBuffer.allocate(4);
+            value.putInt(i + 1);
+            value.flip();
+            oak.put(key, value);
+        }
+
+        Function<Map.Entry<ByteBuffer, ByteBuffer>, Integer> function = new Function<Map.Entry<ByteBuffer, ByteBuffer>, Integer>() {
+            @Override
+            public Integer apply(Map.Entry<ByteBuffer, ByteBuffer> entry) {
+                int key = entry.getKey().getInt();
+                int value = entry.getValue().getInt();
+                return value - key;
+            }
+        };
+        Iterator<Integer> iter = oak.entriesTransformIterator(function);
+
+        for (int i = 0; i < 100; i++) {
+            assertEquals(1, (int) iter.next());
+        }
     }
 }

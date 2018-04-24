@@ -5,6 +5,7 @@ import java.util.*;
 import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 public class OakMapOnHeapImpl implements OakMap {
@@ -751,6 +752,16 @@ public class OakMapOnHeapImpl implements OakMap {
         return new KeyIterator();
     }
 
+    @Override
+    public <T> CloseableIterator<T> valuesTransformIterator(Function<ByteBuffer,T> transformer) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public <T> CloseableIterator<T> entriesTransformIterator(Function<Map.Entry<ByteBuffer, ByteBuffer>, T> transformer) {
+        throw new UnsupportedOperationException();
+    }
+
 
     /* ---------------- Sub Map -------------- */
 
@@ -1163,6 +1174,16 @@ public class OakMapOnHeapImpl implements OakMap {
         @Override
         public CloseableIterator<ByteBuffer> keysIterator() {
             return new SubOakKeyIterator();
+        }
+
+        @Override
+        public <T> CloseableIterator<T> valuesTransformIterator(Function<ByteBuffer,T> transformer) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public <T> CloseableIterator<T> entriesTransformIterator(Function<Map.Entry<ByteBuffer, ByteBuffer>, T> transformer) {
+            throw new UnsupportedOperationException();
         }
 
     }

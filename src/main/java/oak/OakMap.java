@@ -3,6 +3,7 @@ package oak;
 import java.nio.ByteBuffer;
 import java.util.Map;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 public interface OakMap {
@@ -200,7 +201,8 @@ public interface OakMap {
     OakMap descendingMap();
 
     /**
-     * Returns a {@link CloseableIterator} of the values contained in this map in ascending order of the corresponding keys.
+     * Returns a {@link CloseableIterator} of the values contained in this map
+     * in ascending order of the corresponding keys.
      */
     CloseableIterator<OakBuffer> valuesIterator();
 
@@ -213,6 +215,18 @@ public interface OakMap {
      * Returns a {@link CloseableIterator} of the keys contained in this map in ascending order.
      */
     CloseableIterator<ByteBuffer> keysIterator();
+
+    /**
+     * Returns a {@link CloseableIterator} of transformations on the values contained in this map
+     * in ascending order of the corresponding keys.
+     */
+    <T> CloseableIterator<T> valuesTransformIterator(Function<ByteBuffer,T> transformer);
+
+    /**
+     * Returns a {@link CloseableIterator} of transformations on the mappings contained in this map
+     * in ascending key order.
+     */
+    <T> CloseableIterator<T> entriesTransformIterator(Function<Map.Entry<ByteBuffer, ByteBuffer>,T> transformer);
 
     enum Operation {
         NO_OP,

@@ -98,6 +98,10 @@ abstract class Handle extends WritableOakBuffer {
         return value;
     }
 
+    public ByteBuffer getImmutableByteBuffer() {
+        return value.asReadOnlyBuffer();
+    }
+
     @Override
     public byte get() {
         return value.get();

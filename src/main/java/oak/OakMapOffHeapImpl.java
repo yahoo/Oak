@@ -5,6 +5,7 @@ import java.util.*;
 import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 public class OakMapOffHeapImpl implements OakMap, AutoCloseable {
@@ -1078,6 +1079,56 @@ public class OakMapOffHeapImpl implements OakMap, AutoCloseable {
         }
     }
 
+    class ValueTransformIterator<T> extends Iter<T> {
+
+        Function<ByteBuffer, T> transformer;
+
+        public ValueTransformIterator(Function<ByteBuffer, T> transformer) {
+            super();
+            this.transformer = transformer;
+        }
+
+        public T next() {
+            T transformation = null;
+            Handle handle = nextChunk.getHandle(next);
+            ByteBuffer value = handle.getImmutableByteBuffer();
+            advance();
+            handle.readLock.lock();
+            try {
+                transformation = transformer.apply(value);
+            } finally {
+                handle.readLock.unlock();
+            }
+            return transformation;
+        }
+    }
+
+    class EntryTransformIterator<T> extends Iter<T> {
+
+        Function<Map.Entry<ByteBuffer, ByteBuffer>, T> transformer;
+
+        public EntryTransformIterator(Function<Map.Entry<ByteBuffer, ByteBuffer>, T> transformer) {
+            super();
+            this.transformer = transformer;
+        }
+
+        public T next() {
+            T transformation = null;
+            Handle handle = nextChunk.getHandle(next);
+            ByteBuffer key = getKey(next, nextChunk).asReadOnlyBuffer();
+            ByteBuffer value = handle.getImmutableByteBuffer();
+            Map.Entry<ByteBuffer, ByteBuffer> entry = new AbstractMap.SimpleImmutableEntry<>(key, value);
+            advance();
+            handle.readLock.lock();
+            try {
+                transformation = transformer.apply(entry);
+            } finally {
+                handle.readLock.unlock();
+            }
+            return transformation;
+        }
+    }
+
 // Factory methods for iterators
 
     @Override
@@ -1094,6 +1145,17 @@ public class OakMapOffHeapImpl implements OakMap, AutoCloseable {
     public CloseableIterator<ByteBuffer> keysIterator() {
         return new KeyIterator();
     }
+
+    @Override
+    public <T> CloseableIterator<T> valuesTransformIterator(Function<ByteBuffer,T> transformer) {
+        return new ValueTransformIterator<T>(transformer);
+    }
+
+    @Override
+    public <T> CloseableIterator<T> entriesTransformIterator(Function<Map.Entry<ByteBuffer, ByteBuffer>, T> transformer) {
+        return new EntryTransformIterator<T>(transformer);
+    }
+
     /* ---------------- Sub Map -------------- */
 
     public class SubOakMap implements OakMap {
@@ -1496,6 +1558,56 @@ public class OakMapOffHeapImpl implements OakMap, AutoCloseable {
             }
         }
 
+        class SubOakValueTransformIterator<T> extends SubOakMapIter<T> {
+
+            Function<ByteBuffer, T> transformer;
+
+            public SubOakValueTransformIterator(Function<ByteBuffer, T> transformer) {
+                super();
+                this.transformer = transformer;
+            }
+
+            public T next() {
+                T transformation = null;
+                Handle handle = nextChunk.getHandle(next);
+                ByteBuffer value = handle.getImmutableByteBuffer();
+                advance();
+                handle.readLock.lock();
+                try {
+                    transformation = transformer.apply(value);
+                } finally {
+                    handle.readLock.unlock();
+                }
+                return transformation;
+            }
+        }
+
+        class SubOakEntryTransformIterator<T> extends SubOakMapIter<T> {
+
+            Function<Map.Entry<ByteBuffer, ByteBuffer>, T> transformer;
+
+            public SubOakEntryTransformIterator(Function<Map.Entry<ByteBuffer, ByteBuffer>, T> transformer) {
+                super();
+                this.transformer = transformer;
+            }
+
+            public T next() {
+                T transformation = null;
+                Handle handle = nextChunk.getHandle(next);
+                ByteBuffer key = getKey(next, nextChunk).asReadOnlyBuffer();
+                ByteBuffer value = handle.getImmutableByteBuffer();
+                Map.Entry<ByteBuffer, ByteBuffer> entry = new AbstractMap.SimpleImmutableEntry<>(key, value);
+                advance();
+                handle.readLock.lock();
+                try {
+                    transformation = transformer.apply(entry);
+                } finally {
+                    handle.readLock.unlock();
+                }
+                return transformation;
+            }
+        }
+
         // Factory methods for iterators
 
         @Override
@@ -1511,6 +1623,16 @@ public class OakMapOffHeapImpl implements OakMap, AutoCloseable {
         @Override
         public CloseableIterator<ByteBuffer> keysIterator() {
             return new SubOakKeyIterator();
+        }
+
+        @Override
+        public <T> CloseableIterator<T> valuesTransformIterator(Function<ByteBuffer,T> transformer) {
+            return new SubOakValueTransformIterator<T>(transformer);
+        }
+
+        @Override
+        public <T> CloseableIterator<T> entriesTransformIterator(Function<Map.Entry<ByteBuffer, ByteBuffer>, T> transformer) {
+            return new SubOakEntryTransformIterator<T>(transformer);
         }
 
     }
