@@ -228,6 +228,11 @@ public interface OakMap {
      */
     <T> CloseableIterator<T> entriesTransformIterator(Function<Map.Entry<ByteBuffer, ByteBuffer>,T> transformer);
 
+    /**
+     * Returns a {@link CloseableIterator} of transformations on the keys contained in this map in ascending order.
+     */
+    <T> CloseableIterator<T> keysTransformIterator(Function<ByteBuffer,T> transformer);
+
     enum Operation {
         NO_OP,
         PUT,

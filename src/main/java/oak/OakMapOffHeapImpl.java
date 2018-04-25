@@ -1091,14 +1091,14 @@ public class OakMapOffHeapImpl implements OakMap, AutoCloseable {
         public T next() {
             T transformation = null;
             Handle handle = nextChunk.getHandle(next);
-            ByteBuffer value = handle.getImmutableByteBuffer();
-            advance();
             handle.readLock.lock();
             try {
+                ByteBuffer value = handle.getImmutableByteBuffer();
                 transformation = transformer.apply(value);
             } finally {
                 handle.readLock.unlock();
             }
+            advance();
             return transformation;
         }
     }
@@ -1116,16 +1116,31 @@ public class OakMapOffHeapImpl implements OakMap, AutoCloseable {
             T transformation = null;
             Handle handle = nextChunk.getHandle(next);
             ByteBuffer key = getKey(next, nextChunk).asReadOnlyBuffer();
-            ByteBuffer value = handle.getImmutableByteBuffer();
-            Map.Entry<ByteBuffer, ByteBuffer> entry = new AbstractMap.SimpleImmutableEntry<>(key, value);
-            advance();
             handle.readLock.lock();
             try {
+                ByteBuffer value = handle.getImmutableByteBuffer();
+                Map.Entry<ByteBuffer, ByteBuffer> entry = new AbstractMap.SimpleImmutableEntry<>(key, value);
                 transformation = transformer.apply(entry);
             } finally {
                 handle.readLock.unlock();
             }
+            advance();
             return transformation;
+        }
+    }
+
+    class KeyTransformIterator<T> extends Iter<T> {
+
+        Function<ByteBuffer, T> transformer;
+
+        public KeyTransformIterator(Function<ByteBuffer, T> transformer) {
+            super();
+            this.transformer = transformer;
+        }
+
+        public T next() {
+            ByteBuffer key = getKey(next, nextChunk).asReadOnlyBuffer();
+            return transformer.apply(key);
         }
     }
 
@@ -1154,6 +1169,11 @@ public class OakMapOffHeapImpl implements OakMap, AutoCloseable {
     @Override
     public <T> CloseableIterator<T> entriesTransformIterator(Function<Map.Entry<ByteBuffer, ByteBuffer>, T> transformer) {
         return new EntryTransformIterator<T>(transformer);
+    }
+
+    @Override
+    public <T> CloseableIterator<T> keysTransformIterator(Function<ByteBuffer,T> transformer) {
+        return new KeyTransformIterator<T>(transformer);
     }
 
     /* ---------------- Sub Map -------------- */
@@ -1608,6 +1628,21 @@ public class OakMapOffHeapImpl implements OakMap, AutoCloseable {
             }
         }
 
+        class SubOakKeyTransformIterator<T> extends SubOakMapIter<T> {
+
+            Function<ByteBuffer, T> transformer;
+
+            public SubOakKeyTransformIterator(Function<ByteBuffer, T> transformer) {
+                super();
+                this.transformer = transformer;
+            }
+
+            public T next() {
+                ByteBuffer key = getKey(next, nextChunk).asReadOnlyBuffer();
+                return transformer.apply(key);
+            }
+        }
+
         // Factory methods for iterators
 
         @Override
@@ -1633,6 +1668,11 @@ public class OakMapOffHeapImpl implements OakMap, AutoCloseable {
         @Override
         public <T> CloseableIterator<T> entriesTransformIterator(Function<Map.Entry<ByteBuffer, ByteBuffer>, T> transformer) {
             return new SubOakEntryTransformIterator<T>(transformer);
+        }
+
+        @Override
+        public <T> CloseableIterator<T> keysTransformIterator(Function<ByteBuffer,T> transformer) {
+            return new SubOakKeyTransformIterator<T>(transformer);
         }
 
     }

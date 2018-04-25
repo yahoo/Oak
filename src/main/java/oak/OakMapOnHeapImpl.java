@@ -762,6 +762,11 @@ public class OakMapOnHeapImpl implements OakMap {
         throw new UnsupportedOperationException();
     }
 
+    @Override
+    public <T> CloseableIterator<T> keysTransformIterator(Function<ByteBuffer,T> transformer) {
+        throw new UnsupportedOperationException();
+    }
+
 
     /* ---------------- Sub Map -------------- */
 
@@ -1183,6 +1188,11 @@ public class OakMapOnHeapImpl implements OakMap {
 
         @Override
         public <T> CloseableIterator<T> entriesTransformIterator(Function<Map.Entry<ByteBuffer, ByteBuffer>, T> transformer) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public <T> CloseableIterator<T> keysTransformIterator(Function<ByteBuffer,T> transformer) {
             throw new UnsupportedOperationException();
         }
 
