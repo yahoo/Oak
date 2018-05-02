@@ -33,6 +33,7 @@ public class Chunk {
 
     static int MAX_ITEMS = 2048;
     static int MAX_THREADS = 32;
+    static int MAX_KEY_BYTES = MAX_ITEMS * 100;
 
     // used for checking if rebalance is needed
     private static final double REBALANCE_PROB_PERC = 15;
@@ -57,7 +58,7 @@ public class Chunk {
     private final Handle[] handles;
     private AtomicReferenceArray<OpData> pendingOps;
     private final AtomicInteger entryIndex;    // points to next free index of entry array
-    private final AtomicInteger keyIndex;    // points to next free index of key array
+    public final AtomicInteger keyIndex;    // points to next free index of key array
     private final AtomicInteger handleIndex;    // points to next free index of entry array
     private final Statistics statistics;
     private int sortedCount;      // # of sorted items at entry-array's beginning (resulting from split)
@@ -88,9 +89,9 @@ public class Chunk {
         this.handles = new Handle[MAX_ITEMS + FIRST_ITEM];
         this.handleIndex = new AtomicInteger(FIRST_ITEM);
         if (memoryManager != null) {
-            this.keysManager = new KeysManagerOffHeapImpl(MAX_ITEMS * 100, memoryManager);  // TODO how big should this be?
+            this.keysManager = new KeysManagerOffHeapImpl(MAX_KEY_BYTES, memoryManager);  // TODO how big should this be?
         } else {
-            this.keysManager = new KeysManagerOnHeapImpl(MAX_ITEMS * 100);
+            this.keysManager = new KeysManagerOnHeapImpl(MAX_KEY_BYTES);
         }
         this.keyIndex = new AtomicInteger(FIRST_ITEM);
         this.sortedCount = 0;
@@ -591,9 +592,10 @@ public class Chunk {
      * @param srcChunk -- chunk to copy from
      * @param ei -- start position for copying
      * @param maxCapacity -- max number of items "this" chunk can contain after copy
+     * @param maxBytes -- max number of key bytes "this" chunk's key manager can contain after copy
      * @return key index of next to the last copied item, NONE if all items were copied
      */
-    final int copyPart(Chunk srcChunk, int ei, int maxCapacity) {
+    final int copyPart(Chunk srcChunk, int ei, int maxCapacity, int maxBytes) {
 
         assert ei != HEAD_NODE;
 
@@ -604,7 +606,7 @@ public class Chunk {
 
 
         int maxIdx = maxCapacity * FIELDS + 1;
-        if (sortedEntryIndex >= maxIdx) return ei;
+        if (sortedEntryIndex >= maxIdx || sortedKeyIndex >= maxBytes) return ei;
         assert ei < entries.length - FIELDS;
         // TODO check if reached capacity with key index?
         if (sortedEntryIndex != FIRST_ITEM) {
@@ -640,6 +642,8 @@ public class Chunk {
                     (eiPrev + FIELDS == ei)
                     &&
                     (sortedEntryIndex + itemsToCopy * FIELDS <= maxIdx)
+                    &&
+                    (sortedKeyIndex + keyLengthToCopy <= maxBytes)
                     &&
                     (prevKeyIndex + prevKeyLength == currKeyIndex))) { // TODO we should add this check right?
 
@@ -685,7 +689,7 @@ public class Chunk {
                 ei = srcChunk.get(ei, OFFSET_NEXT);
             }
 
-            if (ei == NONE || sortedEntryIndex > maxIdx) // TODO check if reached capacity with key index?
+            if (ei == NONE || sortedEntryIndex > maxIdx || sortedKeyIndex > maxBytes)
                 break; // if we are done
 
             // reset and continue

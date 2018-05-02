@@ -12,7 +12,8 @@ class Rebalancer {
 
     private static final int REBALANCE_SIZE = 2;
     private static final double MAX_AFTER_MERGE_PART = 0.7;
-    private static final int LOW_THRESHOLD = Chunk.MAX_ITEMS / 2;
+    private static final int ENETRIES_LOW_THRESHOLD = Chunk.MAX_ITEMS / 2;
+    private static final int KEY_BYTES_LOW_THRESHOLD = Chunk.MAX_KEY_BYTES / 2;
     private static final int MAX_RANGE_TO_APPEND = (int) (0.2 * Chunk.MAX_ITEMS);
     private static final int MAX_AFTER_MERGE_ITEMS = (int) (Chunk.MAX_ITEMS * MAX_AFTER_MERGE_PART);
 
@@ -133,7 +134,7 @@ class Rebalancer {
         List<Chunk> newChunks = new LinkedList<>();
 
         while (true) {
-            ei = currNewChunk.copyPart(currFrozen, ei, LOW_THRESHOLD);
+            ei = currNewChunk.copyPart(currFrozen, ei, ENETRIES_LOW_THRESHOLD, KEY_BYTES_LOW_THRESHOLD);
 
             // if completed reading curr frozen chunk
             if (ei == Chunk.NONE) {
@@ -143,7 +144,7 @@ class Rebalancer {
                 currFrozen = iterFrozen.next();
                 ei = currFrozen.getFirstItemEntryIndex();
 
-            } else { // filled new chunk up to LOW_THRESHOLD
+            } else { // filled new chunk up to ENETRIES_LOW_THRESHOLD
 
                 List<Chunk> frozenSuffix = frozenChunks.subList(iterFrozen.previousIndex(), frozenChunks.size());
                 // try to look ahead and add frozen suffix
@@ -211,8 +212,7 @@ class Rebalancer {
         List<Chunk> newChunks = new LinkedList<>();
 
         while (true) {
-            ei = currNewChunk.copyPart(currFrozen, ei, LOW_THRESHOLD);
-
+            ei = currNewChunk.copyPart(currFrozen, ei, ENETRIES_LOW_THRESHOLD, KEY_BYTES_LOW_THRESHOLD);
             // if completed reading curr frozen chunk
             if (ei == Chunk.NONE) {
                 if (!iterFrozen.hasNext())
@@ -221,7 +221,7 @@ class Rebalancer {
                 currFrozen = iterFrozen.next();
                 ei = currFrozen.getFirstItemEntryIndex();
 
-            } else { // filled new chunk up to LOW_THRESHOLD
+            } else { // filled new chunk up to ENETRIES_LOW_THRESHOLD
 
                 List<Chunk> frozenSuffix = frozenChunks.subList(iterFrozen.previousIndex(), frozenChunks.size());
                 // try to look ahead and add frozen suffix
@@ -277,11 +277,11 @@ class Rebalancer {
     private void completeCopy(Chunk dest, int ei, List<Chunk> srcChunks) {
         Iterator<Chunk> iter = srcChunks.iterator();
         Chunk src = iter.next();
-        dest.copyPart(src, ei, Chunk.MAX_ITEMS);
+        dest.copyPart(src, ei, Chunk.MAX_ITEMS, Chunk.MAX_KEY_BYTES);
         while (iter.hasNext()) {
             src = iter.next();
             ei = src.getFirstItemEntryIndex();
-            dest.copyPart(src, ei, Chunk.MAX_ITEMS);
+            dest.copyPart(src, ei, Chunk.MAX_ITEMS, Chunk.MAX_KEY_BYTES);
         }
     }
 
