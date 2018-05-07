@@ -57,7 +57,7 @@ public class OakMapOffHeapImpl implements OakMap, AutoCloseable {
      * init with capacity = 2g
      */
     public OakMapOffHeapImpl(Comparator<ByteBuffer> comparator, ByteBuffer minKey) {
-        this(comparator, minKey, new SimpleNoFreeMemoryPoolImpl(Integer.MAX_VALUE));
+        this(comparator, minKey, new SynchrobenchMemoryPoolImpl(Integer.MAX_VALUE));
     }
 
     public OakMapOffHeapImpl(Comparator<ByteBuffer> comparator, ByteBuffer minKey, MemoryPool memoryPool) {
@@ -1402,7 +1402,7 @@ public class OakMapOffHeapImpl implements OakMap, AutoCloseable {
              */
             private void initChunk() {
                 if (!isDescending) {
-                    if (lo != null)
+                    if (lo != null && oak.skiplist.floorEntry(lo) != null)
                         nextChunk = oak.skiplist.floorEntry(lo).getValue();
                     else
                         nextChunk = oak.skiplist.floorEntry(oak.minKey).getValue();

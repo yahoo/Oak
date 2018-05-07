@@ -77,7 +77,7 @@ class SynchrobenchMemoryPoolImpl implements MemoryPool {
             LinkedList<Pair<Integer, ByteBuffer>> myList = freeIntArray.get(idx);
             myList.add(new Pair<>(i, bb));
         }
-        if (bb.remaining() == Chunk.MAX_ITEMS * 100) { // keys size
+        if (bb.remaining() == Chunk.MAX_KEY_BYTES) { // keys size
             LinkedList<Pair<Integer, ByteBuffer>> myList = freeKeysArray.get(idx);
             myList.add(new Pair<>(i, bb));
         }
