@@ -565,6 +565,11 @@ public class OakMapOnHeapImpl implements OakMap {
         return lookUp == null || lookUp.handle == null ? null : new OakBufferImpl(lookUp.handle);
     }
 
+    @Override
+    public <T> T getTransformation(ByteBuffer key, Function<ByteBuffer,T> transformer) {
+        throw new UnsupportedOperationException();
+    }
+
     public boolean computeIfPresent(ByteBuffer key, Consumer<WritableOakBuffer> function) {
         if (key == null || key.remaining() == 0 || function == null) {
             throw new NullPointerException();
@@ -913,6 +918,12 @@ public class OakMapOnHeapImpl implements OakMap {
         public OakBuffer get(ByteBuffer key) {
             if (key == null) throw new NullPointerException();
             return (!inBounds(key)) ? null : oak.get(key);
+        }
+
+        @Override
+        public <T> T getTransformation(ByteBuffer key, Function<ByteBuffer,T> transformer) {
+            if (key == null) throw new NullPointerException();
+            return (!inBounds(key)) ? null : oak.getTransformation(key, transformer);
         }
 
         @Override

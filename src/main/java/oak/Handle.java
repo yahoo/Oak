@@ -98,8 +98,8 @@ abstract class Handle extends WritableOakBuffer {
         return value;
     }
 
-    //TODO: check that the read lock is held by the current thread
     public ByteBuffer getImmutableByteBuffer() {
+        //TODO: check that the read lock is held by the current thread
         return value.asReadOnlyBuffer();
     }
 

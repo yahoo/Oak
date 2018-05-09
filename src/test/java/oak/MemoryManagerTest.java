@@ -96,7 +96,7 @@ public class MemoryManagerTest {
 
     @Test
     public void checkOakCapacity() {
-        OakMapOffHeapImpl oak = new OakMapOffHeapImpl();
+        OakMapOffHeapImpl oak = new OakMapOffHeapImpl(new SimpleNoFreeMemoryPoolImpl(Integer.MAX_VALUE));
         MemoryPool pool = oak.memoryManager.pool;
 
 
@@ -268,7 +268,7 @@ public class MemoryManagerTest {
         ByteBuffer min = ByteBuffer.allocate(10);
         min.putInt(Integer.MIN_VALUE);
         min.flip();
-        OakMapOffHeapImpl oak = new OakMapOffHeapImpl(comparator, min);
+        OakMapOffHeapImpl oak = new OakMapOffHeapImpl(comparator, min, new SimpleNoFreeMemoryPoolImpl(Integer.MAX_VALUE));
         OakMemoryManager memoryManager = oak.memoryManager;
 
         assertEquals(0, memoryManager.getValue(memoryManager.timeStamps[1].get()));
@@ -412,7 +412,7 @@ public class MemoryManagerTest {
         ByteBuffer min = ByteBuffer.allocate(10);
         min.putInt(Integer.MIN_VALUE);
         min.flip();
-        OakMapOffHeapImpl oak = new OakMapOffHeapImpl(comparator, min);
+        OakMapOffHeapImpl oak = new OakMapOffHeapImpl(comparator, min, new SimpleNoFreeMemoryPoolImpl(Integer.MAX_VALUE));
 
         ByteBuffer bb;
         OakBuffer buffer;
@@ -446,7 +446,7 @@ public class MemoryManagerTest {
         ByteBuffer min = ByteBuffer.allocate(10);
         min.putInt(Integer.MIN_VALUE);
         min.flip();
-        OakMapOffHeapImpl oak = new OakMapOffHeapImpl(comparator, min);
+        OakMapOffHeapImpl oak = new OakMapOffHeapImpl(comparator, min, new SimpleNoFreeMemoryPoolImpl(Integer.MAX_VALUE));
         OakMemoryManager memoryManager = oak.memoryManager;
 
         ByteBuffer bb;
@@ -519,7 +519,7 @@ public class MemoryManagerTest {
                 buffer.putInt(0, 1);
             }
         };
-        OakMapOffHeapImpl oak = new OakMapOffHeapImpl();
+        OakMapOffHeapImpl oak = new OakMapOffHeapImpl(new SimpleNoFreeMemoryPoolImpl(Integer.MAX_VALUE));
         ByteBuffer bb = ByteBuffer.allocateDirect(4);
         bb.putInt(0,0);
         oak.put(bb,bb);

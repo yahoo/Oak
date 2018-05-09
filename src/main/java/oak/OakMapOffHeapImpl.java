@@ -31,7 +31,7 @@ public class OakMapOffHeapImpl implements OakMap, AutoCloseable {
      * init with capacity = 2g
      */
     public OakMapOffHeapImpl() {
-        this(new SimpleNoFreeMemoryPoolImpl(Integer.MAX_VALUE));
+        this(StaticPoolFactory.getPool());
     }
 
     public OakMapOffHeapImpl(MemoryPool memoryPool) { // TODO capacity long
@@ -57,11 +57,15 @@ public class OakMapOffHeapImpl implements OakMap, AutoCloseable {
      * init with capacity = 2g
      */
     public OakMapOffHeapImpl(Comparator<ByteBuffer> comparator, ByteBuffer minKey) {
-        this(comparator, minKey, new SynchrobenchMemoryPoolImpl(Integer.MAX_VALUE));
+        this(comparator, minKey, StaticPoolFactory.getPool());
     }
 
     public OakMapOffHeapImpl(Comparator<ByteBuffer> comparator, ByteBuffer minKey, MemoryPool memoryPool) {
-        this.minKey = minKey;
+        ByteBuffer bb = ByteBuffer.allocate(minKey.remaining());
+        for (int i = 0; i < minKey.limit(); i++) {
+            bb.put(i, minKey.get(i));
+        }
+        this.minKey = bb;
         this.comparator = comparator;
 
         this.memoryManager = new OakMemoryManager(memoryPool);
@@ -877,6 +881,33 @@ public class OakMapOffHeapImpl implements OakMap, AutoCloseable {
         return lookUp == null || lookUp.handle == null ? null : new OakBufferImpl(lookUp.handle);
     }
 
+    @Override
+    public <T> T getTransformation(ByteBuffer key, Function<ByteBuffer,T> transformer) {
+        if (key == null || transformer == null || key.remaining() == 0) {
+            throw new NullPointerException();
+        }
+
+        memoryManager.startThread();
+        Chunk c = skiplist.floorEntry(key).getValue();
+        c = iterateChunks(c, key);
+
+        Chunk.LookUp lookUp = c.lookUp(key);
+        if (lookUp == null || lookUp.handle == null) {
+            return null;
+        }
+
+        T transformation;
+        lookUp.handle.readLock.lock();
+        try {
+            ByteBuffer value = lookUp.handle.getImmutableByteBuffer();
+            transformation = transformer.apply(value);
+        } finally {
+            lookUp.handle.readLock.unlock();
+            memoryManager.stopThread();
+        }
+        return transformation;
+    }
+
     public ByteBuffer getMinKey() {
         memoryManager.startThread();
         Chunk c = skiplist.firstEntry().getValue();
@@ -1325,6 +1356,12 @@ public class OakMapOffHeapImpl implements OakMap, AutoCloseable {
         }
 
         @Override
+        public <T> T getTransformation(ByteBuffer key, Function<ByteBuffer,T> transformer) {
+            if (key == null || transformer == null) throw new NullPointerException();
+            return (!inBounds(key)) ? null : oak.getTransformation(key, transformer);
+        }
+
+        @Override
         public boolean computeIfPresent(ByteBuffer key, Consumer<WritableOakBuffer> function) {
             return oak.computeIfPresent(key, function);
         }
@@ -1402,7 +1439,7 @@ public class OakMapOffHeapImpl implements OakMap, AutoCloseable {
              */
             private void initChunk() {
                 if (!isDescending) {
-                    if (lo != null && oak.skiplist.floorEntry(lo) != null)
+                    if (lo != null)
                         nextChunk = oak.skiplist.floorEntry(lo).getValue();
                     else
                         nextChunk = oak.skiplist.floorEntry(oak.minKey).getValue();

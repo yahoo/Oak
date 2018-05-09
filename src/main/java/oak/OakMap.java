@@ -67,6 +67,18 @@ public interface OakMap {
     OakBuffer get(ByteBuffer key);
 
     /**
+     * Returns a transformation of the value to which the specified key is mapped,
+     * or {@code null} if this map contains no mapping for the key.
+     *
+     * @param key the key whose associated value is to be returned
+     * @param transformer the function that executes the transformation
+     * @return a transformation of the value to which the specified key is mapped, or
+     * {@code null} if this map contains no mapping for the key
+     * @throws NullPointerException if the specified key is null
+     */
+    <T> T getTransformation(ByteBuffer key, Function<ByteBuffer,T> transformer);
+
+    /**
      * Returns a read only view of the minimal key in the map,
      * or {@code null} if this map contains no keys.
      *
