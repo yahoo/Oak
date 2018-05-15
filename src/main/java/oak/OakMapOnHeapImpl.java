@@ -42,7 +42,7 @@ public class OakMapOnHeapImpl implements OakMap {
         valueFactory = new ValueFactory(false);
     }
 
-    public OakMapOnHeapImpl(Comparator<ByteBuffer> comparator, ByteBuffer minKey) {
+    public OakMapOnHeapImpl(Comparator<Object> comparator, ByteBuffer minKey) {
         this.minKey = minKey;
         this.comparator = comparator;
 

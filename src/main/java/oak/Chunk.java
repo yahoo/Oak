@@ -48,7 +48,7 @@ public class Chunk {
     private final OakMemoryManager memoryManager;
     ByteBuffer minKey;       // minimal key that can be put in this chunk
     AtomicMarkableReference<Chunk> next;
-    Comparator<ByteBuffer> comparator;
+    Comparator<Object> comparator;
     private ByteBuffer[] byteBufferPerThread;
     private AtomicReference<Chunk> creator;     // in split/compact process, represents parent of split (can be null!)
     private final AtomicReference<State> state; // chunk can be in the following states: normal, frozen or infant(has a creator)
@@ -82,7 +82,7 @@ public class Chunk {
      * @param minKey  minimal key to be placed in chunk
      * @param creator the chunk that is responsible for this chunk creation
      */
-    Chunk(ByteBuffer minKey, Chunk creator, Comparator<ByteBuffer> comparator, OakMemoryManager memoryManager) {
+    Chunk(ByteBuffer minKey, Chunk creator, Comparator<Object> comparator, OakMemoryManager memoryManager) {
         this.memoryManager = memoryManager;
         this.entries = new int[MAX_ITEMS * FIELDS + FIRST_ITEM];
         this.entryIndex = new AtomicInteger(FIRST_ITEM);

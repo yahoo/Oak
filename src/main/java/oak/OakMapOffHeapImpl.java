@@ -56,11 +56,11 @@ public class OakMapOffHeapImpl implements OakMap, AutoCloseable {
     /**
      * init with capacity = 2g
      */
-    public OakMapOffHeapImpl(Comparator<ByteBuffer> comparator, ByteBuffer minKey) {
+    public OakMapOffHeapImpl(Comparator<Object> comparator, ByteBuffer minKey) {
         this(comparator, minKey, StaticPoolFactory.getPool());
     }
 
-    public OakMapOffHeapImpl(Comparator<ByteBuffer> comparator, ByteBuffer minKey, MemoryPool memoryPool) {
+    public OakMapOffHeapImpl(Comparator<Object> comparator, ByteBuffer minKey, MemoryPool memoryPool) {
         ByteBuffer bb = ByteBuffer.allocate(minKey.remaining());
         for (int i = 0; i < minKey.limit(); i++) {
             bb.put(i, minKey.get(i));
