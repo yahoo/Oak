@@ -7,12 +7,14 @@ import java.lang.reflect.Constructor;
 import java.nio.ByteBuffer;
 import java.util.Comparator;
 import java.util.EmptyStackException;
+import java.util.Map.Entry;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicMarkableReference;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 import java.util.function.Consumer;
+import java.util.function.Function;
 
 public class Chunk {
 
@@ -31,9 +33,7 @@ public class Chunk {
     private static final int OFFSET_KEY_LENGTH = 2;
     private static final int OFFSET_HANDLE_INDEX = 3;
 
-    static int MAX_ITEMS = 2048;
     static int MAX_THREADS = 32;
-    static int MAX_KEY_BYTES = MAX_ITEMS * 100;
 
     // used for checking if rebalance is needed
     private static final double REBALANCE_PROB_PERC = 15;
@@ -62,6 +62,8 @@ public class Chunk {
     private final AtomicInteger handleIndex;    // points to next free index of entry array
     private final Statistics statistics;
     private int sortedCount;      // # of sorted items at entry-array's beginning (resulting from split)
+    private final int maxItems;
+    private final int maxKeyBytes;
 
     /*-------------- Constructors --------------*/
 
@@ -82,16 +84,19 @@ public class Chunk {
      * @param minKey  minimal key to be placed in chunk
      * @param creator the chunk that is responsible for this chunk creation
      */
-    Chunk(ByteBuffer minKey, Chunk creator, Comparator<Object> comparator, OakMemoryManager memoryManager) {
+    Chunk(ByteBuffer minKey, Chunk creator, Comparator<Object> comparator, OakMemoryManager memoryManager,
+          int maxItems, int bytesPerItem) {
         this.memoryManager = memoryManager;
-        this.entries = new int[MAX_ITEMS * FIELDS + FIRST_ITEM];
+        this.maxItems = maxItems;
+        this.maxKeyBytes = maxItems * bytesPerItem;
+        this.entries = new int[maxItems * FIELDS + FIRST_ITEM];
         this.entryIndex = new AtomicInteger(FIRST_ITEM);
-        this.handles = new Handle[MAX_ITEMS + FIRST_ITEM];
+        this.handles = new Handle[maxItems + FIRST_ITEM];
         this.handleIndex = new AtomicInteger(FIRST_ITEM);
         if (memoryManager != null) {
-            this.keysManager = new KeysManagerOffHeapImpl(MAX_KEY_BYTES, memoryManager);  // TODO how big should this be?
+            this.keysManager = new KeysManagerOffHeapImpl(this.maxKeyBytes, memoryManager);  // TODO how big should this be?
         } else {
-            this.keysManager = new KeysManagerOnHeapImpl(MAX_KEY_BYTES);
+            this.keysManager = new KeysManagerOnHeapImpl(this.maxKeyBytes);
         }
         this.keyIndex = new AtomicInteger(FIRST_ITEM);
         this.sortedCount = 0;
@@ -148,7 +153,7 @@ public class Chunk {
     /**
      * compares ByteBuffer by calling the provided comparator
      */
-    private int compare(ByteBuffer k1, ByteBuffer k2) {
+    private int compare(Object k1, Object k2) {
         return comparator.compare(k1, k2);
     }
 
@@ -218,6 +223,12 @@ public class Chunk {
         keysManager.writeKey(key, ki, length);
     }
 
+    private void writeKey(Object key,
+                          Consumer<Entry<Entry<ByteBuffer, Integer>, Object>> keyCreator,
+                          int ki) {
+        keysManager.writeKey(key, keyCreator, ki);
+    }
+
     /**
      * gets the value for the given item, or 'null' if it doesn't exist
      */
@@ -237,7 +248,7 @@ public class Chunk {
     /**
      * look up key
      */
-    LookUp lookUp(ByteBuffer key) {
+    LookUp lookUp(Object key) {
         // binary search sorted part of key array to quickly find node to start search at
         // it finds previous-to-key so start with its next
         int curr = get(binaryFind(key), OFFSET_NEXT);
@@ -285,7 +296,7 @@ public class Chunk {
      * @return the index of the entry from which to start a linear search -
      * if key is found, its previous entry is returned!
      */
-    private int binaryFind(ByteBuffer key) {
+    private int binaryFind(Object key) {
         // if there are no sorted keys, or the first item is already larger than key -
         // return the head node for a regular linear search
         if ((sortedCount == 0) || compare(readKey(FIRST_ITEM), key) >= 0)
@@ -367,7 +378,77 @@ public class Chunk {
         return ei;
     }
 
+    int allocateEntryAndKey(Object key,
+                            Consumer<Entry<Entry<ByteBuffer, Integer>, Object>> keyCreator,
+                            Function<Object, Integer> keyCapacityCalculator) {
+        int ei = entryIndex.getAndAdd(FIELDS);
+        if (ei + FIELDS > entries.length) {
+            return -1;
+        }
+
+        int length = keyCapacityCalculator.apply(key); // TODO is this the length?
+        int ki = keyIndex.getAndAdd(length);
+        if (ki + length >= keysManager.length()) { // TODO is this the right check?
+            return -1;
+        }
+
+        // key and value must be set before linking to the list so it will make sense when reached before put is done
+        set(ei, OFFSET_HANDLE_INDEX, -1); // set value index to -1, value is init to null
+        writeKey(key, keyCreator, ki);
+        set(ei, OFFSET_KEY_INDEX, ki);
+        set(ei, OFFSET_KEY_LENGTH, length);
+
+        return ei;
+    }
+
     int linkEntry(int ei, ByteBuffer key, boolean cas) {
+        int prev, curr, cmp;
+        int anchor = -1;
+
+        while (true) {
+            // start iterating from quickly-found node (by binary search) in sorted part of order-array
+            if (anchor == -1) anchor = binaryFind(key);
+            curr = anchor;
+
+            // iterate items until key's position is found
+            while (true) {
+                prev = curr;
+                curr = get(prev, OFFSET_NEXT);    // index of next item in list
+
+                // if no item, done searching - add to end of list
+                if (curr == NONE) {
+                    break;
+                }
+                // compare current item's key to ours
+                cmp = compare(readKey(curr), key);
+
+                // if current item's key is larger, done searching - add between prev and curr
+                if (cmp > 0) {
+                    break;
+                }
+
+                // if same key, someone else managed to add the key to the linked list
+                if (cmp == 0) {
+                    return curr;
+                }
+            }
+
+            // link to list between next and previous
+            // first change this key's next to point to curr
+            set(ei, OFFSET_NEXT, curr); // no need for CAS since put is not even published yet
+            if (cas) {
+                if (casEntryArray(prev, OFFSET_NEXT, curr, ei)) {
+                    return ei;
+                }
+                // CAS didn't succeed, try again
+            } else {
+                // without CAS (used by rebalance)
+                set(prev, OFFSET_NEXT, ei);
+            }
+        }
+    }
+
+    int linkEntry(int ei, boolean cas, Object key) {
         int prev, curr, cmp;
         int anchor = -1;
 
@@ -421,6 +502,9 @@ public class Chunk {
         assert memoryManager != null || pair.getKey() == 0;
         handles[hi].setValue(pair.getValue(), pair.getKey());
     }
+
+    public int getMaxItems() { return maxItems; }
+    public int getBytesPerItem() { return maxKeyBytes / maxItems; }
 
     /**
      * point to value
@@ -748,9 +832,9 @@ public class Chunk {
         if (!isEngaged(null)) return false;
         int numOfEntries = entryIndex.get() / FIELDS;
         int numOfItems = statistics.getCompactedCount();
-        return (sortedCount == 0 && numOfEntries << 3 > Chunk.MAX_ITEMS) ||
+        return (sortedCount == 0 && numOfEntries << 3 > maxItems) ||
                 (sortedCount > 0 && (sortedCount * SORTED_REBALANCE_RATIO) < numOfEntries) ||
-                (numOfEntries << 3 > Chunk.MAX_ITEMS && numOfItems << 2 < numOfEntries);
+                (numOfEntries << 3 > maxItems && numOfItems << 2 < numOfEntries);
     }
 
     /*-------------- Iterators --------------*/
@@ -759,7 +843,7 @@ public class Chunk {
         return new AscendingIter();
     }
 
-    AscendingIter ascendingIter(ByteBuffer from) {
+    AscendingIter ascendingIter(Object from) {
         return new AscendingIter(from);
     }
 
@@ -767,7 +851,7 @@ public class Chunk {
         return new DescendingIter();
     }
 
-    DescendingIter descendingIter(ByteBuffer from, boolean inclusive) {
+    DescendingIter descendingIter(Object from, boolean inclusive) {
         return new DescendingIter(from, inclusive);
     }
 
@@ -792,7 +876,7 @@ public class Chunk {
             }
         }
 
-        AscendingIter(ByteBuffer from) {
+        AscendingIter(Object from) {
             next = get(binaryFind(from), OFFSET_NEXT);
             int handle = get(next, OFFSET_HANDLE_INDEX);
             while (next != Chunk.NONE && handle < 0) {
@@ -834,7 +918,7 @@ public class Chunk {
         private int anchor;
         private int prevAnchor;
         private IntStack stack;
-        private ByteBuffer from;
+        private Object from;
         private boolean inclusive;
 
         DescendingIter() {
@@ -845,7 +929,7 @@ public class Chunk {
             initNext();
         }
 
-        DescendingIter(ByteBuffer from, boolean inclusive) {
+        DescendingIter(Object from, boolean inclusive) {
             this.from = from;
             this.inclusive = inclusive;
             stack = new IntStack(entries.length / FIELDS);

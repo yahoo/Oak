@@ -18,6 +18,8 @@ public class MultiThreadRangeTest {
     private final int NUM_THREADS = 1;
     private ArrayList<Thread> threads;
     private CountDownLatch latch;
+    int maxItemsPerChunk = 2048;
+    int maxBytesPerChunkItem = 100;
 
     @Before
     public void init() {
@@ -40,7 +42,7 @@ public class MultiThreadRangeTest {
         ByteBuffer min = ByteBuffer.allocate(10);
         min.putInt(Integer.MIN_VALUE);
         min.flip();
-        oak = new OakMapOnHeapImpl(comparator, min);
+        oak = new OakMapOnHeapImpl(comparator, min, maxItemsPerChunk, maxBytesPerChunkItem);
         latch = new CountDownLatch(1);
         threads = new ArrayList<>(NUM_THREADS);
     }
@@ -63,7 +65,7 @@ public class MultiThreadRangeTest {
             Random r = new Random();
 
             ByteBuffer from = ByteBuffer.allocate(4);
-            from.putInt(r.nextInt(10 * Chunk.MAX_ITEMS));
+            from.putInt(r.nextInt(10 * maxItemsPerChunk));
             from.flip();
             Iterator valIter = oak.tailMap(from, true).valuesIterator();
             int i = 0;
@@ -83,8 +85,8 @@ public class MultiThreadRangeTest {
 
         // fill
         Random r = new Random();
-        for (int i = 5 * Chunk.MAX_ITEMS; i > 0; ) {
-            Integer j = r.nextInt(10 * Chunk.MAX_ITEMS);
+        for (int i = 5 * maxItemsPerChunk; i > 0; ) {
+            Integer j = r.nextInt(10 * maxItemsPerChunk);
             ByteBuffer bb = ByteBuffer.allocate(4);
             bb.putInt(j);
             bb.flip();
@@ -100,14 +102,14 @@ public class MultiThreadRangeTest {
         }
 
         int size = 0;
-        for (int i = 0; i < 10 * Chunk.MAX_ITEMS; i++) {
+        for (int i = 0; i < 10 * maxItemsPerChunk; i++) {
             ByteBuffer bb = ByteBuffer.allocate(4);
             bb.putInt(i);
             bb.flip();
             OakBuffer buffer = oak.get(bb);
             if (buffer != null) size++;
         }
-        assertEquals(5 * Chunk.MAX_ITEMS, size);
+        assertEquals(5 * maxItemsPerChunk, size);
     }
 
 }

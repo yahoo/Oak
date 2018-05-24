@@ -16,8 +16,10 @@ class SynchrobenchMemoryPoolImpl implements MemoryPool {
     final int capacity;
     final ArrayList<LinkedList<Pair<Integer, ByteBuffer>>> freeIntArray;
     final ArrayList<LinkedList<Pair<Integer, ByteBuffer>>> freeKeysArray;
+    final int maxItemsPerChunk;
+    final int maxKeyBytes;
 
-    SynchrobenchMemoryPoolImpl(long capacity) {
+    SynchrobenchMemoryPoolImpl(long capacity, int maxItemsPerChunk, int maxKeyBytes) {
         assert capacity > 0;
         assert capacity <= Integer.MAX_VALUE;
         this.capacity = (int) capacity;
@@ -31,6 +33,8 @@ class SynchrobenchMemoryPoolImpl implements MemoryPool {
         for (int i = 0; i < Chunk.MAX_THREADS; i++) {
             freeKeysArray.add(i, new LinkedList<>());
         }
+        this.maxItemsPerChunk = maxItemsPerChunk;
+        this.maxKeyBytes = maxKeyBytes;
     }
 
     @Override
@@ -46,14 +50,14 @@ class SynchrobenchMemoryPoolImpl implements MemoryPool {
                 return pair;
             }
         }
-        if (capacity == Chunk.MAX_ITEMS * 100) {
+        if (capacity == maxKeyBytes) {
             int idx = Chunk.getIndex();
             LinkedList<Pair<Integer, ByteBuffer>> myList = freeKeysArray.get(idx);
             if (myList.size() > 0) {
                 Pair<Integer, ByteBuffer> pair = myList.removeFirst();
                 assert pair != null;
                 assert pair.getKey() == 0;
-                assert pair.getValue().remaining() == Chunk.MAX_ITEMS * 100;
+                assert pair.getValue().remaining() == maxKeyBytes;
                 return pair;
             }
         }
@@ -77,7 +81,7 @@ class SynchrobenchMemoryPoolImpl implements MemoryPool {
             LinkedList<Pair<Integer, ByteBuffer>> myList = freeIntArray.get(idx);
             myList.add(new Pair<>(i, bb));
         }
-        if (bb.remaining() == Chunk.MAX_KEY_BYTES) { // keys size
+        if (bb.remaining() == maxKeyBytes) { // keys size
             LinkedList<Pair<Integer, ByteBuffer>> myList = freeKeysArray.get(idx);
             myList.add(new Pair<>(i, bb));
         }

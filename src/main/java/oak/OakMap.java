@@ -1,7 +1,7 @@
 package oak;
 
 import java.nio.ByteBuffer;
-import java.util.Map;
+import java.util.Map.Entry;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -40,12 +40,19 @@ public interface OakMap {
      * Creates a copy of the value in the map.
      *
      * @param key   key with which the specified value is to be associated
-     * @param valueCreator  the function to construct a value
-     * @param capacity      the value ByteBuffer size
+     * @param keyCreator            writes the key on the given ByteBuffer, according to the given Object
+     * @param keyCapacityCalculator returns the key capacity (for allocation), according to the given key object
+     * @param valueCreator          the function to construct a value
+     * @param valueCapacity         the value ByteBuffer size
      * @return {@code true} if there was no mapping for the key
      * @throws NullPointerException if the specified key or value is null
      */
-    boolean putIfAbsent(ByteBuffer key, Consumer<ByteBuffer> valueCreator, int capacity);
+    boolean putIfAbsent(
+            Object key,
+            Consumer<Entry<Entry<ByteBuffer, Integer>, Object>> keyCreator,
+            Function<Object, Integer> keyCapacityCalculator,
+            Consumer<ByteBuffer> valueCreator,
+            int valueCapacity);
 
     /**
      * Removes the mapping for a key from this map if it is present.
@@ -53,7 +60,7 @@ public interface OakMap {
      * @param key key whose mapping is to be removed from the map
      * @throws NullPointerException if the specified key is null
      */
-    void remove(ByteBuffer key);
+    void remove(Object key);
 
     /**
      * Returns a read only view of the value to which the specified key is mapped,
@@ -64,7 +71,7 @@ public interface OakMap {
      * {@code null} if this map contains no mapping for the key
      * @throws NullPointerException if the specified key is null
      */
-    OakBuffer get(ByteBuffer key);
+    OakBuffer get(Object key);
 
     /**
      * Returns a transformation of the value to which the specified key is mapped,
@@ -76,7 +83,7 @@ public interface OakMap {
      * {@code null} if this map contains no mapping for the key
      * @throws NullPointerException if the specified key is null
      */
-    <T> T getTransformation(ByteBuffer key, Function<ByteBuffer,T> transformer);
+    <T> T getTransformation(Object key, Function<ByteBuffer,T> transformer);
 
     /**
      * Returns a read only view of the minimal key in the map,
@@ -95,7 +102,7 @@ public interface OakMap {
      * @return {@code false} if there was no mapping for the key
      * @throws NullPointerException if the specified key or the function is null
      */
-    boolean computeIfPresent(ByteBuffer key, Consumer<WritableOakBuffer> function);
+    boolean computeIfPresent(Object key, Consumer<WritableOakBuffer> function);
 
     /**
      * If the specified key is not already associated
@@ -113,12 +120,20 @@ public interface OakMap {
      * with a value, associate it with a constructed value.
      * Else, updates the value for the specified key.
      *
-     * @param key           key with which the specified value is to be associated
-     * @param valueCreator  the function to construct a value
-     * @param capacity      the value ByteBuffer size
-     * @param function      the function to update a value
+     * @param key                   key with which the specified value is to be associated
+     * @param keyCreator            writes the key on the given ByteBuffer, according to the given Object
+     * @param keyCapacityCalculator returns the key capacity (for allocation), according to the given key object
+     * @param valueCreator          the function to construct a value
+     * @param valueCapacity         the value ByteBuffer size
+     * @param function              the function to update a value
      */
-    void putIfAbsentComputeIfPresent(ByteBuffer key, Consumer<ByteBuffer> valueCreator, int capacity, Consumer<WritableOakBuffer> function);
+    void putIfAbsentComputeIfPresent(
+            Object key,
+            Consumer<Entry<Entry<ByteBuffer, Integer>, Object>> keyCreator,
+            Function<Object, Integer> keyCapacityCalculator,
+            Consumer<ByteBuffer> valueCreator,
+            int valueCapacity,
+            Consumer<WritableOakBuffer> function);
 
     /*-------------- SubMap --------------*/
 
@@ -150,7 +165,7 @@ public interface OakMap {
      *                                  range, and {@code fromKey} or {@code toKey} lies
      *                                  outside the bounds of the range
      */
-    OakMap subMap(ByteBuffer fromKey, boolean fromInclusive, ByteBuffer toKey, boolean toInclusive);
+    OakMap subMap(Object fromKey, boolean fromInclusive, Object toKey, boolean toInclusive);
 
     /**
      * Returns a view of the portion of this map whose keys are less than (or
@@ -173,7 +188,7 @@ public interface OakMap {
      *                                  restricted range, and {@code toKey} lies outside the
      *                                  bounds of the range
      */
-    OakMap headMap(ByteBuffer toKey, boolean inclusive);
+    OakMap headMap(Object toKey, boolean inclusive);
 
     /**
      * Returns a view of the portion of this map whose keys are greater than (or
@@ -196,7 +211,7 @@ public interface OakMap {
      *                                  restricted range, and {@code fromKey} lies outside the
      *                                  bounds of the range
      */
-    OakMap tailMap(ByteBuffer fromKey, boolean inclusive);
+    OakMap tailMap(Object fromKey, boolean inclusive);
 
     /* ---------------- View methods -------------- */
 
@@ -221,7 +236,7 @@ public interface OakMap {
     /**
      * Returns a {@link CloseableIterator} of the mappings contained in this map in ascending key order.
      */
-    CloseableIterator<Map.Entry<ByteBuffer, OakBuffer>> entriesIterator();
+    CloseableIterator<Entry<ByteBuffer, OakBuffer>> entriesIterator();
 
     /**
      * Returns a {@link CloseableIterator} of the keys contained in this map in ascending order.
@@ -238,7 +253,7 @@ public interface OakMap {
      * Returns a {@link CloseableIterator} of transformations on the mappings contained in this map
      * in ascending key order.
      */
-    <T> CloseableIterator<T> entriesTransformIterator(Function<Map.Entry<ByteBuffer, ByteBuffer>,T> transformer);
+    <T> CloseableIterator<T> entriesTransformIterator(Function<Entry<ByteBuffer, ByteBuffer>,T> transformer);
 
     /**
      * Returns a {@link CloseableIterator} of transformations on the keys contained in this map in ascending order.

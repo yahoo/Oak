@@ -21,6 +21,8 @@ public class MultiThreadTest {
     private final int NUM_THREADS = 20;
     private ArrayList<Thread> threads;
     private CountDownLatch latch;
+    int maxItemsPerChunk = 2048;
+    int maxBytesPerChunkItem = 100;
 
 
     @Before
@@ -44,7 +46,7 @@ public class MultiThreadTest {
         ByteBuffer min = ByteBuffer.allocate(10);
         min.putInt(Integer.MIN_VALUE);
         min.flip();
-        oak = new OakMapOnHeapImpl(comparator, min);
+        oak = new OakMapOnHeapImpl(comparator, min, maxItemsPerChunk, maxBytesPerChunkItem);
         latch = new CountDownLatch(1);
         threads = new ArrayList<>(NUM_THREADS);
 
@@ -65,20 +67,20 @@ public class MultiThreadTest {
                 e.printStackTrace();
             }
 
-            for (int i = 0; i < (int) Math.round(0.5 * Chunk.MAX_ITEMS); i++) {
+            for (int i = 0; i < (int) Math.round(0.5 * maxItemsPerChunk); i++) {
                 ByteBuffer bb = ByteBuffer.allocate(4);
                 bb.putInt(i);
                 bb.flip();
                 OakBuffer buffer = oak.get(bb);
                 assertTrue(buffer == null);
             }
-            for (int i = Chunk.MAX_ITEMS; i < 2 * Chunk.MAX_ITEMS; i++) {
+            for (int i = maxItemsPerChunk; i < 2 * maxItemsPerChunk; i++) {
                 ByteBuffer bb = ByteBuffer.allocate(4);
                 bb.putInt(i);
                 bb.flip();
                 oak.put(bb, bb);
             }
-            for (int i = Chunk.MAX_ITEMS; i < 2 * Chunk.MAX_ITEMS; i++) {
+            for (int i = maxItemsPerChunk; i < 2 * maxItemsPerChunk; i++) {
                 ByteBuffer bb = ByteBuffer.allocate(4);
                 bb.putInt(i);
                 bb.flip();
@@ -86,26 +88,26 @@ public class MultiThreadTest {
                 assertTrue(buffer != null);
                 assertEquals(i, buffer.getInt(0));
             }
-            for (int i = 0; i < (int) Math.round(0.5 * Chunk.MAX_ITEMS); i++) {
+            for (int i = 0; i < (int) Math.round(0.5 * maxItemsPerChunk); i++) {
                 ByteBuffer bb = ByteBuffer.allocate(4);
                 bb.putInt(i);
                 bb.flip();
                 OakBuffer buffer = oak.get(bb);
                 assertTrue(buffer == null);
             }
-            for (int i = 2 * Chunk.MAX_ITEMS; i < 3 * Chunk.MAX_ITEMS; i++) {
+            for (int i = 2 * maxItemsPerChunk; i < 3 * maxItemsPerChunk; i++) {
                 ByteBuffer bb = ByteBuffer.allocate(4);
                 bb.putInt(i);
                 bb.flip();
                 oak.put(bb, bb);
             }
-            for (int i = 2 * Chunk.MAX_ITEMS; i < 3 * Chunk.MAX_ITEMS; i++) {
+            for (int i = 2 * maxItemsPerChunk; i < 3 * maxItemsPerChunk; i++) {
                 ByteBuffer bb = ByteBuffer.allocate(4);
                 bb.putInt(i);
                 bb.flip();
                 oak.remove(bb);
             }
-            for (int i = Chunk.MAX_ITEMS; i < 2 * Chunk.MAX_ITEMS; i++) {
+            for (int i = maxItemsPerChunk; i < 2 * maxItemsPerChunk; i++) {
                 ByteBuffer bb = ByteBuffer.allocate(4);
                 bb.putInt(i);
                 bb.flip();
@@ -113,20 +115,20 @@ public class MultiThreadTest {
                 assertTrue(buffer != null);
                 assertEquals(i, buffer.getInt(0));
             }
-            for (int i = (int) Math.round(0.5 * Chunk.MAX_ITEMS); i < Chunk.MAX_ITEMS; i++) {
+            for (int i = (int) Math.round(0.5 * maxItemsPerChunk); i < maxItemsPerChunk; i++) {
                 ByteBuffer bb = ByteBuffer.allocate(4);
                 bb.putInt(i);
                 bb.flip();
                 oak.put(bb, bb);
             }
-            for (int i = 3 * Chunk.MAX_ITEMS; i < 4 * Chunk.MAX_ITEMS; i++) {
+            for (int i = 3 * maxItemsPerChunk; i < 4 * maxItemsPerChunk; i++) {
                 ByteBuffer bb = ByteBuffer.allocate(4);
                 bb.putInt(i);
                 bb.flip();
                 OakBuffer buffer = oak.get(bb);
                 assertTrue(buffer == null);
             }
-            for (int i = 3 * Chunk.MAX_ITEMS; i < 4 * Chunk.MAX_ITEMS; i++) {
+            for (int i = 3 * maxItemsPerChunk; i < 4 * maxItemsPerChunk; i++) {
                 ByteBuffer bb = ByteBuffer.allocate(4);
                 bb.putInt(i);
                 bb.flip();
@@ -134,7 +136,7 @@ public class MultiThreadTest {
             }
 
             Iterator valIter = oak.valuesIterator();
-            int c = (int) Math.round(0.5 * Chunk.MAX_ITEMS);
+            int c = (int) Math.round(0.5 * maxItemsPerChunk);
             while (valIter.hasNext()) {
                 ByteBuffer bb = ByteBuffer.allocate(4);
                 bb.putInt(c);
@@ -144,21 +146,21 @@ public class MultiThreadTest {
                 assertEquals(c, buffer.getInt(0));
                 assertEquals(c, ((OakBuffer) (valIter.next())).getInt(0));
                 c++;
-                if (c == 2 * Chunk.MAX_ITEMS) {
+                if (c == 2 * maxItemsPerChunk) {
                     break;
                 }
             }
-            assertEquals(2 * Chunk.MAX_ITEMS, c);
+            assertEquals(2 * maxItemsPerChunk, c);
 
             ByteBuffer from = ByteBuffer.allocate(4);
             from.putInt(0);
             from.flip();
             ByteBuffer to = ByteBuffer.allocate(4);
-            to.putInt(2 * Chunk.MAX_ITEMS);
+            to.putInt(2 * maxItemsPerChunk);
             to.flip();
             OakMap sub = oak.subMap(from, true, to, false);
             valIter = sub.valuesIterator();
-            c = (int) Math.round(0.5 * Chunk.MAX_ITEMS);
+            c = (int) Math.round(0.5 * maxItemsPerChunk);
             while (valIter.hasNext()) {
                 ByteBuffer bb = ByteBuffer.allocate(4);
                 bb.putInt(c);
@@ -169,29 +171,29 @@ public class MultiThreadTest {
                 assertEquals(c, ((OakBuffer) (valIter.next())).getInt(0));
                 c++;
             }
-            assertEquals(2 * Chunk.MAX_ITEMS, c);
+            assertEquals(2 * maxItemsPerChunk, c);
 
             from = ByteBuffer.allocate(4);
             from.putInt(1);
             from.flip();
             to = ByteBuffer.allocate(4);
-            to.putInt((int) Math.round(0.5 * Chunk.MAX_ITEMS));
+            to.putInt((int) Math.round(0.5 * maxItemsPerChunk));
             to.flip();
             sub = oak.subMap(from, true, to, false);
             valIter = sub.valuesIterator();
             assertFalse(valIter.hasNext());
 
             from = ByteBuffer.allocate(4);
-            from.putInt(4 * Chunk.MAX_ITEMS);
+            from.putInt(4 * maxItemsPerChunk);
             from.flip();
             to = ByteBuffer.allocate(4);
-            to.putInt(5 * Chunk.MAX_ITEMS);
+            to.putInt(5 * maxItemsPerChunk);
             to.flip();
             sub = oak.subMap(from, true, to, false);
             valIter = sub.valuesIterator();
             assertFalse(valIter.hasNext());
 
-            for (int i = (int) Math.round(0.5 * Chunk.MAX_ITEMS); i < Chunk.MAX_ITEMS; i++) {
+            for (int i = (int) Math.round(0.5 * maxItemsPerChunk); i < maxItemsPerChunk; i++) {
                 ByteBuffer bb = ByteBuffer.allocate(4);
                 bb.putInt(i);
                 bb.flip();
@@ -217,7 +219,7 @@ public class MultiThreadTest {
         for (int i = 0; i < NUM_THREADS; i++) {
             threads.get(i).join();
         }
-        for (int i = (int) Math.round(0.5 * Chunk.MAX_ITEMS); i < 2 * Chunk.MAX_ITEMS; i++) {
+        for (int i = (int) Math.round(0.5 * maxItemsPerChunk); i < 2 * maxItemsPerChunk; i++) {
             ByteBuffer bb = ByteBuffer.allocate(4);
             bb.putInt(i);
             bb.flip();
@@ -225,14 +227,14 @@ public class MultiThreadTest {
             assertTrue(buffer != null);
             assertEquals(i, buffer.getInt(0));
         }
-        for (int i = 2 * Chunk.MAX_ITEMS; i < 4 * Chunk.MAX_ITEMS; i++) {
+        for (int i = 2 * maxItemsPerChunk; i < 4 * maxItemsPerChunk; i++) {
             ByteBuffer bb = ByteBuffer.allocate(4);
             bb.putInt(i);
             bb.flip();
             OakBuffer buffer = oak.get(bb);
             assertTrue(buffer == null);
         }
-        for (int i = 0; i < (int) Math.round(0.5 * Chunk.MAX_ITEMS); i++) {
+        for (int i = 0; i < (int) Math.round(0.5 * maxItemsPerChunk); i++) {
             ByteBuffer bb = ByteBuffer.allocate(4);
             bb.putInt(i);
             bb.flip();
@@ -260,7 +262,7 @@ public class MultiThreadTest {
             Iterator iter;
             ByteBuffer bb;
 
-            for (i = 0; i < 6 * Chunk.MAX_ITEMS; i++) {
+            for (i = 0; i < 6 * maxItemsPerChunk; i++) {
                 bb = ByteBuffer.allocate(4);
                 bb.putInt(i);
                 bb.flip();
@@ -280,7 +282,7 @@ public class MultiThreadTest {
                 }
 
             }
-            Assert.assertTrue(i > Chunk.MAX_ITEMS);
+            Assert.assertTrue(i > maxItemsPerChunk);
             iter = oak.descendingMap().valuesIterator();
             while (iter.hasNext()) {
                 OakBuffer buffer = ((OakBuffer) (iter.next()));
@@ -294,7 +296,7 @@ public class MultiThreadTest {
             }
             assertEquals(0, i.intValue());
 
-            for (i = 2 * Chunk.MAX_ITEMS; i < 3 * Chunk.MAX_ITEMS; i++) {
+            for (i = 2 * maxItemsPerChunk; i < 3 * maxItemsPerChunk; i++) {
                 bb = ByteBuffer.allocate(4);
                 bb.putInt(i);
                 bb.flip();
@@ -312,7 +314,7 @@ public class MultiThreadTest {
                 } catch (NullPointerException exp) {
                 }
             }
-            Assert.assertTrue(i > Chunk.MAX_ITEMS);
+            Assert.assertTrue(i > maxItemsPerChunk);
             iter = oak.descendingMap().valuesIterator();
             while (iter.hasNext()) {
                 OakBuffer buffer = ((OakBuffer) (iter.next()));
@@ -333,14 +335,14 @@ public class MultiThreadTest {
                 }
             };
 
-            for (i = 2 * Chunk.MAX_ITEMS; i < 3 * Chunk.MAX_ITEMS; i++) {
+            for (i = 2 * maxItemsPerChunk; i < 3 * maxItemsPerChunk; i++) {
                 bb = ByteBuffer.allocate(4);
                 bb.putInt(i);
                 bb.flip();
                 oak.computeIfPresent(bb, func);
             }
 
-            for (i = 5 * Chunk.MAX_ITEMS; i < 6 * Chunk.MAX_ITEMS; i++) {
+            for (i = 5 * maxItemsPerChunk; i < 6 * maxItemsPerChunk; i++) {
                 bb = ByteBuffer.allocate(4);
                 bb.putInt(i);
                 bb.flip();
@@ -358,7 +360,7 @@ public class MultiThreadTest {
                 } catch (NullPointerException exp) {
                 }
             }
-            Assert.assertTrue(i > Chunk.MAX_ITEMS);
+            Assert.assertTrue(i > maxItemsPerChunk);
             iter = oak.descendingMap().valuesIterator();
             while (iter.hasNext()) {
                 OakBuffer buffer = ((OakBuffer) (iter.next()));
@@ -372,14 +374,14 @@ public class MultiThreadTest {
             }
             assertEquals(0, i.intValue());
 
-            for (i = 0; i < 6 * Chunk.MAX_ITEMS; i++) {
+            for (i = 0; i < 6 * maxItemsPerChunk; i++) {
                 bb = ByteBuffer.allocate(4);
                 bb.putInt(i);
                 bb.flip();
                 oak.putIfAbsent(bb, bb);
             }
 
-            for (i = 0; i < Chunk.MAX_ITEMS; i++) {
+            for (i = 0; i < maxItemsPerChunk; i++) {
                 bb = ByteBuffer.allocate(4);
                 bb.putInt(i);
                 bb.flip();
@@ -402,7 +404,7 @@ public class MultiThreadTest {
             threads.get(i).join();
         }
 
-        for (int i = 0; i < 6 * Chunk.MAX_ITEMS; i++) {
+        for (int i = 0; i < 6 * maxItemsPerChunk; i++) {
             ByteBuffer bb = ByteBuffer.allocate(4);
             bb.putInt(i);
             bb.flip();

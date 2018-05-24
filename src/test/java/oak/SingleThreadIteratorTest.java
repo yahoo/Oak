@@ -17,6 +17,8 @@ import static org.junit.Assert.assertFalse;
 public class SingleThreadIteratorTest {
 
     private OakMapOnHeapImpl oak;
+    int maxItemsPerChunk = 2048;
+    int maxBytesPerChunkItem = 100;
 
     @Before
     public void init() {
@@ -39,7 +41,7 @@ public class SingleThreadIteratorTest {
         ByteBuffer min = ByteBuffer.allocate(10);
         min.putInt(Integer.MIN_VALUE);
         min.flip();
-        oak = new OakMapOnHeapImpl(comparator, min);
+        oak = new OakMapOnHeapImpl(comparator, min, maxItemsPerChunk, maxBytesPerChunkItem);
     }
 
     @Rule
@@ -48,13 +50,13 @@ public class SingleThreadIteratorTest {
     @Test
     public void testIterator() {
         Integer i;
-        for (i = 0; i < 2 * Chunk.MAX_ITEMS; i++) {
+        for (i = 0; i < 2 * maxItemsPerChunk; i++) {
             ByteBuffer bb = ByteBuffer.allocate(4);
             bb.putInt(i);
             bb.flip();
             oak.put(bb, bb);
         }
-        for (i = 0; i < 2 * Chunk.MAX_ITEMS; i++) {
+        for (i = 0; i < 2 * maxItemsPerChunk; i++) {
             ByteBuffer bb = ByteBuffer.allocate(4);
             bb.putInt(i);
             bb.flip();
@@ -75,20 +77,20 @@ public class SingleThreadIteratorTest {
             assertEquals((int) i, e.getValue().getInt(0));
             i++;
         }
-        for (i = 0; i < Chunk.MAX_ITEMS; i++) {
+        for (i = 0; i < maxItemsPerChunk; i++) {
             ByteBuffer bb = ByteBuffer.allocate(4);
             bb.putInt(i);
             bb.flip();
             oak.remove(bb);
         }
-        for (i = 0; i < Chunk.MAX_ITEMS; i++) {
+        for (i = 0; i < maxItemsPerChunk; i++) {
             ByteBuffer bb = ByteBuffer.allocate(4);
             bb.putInt(i);
             bb.flip();
             OakBuffer buffer = oak.get(bb);
             assertTrue(buffer == null);
         }
-        for (i = Chunk.MAX_ITEMS; i < 2 * Chunk.MAX_ITEMS; i++) {
+        for (i = maxItemsPerChunk; i < 2 * maxItemsPerChunk; i++) {
             ByteBuffer bb = ByteBuffer.allocate(4);
             bb.putInt(i);
             bb.flip();
@@ -98,7 +100,7 @@ public class SingleThreadIteratorTest {
         }
         valIter = oak.valuesIterator();
         entryIter = oak.entriesIterator();
-        i = Chunk.MAX_ITEMS;
+        i = maxItemsPerChunk;
         while (valIter.hasNext()) {
             assertEquals((int) i, ((OakBuffer) (valIter.next())).getInt(0));
             Map.Entry<ByteBuffer, OakBuffer> e = (Map.Entry<ByteBuffer, OakBuffer>) entryIter.next();
@@ -109,26 +111,26 @@ public class SingleThreadIteratorTest {
             assertEquals((int) i, e.getValue().getInt(0));
             i++;
         }
-        for (i = Chunk.MAX_ITEMS; i < 2 * Chunk.MAX_ITEMS; i++) {
+        for (i = maxItemsPerChunk; i < 2 * maxItemsPerChunk; i++) {
             ByteBuffer bb = ByteBuffer.allocate(4);
             bb.putInt(i);
             bb.flip();
             oak.remove(bb);
         }
-        for (i = Chunk.MAX_ITEMS; i < 2 * Chunk.MAX_ITEMS; i++) {
+        for (i = maxItemsPerChunk; i < 2 * maxItemsPerChunk; i++) {
             ByteBuffer bb = ByteBuffer.allocate(4);
             bb.putInt(i);
             bb.flip();
             OakBuffer buffer = oak.get(bb);
             assertTrue(buffer == null);
         }
-        for (i = 0; i < 2 * Chunk.MAX_ITEMS; i++) {
+        for (i = 0; i < 2 * maxItemsPerChunk; i++) {
             ByteBuffer bb = ByteBuffer.allocate(4);
             bb.putInt(i);
             bb.flip();
             oak.put(bb, bb);
         }
-        for (i = 1; i < (2 * Chunk.MAX_ITEMS - 1); i++) {
+        for (i = 1; i < (2 * maxItemsPerChunk - 1); i++) {
             ByteBuffer bb = ByteBuffer.allocate(4);
             bb.putInt(i);
             bb.flip();
@@ -143,17 +145,17 @@ public class SingleThreadIteratorTest {
         assertEquals(0, buffer.getInt(0));
 
         bb = ByteBuffer.allocate(4);
-        bb.putInt((2 * Chunk.MAX_ITEMS - 1));
+        bb.putInt((2 * maxItemsPerChunk - 1));
         bb.flip();
         buffer = oak.get(bb);
         assertTrue(buffer != null);
-        assertEquals((2 * Chunk.MAX_ITEMS - 1), buffer.getInt(0));
+        assertEquals((2 * maxItemsPerChunk - 1), buffer.getInt(0));
 
         valIter = oak.valuesIterator();
         assertTrue(valIter.hasNext());
         assertEquals(0, ((OakBuffer) (valIter.next())).getInt(0));
         assertTrue(valIter.hasNext());
-        assertEquals((2 * Chunk.MAX_ITEMS - 1), ((OakBuffer) (valIter.next())).getInt(0));
+        assertEquals((2 * maxItemsPerChunk - 1), ((OakBuffer) (valIter.next())).getInt(0));
         thrown.expect(java.util.NoSuchElementException.class);
         ((OakBuffer) (valIter.next())).getInt(0);
     }
@@ -164,20 +166,20 @@ public class SingleThreadIteratorTest {
         from.putInt(0);
         from.flip();
         ByteBuffer to = ByteBuffer.allocate(4);
-        to.putInt(2 * Chunk.MAX_ITEMS);
+        to.putInt(3 * maxItemsPerChunk);
         to.flip();
 
         OakMap sub = oak.subMap(from, true, to, false);
         Iterator iter = sub.valuesIterator();
         assertFalse(iter.hasNext());
 
-        for (int i = 0; i < 10 * Chunk.MAX_ITEMS; i++) {
+        for (int i = 0; i < 12 * maxItemsPerChunk; i++) {
             ByteBuffer bb = ByteBuffer.allocate(4);
             bb.putInt(i);
             bb.flip();
             oak.put(bb, bb);
         }
-        for (int i = 0; i < 10 * Chunk.MAX_ITEMS; i++) {
+        for (int i = 0; i < 12 * maxItemsPerChunk; i++) {
             if (i % 3 == 0) {
                 ByteBuffer bb = ByteBuffer.allocate(4);
                 bb.putInt(i);
@@ -195,17 +197,17 @@ public class SingleThreadIteratorTest {
             assertEquals(c, ((OakBuffer) (iter.next())).getInt(0));
             c++;
         }
-        assertEquals(2 * Chunk.MAX_ITEMS - 1, c);
+        assertEquals(3 * maxItemsPerChunk, c);
 
         from = ByteBuffer.allocate(4);
-        from.putInt(5 * Chunk.MAX_ITEMS);
+        from.putInt(6 * maxItemsPerChunk);
         from.flip();
         to = ByteBuffer.allocate(4);
-        to.putInt(6 * Chunk.MAX_ITEMS);
+        to.putInt(9 * maxItemsPerChunk);
         to.flip();
         sub = oak.subMap(from, true, to, false);
         iter = sub.valuesIterator();
-        c = 5 * Chunk.MAX_ITEMS;
+        c = 6 * maxItemsPerChunk;
         while (iter.hasNext()) {
             if (c % 3 == 0) {
                 c++;
@@ -213,17 +215,17 @@ public class SingleThreadIteratorTest {
             assertEquals(c, ((OakBuffer) (iter.next())).getInt(0));
             c++;
         }
-        assertEquals(6 * Chunk.MAX_ITEMS, c);
+        assertEquals(9 * maxItemsPerChunk, c);
 
         from = ByteBuffer.allocate(4);
-        from.putInt(9 * Chunk.MAX_ITEMS);
+        from.putInt(9 * maxItemsPerChunk);
         from.flip();
         to = ByteBuffer.allocate(4);
-        to.putInt(11 * Chunk.MAX_ITEMS);
+        to.putInt(13 * maxItemsPerChunk);
         to.flip();
         sub = oak.subMap(from, true, to, false);
         iter = sub.valuesIterator();
-        c = 9 * Chunk.MAX_ITEMS;
+        c = 9 * maxItemsPerChunk;
         while (iter.hasNext()) {
             if (c % 3 == 0) {
                 c++;
@@ -231,13 +233,13 @@ public class SingleThreadIteratorTest {
             assertEquals(c, ((OakBuffer) (iter.next())).getInt(0));
             c++;
         }
-        assertEquals(10 * Chunk.MAX_ITEMS, c);
+        assertEquals(12 * maxItemsPerChunk, c);
 
         from = ByteBuffer.allocate(4);
-        from.putInt(10 * Chunk.MAX_ITEMS);
+        from.putInt(12 * maxItemsPerChunk);
         from.flip();
         to = ByteBuffer.allocate(4);
-        to.putInt(11 * Chunk.MAX_ITEMS);
+        to.putInt(13 * maxItemsPerChunk);
         to.flip();
         sub = oak.subMap(from, true, to, false);
         iter = sub.valuesIterator();
@@ -368,13 +370,13 @@ public class SingleThreadIteratorTest {
         assertEquals(2, i.intValue());
 
 
-        for (i = 0; i < 3 * Chunk.MAX_ITEMS; i++) {
+        for (i = 0; i < 3 * maxItemsPerChunk; i++) {
             ByteBuffer bb = ByteBuffer.allocate(4);
             bb.putInt(i);
             bb.flip();
             oak.put(bb, bb);
         }
-        for (i = 0; i < 3 * Chunk.MAX_ITEMS; i++) {
+        for (i = 0; i < 3 * maxItemsPerChunk; i++) {
             ByteBuffer bb = ByteBuffer.allocate(4);
             bb.putInt(i);
             bb.flip();
@@ -389,10 +391,10 @@ public class SingleThreadIteratorTest {
             assertEquals((int) i, ((OakBuffer) (iter.next())).getInt(0));
             i++;
         }
-        assertEquals(3 * Chunk.MAX_ITEMS, i.intValue());
+        assertEquals(3 * maxItemsPerChunk, i.intValue());
 
         iter = oak.descendingMap().valuesIterator();
-        i = 3 * Chunk.MAX_ITEMS;
+        i = 3 * maxItemsPerChunk;
         while (iter.hasNext()) {
             i--;
             assertEquals((int) i, ((OakBuffer) (iter.next())).getInt(0));
@@ -400,77 +402,77 @@ public class SingleThreadIteratorTest {
         assertEquals(0, i.intValue());
 
         from = ByteBuffer.allocate(4);
-        from.putInt(2 * Chunk.MAX_ITEMS);
+        from.putInt(2 * maxItemsPerChunk);
         from.flip();
         to = ByteBuffer.allocate(4);
-        to.putInt(3 * Chunk.MAX_ITEMS);
+        to.putInt(3 * maxItemsPerChunk);
         to.flip();
 
         sub = oak.subMap(from, true, to, false);
         iter = sub.valuesIterator();
-        i = 2 * Chunk.MAX_ITEMS;
+        i = 2 * maxItemsPerChunk;
         while (iter.hasNext()) {
             assertEquals((int) i, ((OakBuffer) (iter.next())).getInt(0));
             i++;
         }
-        assertEquals(3 * Chunk.MAX_ITEMS, i.intValue());
+        assertEquals(3 * maxItemsPerChunk, i.intValue());
         iter = sub.descendingMap().valuesIterator();
-        i = 3 * Chunk.MAX_ITEMS;
+        i = 3 * maxItemsPerChunk;
         while (iter.hasNext()) {
             i--;
             assertEquals((int) i, ((OakBuffer) (iter.next())).getInt(0));
         }
-        assertEquals(2 * Chunk.MAX_ITEMS, i.intValue());
+        assertEquals(2 * maxItemsPerChunk, i.intValue());
 
         from = ByteBuffer.allocate(4);
-        from.putInt((int) Math.round(0.1 * Chunk.MAX_ITEMS));
+        from.putInt((int) Math.round(0.1 * maxItemsPerChunk));
         from.flip();
         to = ByteBuffer.allocate(4);
-        to.putInt((int) Math.round(2.3 * Chunk.MAX_ITEMS));
+        to.putInt((int) Math.round(2.3 * maxItemsPerChunk));
         to.flip();
 
         sub = oak.subMap(from, true, to, false);
         iter = sub.valuesIterator();
-        i = (int) Math.round(0.1 * Chunk.MAX_ITEMS);
+        i = (int) Math.round(0.1 * maxItemsPerChunk);
         while (iter.hasNext()) {
             assertEquals((int) i, ((OakBuffer) (iter.next())).getInt(0));
             i++;
         }
-        assertEquals((int) Math.round(2.3 * Chunk.MAX_ITEMS), i.intValue());
+        assertEquals((int) Math.round(2.3 * maxItemsPerChunk), i.intValue());
         iter = sub.descendingMap().valuesIterator();
-        i = (int) Math.round(2.3 * Chunk.MAX_ITEMS);
+        i = (int) Math.round(2.3 * maxItemsPerChunk);
         while (iter.hasNext()) {
             i--;
             assertEquals((int) i, ((OakBuffer) (iter.next())).getInt(0));
         }
-        assertEquals((int) Math.round(0.1 * Chunk.MAX_ITEMS), i.intValue());
+        assertEquals((int) Math.round(0.1 * maxItemsPerChunk), i.intValue());
 
-        for (i = Chunk.MAX_ITEMS; i < 2 * Chunk.MAX_ITEMS; i++) {
+        for (i = maxItemsPerChunk; i < 2 * maxItemsPerChunk; i++) {
             ByteBuffer bb = ByteBuffer.allocate(4);
             bb.putInt(i);
             bb.flip();
             sub.remove(bb);
         }
         iter = sub.valuesIterator();
-        i = (int) Math.round(0.1 * Chunk.MAX_ITEMS);
+        i = (int) Math.round(0.1 * maxItemsPerChunk);
         while (iter.hasNext()) {
-            if (i == Chunk.MAX_ITEMS) {
-                i = 2 * Chunk.MAX_ITEMS;
+            if (i == maxItemsPerChunk) {
+                i = 2 * maxItemsPerChunk;
             }
             assertEquals((int) i, ((OakBuffer) (iter.next())).getInt(0));
             i++;
         }
-        assertEquals((int) Math.round(2.3 * Chunk.MAX_ITEMS), i.intValue());
+        assertEquals((int) Math.round(2.3 * maxItemsPerChunk), i.intValue());
         iter = sub.descendingMap().valuesIterator();
-        i = (int) Math.round(2.3 * Chunk.MAX_ITEMS);
+        i = (int) Math.round(2.3 * maxItemsPerChunk);
         while (iter.hasNext()) {
             i--;
-            if (i == 2 * Chunk.MAX_ITEMS - 1) {
-                i = Chunk.MAX_ITEMS - 1;
+            if (i == 2 * maxItemsPerChunk - 1) {
+                i = maxItemsPerChunk - 1;
             }
             assertEquals((int) i, ((OakBuffer) (iter.next())).getInt(0));
         }
-        assertEquals((int) Math.round(0.1 * Chunk.MAX_ITEMS), i.intValue());
+        assertEquals((int) Math.round(0.1 * maxItemsPerChunk), i.intValue());
     }
 
 }

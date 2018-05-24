@@ -17,10 +17,12 @@ import static org.junit.Assert.assertFalse;
 public class SingleThreadTest {
 
     private OakMapOnHeapImpl oak;
+    int maxItemsPerChunk = 2048;
+    int maxBytesPerChunkItem = 100;
 
     @Before
     public void init() {
-        oak = new OakMapOnHeapImpl();
+        oak = new OakMapOnHeapImpl(maxItemsPerChunk, maxBytesPerChunkItem);
     }
 
     private int countNumOfChunks() {
@@ -39,14 +41,14 @@ public class SingleThreadTest {
     @Test
     public void testPutAndGet() {
         assertEquals(1, countNumOfChunks());
-        for (int i = 0; i < 2 * Chunk.MAX_ITEMS; i++) {
+        for (int i = 0; i < 2 * maxItemsPerChunk; i++) {
             ByteBuffer bb = ByteBuffer.allocate(4);
             bb.putInt(i);
             bb.flip();
             oak.put(bb, bb);
         }
         assertEquals(4, countNumOfChunks());
-        for (int i = 0; i < 2 * Chunk.MAX_ITEMS; i++) {
+        for (int i = 0; i < 2 * maxItemsPerChunk; i++) {
             ByteBuffer bb = ByteBuffer.allocate(4);
             bb.putInt(i);
             bb.flip();
@@ -79,13 +81,13 @@ public class SingleThreadTest {
 
     @Test
     public void testPutIfAbsent() {
-        for (int i = 0; i < 2 * Chunk.MAX_ITEMS; i++) {
+        for (int i = 0; i < 2 * maxItemsPerChunk; i++) {
             ByteBuffer bb = ByteBuffer.allocate(4);
             bb.putInt(i);
             bb.flip();
             assertTrue(oak.putIfAbsent(bb, bb));
         }
-        for (int i = 0; i < 2 * Chunk.MAX_ITEMS; i++) {
+        for (int i = 0; i < 2 * maxItemsPerChunk; i++) {
             ByteBuffer bb = ByteBuffer.allocate(4);
             bb.putInt(i);
             bb.flip();
@@ -93,7 +95,7 @@ public class SingleThreadTest {
             assertTrue(buffer != null);
             TestCase.assertEquals(i, buffer.getInt(0));
         }
-        for (int i = 0; i < 2 * Chunk.MAX_ITEMS; i++) {
+        for (int i = 0; i < 2 * maxItemsPerChunk; i++) {
             ByteBuffer bb = ByteBuffer.allocate(4);
             bb.putInt(i);
             bb.flip();
@@ -102,7 +104,7 @@ public class SingleThreadTest {
             bb1.flip();
             assertFalse(oak.putIfAbsent(bb, bb1));
         }
-        for (int i = 0; i < 2 * Chunk.MAX_ITEMS; i++) {
+        for (int i = 0; i < 2 * maxItemsPerChunk; i++) {
             ByteBuffer bb = ByteBuffer.allocate(4);
             bb.putInt(i);
             bb.flip();
@@ -114,14 +116,14 @@ public class SingleThreadTest {
 
     @Test
     public void testRemoveAndGet() {
-        for (int i = 0; i < 2 * Chunk.MAX_ITEMS; i++) {
+        for (int i = 0; i < 2 * maxItemsPerChunk; i++) {
             ByteBuffer bb = ByteBuffer.allocate(4);
             bb.putInt(i);
             bb.flip();
             oak.remove(bb);
         }
         assertEquals(1, countNumOfChunks());
-        for (int i = 0; i < 2 * Chunk.MAX_ITEMS; i++) {
+        for (int i = 0; i < 2 * maxItemsPerChunk; i++) {
             ByteBuffer bb = ByteBuffer.allocate(4);
             bb.putInt(i);
             bb.flip();
@@ -133,21 +135,21 @@ public class SingleThreadTest {
 
     @Test
     public void testGraduallyRemove() {
-        for (int i = 0; i < 4 * Chunk.MAX_ITEMS; i++) {
+        for (int i = 0; i < 4 * maxItemsPerChunk; i++) {
             ByteBuffer bb = ByteBuffer.allocate(4);
             bb.putInt(i);
             bb.flip();
             OakBuffer buffer = oak.get(bb);
             assertTrue(buffer == null);
         }
-        for (int i = 0; i < 4 * Chunk.MAX_ITEMS; i++) {
+        for (int i = 0; i < 4 * maxItemsPerChunk; i++) {
             ByteBuffer bb = ByteBuffer.allocate(4);
             bb.putInt(i);
             bb.flip();
             oak.put(bb, bb);
         }
         assertEquals(8, countNumOfChunks());
-        for (int i = 0; i < 4 * Chunk.MAX_ITEMS; i++) {
+        for (int i = 0; i < 4 * maxItemsPerChunk; i++) {
             ByteBuffer bb = ByteBuffer.allocate(4);
             bb.putInt(i);
             bb.flip();
@@ -155,13 +157,13 @@ public class SingleThreadTest {
             assertTrue(buffer != null);
             TestCase.assertEquals(i, buffer.getInt(0));
         }
-        for (int i = 2 * Chunk.MAX_ITEMS; i < 3 * Chunk.MAX_ITEMS; i++) {
+        for (int i = 2 * maxItemsPerChunk; i < 3 * maxItemsPerChunk; i++) {
             ByteBuffer bb = ByteBuffer.allocate(4);
             bb.putInt(i);
             bb.flip();
             oak.remove(bb);
         }
-        for (int i = Chunk.MAX_ITEMS; i < 2 * Chunk.MAX_ITEMS; i++) {
+        for (int i = maxItemsPerChunk; i < 2 * maxItemsPerChunk; i++) {
             ByteBuffer bb = ByteBuffer.allocate(4);
             bb.putInt(i);
             bb.flip();
@@ -169,14 +171,14 @@ public class SingleThreadTest {
         }
         Assert.assertTrue(countNumOfChunks() < 8);
         int countNow = countNumOfChunks();
-        for (int i = Chunk.MAX_ITEMS; i < 3 * Chunk.MAX_ITEMS; i++) {
+        for (int i = maxItemsPerChunk; i < 3 * maxItemsPerChunk; i++) {
             ByteBuffer bb = ByteBuffer.allocate(4);
             bb.putInt(i);
             bb.flip();
             OakBuffer buffer = oak.get(bb);
             assertTrue(buffer == null);
         }
-        for (int i = 0; i < Chunk.MAX_ITEMS; i++) {
+        for (int i = 0; i < maxItemsPerChunk; i++) {
             ByteBuffer bb = ByteBuffer.allocate(4);
             bb.putInt(i);
             bb.flip();
@@ -184,7 +186,7 @@ public class SingleThreadTest {
             assertTrue(buffer != null);
             TestCase.assertEquals(i, buffer.getInt(0));
         }
-        for (int i = 3 * Chunk.MAX_ITEMS; i < 4 * Chunk.MAX_ITEMS; i++) {
+        for (int i = 3 * maxItemsPerChunk; i < 4 * maxItemsPerChunk; i++) {
             ByteBuffer bb = ByteBuffer.allocate(4);
             bb.putInt(i);
             bb.flip();
@@ -192,20 +194,20 @@ public class SingleThreadTest {
             assertTrue(buffer != null);
             TestCase.assertEquals(i, buffer.getInt(0));
         }
-        for (int i = 0; i < Chunk.MAX_ITEMS; i++) {
+        for (int i = 0; i < maxItemsPerChunk; i++) {
             ByteBuffer bb = ByteBuffer.allocate(4);
             bb.putInt(i);
             bb.flip();
             oak.remove(bb);
         }
-        for (int i = 0; i < 3 * Chunk.MAX_ITEMS; i++) {
+        for (int i = 0; i < 3 * maxItemsPerChunk; i++) {
             ByteBuffer bb = ByteBuffer.allocate(4);
             bb.putInt(i);
             bb.flip();
             OakBuffer buffer = oak.get(bb);
             assertTrue(buffer == null);
         }
-        for (int i = 3 * Chunk.MAX_ITEMS; i < 4 * Chunk.MAX_ITEMS; i++) {
+        for (int i = 3 * maxItemsPerChunk; i < 4 * maxItemsPerChunk; i++) {
             ByteBuffer bb = ByteBuffer.allocate(4);
             bb.putInt(i);
             bb.flip();
@@ -213,13 +215,13 @@ public class SingleThreadTest {
             assertTrue(buffer != null);
             TestCase.assertEquals(i, buffer.getInt(0));
         }
-        for (int i = 3 * Chunk.MAX_ITEMS; i < 4 * Chunk.MAX_ITEMS; i++) {
+        for (int i = 3 * maxItemsPerChunk; i < 4 * maxItemsPerChunk; i++) {
             ByteBuffer bb = ByteBuffer.allocate(4);
             bb.putInt(i);
             bb.flip();
             oak.remove(bb);
         }
-        for (int i = 0; i < 4 * Chunk.MAX_ITEMS; i++) {
+        for (int i = 0; i < 4 * maxItemsPerChunk; i++) {
             ByteBuffer bb = ByteBuffer.allocate(4);
             bb.putInt(i);
             bb.flip();
@@ -227,13 +229,13 @@ public class SingleThreadTest {
             assertTrue(buffer == null);
         }
         Assert.assertTrue(countNumOfChunks() < countNow);
-        for (int i = 0; i < 4 * Chunk.MAX_ITEMS; i++) {
+        for (int i = 0; i < 4 * maxItemsPerChunk; i++) {
             ByteBuffer bb = ByteBuffer.allocate(4);
             bb.putInt(i);
             bb.flip();
             oak.put(bb, bb);
         }
-        for (int i = 0; i < 4 * Chunk.MAX_ITEMS; i++) {
+        for (int i = 0; i < 4 * maxItemsPerChunk; i++) {
             ByteBuffer bb = ByteBuffer.allocate(4);
             bb.putInt(i);
             bb.flip();

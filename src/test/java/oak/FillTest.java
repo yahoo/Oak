@@ -106,10 +106,13 @@ public class FillTest {
 
     public static void main(String[] args) throws InterruptedException {
 
+        int maxItemsPerChunk = 2048;
+        int maxBytesPerChunkItem = 100;
+
         if (args[0].equals("on")) {
-            oak = new OakMapOnHeapImpl();
+            oak = new OakMapOnHeapImpl(maxItemsPerChunk, maxBytesPerChunkItem);
         } else if (args[0].equals("off")) {
-            oak = new OakMapOffHeapImpl();
+            oak = new OakMapOffHeapImpl(maxItemsPerChunk, maxBytesPerChunkItem);
         } else if (args[0].equals("java")) {
             java = true;
             skiplist = new ConcurrentSkipListMap<>();

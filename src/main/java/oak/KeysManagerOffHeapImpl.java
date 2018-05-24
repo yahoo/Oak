@@ -3,6 +3,9 @@ package oak;
 import javafx.util.Pair;
 
 import java.nio.ByteBuffer;
+import java.util.AbstractMap.SimpleImmutableEntry;
+import java.util.Map.Entry;
+import java.util.function.Consumer;
 
 public class KeysManagerOffHeapImpl extends KeysManager {
 
@@ -29,6 +32,14 @@ public class KeysManagerOffHeapImpl extends KeysManager {
         for (int j = 0; j < length; j++) {
             keys.put(myPos + ki + j, key.get(keyPos + j));
         }
+    }
+
+    @Override
+    void writeKey(Object key,
+                  Consumer<Entry<Entry<ByteBuffer, Integer>, Object>> keyCreator,
+                  int ki) {
+        Entry<ByteBuffer, Integer> buffInfo = new SimpleImmutableEntry<ByteBuffer, Integer>(keys, ki);
+        keyCreator.accept(new SimpleImmutableEntry<Entry<ByteBuffer, Integer>, Object>(buffInfo, key));
     }
 
     @Override

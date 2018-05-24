@@ -2,6 +2,7 @@ package oak;
 
 import java.nio.ByteBuffer;
 import java.util.*;
+import java.util.Map.Entry;
 import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
@@ -26,14 +27,14 @@ public class OakMapOnHeapImpl implements OakMap {
 
     /*-------------- Constructors --------------*/
 
-    public OakMapOnHeapImpl() {
+    public OakMapOnHeapImpl(int chunkMaxItems, int chunkBytesPerItem) {
         ByteBuffer bb = ByteBuffer.allocate(1).put(Byte.MIN_VALUE);
         bb.rewind();
         this.minKey = bb;
         this.comparator = new ByteBufferComparator();
 
         this.skiplist = new ConcurrentSkipListMap<>();
-        Chunk head = new Chunk(this.minKey, null, this.comparator, null);
+        Chunk head = new Chunk(this.minKey, null, this.comparator, null, chunkMaxItems, chunkBytesPerItem);
         this.skiplist.put(head.minKey, head);    // add first chunk (head) into skiplist
         this.head = new AtomicReference<>(head);
 
@@ -42,12 +43,12 @@ public class OakMapOnHeapImpl implements OakMap {
         valueFactory = new ValueFactory(false);
     }
 
-    public OakMapOnHeapImpl(Comparator<Object> comparator, ByteBuffer minKey) {
+    public OakMapOnHeapImpl(Comparator<Object> comparator, ByteBuffer minKey, int chunkMaxItems, int chunkBytesPerItem) {
         this.minKey = minKey;
         this.comparator = comparator;
 
         this.skiplist = new ConcurrentSkipListMap<>(comparator);
-        Chunk head = new Chunk(this.minKey, null, comparator, null);
+        Chunk head = new Chunk(this.minKey, null, comparator, null, chunkMaxItems, chunkBytesPerItem);
         this.skiplist.put(head.minKey, head);    // add first chunk (head) into skiplist
         this.head = new AtomicReference<>(head);
 
@@ -393,7 +394,11 @@ public class OakMapOnHeapImpl implements OakMap {
     }
 
     @Override
-    public boolean putIfAbsent(ByteBuffer key, Consumer<ByteBuffer> valueCreator, int capacity) {
+    public boolean putIfAbsent(Object key,
+                               Consumer<Entry<Entry<ByteBuffer, Integer>, Object>> keyCreator,
+                               Function<Object, Integer> keyCapacityCalculator,
+                               Consumer<ByteBuffer> valueCreator,
+                               int valueCapacity) {
         throw new UnsupportedOperationException();
     }
 
@@ -476,26 +481,36 @@ public class OakMapOnHeapImpl implements OakMap {
     }
 
     @Override
-    public void putIfAbsentComputeIfPresent(ByteBuffer key, Consumer<ByteBuffer> valueCreator, int capacity, Consumer<WritableOakBuffer> function) {
+    public void putIfAbsentComputeIfPresent(Object key,
+                                            Consumer<Entry<Entry<ByteBuffer, Integer>, Object>> keyCreator,
+                                            Function<Object, Integer> keyCapacityCalculator,
+                                            Consumer<ByteBuffer> valueCreator,
+                                            int valueCapacity,
+                                            Consumer<WritableOakBuffer> function) {
         throw new UnsupportedOperationException();
     }
 
     @Override
-    public void remove(ByteBuffer key) {
-        if (key == null || key.remaining() == 0) {
+    public void remove(Object key) {
+        if (key == null) {
             throw new NullPointerException();
         }
 
+        if (!(key instanceof ByteBuffer)) {
+            throw new UnsupportedOperationException();
+        }
+
+        ByteBuffer buff = (ByteBuffer) key;
         boolean logical = true;
         Handle prev = null;
 
         while (true) {
 
             // find chunk matching key
-            Chunk c = skiplist.floorEntry(key).getValue();
-            c = iterateChunks(c, key);
+            Chunk c = skiplist.floorEntry(buff).getValue();
+            c = iterateChunks(c, buff);
 
-            Chunk.LookUp lookUp = c.lookUp(key);
+            Chunk.LookUp lookUp = c.lookUp(buff);
             if (lookUp != null && logical) {
                 prev = lookUp.handle; // remember previous handle
             }
@@ -519,7 +534,7 @@ public class OakMapOnHeapImpl implements OakMap {
                 continue;
             }
             if (state == Chunk.State.FROZEN || state == Chunk.State.RELEASED) {
-                if (!rebalanceRemove(c, key)) {
+                if (!rebalanceRemove(c, buff)) {
                     logical = false;
                     continue;
                 }
@@ -533,7 +548,7 @@ public class OakMapOnHeapImpl implements OakMap {
 
             // publish
             if (!c.publish(opData)) {
-                if (!rebalanceRemove(c, key)) {
+                if (!rebalanceRemove(c, buff)) {
                     logical = false;
                     continue;
                 }
@@ -553,32 +568,45 @@ public class OakMapOnHeapImpl implements OakMap {
     }
 
     @Override
-    public OakBuffer get(ByteBuffer key) {
-        if (key == null || key.remaining() == 0) {
+    public OakBuffer get(Object key) {
+        if (key == null) {
             throw new NullPointerException();
         }
 
-        Chunk c = skiplist.floorEntry(key).getValue();
-        c = iterateChunks(c, key);
+        if (!(key instanceof ByteBuffer)) {
+            throw new UnsupportedOperationException();
+        }
 
-        Chunk.LookUp lookUp = c.lookUp(key);
+        ByteBuffer buff = (ByteBuffer) key;
+
+        Chunk c = skiplist.floorEntry(buff).getValue();
+        c = iterateChunks(c, buff);
+
+        Chunk.LookUp lookUp = c.lookUp(buff);
         return lookUp == null || lookUp.handle == null ? null : new OakBufferImpl(lookUp.handle);
     }
 
     @Override
-    public <T> T getTransformation(ByteBuffer key, Function<ByteBuffer,T> transformer) {
+    public <T> T getTransformation(Object key, Function<ByteBuffer,T> transformer) {
         throw new UnsupportedOperationException();
     }
 
-    public boolean computeIfPresent(ByteBuffer key, Consumer<WritableOakBuffer> function) {
-        if (key == null || key.remaining() == 0 || function == null) {
+    @Override
+    public boolean computeIfPresent(Object key, Consumer<WritableOakBuffer> function) {
+        if (key == null || function == null) {
             throw new NullPointerException();
         }
 
-        Chunk c = skiplist.floorEntry(key).getValue();
-        c = iterateChunks(c, key);
+        if (!(key instanceof ByteBuffer)) {
+            throw new UnsupportedOperationException();
+        }
 
-        Chunk.LookUp lookUp = c.lookUp(key);
+        ByteBuffer buff = (ByteBuffer) key;
+
+        Chunk c = skiplist.floorEntry(buff).getValue();
+        c = iterateChunks(c, buff);
+
+        Chunk.LookUp lookUp = c.lookUp(buff);
         if (lookUp == null || lookUp.handle == null) return false;
 
         lookUp.handle.compute(function, null);
@@ -586,24 +614,30 @@ public class OakMapOnHeapImpl implements OakMap {
     }
 
     @Override
-    public OakMap subMap(ByteBuffer fromKey, boolean fromInclusive, ByteBuffer toKey, boolean toInclusive) {
+    public OakMap subMap(Object fromKey, boolean fromInclusive, Object toKey, boolean toInclusive) {
         if (fromKey == null || toKey == null)
             throw new NullPointerException();
-        return new SubOakMap(this, fromKey, fromInclusive, toKey, toInclusive, false);
+        if (!(fromKey instanceof ByteBuffer) || !(toKey instanceof ByteBuffer))
+            throw new UnsupportedOperationException();
+        return new SubOakMap(this, (ByteBuffer) fromKey, fromInclusive, (ByteBuffer) toKey, toInclusive, false);
     }
 
     @Override
-    public OakMap headMap(ByteBuffer toKey, boolean inclusive) {
+    public OakMap headMap(Object toKey, boolean inclusive) {
         if (toKey == null)
             throw new NullPointerException();
-        return new SubOakMap(this, null, false, toKey, inclusive, false);
+        if (!(toKey instanceof ByteBuffer))
+            throw new UnsupportedOperationException();
+        return new SubOakMap(this, null, false, (ByteBuffer) toKey, inclusive, false);
     }
 
     @Override
-    public OakMap tailMap(ByteBuffer fromKey, boolean inclusive) {
+    public OakMap tailMap(Object fromKey, boolean inclusive) {
         if (fromKey == null)
             throw new NullPointerException();
-        return new SubOakMap(this, fromKey, inclusive, null, false, false);
+        if (!(fromKey instanceof ByteBuffer))
+            throw new UnsupportedOperationException();
+        return new SubOakMap(this, (ByteBuffer) fromKey, inclusive, null, false, false);
     }
 
     @Override
@@ -893,8 +927,12 @@ public class OakMapOnHeapImpl implements OakMap {
         }
 
         @Override
-        public boolean putIfAbsent(ByteBuffer key, Consumer<ByteBuffer> valueCreator, int capacity) {
-            return oak.putIfAbsent(key, valueCreator, capacity);
+        public boolean putIfAbsent(Object key,
+                                   Consumer<Entry<Entry<ByteBuffer, Integer>, Object>> keyCreator,
+                                   Function<Object, Integer> keyCapacityCalculator,
+                                   Consumer<ByteBuffer> valueCreator,
+                                   int valueCapacity) {
+            return oak.putIfAbsent(key, keyCreator, keyCapacityCalculator, valueCreator, valueCapacity);
         }
 
         @Override
@@ -903,53 +941,74 @@ public class OakMapOnHeapImpl implements OakMap {
         }
 
         @Override
-        public void putIfAbsentComputeIfPresent(ByteBuffer key, Consumer<ByteBuffer> valueCreator, int capacity, Consumer<WritableOakBuffer> function) {
-            oak.putIfAbsentComputeIfPresent(key, valueCreator, capacity, function);
+        public void putIfAbsentComputeIfPresent(Object key,
+                                                Consumer<Entry<Entry<ByteBuffer, Integer>, Object>> keyCreator,
+                                                Function<Object, Integer> keyCapacityCalculator,
+                                                Consumer<ByteBuffer> valueCreator,
+                                                int valueCapacity,
+                                                Consumer<WritableOakBuffer> function) {
+            oak.putIfAbsentComputeIfPresent(key, keyCreator, keyCapacityCalculator,
+                    valueCreator, valueCapacity, function);
         }
 
         @Override
-        public void remove(ByteBuffer key) {
-            if (inBounds(key)) {
+        public void remove(Object key) {
+            if (key == null) throw new NullPointerException();
+            if (!(key instanceof ByteBuffer)) {
+                throw new UnsupportedOperationException();
+            }
+
+            if (inBounds((ByteBuffer) key)) {
                 oak.remove(key);
             }
         }
 
         @Override
-        public OakBuffer get(ByteBuffer key) {
+        public OakBuffer get(Object key) {
             if (key == null) throw new NullPointerException();
-            return (!inBounds(key)) ? null : oak.get(key);
+            if (!(key instanceof ByteBuffer)) {
+                throw new UnsupportedOperationException();
+            }
+            return (!inBounds((ByteBuffer) key)) ? null : oak.get(key);
         }
 
         @Override
-        public <T> T getTransformation(ByteBuffer key, Function<ByteBuffer,T> transformer) {
+        public <T> T getTransformation(Object key, Function<ByteBuffer,T> transformer) {
             if (key == null) throw new NullPointerException();
-            return (!inBounds(key)) ? null : oak.getTransformation(key, transformer);
+            if (!(key instanceof ByteBuffer)) throw new UnsupportedOperationException();
+            return (!inBounds((ByteBuffer) key)) ? null : oak.getTransformation(key, transformer);
         }
 
         @Override
-        public boolean computeIfPresent(ByteBuffer key, Consumer<WritableOakBuffer> function) {
+        public boolean computeIfPresent(Object key, Consumer<WritableOakBuffer> function) {
             return oak.computeIfPresent(key, function);
         }
 
         @Override
-        public OakMap subMap(ByteBuffer fromKey, boolean fromInclusive, ByteBuffer toKey, boolean toInclusive) {
+        public OakMap subMap(Object fromKey, boolean fromInclusive, Object toKey, boolean toInclusive) {
             if (fromKey == null || toKey == null)
                 throw new NullPointerException();
-            return newSubOakMap(fromKey, fromInclusive, toKey, toInclusive);
+            if (!(fromKey instanceof ByteBuffer) || !(toKey instanceof ByteBuffer))
+                throw new UnsupportedOperationException();
+            return newSubOakMap((ByteBuffer) fromKey, fromInclusive, (ByteBuffer) toKey, toInclusive);
         }
 
         @Override
-        public OakMap headMap(ByteBuffer toKey, boolean inclusive) {
+        public OakMap headMap(Object toKey, boolean inclusive) {
             if (toKey == null)
                 throw new NullPointerException();
-            return newSubOakMap(null, false, toKey, inclusive);
+            if (!(toKey instanceof ByteBuffer))
+                throw new UnsupportedOperationException();
+            return newSubOakMap(null, false, (ByteBuffer) toKey, inclusive);
         }
 
         @Override
-        public OakMap tailMap(ByteBuffer fromKey, boolean inclusive) {
+        public OakMap tailMap(Object fromKey, boolean inclusive) {
             if (fromKey == null)
                 throw new NullPointerException();
-            return newSubOakMap(fromKey, inclusive, null, false);
+            if (!(fromKey instanceof ByteBuffer))
+                throw new UnsupportedOperationException();
+            return newSubOakMap((ByteBuffer) fromKey, inclusive, null, false);
         }
 
         @Override

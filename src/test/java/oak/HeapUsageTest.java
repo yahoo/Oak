@@ -5,6 +5,10 @@ import java.nio.ByteBuffer;
 public class HeapUsageTest {
 
     public static void main(String[] args) throws InterruptedException {
+
+        int maxItemsPerChunk = 2048;
+        int maxBytesPerChunkItem = 100;
+
         final long K = 1024;
         final long M = K * K;
 
@@ -19,7 +23,7 @@ public class HeapUsageTest {
         key.putInt(0, 0);
         val.putInt(0, 0);
 
-        OakMapOffHeapImpl oak = new OakMapOffHeapImpl();
+        OakMapOffHeapImpl oak = new OakMapOffHeapImpl(maxItemsPerChunk, maxBytesPerChunkItem);
 
         long heapSize = Runtime.getRuntime().totalMemory(); // Get current size of heap in bytes
         long heapMaxSize = Runtime.getRuntime().maxMemory(); // Get maximum size of heap in bytes
