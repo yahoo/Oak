@@ -15,6 +15,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import oak.OakMap.KeyInfo;
 
 public class Chunk {
 
@@ -64,6 +65,7 @@ public class Chunk {
     private int sortedCount;      // # of sorted items at entry-array's beginning (resulting from split)
     private final int maxItems;
     private final int maxKeyBytes;
+    AtomicInteger externalSize; // for updating oak's size
 
     /*-------------- Constructors --------------*/
 
@@ -85,7 +87,7 @@ public class Chunk {
      * @param creator the chunk that is responsible for this chunk creation
      */
     Chunk(ByteBuffer minKey, Chunk creator, Comparator<Object> comparator, OakMemoryManager memoryManager,
-          int maxItems, int bytesPerItem) {
+          int maxItems, int bytesPerItem, AtomicInteger externalSize) {
         this.memoryManager = memoryManager;
         this.maxItems = maxItems;
         this.maxKeyBytes = maxItems * bytesPerItem;
@@ -112,6 +114,7 @@ public class Chunk {
         this.statistics = new Statistics();
         this.comparator = comparator;
         this.byteBufferPerThread = new ByteBuffer[MAX_THREADS]; // init to null
+        this.externalSize = externalSize;
     }
 
     enum State {
@@ -224,7 +227,7 @@ public class Chunk {
     }
 
     private void writeKey(Object key,
-                          Consumer<Entry<Entry<ByteBuffer, Integer>, Object>> keyCreator,
+                          Consumer<KeyInfo> keyCreator,
                           int ki) {
         keysManager.writeKey(key, keyCreator, ki);
     }
@@ -243,6 +246,10 @@ public class Chunk {
         } else {
             return handles[hi];
         }
+    }
+
+    int getHandleIndex(int entryIndex) {
+        return get(entryIndex, OFFSET_HANDLE_INDEX);
     }
 
     /**
@@ -379,7 +386,7 @@ public class Chunk {
     }
 
     int allocateEntryAndKey(Object key,
-                            Consumer<Entry<Entry<ByteBuffer, Integer>, Object>> keyCreator,
+                            Consumer<KeyInfo> keyCreator,
                             Function<Object, Integer> keyCapacityCalculator) {
         int ei = entryIndex.getAndAdd(FIELDS);
         if (ei + FIELDS > entries.length) {
@@ -531,7 +538,7 @@ public class Chunk {
             opData.prevHandleIndex = -1;
             return pointToValue(opData); // remove completed, try again
         } else if (operation == OakMap.Operation.PUT_IF_ABSENT) {
-            return false; // to late
+            return false; // too late
         } else if (operation == OakMap.Operation.COMPUTE){
             Handle h = handles[now];
             if(h != null){
@@ -553,8 +560,10 @@ public class Chunk {
                 // update statistics only by thread that CASed
                 if (opData.prevHandleIndex < 0 && opData.handleIndex > 0) { // previously a remove
                     statistics.incrementAddedCount();
+                    externalSize.incrementAndGet();
                 } else if (opData.prevHandleIndex > 0 && opData.handleIndex == -1) { // removing
                     statistics.decrementAddedCount();
+                    externalSize.decrementAndGet();
                 }
                 return true;
             }
@@ -832,6 +841,7 @@ public class Chunk {
         if (!isEngaged(null)) return false;
         int numOfEntries = entryIndex.get() / FIELDS;
         int numOfItems = statistics.getCompactedCount();
+
         return (sortedCount == 0 && numOfEntries << 3 > maxItems) ||
                 (sortedCount > 0 && (sortedCount * SORTED_REBALANCE_RATIO) < numOfEntries) ||
                 (numOfEntries << 3 > maxItems && numOfItems << 2 < numOfEntries);

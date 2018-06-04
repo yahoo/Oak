@@ -7,17 +7,25 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.logging.Logger;
+import oak.OakMap.KeyInfo;
 
 class Rebalancer {
+
+    Logger log = Logger.getLogger(Rebalancer.class.getName());
 
     /*-------------- Constants --------------*/
 
     private final int rebalanceSize;
     private final double maxAfterMergePart;
+    private final double lowThreshold;
+    private final double appendThreshold;
     private final int entriesLowThreshold;
     private final int keyBytesLowThreshold;
     private final int maxRangeToAppend;
+    private final int maxBytesToAppend;
     private final int maxAfterMergeItems;
+    private final int maxAfterMergeBytes;
 
     /*-------------- Members --------------*/
 
@@ -29,6 +37,7 @@ class Rebalancer {
     private Chunk last;
     private int chunksInRange;
     private int itemsInRange;
+    private int bytesInRange;
     private final Comparator<Object> comparator;
     private final boolean offHeap;
     private final OakMemoryManager memoryManager;
@@ -40,10 +49,14 @@ class Rebalancer {
     Rebalancer(Chunk chunk, Comparator<Object> comparator, boolean offHeap, OakMemoryManager memoryManager, HandleFactory handleFactory, ValueFactory valueFactory) {
         this.rebalanceSize = 2;
         this.maxAfterMergePart = 0.7;
-        this.entriesLowThreshold = chunk.getMaxItems() / 2;
-        this.keyBytesLowThreshold = (chunk.getMaxItems() * chunk.getBytesPerItem()) / 2;
-        this.maxRangeToAppend = (int) (0.2 * chunk.getMaxItems());
+        this.lowThreshold = 0.5;
+        this.appendThreshold = 0.2;
+        this.entriesLowThreshold = (int) (chunk.getMaxItems() * this.lowThreshold);
+        this.keyBytesLowThreshold = (int) (chunk.getMaxItems() * chunk.getBytesPerItem() * this.lowThreshold);
+        this.maxRangeToAppend = (int) (chunk.getMaxItems() * this.appendThreshold);
+        this.maxBytesToAppend = (int) (chunk.getMaxItems() * chunk.getBytesPerItem() * this.appendThreshold);
         this.maxAfterMergeItems = (int) (chunk.getMaxItems() * this.maxAfterMergePart);
+        this.maxAfterMergeBytes = (int) (chunk.getMaxItems() * chunk.getBytesPerItem() * this.maxAfterMergePart);
 
         this.comparator = comparator;
         this.offHeap = offHeap;
@@ -53,6 +66,7 @@ class Rebalancer {
         last = chunk;
         chunksInRange = 1;
         itemsInRange = first.getStatistics().getCompactedCount();
+        bytesInRange = first.keyIndex.get();
         this.handleFactory = handleFactory;
         this.valueFactory = valueFactory;
     }
@@ -136,7 +150,7 @@ class Rebalancer {
 
         Chunk firstFrozen = iterFrozen.next();
         Chunk currFrozen = firstFrozen;
-        Chunk currNewChunk = new Chunk(firstFrozen.minKey, firstFrozen, firstFrozen.comparator, memoryManager, firstFrozen.getMaxItems(), firstFrozen.getBytesPerItem());
+        Chunk currNewChunk = new Chunk(firstFrozen.minKey, firstFrozen, firstFrozen.comparator, memoryManager, firstFrozen.getMaxItems(), firstFrozen.getBytesPerItem(), firstFrozen.externalSize);
 
         int ei = firstFrozen.getFirstItemEntryIndex();
 
@@ -157,7 +171,7 @@ class Rebalancer {
 
                 List<Chunk> frozenSuffix = frozenChunks.subList(iterFrozen.previousIndex(), frozenChunks.size());
                 // try to look ahead and add frozen suffix
-                if (canAppendSuffix(frozenSuffix, maxRangeToAppend)) {
+                if (canAppendSuffix(frozenSuffix, maxRangeToAppend, maxBytesToAppend)) {
                     // maybe there is just a little bit copying left
                     // and we don't want to open a whole new chunk just for it
                     completeCopy(currNewChunk, ei, frozenSuffix);
@@ -174,7 +188,7 @@ class Rebalancer {
                         newMinKey.put(myPos + i, bb.get(i + position));
                     }
                     newMinKey.rewind();
-                    Chunk c = new Chunk(newMinKey, firstFrozen, currFrozen.comparator, memoryManager, currFrozen.getMaxItems(), currFrozen.getBytesPerItem());
+                    Chunk c = new Chunk(newMinKey, firstFrozen, currFrozen.comparator, memoryManager, currFrozen.getMaxItems(), currFrozen.getBytesPerItem(), currFrozen.externalSize);
                     currNewChunk.next.set(c, false);
                     newChunks.add(currNewChunk);
                     currNewChunk = c;
@@ -202,7 +216,7 @@ class Rebalancer {
      * if we did then the put was inserted
      */
     RebalanceResult createNewChunks(Object key,
-                                    Consumer<Entry<Entry<ByteBuffer, Integer>, Object>> keyCreator,
+                                    Consumer<KeyInfo> keyCreator,
                                     Function<Object, Integer> keyCapacityCalculator,
                                     Consumer<ByteBuffer> valueCreator,
                                     int valueCapacity,
@@ -220,7 +234,7 @@ class Rebalancer {
 
         Chunk firstFrozen = iterFrozen.next();
         Chunk currFrozen = firstFrozen;
-        Chunk currNewChunk = new Chunk(firstFrozen.minKey, firstFrozen, firstFrozen.comparator, memoryManager, currFrozen.getMaxItems(), currFrozen.getBytesPerItem());
+        Chunk currNewChunk = new Chunk(firstFrozen.minKey, firstFrozen, firstFrozen.comparator, memoryManager, currFrozen.getMaxItems(), currFrozen.getBytesPerItem(), currFrozen.externalSize);
 
         int ei = firstFrozen.getFirstItemEntryIndex();
 
@@ -240,7 +254,7 @@ class Rebalancer {
 
                 List<Chunk> frozenSuffix = frozenChunks.subList(iterFrozen.previousIndex(), frozenChunks.size());
                 // try to look ahead and add frozen suffix
-                if (canAppendSuffix(frozenSuffix, maxRangeToAppend)) {
+                if (canAppendSuffix(frozenSuffix, maxRangeToAppend, maxBytesToAppend)) {
                     // maybe there is just a little bit copying left
                     // and we don't want to open a whole new chunk just for it
                     completeCopy(currNewChunk, ei, frozenSuffix);
@@ -257,7 +271,7 @@ class Rebalancer {
                         newMinKey.put(myPos + i, bb.get(i + position));
                     }
                     newMinKey.rewind();
-                    Chunk c = new Chunk(newMinKey, firstFrozen, currFrozen.comparator, memoryManager, currFrozen.getMaxItems(), currFrozen.getBytesPerItem());
+                    Chunk c = new Chunk(newMinKey, firstFrozen, currFrozen.comparator, memoryManager, currFrozen.getMaxItems(), currFrozen.getBytesPerItem(), currFrozen.externalSize);
                     currNewChunk.next.set(c, false);
                     newChunks.add(currNewChunk);
                     currNewChunk = c;
@@ -268,7 +282,7 @@ class Rebalancer {
 
         newChunks.add(currNewChunk);
 
-        boolean putIfAbsent = true;
+        boolean putIfAbsent = false;
         if (operation != OakMap.Operation.NO_OP) { // help this op (for lock freedom)
             putIfAbsent = helpOp(newChunks, key, keyCreator, keyCapacityCalculator, valueCreator, valueCapacity, function, operation);
         }
@@ -278,13 +292,15 @@ class Rebalancer {
         return new RebalanceResult(cas, putIfAbsent);
     }
 
-    private boolean canAppendSuffix(List<Chunk> frozenSuffix, int maxCount) {
+    private boolean canAppendSuffix(List<Chunk> frozenSuffix, int maxCount, int maxBytes) {
         Iterator<Chunk> iter = frozenSuffix.iterator();
         int counter = 0;
+        int bytesSum = 0;
         // use statistics to find out how much is left to copy
-        while (iter.hasNext() && counter < maxCount) {
+        while (iter.hasNext() && counter < maxCount && bytesSum < maxBytes) {
             Chunk c = iter.next();
             counter += c.getStatistics().getCompactedCount();
+            bytesSum += c.keyIndex.get();
         }
         return counter < maxCount;
     }
@@ -314,9 +330,12 @@ class Rebalancer {
         if (!isCandidate(candidate)) return null;
 
         int newItems = candidate.getStatistics().getCompactedCount();
+        int newBytes = candidate.keyIndex.get();
         int totalItems = itemsInRange + newItems;
+        int totalBytes = bytesInRange + newBytes;
         // TODO think if this makes sense
-        int chunksAfterMerge = (int) Math.ceil(((double) totalItems) / maxAfterMergeItems);
+        int chunksAfterMerge = Math.max((int) Math.ceil(((double) totalItems) / maxAfterMergeItems),
+                (int) Math.ceil(((double) totalBytes) / maxAfterMergeBytes));
 
         // if the chosen chunk may reduce the number of chunks -- return it as candidate
         if (chunksAfterMerge < chunksInRange + 1) {
@@ -338,6 +357,7 @@ class Rebalancer {
     private void addToCounters(Chunk chunk) {
         itemsInRange += chunk.getStatistics().getCompactedCount();
         chunksInRange++;
+        bytesInRange += chunk.keyIndex.get();
     }
 
     /**
@@ -400,7 +420,7 @@ class Rebalancer {
      * the key is guaranteed to be in the range of keys in the new chunk
      */
     private boolean helpOp(List<Chunk> newChunks, Object key,
-                           Consumer<Entry<Entry<ByteBuffer, Integer>, Object>> keyCreator,
+                           Consumer<KeyInfo> keyCreator,
                            Function<Object, Integer> keyCapacityCalculator,
                            Consumer<ByteBuffer> valueCreator,
                            int valueCapacity,
@@ -422,10 +442,10 @@ class Rebalancer {
                 return false;
             } else if(operation == OakMap.Operation.PUT) {
                 lookUp.handle.put(valueCreator, valueCapacity, memoryManager);
-                return true;
+                return false;
             } else if (operation == OakMap.Operation.COMPUTE) {
                 lookUp.handle.compute(function, memoryManager);
-                return true;
+                return false;
             }
         }
         // TODO handle.put or handle.compute
@@ -434,7 +454,8 @@ class Rebalancer {
         if (lookUp == null) { // no entry
             if (operation == OakMap.Operation.REMOVE) return true;
             ei = c.allocateEntryAndKey(key, keyCreator, keyCapacityCalculator);
-            assert ei > 0; // chunk can't be full
+            if (ei <= 0)
+                throw new NullPointerException("Chunk was full during helpOp");
             int eiLink = c.linkEntry(ei, false, key);
             assert eiLink == ei; // no one else can insert
         } else {
@@ -446,7 +467,6 @@ class Rebalancer {
             hi = c.allocateHandle(handleFactory);
             assert hi > 0; // chunk can't be full
 
-
             c.writeValue(hi, valueFactory.createValue(valueCreator, valueCapacity, memoryManager)); // write value in place
 
         }
@@ -455,7 +475,7 @@ class Rebalancer {
         Chunk.OpData opData = new Chunk.OpData(OakMap.Operation.NO_OP, ei, hi, -1, null);  // prev and op don't matter
         c.pointToValueCAS(opData, false);
 
-        return true;
+        return (operation != OakMap.Operation.REMOVE);
     }
 
 

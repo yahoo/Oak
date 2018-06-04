@@ -4,6 +4,7 @@ import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.Map.Entry;
 import java.util.concurrent.ConcurrentSkipListMap;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -19,6 +20,7 @@ public class OakMapOnHeapImpl implements OakMap {
     private final Comparator comparator;
     private final HandleFactory handleFactory;
     private final ValueFactory valueFactory;
+    private AtomicInteger size = new AtomicInteger(0);
 
     /**
      * Lazily initialized descending key set
@@ -34,7 +36,7 @@ public class OakMapOnHeapImpl implements OakMap {
         this.comparator = new ByteBufferComparator();
 
         this.skiplist = new ConcurrentSkipListMap<>();
-        Chunk head = new Chunk(this.minKey, null, this.comparator, null, chunkMaxItems, chunkBytesPerItem);
+        Chunk head = new Chunk(this.minKey, null, this.comparator, null, chunkMaxItems, chunkBytesPerItem, size);
         this.skiplist.put(head.minKey, head);    // add first chunk (head) into skiplist
         this.head = new AtomicReference<>(head);
 
@@ -48,7 +50,7 @@ public class OakMapOnHeapImpl implements OakMap {
         this.comparator = comparator;
 
         this.skiplist = new ConcurrentSkipListMap<>(comparator);
-        Chunk head = new Chunk(this.minKey, null, comparator, null, chunkMaxItems, chunkBytesPerItem);
+        Chunk head = new Chunk(this.minKey, null, comparator, null, chunkMaxItems, chunkBytesPerItem, size);
         this.skiplist.put(head.minKey, head);    // add first chunk (head) into skiplist
         this.head = new AtomicReference<>(head);
 
@@ -327,6 +329,15 @@ public class OakMapOnHeapImpl implements OakMap {
     }
 
     @Override
+    public void put(Object key,
+                    Consumer<KeyInfo> keyCreator,
+                    Function<Object, Integer> keyCapacityCalculator,
+                    Consumer<ByteBuffer> valueCreator,
+                    int valueCapacity) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
     public boolean putIfAbsent(ByteBuffer key, ByteBuffer value) {
         if (key == null || value == null || key.remaining() == 0 || value.remaining() == 0) {
             throw new NullPointerException();
@@ -395,7 +406,7 @@ public class OakMapOnHeapImpl implements OakMap {
 
     @Override
     public boolean putIfAbsent(Object key,
-                               Consumer<Entry<Entry<ByteBuffer, Integer>, Object>> keyCreator,
+                               Consumer<KeyInfo> keyCreator,
                                Function<Object, Integer> keyCapacityCalculator,
                                Consumer<ByteBuffer> valueCreator,
                                int valueCapacity) {
@@ -482,7 +493,7 @@ public class OakMapOnHeapImpl implements OakMap {
 
     @Override
     public void putIfAbsentComputeIfPresent(Object key,
-                                            Consumer<Entry<Entry<ByteBuffer, Integer>, Object>> keyCreator,
+                                            Consumer<KeyInfo> keyCreator,
                                             Function<Object, Integer> keyCapacityCalculator,
                                             Consumer<ByteBuffer> valueCreator,
                                             int valueCapacity,
@@ -922,13 +933,22 @@ public class OakMapOnHeapImpl implements OakMap {
         }
 
         @Override
+        public void put(Object key,
+                        Consumer<KeyInfo> keyCreator,
+                        Function<Object, Integer> keyCapacityCalculator,
+                        Consumer<ByteBuffer> valueCreator,
+                        int valueCapacity) {
+            oak.put(key, keyCreator, keyCapacityCalculator, valueCreator, valueCapacity);
+        }
+
+        @Override
         public boolean putIfAbsent(ByteBuffer key, ByteBuffer value) {
             return oak.putIfAbsent(key, value);
         }
 
         @Override
         public boolean putIfAbsent(Object key,
-                                   Consumer<Entry<Entry<ByteBuffer, Integer>, Object>> keyCreator,
+                                   Consumer<KeyInfo> keyCreator,
                                    Function<Object, Integer> keyCapacityCalculator,
                                    Consumer<ByteBuffer> valueCreator,
                                    int valueCapacity) {
@@ -942,7 +962,7 @@ public class OakMapOnHeapImpl implements OakMap {
 
         @Override
         public void putIfAbsentComputeIfPresent(Object key,
-                                                Consumer<Entry<Entry<ByteBuffer, Integer>, Object>> keyCreator,
+                                                Consumer<KeyInfo> keyCreator,
                                                 Function<Object, Integer> keyCapacityCalculator,
                                                 Consumer<ByteBuffer> valueCreator,
                                                 int valueCapacity,

@@ -3,6 +3,7 @@ package oak;
 import java.nio.ByteBuffer;
 import java.util.Map.Entry;
 import java.util.function.Consumer;
+import oak.OakMap.KeyInfo;
 
 public class KeysManagerOnHeapImpl extends KeysManager {
 
@@ -25,7 +26,7 @@ public class KeysManagerOnHeapImpl extends KeysManager {
 
     @Override
     void writeKey(Object key,
-                  Consumer<Entry<Entry<ByteBuffer, Integer>, Object>> keyCreator,
+                  Consumer<KeyInfo> keyCreator,
                   int ki) {
         throw new UnsupportedOperationException();
     }

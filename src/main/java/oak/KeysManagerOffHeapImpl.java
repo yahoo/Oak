@@ -6,12 +6,15 @@ import java.nio.ByteBuffer;
 import java.util.AbstractMap.SimpleImmutableEntry;
 import java.util.Map.Entry;
 import java.util.function.Consumer;
+import java.util.logging.Logger;
+import oak.OakMap.KeyInfo;
 
 public class KeysManagerOffHeapImpl extends KeysManager {
 
     ByteBuffer keys;
     int i;
     OakMemoryManager memoryManager;
+    Logger log = Logger.getLogger(KeysManagerOffHeapImpl.class.getName());
 
     KeysManagerOffHeapImpl(int bytes, OakMemoryManager memoryManager) {
         Pair<Integer, ByteBuffer> pair = memoryManager.allocate(bytes);
@@ -36,10 +39,9 @@ public class KeysManagerOffHeapImpl extends KeysManager {
 
     @Override
     void writeKey(Object key,
-                  Consumer<Entry<Entry<ByteBuffer, Integer>, Object>> keyCreator,
+                  Consumer<KeyInfo> keyCreator,
                   int ki) {
-        Entry<ByteBuffer, Integer> buffInfo = new SimpleImmutableEntry<ByteBuffer, Integer>(keys, ki);
-        keyCreator.accept(new SimpleImmutableEntry<Entry<ByteBuffer, Integer>, Object>(buffInfo, key));
+        keyCreator.accept(new KeyInfo(keys, ki, key));
     }
 
     @Override
@@ -58,6 +60,9 @@ public class KeysManagerOffHeapImpl extends KeysManager {
         int srcKeyPos = srcKeys.position();
         int myPos = keys.position();
         for (int j = 0; j < lengthToCopy; j++) {
+            if (myPos + index + j >= keys.limit()) {
+                log.info("can't put in buffer..");
+            }
             keys.put(myPos + index + j, srcKeys.get(srcKeyPos + srcIndex + j));
         }
     }

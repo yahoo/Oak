@@ -23,6 +23,26 @@ public interface OakMap {
     void put(ByteBuffer key, ByteBuffer value);
 
     /**
+     * Associates the specified value with the specified key in this map.
+     * If the map previously contained a mapping for the key, the old
+     * value is replaced.
+     * Creates a copy of the value in the map.
+     *
+     * @param key                   key with which the specified value is to be associated
+     * @param keyCreator            writes the key on the given ByteBuffer, according to the given Object
+     * @param keyCapacityCalculator returns the key capacity (for allocation), according to the given key object
+     * @param valueCreator          the function to construct a value
+     * @param valueCapacity         the value ByteBuffer size
+     * @throws NullPointerException if the specified key is null
+     */
+    void put(
+            Object key,
+            Consumer<KeyInfo> keyCreator,
+            Function<Object, Integer> keyCapacityCalculator,
+            Consumer<ByteBuffer> valueCreator,
+            int valueCapacity);
+
+    /**
      * If the specified key is not already associated
      * with a value, associate it with the given value.
      * Creates a copy of the value in the map.
@@ -39,7 +59,7 @@ public interface OakMap {
      * with a value, associate it with the given value.
      * Creates a copy of the value in the map.
      *
-     * @param key   key with which the specified value is to be associated
+     * @param key                   key with which the specified value is to be associated
      * @param keyCreator            writes the key on the given ByteBuffer, according to the given Object
      * @param keyCapacityCalculator returns the key capacity (for allocation), according to the given key object
      * @param valueCreator          the function to construct a value
@@ -49,7 +69,7 @@ public interface OakMap {
      */
     boolean putIfAbsent(
             Object key,
-            Consumer<Entry<Entry<ByteBuffer, Integer>, Object>> keyCreator,
+            Consumer<KeyInfo> keyCreator,
             Function<Object, Integer> keyCapacityCalculator,
             Consumer<ByteBuffer> valueCreator,
             int valueCapacity);
@@ -129,7 +149,7 @@ public interface OakMap {
      */
     void putIfAbsentComputeIfPresent(
             Object key,
-            Consumer<Entry<Entry<ByteBuffer, Integer>, Object>> keyCreator,
+            Consumer<KeyInfo> keyCreator,
             Function<Object, Integer> keyCapacityCalculator,
             Consumer<ByteBuffer> valueCreator,
             int valueCapacity,
@@ -266,6 +286,19 @@ public interface OakMap {
         PUT_IF_ABSENT,
         REMOVE,
         COMPUTE
+    }
+
+    // input for key creators
+    public static class KeyInfo {
+        public ByteBuffer buffer;    // for writing the key
+        public int index;          // the index in the ByteBuffer for writing the key
+        public Object key;         // the actual key object
+
+        public KeyInfo(ByteBuffer buffer, int index, Object key) {
+            this.buffer = buffer;
+            this.index = index;
+            this.key = key;
+        }
     }
 
 }

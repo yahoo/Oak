@@ -19,6 +19,8 @@ import static junit.framework.TestCase.assertTrue;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 
+import oak.OakMap.KeyInfo;
+
 public class OffHeapOakTest {
     private OakMapOffHeapImpl oak;
     private final int NUM_THREADS = 12;
@@ -175,12 +177,13 @@ public class OffHeapOakTest {
         }
     }
 
-    public class KeyCreator implements Consumer<Entry<Entry<ByteBuffer, Integer>, Object>> {
+    public class KeyCreator implements Consumer<KeyInfo> {
         @Override
-        public void accept(Entry<Entry<ByteBuffer, Integer>, Object> buffInfo) {
-            ByteBuffer buff = (ByteBuffer) buffInfo.getValue();
-            int position = buffInfo.getKey().getKey().position() + buffInfo.getKey().getValue();
-            buffInfo.getKey().getKey().putInt(position, buff.getInt(0));
+        public void accept(KeyInfo keyInfo) {
+            ByteBuffer key = (ByteBuffer) keyInfo.key;
+            ByteBuffer buffer = keyInfo.buffer;
+            int position = buffer.position() + keyInfo.index;
+            buffer.putInt(position, key.getInt(0));
         }
     }
 

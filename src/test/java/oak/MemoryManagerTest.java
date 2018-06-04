@@ -18,6 +18,7 @@ import java.util.logging.Logger;
 
 public class MemoryManagerTest {
 
+    Logger log = Logger.getLogger(MemoryManagerTest.class.getName());
     private SynchrobenchMemoryPoolImpl pool;
     private OakMemoryManager memoryManager;
     int maxItemsPerChunk = 2048;
