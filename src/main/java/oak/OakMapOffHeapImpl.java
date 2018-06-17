@@ -36,7 +36,7 @@ public class OakMapOffHeapImpl implements OakMap, AutoCloseable {
      * init with capacity = 2g
      */
     public OakMapOffHeapImpl(int chunkMaxItems, int chunkBytesPerItem) {
-        this(StaticPoolFactory.getPool(), chunkMaxItems, chunkBytesPerItem);
+        this(new SimpleNoFreeMemoryPoolImpl(Integer.MAX_VALUE), chunkMaxItems, chunkBytesPerItem);
     }
 
     public OakMapOffHeapImpl(MemoryPool memoryPool, int chunkMaxItems, int chunkBytesPerItem) {
@@ -66,7 +66,7 @@ public class OakMapOffHeapImpl implements OakMap, AutoCloseable {
                              ByteBuffer minKey,
                              int chunkMaxItems,
                              int chunkBytesPerItem) {
-        this(comparator, minKey, StaticPoolFactory.getPool(), chunkMaxItems, chunkBytesPerItem);
+        this(comparator, minKey, new SimpleNoFreeMemoryPoolImpl(Integer.MAX_VALUE), chunkMaxItems, chunkBytesPerItem);
     }
 
     public OakMapOffHeapImpl(Comparator<Object> comparator,
@@ -75,7 +75,7 @@ public class OakMapOffHeapImpl implements OakMap, AutoCloseable {
                              Function<Object, Integer> keyCapacityCalculator,
                              int chunkMaxItems,
                              int chunkBytesPerItem) {
-        this(comparator, minKey, keyCreator, keyCapacityCalculator, StaticPoolFactory.getPool(), chunkMaxItems, chunkBytesPerItem);
+        this(comparator, minKey, keyCreator, keyCapacityCalculator, new SimpleNoFreeMemoryPoolImpl(Integer.MAX_VALUE), chunkMaxItems, chunkBytesPerItem);
     }
 
     public OakMapOffHeapImpl(Comparator<Object> comparator,

@@ -37,8 +37,11 @@ public class Chunk {
     static int MAX_THREADS = 32;
 
     // used for checking if rebalance is needed
-    private static final double REBALANCE_PROB_PERC = 15;
+    private static final double REBALANCE_PROB_PERC = 30;
     private static final double SORTED_REBALANCE_RATIO = 1.6;
+    private static final double MAX_ENTRIES_FACTOR = 2;
+    private static final double MAX_ITEMS_FACTOR = 2;
+    private static final double MAX_BYTES_FACTOR = 1.25;
 
     // when chunk is frozen, all of the elements in pending puts array will be this OpData
     private static final OpData FROZEN_OP_DATA = new OpData(OakMap.Operation.NO_OP, 0, 0, 0, null);
@@ -841,10 +844,17 @@ public class Chunk {
         if (!isEngaged(null)) return false;
         int numOfEntries = entryIndex.get() / FIELDS;
         int numOfItems = statistics.getCompactedCount();
+        int usedBytes = keyIndex.get();
 
-        return (sortedCount == 0 && numOfEntries << 3 > maxItems) ||
+        // Reasons for executing a rebalance:
+        // 1. There are no sorted keys and the total number of entries is above a certain threshold.
+        // 2. There are sorted keys, but the total number of unsorted keys is too big.
+        // 3. Out of the occupied entries, there are not enough actual items.
+        // 4. There are too many used bytes.
+        return (sortedCount == 0 && numOfEntries * MAX_ENTRIES_FACTOR > maxItems) ||
                 (sortedCount > 0 && (sortedCount * SORTED_REBALANCE_RATIO) < numOfEntries) ||
-                (numOfEntries << 3 > maxItems && numOfItems << 2 < numOfEntries);
+                (numOfEntries * MAX_ENTRIES_FACTOR > maxItems && numOfItems * MAX_ITEMS_FACTOR < numOfEntries) ||
+                (usedBytes * MAX_BYTES_FACTOR > maxKeyBytes);
     }
 
     /*-------------- Iterators --------------*/
