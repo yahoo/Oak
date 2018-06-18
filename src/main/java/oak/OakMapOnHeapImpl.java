@@ -256,6 +256,33 @@ public class OakMapOnHeapImpl implements OakMap {
     /*-------------- oak.OakMap Methods --------------*/
 
     @Override
+    public <T> T getMinKey(Function<ByteBuffer,T> transformer) {
+        if (transformer == null) {
+            throw new NullPointerException();
+        }
+        Chunk c = skiplist.firstEntry().getValue();
+        ByteBuffer minKey = c.readMinKey();
+        T transformation = transformer.apply(minKey);
+        return transformation;
+    }
+
+    @Override
+    public <T> T getMaxKey(Function<ByteBuffer,T> transformer) {
+        Chunk c = skiplist.lastEntry().getValue();
+        Chunk next = c.next.getReference();
+        // since skiplist isn't updated atomically in split/compaction, the max key might belong in the next chunk
+        // we need to iterate the chunks until we find the last one
+        while (next != null) {
+            c = next;
+            next = c.next.getReference();
+        }
+
+        ByteBuffer maxKey = c.readMaxKey();
+        T transformation = transformer.apply(maxKey);
+        return transformation;
+    }
+
+    @Override
     public void put(ByteBuffer key, ByteBuffer value) {
         if (key == null || value == null || key.remaining() == 0 || value.remaining() == 0) {
             throw new NullPointerException();
@@ -926,6 +953,16 @@ public class OakMapOnHeapImpl implements OakMap {
         }
 
         /*-------------- oak.OakMap Methods --------------*/
+
+        @Override
+        public <T> T getMinKey(Function<ByteBuffer,T> transformer) {
+            return oak.getMinKey(transformer);
+        }
+
+        @Override
+        public <T> T getMaxKey(Function<ByteBuffer,T> transformer) {
+            return oak.getMaxKey(transformer);
+        }
 
         @Override
         public void put(ByteBuffer key, ByteBuffer value) {

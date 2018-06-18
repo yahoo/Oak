@@ -106,13 +106,22 @@ public interface OakMap {
     <T> T getTransformation(Object key, Function<ByteBuffer,T> transformer);
 
     /**
-     * Returns a read only view of the minimal key in the map,
+     * Returns a read only transformation of the minimal key in the map,
      * or {@code null} if this map contains no keys.
      *
-     * @return a read only view of the minimal key in the map,
+     * @return a read only transformation of the minimal key in the map,
      * or {@code null} if this map contains no keys.
      */
-    //ByteBuffer getMinKey();
+     <T> T getMinKey(Function<ByteBuffer,T> transformer);
+
+    /**
+     * Returns a read only transformation of the maximal key in the map,
+     * or {@code null} if this map contains no keys.
+     *
+     * @return a read only transformation of the maximal key in the map,
+     * or {@code null} if this map contains no keys.
+     */
+     <T> T getMaxKey(Function<ByteBuffer,T> transformer);
 
     /**
      * Updates the value for the specified key

@@ -129,7 +129,12 @@ public class OakMapOffHeapImpl implements OakMap, AutoCloseable {
         this.valueFactory = new ValueFactory(true);
     }
 
-    /*-------------- Closable --------------*/
+  static int getThreadIndex() {
+      // TODO use hash instead of modulo
+      return (int) (Thread.currentThread().getId() % Chunk.MAX_THREADS);
+  }
+
+  /*-------------- Closable --------------*/
 
     /**
      * cleans off heap memory
@@ -1131,7 +1136,8 @@ public class OakMapOffHeapImpl implements OakMap, AutoCloseable {
         return transformation;
     }
 
-    public <T> T getMinKeyTransformation(Function<ByteBuffer,T> transformer) {
+    @Override
+    public <T> T getMinKey(Function<ByteBuffer,T> transformer) {
         if (transformer == null) {
             throw new NullPointerException();
         }
@@ -1143,7 +1149,8 @@ public class OakMapOffHeapImpl implements OakMap, AutoCloseable {
         return transformation;
     }
 
-    public <T> T getMaxKeyTransformation(Function<ByteBuffer,T> transformer) {
+    @Override
+    public <T> T getMaxKey(Function<ByteBuffer,T> transformer) {
         memoryManager.startThread();
         Chunk c = skiplist.lastEntry().getValue();
         Chunk next = c.next.getReference();
@@ -1638,6 +1645,16 @@ public class OakMapOffHeapImpl implements OakMap, AutoCloseable {
         public OakMap descendingMap() {
             return new SubOakMap(oak, lo, loInclusive,
                     hi, hiInclusive, !isDescending);
+        }
+
+        @Override
+        public <T> T getMinKey(Function<ByteBuffer,T> transformer) {
+            return oak.getMinKey(transformer);
+        }
+
+        @Override
+        public <T> T getMaxKey(Function<ByteBuffer,T> transformer) {
+            return oak.getMaxKey(transformer);
         }
 
         /*-------------- Iterators --------------*/

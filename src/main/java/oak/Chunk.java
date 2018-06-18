@@ -7,7 +7,6 @@ import java.lang.reflect.Constructor;
 import java.nio.ByteBuffer;
 import java.util.Comparator;
 import java.util.EmptyStackException;
-import java.util.Map.Entry;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicMarkableReference;
@@ -145,11 +144,6 @@ public class Chunk {
 
     /*-------------- Methods --------------*/
 
-    static int getIndex() {
-        // TODO use hash instead of modulo
-        return (int) (Thread.currentThread().getId() % MAX_THREADS);
-    }
-
     void release() {
         if (state.compareAndSet(State.FROZEN, State.RELEASED)) {
             keysManager.release();
@@ -186,7 +180,7 @@ public class Chunk {
         int ki = get(entryIndex, OFFSET_KEY_INDEX);
         int length = get(entryIndex, OFFSET_KEY_LENGTH);
 
-        int idx = getIndex();
+        int idx = OakMapOffHeapImpl.getThreadIndex();
         if (byteBufferPerThread[idx] == null) {
             byteBufferPerThread[idx] = keysManager.getKeys().asReadOnlyBuffer();
         }
@@ -337,7 +331,7 @@ public class Chunk {
      **/
     boolean publish(OpData opData) {
 
-        int idx = getIndex();
+        int idx = OakMapOffHeapImpl.getThreadIndex();
         // TODO verify the assumption about sequential IDs, for now leave it because PPA will change (no MAX_THREADS)
 
         // publish into thread array
@@ -349,7 +343,7 @@ public class Chunk {
      * if CAS didn't succeed then this means that a rebalancer did this already
      **/
     void unpublish(OpData oldOpData) {
-        int idx = getIndex();
+        int idx = OakMapOffHeapImpl.getThreadIndex();
         casPendingArray(idx, oldOpData, null); // publish into thread array
     }
 

@@ -47,7 +47,7 @@ public class FillTest {
             ByteBuffer myKey = ByteBuffer.allocate(keySize);
             ByteBuffer myVal = ByteBuffer.allocate(valSize);
 
-            int id = Chunk.getIndex();
+            int id = OakMapOffHeapImpl.getThreadIndex();
             int amount = (int) Math.round(numOfEntries * 0.5) / NUM_THREADS;
             int start = id * amount + (int) Math.round(numOfEntries * 0.5);
             int end = (id + 1) * amount + (int) Math.round(numOfEntries * 0.5);
