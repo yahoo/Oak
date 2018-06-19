@@ -16,7 +16,7 @@ import static org.junit.Assert.assertFalse;
 
 public class SingleThreadIteratorTest {
 
-    private OakMapOnHeapImpl oak;
+    private OakMapOffHeapImpl oak;
     int maxItemsPerChunk = 2048;
     int maxBytesPerChunkItem = 100;
 
@@ -41,7 +41,7 @@ public class SingleThreadIteratorTest {
         ByteBuffer min = ByteBuffer.allocate(10);
         min.putInt(Integer.MIN_VALUE);
         min.flip();
-        oak = new OakMapOnHeapImpl(comparator, min, maxItemsPerChunk, maxBytesPerChunkItem);
+        oak = new OakMapOffHeapImpl(comparator, min, maxItemsPerChunk, maxBytesPerChunkItem);
     }
 
     @Rule

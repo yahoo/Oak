@@ -16,13 +16,13 @@ import static org.junit.Assert.assertFalse;
 
 public class SingleThreadTest {
 
-    private OakMapOnHeapImpl oak;
+    private OakMapOffHeapImpl oak;
     int maxItemsPerChunk = 2048;
     int maxBytesPerChunkItem = 100;
 
     @Before
     public void init() {
-        oak = new OakMapOnHeapImpl(maxItemsPerChunk, maxBytesPerChunkItem);
+        oak = new OakMapOffHeapImpl(maxItemsPerChunk, maxBytesPerChunkItem);
     }
 
     private int countNumOfChunks() {

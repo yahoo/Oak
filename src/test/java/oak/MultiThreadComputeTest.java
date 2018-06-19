@@ -14,7 +14,7 @@ import static org.junit.Assert.assertEquals;
 
 public class MultiThreadComputeTest {
 
-    private OakMapOnHeapImpl oak;
+    private OakMapOffHeapImpl oak;
     private final int NUM_THREADS = 20;
     private ArrayList<Thread> threads;
     private CountDownLatch latch;
@@ -44,7 +44,7 @@ public class MultiThreadComputeTest {
         ByteBuffer min = ByteBuffer.allocate(10);
         min.putInt(Integer.MIN_VALUE);
         min.flip();
-        oak = new OakMapOnHeapImpl(comparator, min, maxItemsPerChunk, maxBytesPerChunkItem);
+        oak = new OakMapOffHeapImpl(comparator, min, maxItemsPerChunk, maxBytesPerChunkItem);
         latch = new CountDownLatch(1);
         threads = new ArrayList<>(NUM_THREADS);
 //        func = buffer -> {

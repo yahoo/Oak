@@ -80,14 +80,9 @@ public class ComputeTest {
         int maxItemsPerChunk = 2048;
         int maxBytesPerChunkItem = 100;
 
-        if (args[0].equals("on")) {
-            oak = new OakMapOnHeapImpl(maxItemsPerChunk, maxBytesPerChunkItem);
-        } else if (args[0].equals("off")) {
-            oak = new OakMapOffHeapImpl(maxItemsPerChunk, maxBytesPerChunkItem);
-        }
+        oak = new OakMapOffHeapImpl(maxItemsPerChunk, maxBytesPerChunkItem);
 
         NUM_THREADS = Integer.parseInt(args[1]);
-
         numOfEntries = Integer.parseInt(args[2]);
 
 

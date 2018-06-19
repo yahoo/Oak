@@ -109,9 +109,7 @@ public class FillTest {
         int maxItemsPerChunk = 2048;
         int maxBytesPerChunkItem = 100;
 
-        if (args[0].equals("on")) {
-            oak = new OakMapOnHeapImpl(maxItemsPerChunk, maxBytesPerChunkItem);
-        } else if (args[0].equals("off")) {
+        if (args[0].equals("off") || args[0].equals("on")) {
             oak = new OakMapOffHeapImpl(maxItemsPerChunk, maxBytesPerChunkItem);
         } else if (args[0].equals("java")) {
             java = true;
