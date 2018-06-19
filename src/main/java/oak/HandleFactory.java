@@ -2,15 +2,14 @@ package oak;
 
 class HandleFactory {
 
-    private boolean offHeap;
+    private boolean offHeap; // for future use, currently should always be true
 
     HandleFactory(boolean offHeap) {
         this.offHeap = offHeap;
     }
 
     Handle createHandle() {
-        if (offHeap) return new HandleOffHeapImpl(null, 0);
-        return new HandleOnHeapImpl(null);
+        return new HandleOffHeapImpl(null, 0);
     }
 
 }
