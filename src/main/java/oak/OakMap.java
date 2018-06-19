@@ -289,15 +289,7 @@ public interface OakMap {
      */
     <T> CloseableIterator<T> keysTransformIterator(Function<ByteBuffer,T> transformer);
 
-    enum Operation {
-        NO_OP,
-        PUT,
-        PUT_IF_ABSENT,
-        REMOVE,
-        COMPUTE
-    }
-
-    // input for key creators
+  // input for key creators
     public static class KeyInfo {
         public ByteBuffer buffer;    // for writing the key
         public int index;          // the index in the ByteBuffer for writing the key

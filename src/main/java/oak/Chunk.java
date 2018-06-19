@@ -43,7 +43,7 @@ public class Chunk {
     private static final double MAX_BYTES_FACTOR = 1.25;
 
     // when chunk is frozen, all of the elements in pending puts array will be this OpData
-    private static final OpData FROZEN_OP_DATA = new OpData(OakMap.Operation.NO_OP, 0, 0, 0, null);
+    private static final OpData FROZEN_OP_DATA = new OpData(Operation.NO_OP, 0, 0, 0, null);
 
     /*-------------- Members --------------*/
 
@@ -127,13 +127,13 @@ public class Chunk {
     }
 
     static class OpData {
-        OakMap.Operation op;
+        Operation op;
         int entryIndex;
         int handleIndex;
         int prevHandleIndex;
         Consumer<WritableOakBuffer> function;
 
-        OpData(OakMap.Operation op, int entryIndex, int handleIndex, int prevHandleIndex, Consumer<WritableOakBuffer> function) {
+        OpData(Operation op, int entryIndex, int handleIndex, int prevHandleIndex, Consumer<WritableOakBuffer> function) {
             this.op = op;
             this.entryIndex = entryIndex;
             this.handleIndex = handleIndex;
@@ -520,9 +520,9 @@ public class Chunk {
             return true;
         }
 
-        OakMap.Operation operation = opData.op;
+        Operation operation = opData.op;
 
-        if (operation == OakMap.Operation.REMOVE) {
+        if (operation == Operation.REMOVE) {
             return true; // this is a remove, no need to try again and return doesn't matter
         }
 
@@ -534,9 +534,9 @@ public class Chunk {
         } else if (now < 0) {
             opData.prevHandleIndex = -1;
             return pointToValue(opData); // remove completed, try again
-        } else if (operation == OakMap.Operation.PUT_IF_ABSENT) {
+        } else if (operation == Operation.PUT_IF_ABSENT) {
             return false; // too late
-        } else if (operation == OakMap.Operation.COMPUTE){
+        } else if (operation == Operation.COMPUTE){
             Handle h = handles[now];
             if(h != null){
                 h.compute(opData.function,memoryManager);

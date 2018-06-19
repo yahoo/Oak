@@ -2,7 +2,6 @@ package oak;
 
 import java.nio.ByteBuffer;
 import java.util.*;
-import java.util.Map.Entry;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
@@ -138,7 +137,7 @@ class Rebalancer {
      * @return if managed to CAS to newChunk list of rebalance
      * if we did then the put was inserted
      */
-    RebalanceResult createNewChunks(Object key, ByteBuffer value, Consumer<WritableOakBuffer> function, OakMap.Operation operation) {
+    RebalanceResult createNewChunks(Object key, ByteBuffer value, Consumer<WritableOakBuffer> function, Operation operation) {
 
         if (this.newChunks.get() != null) {
             return new RebalanceResult(false, false); // this was done by another thread already
@@ -200,7 +199,7 @@ class Rebalancer {
         newChunks.add(currNewChunk);
 
         boolean putIfAbsent = true;
-        if (operation != OakMap.Operation.NO_OP) { // help this op (for lock freedom)
+        if (operation != Operation.NO_OP) { // help this op (for lock freedom)
             putIfAbsent = helpOp(newChunks, key, value, function, operation);
         }
 
@@ -221,7 +220,7 @@ class Rebalancer {
                                     Consumer<ByteBuffer> valueCreator,
                                     int valueCapacity,
                                     Consumer<WritableOakBuffer> function,
-                                    OakMap.Operation operation) {
+                                    Operation operation) {
 
         assert offHeap;
         if (this.newChunks.get() != null) {
@@ -283,7 +282,7 @@ class Rebalancer {
         newChunks.add(currNewChunk);
 
         boolean putIfAbsent = false;
-        if (operation != OakMap.Operation.NO_OP) { // help this op (for lock freedom)
+        if (operation != Operation.NO_OP) { // help this op (for lock freedom)
             putIfAbsent = helpOp(newChunks, key, keyCreator, keyCapacityCalculator, valueCreator, valueCapacity, function, operation);
         }
 
@@ -364,10 +363,10 @@ class Rebalancer {
      * insert/remove this key and value to one of the newChunks
      * the key is guaranteed to be in the range of keys in the new chunk
      */
-    private boolean helpOp(List<Chunk> newChunks, Object key, ByteBuffer value, Consumer<WritableOakBuffer> function, OakMap.Operation operation) {
+    private boolean helpOp(List<Chunk> newChunks, Object key, ByteBuffer value, Consumer<WritableOakBuffer> function, Operation operation) {
         assert key != null;
-        assert operation == OakMap.Operation.REMOVE || value != null;
-        assert operation != OakMap.Operation.REMOVE || value == null;
+        assert operation == Operation.REMOVE || value != null;
+        assert operation != Operation.REMOVE || value == null;
 
         Chunk c = findChunkInList(newChunks, key);
 
@@ -375,12 +374,12 @@ class Rebalancer {
         Chunk.LookUp lookUp = c.lookUp(key);
 
         if (lookUp != null && lookUp.handle != null) {
-            if(operation == OakMap.Operation.PUT_IF_ABSENT) {
+            if(operation == Operation.PUT_IF_ABSENT) {
                 return false;
-            } else if(operation == OakMap.Operation.PUT) {
+            } else if(operation == Operation.PUT) {
                 lookUp.handle.put(value, memoryManager);
                 return true;
-            } else if (operation == OakMap.Operation.COMPUTE) {
+            } else if (operation == Operation.COMPUTE) {
                 lookUp.handle.compute(function, memoryManager);
                 return true;
             }
@@ -389,7 +388,7 @@ class Rebalancer {
 
         int ei;
         if (lookUp == null) { // no entry
-            if (operation == OakMap.Operation.REMOVE) return true;
+            if (operation == Operation.REMOVE) return true;
             ei = c.allocateEntryAndKey((ByteBuffer) key);
             assert ei > 0; // chunk can't be full
             int eiLink = c.linkEntry(ei, (ByteBuffer) key, false);
@@ -399,7 +398,7 @@ class Rebalancer {
         }
 
         int hi = -1;
-        if (operation != OakMap.Operation.REMOVE) {
+        if (operation != Operation.REMOVE) {
             hi = c.allocateHandle(handleFactory);
             assert hi > 0; // chunk can't be full
 
@@ -409,7 +408,7 @@ class Rebalancer {
         }
 
         // set pointer to value
-        Chunk.OpData opData = new Chunk.OpData(OakMap.Operation.NO_OP, ei, hi, -1, null);  // prev and op don't matter
+        Chunk.OpData opData = new Chunk.OpData(Operation.NO_OP, ei, hi, -1, null);  // prev and op don't matter
         c.pointToValueCAS(opData, false);
 
         return true;
@@ -425,12 +424,12 @@ class Rebalancer {
                            Consumer<ByteBuffer> valueCreator,
                            int valueCapacity,
                            Consumer<WritableOakBuffer> function,
-                           OakMap.Operation operation) {
+                           Operation operation) {
 
         assert offHeap;
         assert key != null;
-        assert operation == OakMap.Operation.REMOVE || valueCreator != null;
-        assert operation != OakMap.Operation.REMOVE || valueCreator == null;
+        assert operation == Operation.REMOVE || valueCreator != null;
+        assert operation != Operation.REMOVE || valueCreator == null;
 
         Chunk c = findChunkInList(newChunks, key);
 
@@ -438,12 +437,12 @@ class Rebalancer {
         Chunk.LookUp lookUp = c.lookUp(key);
 
         if (lookUp != null && lookUp.handle != null) {
-            if(operation == OakMap.Operation.PUT_IF_ABSENT) {
+            if(operation == Operation.PUT_IF_ABSENT) {
                 return false;
-            } else if(operation == OakMap.Operation.PUT) {
+            } else if(operation == Operation.PUT) {
                 lookUp.handle.put(valueCreator, valueCapacity, memoryManager);
                 return false;
-            } else if (operation == OakMap.Operation.COMPUTE) {
+            } else if (operation == Operation.COMPUTE) {
                 lookUp.handle.compute(function, memoryManager);
                 return false;
             }
@@ -452,7 +451,7 @@ class Rebalancer {
 
         int ei;
         if (lookUp == null) { // no entry
-            if (operation == OakMap.Operation.REMOVE) return true;
+            if (operation == Operation.REMOVE) return true;
             ei = c.allocateEntryAndKey(key, keyCreator, keyCapacityCalculator);
             if (ei <= 0)
                 throw new NullPointerException("Chunk was full during helpOp");
@@ -463,7 +462,7 @@ class Rebalancer {
         }
 
         int hi = -1;
-        if (operation != OakMap.Operation.REMOVE) {
+        if (operation != Operation.REMOVE) {
             hi = c.allocateHandle(handleFactory);
             assert hi > 0; // chunk can't be full
 
@@ -472,10 +471,10 @@ class Rebalancer {
         }
 
         // set pointer to value
-        Chunk.OpData opData = new Chunk.OpData(OakMap.Operation.NO_OP, ei, hi, -1, null);  // prev and op don't matter
+        Chunk.OpData opData = new Chunk.OpData(Operation.NO_OP, ei, hi, -1, null);  // prev and op don't matter
         c.pointToValueCAS(opData, false);
 
-        return (operation != OakMap.Operation.REMOVE);
+        return (operation != Operation.REMOVE);
     }
 
 

@@ -2,7 +2,6 @@ package oak;
 
 import java.nio.ByteBuffer;
 import java.util.*;
-import java.util.Map.Entry;
 import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
