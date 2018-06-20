@@ -43,7 +43,8 @@ public class Chunk {
     private static final double MAX_BYTES_FACTOR = 1.25;
 
     // when chunk is frozen, all of the elements in pending puts array will be this OpData
-    private static final OpData FROZEN_OP_DATA = new OpData(Operation.NO_OP, 0, 0, 0, null);
+    private static final OpData FROZEN_OP_DATA =
+        new OpData(Operation.NO_OP, 0, 0, 0, null);
 
     /*-------------- Members --------------*/
 
@@ -53,8 +54,10 @@ public class Chunk {
     AtomicMarkableReference<Chunk> next;
     Comparator<Object> comparator;
     private ByteBuffer[] byteBufferPerThread;
-    private AtomicReference<Chunk> creator;     // in split/compact process, represents parent of split (can be null!)
-    private final AtomicReference<State> state; // chunk can be in the following states: normal, frozen or infant(has a creator)
+    // in split/compact process, represents parent of split (can be null!)
+    private AtomicReference<Chunk> creator;
+    // chunk can be in the following states: normal, frozen or infant(has a creator)
+    private final AtomicReference<State> state;
     private AtomicReference<Rebalancer> rebalancer;
     private final int[] entries;    // array is initialized to 0, i.e., NONE - this is important!
     private final KeysManager keysManager;
@@ -64,7 +67,8 @@ public class Chunk {
     public final AtomicInteger keyIndex;    // points to next free index of key array
     private final AtomicInteger handleIndex;    // points to next free index of entry array
     private final Statistics statistics;
-    private int sortedCount;      // # of sorted items at entry-array's beginning (resulting from split)
+    // # of sorted items at entry-array's beginning (resulting from split)
+    private int sortedCount;
     private final int maxItems;
     private final int maxKeyBytes;
     AtomicInteger externalSize; // for updating oak's size
@@ -88,8 +92,9 @@ public class Chunk {
      * @param minKey  minimal key to be placed in chunk
      * @param creator the chunk that is responsible for this chunk creation
      */
-    Chunk(ByteBuffer minKey, Chunk creator, Comparator<Object> comparator, OakMemoryManager memoryManager,
-          int maxItems, int bytesPerItem, AtomicInteger externalSize) {
+    Chunk(  ByteBuffer minKey, Chunk creator, Comparator<Object> comparator,
+            OakMemoryManager memoryManager,
+            int maxItems, int bytesPerItem, AtomicInteger externalSize) {
         this.memoryManager = memoryManager;
         this.maxItems = maxItems;
         this.maxKeyBytes = maxItems * bytesPerItem;
@@ -160,19 +165,27 @@ public class Chunk {
     /**
      * performs CAS from 'expected' to 'value' for field at specified offset of given item in key array
      */
-    private boolean casEntryArray(int item, int offset, int expected, int value) {
+    private boolean casEntriesArray(int item, int offset, int expected, int value) {
         return unsafe.compareAndSwapInt(entries,
                 Unsafe.ARRAY_INT_BASE_OFFSET + (item + offset) * Unsafe.ARRAY_INT_INDEX_SCALE,
                 expected, value);
     }
 
     /**
-     * performs CAS from 'expected' to 'value' for field at specified offset of given item in pending array
+     * performs CAS from 'expected' to 'value' for field at specified offset of given item in
+     * pending array
      */
     private boolean casPendingArray(int item, OpData expected, OpData opData) {
         return pendingOps.compareAndSet(item, expected, opData);
     }
 
+    /**
+     * Reads a key from the given entry, creates a thread-local ByteBuffer from the key, which is
+     * initially located in the shared-memory chunk's keys ByteBuffer. There is no copy just a
+     * special ByteBuffer for a single key. The thread-local ByteBuffer can be reused by different
+     * threads, however as long as a thread is invoked the ByteBuffer is related solely to this
+     * thread.
+     */
     ByteBuffer readKey(int entryIndex) {
         if (entryIndex == Chunk.NONE) {
             return null;
@@ -280,7 +293,7 @@ public class Chunk {
         return null;
     }
 
-    class LookUp {
+    static class LookUp {
 
         Handle handle;
         int entryIndex;
@@ -441,7 +454,7 @@ public class Chunk {
             // first change this key's next to point to curr
             set(ei, OFFSET_NEXT, curr); // no need for CAS since put is not even published yet
             if (cas) {
-                if (casEntryArray(prev, OFFSET_NEXT, curr, ei)) {
+                if (casEntriesArray(prev, OFFSET_NEXT, curr, ei)) {
                     return ei;
                 }
                 // CAS didn't succeed, try again
@@ -488,7 +501,7 @@ public class Chunk {
             // first change this key's next to point to curr
             set(ei, OFFSET_NEXT, curr); // no need for CAS since put is not even published yet
             if (cas) {
-                if (casEntryArray(prev, OFFSET_NEXT, curr, ei)) {
+                if (casEntriesArray(prev, OFFSET_NEXT, curr, ei)) {
                     return ei;
                 }
                 // CAS didn't succeed, try again
@@ -553,7 +566,7 @@ public class Chunk {
      */
     boolean pointToValueCAS(OpData opData, boolean cas) {
         if (cas) {
-            if (casEntryArray(opData.entryIndex, OFFSET_HANDLE_INDEX, opData.prevHandleIndex, opData.handleIndex)) {
+            if (casEntriesArray(opData.entryIndex, OFFSET_HANDLE_INDEX, opData.prevHandleIndex, opData.handleIndex)) {
                 // update statistics only by thread that CASed
                 if (opData.prevHandleIndex < 0 && opData.handleIndex > 0) { // previously a remove
                     statistics.incrementAddedCount();
