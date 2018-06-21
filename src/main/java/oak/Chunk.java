@@ -524,40 +524,50 @@ public class Chunk {
     public int getBytesPerItem() { return maxKeyBytes / maxItems; }
 
     /**
+     * Updates a linked entry to point to handle or otherwise removes such a link. The handle in
+     * turn has the value. For linkage this is an insert linearization point.
+     * All the relevant data can be found inside opData.
+     *
      * point to value
      * if unsuccessful this means someone else got to it first (helping rebalancer or other operation)
      */
     boolean pointToValue(OpData opData) {
 
+        // try to perform the CAS according to operation data (opData)
         if (pointToValueCAS(opData, true)) {
             return true;
         }
 
+        // the straight forward helping didn't work, check why
         Operation operation = opData.op;
 
+        // the operation is remove, means we tried to change the handle index we knew about to -1
+        // the old handle index is no longer there so we have nothing to do
         if (operation == Operation.REMOVE) {
             return true; // this is a remove, no need to try again and return doesn't matter
         }
 
-        int handle = opData.handleIndex;
-        int now = get(opData.entryIndex, OFFSET_HANDLE_INDEX);
+        // the operation is either NO_OP, PUT, PUT_IF_ABSENT, COMPUTE
+        int expectedHandleIdx = opData.handleIndex;
+        int foundHandleIdx = get(opData.entryIndex, OFFSET_HANDLE_INDEX);
 
-        if (now == handle) {
+        if (foundHandleIdx == expectedHandleIdx) {
             return true; // someone helped
-        } else if (now < 0) {
+        } else if (foundHandleIdx < 0) {
+            // the handle was deleted, retry the attach
             opData.prevHandleIndex = -1;
             return pointToValue(opData); // remove completed, try again
         } else if (operation == Operation.PUT_IF_ABSENT) {
             return false; // too late
-        } else if (operation == Operation.COMPUTE){
-            Handle h = handles[now];
+        } else if (operation == Operation.COMPUTE){ //TODO add fix for PIACIP!
+            Handle h = handles[foundHandleIdx];
             if(h != null){
                 h.compute(opData.function,memoryManager);
             }
             return true;
         }
         // this is a put, try again
-        opData.prevHandleIndex = now;
+        opData.prevHandleIndex = foundHandleIdx;
         return pointToValue(opData);
     }
 
@@ -626,6 +636,8 @@ public class Chunk {
     void normalize() {
         setState(State.NORMAL);
         creator.set(null);
+        // using fence so other puts can continue working immediately on this chunk
+        oak.Chunk.unsafe.storeFence();
     }
 
     final int getFirstItemEntryIndex() {

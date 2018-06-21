@@ -341,8 +341,6 @@ public class OakMapOffHeapImpl implements OakMap, AutoCloseable {
 
         // now after removing old chunks we can start normalizing
         firstChild.normalize();
-        // TODO do we still need this? oak.Chunk.unsafe.storeFence();
-        // using fence so puts can continue working immediately on this chunk
 
         // for simplicity -  naive lock implementation
         // can be implemented without locks using versions on next pointer in skiplist
