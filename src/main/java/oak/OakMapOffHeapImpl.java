@@ -803,9 +803,12 @@ public class OakMapOffHeapImpl implements OakMap, AutoCloseable {
         Chunk c = findChunk(key); // find chunk matching key
         Chunk.LookUp lookUp = c.lookUp(key);
         if (lookUp != null && lookUp.handle != null) {
-            lookUp.handle.compute(function, memoryManager);
-            memoryManager.stopThread();
-            return;
+            if (lookUp.handle.compute(function, memoryManager)) {
+                // compute was successful and handle wasn't found deleted; in case
+                // this handle was already found as deleted, continue to construct another handle
+                memoryManager.stopThread();
+                return;
+            }
         }
 
         ByteBuffer value = constructor.get();
@@ -852,9 +855,12 @@ public class OakMapOffHeapImpl implements OakMap, AutoCloseable {
                     ei = prevEi;
                     prevHi = c.getHandleIndex(prevEi);
                 } else {
-                    handle.compute(function, memoryManager);
-                    memoryManager.stopThread();
-                    return;
+                    if (handle.compute(function, memoryManager)) {
+                        // compute was successful and handle wasn't found deleted; in case
+                        // this handle was already found as deleted, continue to construct another handle
+                        memoryManager.stopThread();
+                        return;
+                    }
                 }
             }
         }
@@ -905,9 +911,12 @@ public class OakMapOffHeapImpl implements OakMap, AutoCloseable {
         Chunk c = findChunk(key); // find chunk matching key
         Chunk.LookUp lookUp = c.lookUp(key);
         if (lookUp != null && lookUp.handle != null) {
-            lookUp.handle.compute(function, memoryManager);
-            memoryManager.stopThread();
-            return;
+            if (lookUp.handle.compute(function, memoryManager)) {
+                // compute was successful and handle wasn't found deleted; in case
+                // this handle was already found as deleted, continue to construct another handle
+                memoryManager.stopThread();
+                return;
+            }
         }
 
         // if chunk is frozen or infant, we can't add to it
@@ -949,9 +958,12 @@ public class OakMapOffHeapImpl implements OakMap, AutoCloseable {
                     ei = prevEi;
                     prevHi = c.getHandleIndex(prevEi);
                 } else {
-                    handle.compute(function, memoryManager);
-                    memoryManager.stopThread();
-                    return;
+                    if (handle.compute(function, memoryManager)) {
+                        // compute was successful and handle wasn't found deleted; in case
+                        // this handle was already found as deleted, continue to construct another handle
+                        memoryManager.stopThread();
+                        return;
+                    }
                 }
             }
         }

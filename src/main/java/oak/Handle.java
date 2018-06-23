@@ -35,11 +35,12 @@ abstract class Handle extends WritableOakBuffer {
 
     abstract void put(Consumer<ByteBuffer> valueCreator, int capacity, OakMemoryManager memoryManager);
 
-    void compute(Consumer<WritableOakBuffer> function, OakMemoryManager memoryManager) {
+    // returns false in case handle was found deleted and compute didn't take place, true otherwise
+    boolean compute(Consumer<WritableOakBuffer> function, OakMemoryManager memoryManager) {
         writeLock.lock();
         if (isDeleted()) {
             writeLock.unlock();
-            return;
+            return false;
         }
         // TODO: invalidate oak buffer after accept
         try {
@@ -48,6 +49,7 @@ abstract class Handle extends WritableOakBuffer {
             value.rewind(); // TODO rewind?
             writeLock.unlock();
         }
+        return true;
     }
 
     @Override
