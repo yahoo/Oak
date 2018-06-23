@@ -445,11 +445,7 @@ public class OakMapOffHeapImpl implements OakMap, AutoCloseable {
 
         memoryManager.startThread();
 
-        // find chunk matching key
-        Chunk c = skiplist.floorEntry(key).getValue();
-        c = iterateChunks(c, key);
-
-
+        Chunk c = findChunk(key); // find chunk matching key
         Chunk.LookUp lookUp = c.lookUp(key);
         if (lookUp != null && lookUp.handle != null) {
             lookUp.handle.put(value, memoryManager);
@@ -538,11 +534,7 @@ public class OakMapOffHeapImpl implements OakMap, AutoCloseable {
 
         memoryManager.startThread();
 
-        // find chunk matching key
-        Chunk c = skiplist.floorEntry(key).getValue();
-        c = iterateChunks(c, key);
-
-
+        Chunk c = findChunk(key); // find chunk matching key
         Chunk.LookUp lookUp = c.lookUp(key);
         if (lookUp != null && lookUp.handle != null) {
             lookUp.handle.put(valueCreator, valueCapacity, memoryManager);
@@ -632,10 +624,7 @@ public class OakMapOffHeapImpl implements OakMap, AutoCloseable {
             memoryManager.startThread();
         }
 
-        // find chunk matching key
-        Chunk c = skiplist.floorEntry(key).getValue();
-        c = iterateChunks(c, key);
-
+        Chunk c = findChunk(key); // find chunk matching key
         Chunk.LookUp lookUp = c.lookUp(key);
         if (lookUp != null && lookUp.handle != null) {
             memoryManager.stopThread();
@@ -731,10 +720,7 @@ public class OakMapOffHeapImpl implements OakMap, AutoCloseable {
             memoryManager.startThread();
         }
 
-        // find chunk matching key
-        Chunk c = skiplist.floorEntry(key).getValue();
-        c = iterateChunks(c, key);
-
+        Chunk c = findChunk(key); // find chunk matching key
         Chunk.LookUp lookUp = c.lookUp(key);
         if (lookUp != null && lookUp.handle != null) {
             memoryManager.stopThread();
@@ -814,11 +800,7 @@ public class OakMapOffHeapImpl implements OakMap, AutoCloseable {
 
         memoryManager.startThread();
 
-        // find chunk matching key
-        Chunk c = skiplist.floorEntry(key).getValue();
-        c = iterateChunks(c, key);
-
-
+        Chunk c = findChunk(key); // find chunk matching key
         Chunk.LookUp lookUp = c.lookUp(key);
         if (lookUp != null && lookUp.handle != null) {
             lookUp.handle.compute(function, memoryManager);
@@ -920,11 +902,7 @@ public class OakMapOffHeapImpl implements OakMap, AutoCloseable {
 
         memoryManager.startThread();
 
-        // find chunk matching key
-        Chunk c = skiplist.floorEntry(key).getValue();
-        c = iterateChunks(c, key);
-
-
+        Chunk c = findChunk(key); // find chunk matching key
         Chunk.LookUp lookUp = c.lookUp(key);
         if (lookUp != null && lookUp.handle != null) {
             lookUp.handle.compute(function, memoryManager);
@@ -1019,10 +997,7 @@ public class OakMapOffHeapImpl implements OakMap, AutoCloseable {
 
         while (true) {
 
-            // find chunk matching key
-            Chunk c = skiplist.floorEntry(key).getValue();
-            c = iterateChunks(c, key);
-
+            Chunk c = findChunk(key); // find chunk matching key
             Chunk.LookUp lookUp = c.lookUp(key);
             if (lookUp != null && logical) {
                 prev = lookUp.handle; // remember previous handle
@@ -1098,10 +1073,7 @@ public class OakMapOffHeapImpl implements OakMap, AutoCloseable {
         }
 
         memoryManager.startThread();
-
-        Chunk c = skiplist.floorEntry(key).getValue();
-        c = iterateChunks(c, key);
-
+        Chunk c = findChunk(key); // find chunk matching key
         Chunk.LookUp lookUp = c.lookUp(key);
         memoryManager.stopThread();
         return lookUp == null || lookUp.handle == null ? null : new OakBufferImpl(lookUp.handle);
@@ -1114,9 +1086,7 @@ public class OakMapOffHeapImpl implements OakMap, AutoCloseable {
         }
 
         memoryManager.startThread();
-        Chunk c = skiplist.floorEntry(key).getValue();
-        c = iterateChunks(c, key);
-
+        Chunk c = findChunk(key); // find chunk matching key
         Chunk.LookUp lookUp = c.lookUp(key);
         if (lookUp == null || lookUp.handle == null) {
             return null;
@@ -1172,10 +1142,7 @@ public class OakMapOffHeapImpl implements OakMap, AutoCloseable {
         }
 
         memoryManager.startThread();
-
-        Chunk c = skiplist.floorEntry(key).getValue();
-        c = iterateChunks(c, key);
-
+        Chunk c = findChunk(key); // find chunk matching key
         Chunk.LookUp lookUp = c.lookUp(key);
         if (lookUp == null || lookUp.handle == null) return false;
 
@@ -1211,6 +1178,13 @@ public class OakMapOffHeapImpl implements OakMap, AutoCloseable {
         OakMap dm = descendingMap;
         return (dm != null) ? dm : (descendingMap = new SubOakMap
                 (this, null, false, null, false, true));
+    }
+
+    // encapsulates finding of the chunk in the skip list and later chunk list traversal
+    private Chunk findChunk(Object key) {
+        Chunk c = skiplist.floorEntry(key).getValue();
+        c = iterateChunks(c, key);
+        return c;
     }
 
     /*-------------- Iterators --------------*/
