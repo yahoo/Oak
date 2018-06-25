@@ -559,10 +559,17 @@ public class Chunk {
             return pointToValue(opData); // remove completed, try again
         } else if (operation == Operation.PUT_IF_ABSENT) {
             return false; // too late
-        } else if (operation == Operation.COMPUTE){ //TODO add fix for PIACIP!
+        } else if (operation == Operation.COMPUTE){
             Handle h = handles[foundHandleIdx];
             if(h != null){
-                h.compute(opData.function,memoryManager);
+                boolean succ = h.compute(opData.function,memoryManager);
+                if (!succ) {
+                    // we tried to perform the compute but the handle was deleted,
+                    // we can get to pointToValue with Operation.COMPUTE only from PIACIP
+                    // retry to make a put and to attach the new handle
+                    opData.prevHandleIndex = foundHandleIdx;
+                    return pointToValue(opData);
+                }
             }
             return true;
         }

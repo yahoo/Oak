@@ -832,10 +832,13 @@ public class OakMapOffHeapImpl implements OakMap, AutoCloseable {
             return;
         }
 
+        // we come here when no key was found, which can be in 3 cases:
+        // 1. no entry in the linked list at all
+        // 2. entry in the linked list, but handle is not attached
+        // 3. entry in the linked list, handle attached, but handle is marked deleted
         int ei = -1;
         int prevHi = -1;
         if (lookUp != null) {
-            assert lookUp.handle == null;
             ei = lookUp.entryIndex;
             assert ei > 0;
             prevHi = lookUp.handleIndex;
@@ -935,10 +938,13 @@ public class OakMapOffHeapImpl implements OakMap, AutoCloseable {
             return;
         }
 
+        // we come here when no key was found, which can be in 3 cases:
+        // 1. no entry in the linked list at all
+        // 2. entry in the linked list, but handle is not attached
+        // 3. entry in the linked list, handle attached, but handle is marked deleted
         int ei = -1;
         int prevHi = -1;
         if (lookUp != null) {
-            assert lookUp.handle == null;
             ei = lookUp.entryIndex;
             assert ei > 0;
             prevHi = lookUp.handleIndex;

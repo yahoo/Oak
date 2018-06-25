@@ -380,11 +380,16 @@ class Rebalancer {
                 lookUp.handle.put(value, memoryManager);
                 return true;
             } else if (operation == Operation.COMPUTE) {
-                lookUp.handle.compute(function, memoryManager);
-                return true;
+                boolean succ = lookUp.handle.compute(function, memoryManager);
+                if (succ) {
+                    return true;
+                }
+                // we tried to make the compute but the handle is marked as deleted, we can
+                // get Operation.COMPUTE here only from PIACIP in case a new handle was made.
+                // So actually need to do a put if absent here...
             }
         }
-        // TODO handle.put or handle.compute
+        // We continue here for the cases where new entry/handle need to be created and inserted
 
         int ei;
         if (lookUp == null) { // no entry
@@ -401,10 +406,7 @@ class Rebalancer {
         if (operation != Operation.REMOVE) {
             hi = c.allocateHandle(handleFactory);
             assert hi > 0; // chunk can't be full
-
-
             c.writeValue(hi, valueFactory.createValue(value, memoryManager)); // write value in place
-
         }
 
         // set pointer to value

@@ -1,6 +1,7 @@
 package oak;
 
 import javafx.util.Pair;
+import org.junit.Assert;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
@@ -14,15 +15,21 @@ class OakMemoryManager { // TODO interface allocate, release
     final ArrayList<LinkedList<Triplet>> releasedArray;
     final AtomicLong max;
 
-    private static final long IDLE_BIT = 1L << 56;
-    private static final long IDLE_MASK = 0xFF00000000000000L; // last byte
+    // Pay attention, this busy bit is used as a counter for nested calls of start thread method.
+    // It can be increased only 2^23 (8,388,608) times. This is needed for iterators that reappear
+    // in the data structure and assume the chunks on their way are not coing to be de-allocated.
+    // In case iterator should cover more than this number of items, the code should be adopted.
+    // The stop thread method (in turn) decreases the busy bit count and should achieve zero when
+    // thread is really idle.
+    private static final long BUSY_BIT = 1L << 48;
+    private static final long IDLE_MASK = 0xFFFF000000000000L; // last byte
     static final int RELEASES = 100;
 
     OakMemoryManager(MemoryPool pool) {
         this.pool = pool;
         this.timeStamps = new AtomicLong[Chunk.MAX_THREADS];
         for (int i = 0; i < Chunk.MAX_THREADS; i++) {
-            this.timeStamps[i] = new AtomicLong();
+            this.timeStamps[i] = new AtomicLong(0);
         }
         this.releasedArray = new ArrayList<>(Chunk.MAX_THREADS);
         for (int i = 0; i < Chunk.MAX_THREADS; i++) {
@@ -97,6 +104,7 @@ class OakMemoryManager { // TODO interface allocate, release
         }
     }
 
+    // the MSB (busy bit) is not set
     boolean isIdle(long timeStamp) {
         return (timeStamp & IDLE_MASK) == 0L;
     }
@@ -109,19 +117,22 @@ class OakMemoryManager { // TODO interface allocate, release
         int idx = OakMapOffHeapImpl.getThreadIndex();
         AtomicLong timeStamp = timeStamps[idx];
         long l = timeStamp.get();
+        long b = l;
 
         if (!isIdle(l)) {
-            // if already not idle, don't increase timestamp
-            l += IDLE_BIT; // just increment idle
+            // if already not idle, busy bit is set, don't increase timestamp
+            l += BUSY_BIT; // just increment in one busy bit, that serves as a counter
             timeStamp.set(l);
+            assert !isIdle(timeStamp.get()); // the thread should continue to be marked as busy
             return;
         }
 
         long max = this.max.incrementAndGet();
         l &= IDLE_MASK;
         l += max;
-        l += IDLE_BIT; // set to not idle
+        l += BUSY_BIT; // set to not idle
         timeStamp.set(l);
+        assert !isIdle(timeStamp.get());
     }
 
     void stopThread() {
@@ -129,7 +140,7 @@ class OakMemoryManager { // TODO interface allocate, release
         AtomicLong timeStamp = timeStamps[idx];
         long l = timeStamp.get();
         assert !isIdle(l);
-        l -= IDLE_BIT; // set to idle
+        l -= BUSY_BIT; // set to idle (in case this is the last nested call)
         timeStamp.set(l);
     }
 
