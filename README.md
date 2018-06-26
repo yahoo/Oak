@@ -1,5 +1,15 @@
 # Oak
-Oak map implementation
+Oak (Off-heap Allocated Keys) is a scalable concurrent KV-map for real-time analytics.
+Oak implements the industry standard Java NavigableMap API. It provides strong (atomic) semantics for read, write, read-modify-write, and range query (scan) operations (forward and backward). Oak is optimized for big keys and values, in particular for incremental maintenance of objects (e.g., aggregation). It is faster and scales better with the number of CPU cores than popular NavigableMap implementations, e.g., Doug Lee’s ConcurrentSkipListMap (Java’s default).
+
+## Oak Design Points
+1. Oak’s internal index is built on contiguous chunks of memory, which speeds up the search through the index due to locality of access.
+2. Oak provides an efficient implementation of the NavigableMap.compute(key, updateFunction) API – an atomic, zero-copy update in-place. Specifically, Oak allows user to find an old value associated with the key and to update it (in-place) to updateFunction(old value). 
+This allows the Oak user to focus on business logic without taking care of the hard issues of data layout and concurrency control.
+3. Further on, Oak supports atomic putIfAbsentComputeIfPresent(key, buildFunction, updateFunction) interface. That allows to look for the key, if key is not yet exists the new key-->buildFunction(place to update) mapping is added, otherwise the key’s value is updated to update(old value). 
+The above interface works concurrently with other updates and requires only one search traversal.
+4. Oak works off-heap and on-heap. In the off-heap case the keys and the values are copied and stored in a self-managed off-heap ByteBuffer. For Oak, the use of off-heap memory is simple and efficient thanks to its use of uniform-sized chunks. Its epoch-based internal garbage collection has negligible overhead.
+5. Oak’s forward and reverse scans are equally fast (interestingly, prior algorithms as Java’s ConcurrentSkipListMap did not focus on reverse scans, and provided grossly inferior performance).
 
 ## Init
 
