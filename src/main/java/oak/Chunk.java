@@ -109,13 +109,13 @@ public class Chunk {
         this.handles = new Handle[maxItems + FIRST_ITEM];
         this.handleIndex = new AtomicInteger(FIRST_ITEM);
         if (memoryManager != null) {
-            this.keysManager = new KeysManagerOffHeapImpl(this.maxKeyBytes, memoryManager);  // TODO how big should this be?
+            this.keysManager = new KeysManagerOffHeapImpl(this.maxKeyBytes, memoryManager);
         } else {
             this.keysManager = new KeysManagerOnHeapImpl(this.maxKeyBytes);
         }
         this.keyIndex = new AtomicInteger(FIRST_ITEM);
         this.sortedCount = 0;
-        this.minKey = minKey; // TODO copy given key
+        this.minKey = minKey;
         this.creator = new AtomicReference<>(creator);
         if (creator == null)
             this.state = new AtomicReference<>(State.NORMAL);
@@ -325,7 +325,9 @@ public class Chunk {
         if ((sortedCount == 0) || compare(readKey(FIRST_ITEM), key) >= 0)
             return HEAD_NODE;
 
-        // TODO locality in binary search? check last key to avoid binary search? these are optimizations we can try
+        // optimization: compare with last key to avoid binary search
+        if (compare(readKey((sortedCount-1) * FIELDS + FIRST_ITEM), key) < 0)
+            return (sortedCount-1) * FIELDS + FIRST_ITEM;
 
         int start = 0;
         int end = sortedCount;
@@ -351,8 +353,6 @@ public class Chunk {
     boolean publish(OpData opData) {
 
         int idx = OakMapOffHeapImpl.getThreadIndex();
-        // TODO verify the assumption about sequential IDs, for now leave it because PPA will change (no MAX_THREADS)
-
         // publish into thread array
         return casPendingArray(idx, null, opData);
     }
@@ -386,9 +386,9 @@ public class Chunk {
             return -1;
         }
 
-        int length = key.remaining(); // TODO is this the length?
+        int length = key.remaining();
         int ki = keyIndex.getAndAdd(length);
-        if (ki + length >= keysManager.length()) { // TODO is this the right check?
+        if (ki + length >= keysManager.length()) {
             return -1;
         }
 
@@ -409,9 +409,9 @@ public class Chunk {
             return -1;
         }
 
-        int length = keyCapacityCalculator.apply(key); // TODO is this the length?
+        int length = keyCapacityCalculator.apply(key);
         int ki = keyIndex.getAndAdd(length);
-        if (ki + length >= keysManager.length()) { // TODO is this the right check?
+        if (ki + length >= keysManager.length()) {
             return -1;
         }
 
@@ -736,7 +736,6 @@ public class Chunk {
         int maxIdx = maxCapacity * FIELDS + 1;
         if (sortedEntryIndex >= maxIdx || sortedKeyIndex >= maxBytes) return ei;
         assert ei < entries.length - FIELDS;
-        // TODO check if reached capacity with key index?
         if (sortedEntryIndex != FIRST_ITEM) {
             set(sortedEntryIndex - FIELDS, OFFSET_NEXT, sortedEntryIndex);
         } else {
@@ -773,7 +772,7 @@ public class Chunk {
                     &&
                     (sortedKeyIndex + keyLengthToCopy <= maxBytes)
                     &&
-                    (prevKeyIndex + prevKeyLength == currKeyIndex))) { // TODO we should add this check right?
+                    (prevKeyIndex + prevKeyLength == currKeyIndex))) {
 
                 entryIndexEnd++;
                 isFirst = false;
@@ -871,7 +870,7 @@ public class Chunk {
     boolean shouldRebalance() {
         // perform actual check only in pre defined percentage of puts
         if (ThreadLocalRandom.current().nextInt(100) > REBALANCE_PROB_PERC) return false;
-        // TODO change after adding support to variable size keys?
+
         // if another thread already runs rebalance -- skip it
         if (!isEngaged(null)) return false;
         int numOfEntries = entryIndex.get() / FIELDS;
@@ -975,7 +974,7 @@ public class Chunk {
 
         DescendingIter() {
             from = null;
-            stack = new IntStack(entries.length / FIELDS); // TODO maybe optimization is needed here
+            stack = new IntStack(entries.length / FIELDS);
             anchor = sortedCount == 0 ? HEAD_NODE : (sortedCount - 1) * (FIELDS) + 1; // this is the last sorted entry
             stack.push(anchor);
             initNext();
