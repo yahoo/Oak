@@ -17,8 +17,17 @@ The above interface works concurrently with other updates and requires only one 
 4. Oak works off-heap and on-heap. In the off-heap case the keys and the values are copied and stored in a self-managed off-heap ByteBuffer. For Oak, the use of off-heap memory is simple and efficient thanks to its use of uniform-sized chunks. Its epoch-based internal garbage collection has negligible overhead.
 5. Oak’s forward and reverse scans are equally fast (interestingly, prior algorithms as Java’s ConcurrentSkipListMap did not focus on reverse scans, and provided grossly inferior performance).
 
-## Init
+## Instalation
+Oak is a library to be used in your code. After downloading Oak use `mvn install` to compile and install. Then update dependencies, like:
+```
+  <dependency>
+      <groupId>oak</groupId>
+      <artifactId>oak</artifactId>
+      <version>1.0-SNAPSHOT</version>
+ </dependency>
+```
 
+## Init
 When constructing **off** heap Oak the capacity needs to be specified.
 Oak will allocate off heap memory (with the requested capacity) at construction.
 
