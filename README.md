@@ -2,6 +2,12 @@
 Oak (Off-heap Allocated Keys) is a scalable concurrent KV-map for real-time analytics.
 Oak implements the industry standard Java NavigableMap API. It provides strong (atomic) semantics for read, write, read-modify-write, and range query (scan) operations (forward and backward). Oak is optimized for big keys and values, in particular for incremental maintenance of objects (e.g., aggregation). It is faster and scales better with the number of CPU cores than popular NavigableMap implementations, e.g., Doug Lee’s ConcurrentSkipListMap (Java’s default).
 
+##Why Oak?
+1. Oak provides great performance, has fine synchronization, and thus scales well with numbers of threads
+2. Oak takes (can take) all the keys and the data off-heap, thus allows working with huge heap (RAM) above 50G, without JVM GC overheads.
+3. Oak provides rich **atomic** API. For example, in the current Java NavigableMap implementation, compute is not guaranteed to be atomic. Oak’s update operations (such as put and compute) take user-provided lambda functions for easy integration in a range of use cases. 
+4. Descending Scans: Oak is expediting descending scans without the complexity of managing a doubly-linked list. In our experiments, Oak’s descending scans are 4.8x faster than ConcurrentSkipListMap’s. Bottom line the scans in both directions are similarly fast.
+
 ## Oak Design Points
 1. Oak’s internal index is built on contiguous chunks of memory, which speeds up the search through the index due to locality of access.
 2. Oak provides an efficient implementation of the NavigableMap.compute(key, updateFunction) API – an atomic, zero-copy update in-place. Specifically, Oak allows user to find an old value associated with the key and to update it (in-place) to updateFunction(old value). 
