@@ -24,8 +24,9 @@ Oak is a library to be used in your code. After downloading Oak use `mvn install
       <groupId>oak</groupId>
       <artifactId>oak</artifactId>
       <version>1.0-SNAPSHOT</version>
- </dependency>
+  </dependency>
 ```
+Finally, import the relevant classes and use Oak according to the description below. 
 
 ## Init
 When constructing **off** heap Oak the capacity needs to be specified.
