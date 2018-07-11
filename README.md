@@ -3,6 +3,12 @@
 
 Oak implements the industry standard Java NavigableMap API. It provides strong (atomic) semantics for read, write, read-modify-write, and range query (scan) operations, both forward and backward. Oak is optimized for big keys and values, in particular for incremental maintenance of objects (e.g., aggregation). It's faster and scales better with additional CPU cores than popular NavigableMap implementations, such as Doug Lee’s ConcurrentSkipListMap, which is Java’s default.
 
+## Why Oak?
+1. Oak provides great performance, has fine synchronization, and thus scales well with numbers of threads
+2. Oak takes (can take) all the keys and the data off-heap, thus allows working with huge heap (RAM) above 50G, without JVM GC overheads.
+3. Oak provides rich **atomic** API. For example, in the current Java NavigableMap implementation, compute is not guaranteed to be atomic. Oak’s update operations (such as put and compute) take user-provided lambda functions for easy integration in a range of use cases. 
+4. Descending Scans: Oak is expediting descending scans without the complexity of managing a doubly-linked list. In our experiments, Oak’s descending scans are 4.8x faster than ConcurrentSkipListMap’s. Bottom line the scans in both directions are similarly fast.
+
 ## Table of Contents
 
 - [Background](#background)
@@ -15,11 +21,20 @@ Oak implements the industry standard Java NavigableMap API. It provides strong (
 ## Background
 - Oak’s internal index is built on contiguous chunks of memory; this speeds up searches through the index due to access locality.
 - Oak provides an efficient implementation of the NavigableMap.compute(key, updateFunction) API; an atomic, zero-copy update in-place. Specifically, Oak allows user to find an old value associated with the key and to update it in place to updateFunction(old value). This allows the Oak users to focus on business logic without dealing with the hard problems data layout and concurrency control presents.
--  Further on, Oak supports an atomic putIfAbsentComputeIfPresent(key, buildFunction, updateFunction) interface. This provides the ability to look for a key, and if the key doesn't exist, the new key-->buildFunction(place to update) mapping is added, otherwise the key’s value is updated with update(old value). This interface works concurrently with other updates and requires only one search traversal.
+- Further on, Oak supports an atomic putIfAbsentComputeIfPresent(key, buildFunction, updateFunction) interface. This provides the ability to look for a key, and if the key doesn't exist, the new key-->buildFunction(place to update) mapping is added, otherwise the key’s value is updated with update(old value). This interface works concurrently with other updates and requires only one search traversal.
 - Oak works off-heap and on-heap. In the case of off-heap, the keys and the values are copied and stored in a self-managed, off-heap ByteBuffer. With Oak, the use of off-heap memory is simple and efficient thanks to its use of uniform-sized chunks, and its epoch-based internal garbage collection has negligible overhead.
 - Oak’s forward and reverse scans are equally fast. Interestingly, prior algorithms like Java’s ConcurrentSkipListMap did not focus on reverse scans, and provided grossly inferior performance as a result.
 
 ## Installation
+Oak is a library to be used in your code. After downloading Oak use `mvn install` to compile and install. Then update dependencies, like:
+```
+  <dependency>
+      <groupId>oak</groupId>
+      <artifactId>oak</artifactId>
+      <version>1.0-SNAPSHOT</version>
+  </dependency>
+```
+Finally, import the relevant classes and use Oak according to the description below. 
 
 When constructing **off**-heap with Oak, the memory capacity needs to be specified.
 Oak will allocate off-heap memory with the requested capacity at construction.
