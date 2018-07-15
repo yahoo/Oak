@@ -30,6 +30,13 @@ public class MemoryManagerTest {
     int maxItemsPerChunk = 2048;
     int maxBytesPerChunkItem = 100;
 
+    public static class checkOakCapacityTestValueSizeCalculator implements SizeCalculator<Integer> {
+
+        public int calculateSize(Integer object) {
+            return Integer.MAX_VALUE/20;
+        }
+    }
+
 
     @Before
     public void init() {
@@ -106,40 +113,39 @@ public class MemoryManagerTest {
 
     @Test
     public void checkOakCapacity() {
-        OakMapOffHeapImpl oak = new OakMapOffHeapImpl(new SimpleNoFreeMemoryPoolImpl(Integer.MAX_VALUE), maxItemsPerChunk, maxBytesPerChunkItem);
+
+        OakMapBuilder builder = OakMapBuilder.getDefaultBuilder()
+                .setChunkMaxItems(maxItemsPerChunk)
+                .setChunkBytesPerItem(maxBytesPerChunkItem)
+                .setValueSizeCalculator(new checkOakCapacityTestValueSizeCalculator());
+        OakMapOffHeapImpl oak = builder.buildOffHeapOakMap();
         MemoryPool pool = oak.memoryManager.pool;
 
 
         assertEquals(maxItemsPerChunk * maxBytesPerChunkItem, pool.allocated());
-        ByteBuffer val = ByteBuffer.allocate(Integer.MAX_VALUE/20);
-        byte arr[] = new byte[Integer.MAX_VALUE/20];
-        arr[0] = 1;
-        val.put(arr,0,arr.length);
-        assertEquals(0,val.remaining());
-        val.rewind();
-        ByteBuffer key = ByteBuffer.allocate(4);
-        key.putInt(0,0);
+        Integer val = 1;
+        Integer key = 0;
         assertEquals(maxItemsPerChunk * maxBytesPerChunkItem, pool.allocated());
         oak.put(key, val);
-        key.putInt(0,1);
+        key = 1;
         oak.put(key, val);
-        key.putInt(0,2);
+        key = 2;
         oak.put(key, val);
-        key.putInt(0,3);
+        key = 3;
         oak.put(key, val);
 
 
-        key.putInt(0,0);
-        OakBuffer buffer = oak.get(key);
-        assertTrue(buffer != null);
-        assertEquals(1, buffer.get(0));
-        key.putInt(0,3);
-        buffer = oak.get(key);
-        assertTrue(buffer != null);
-        assertEquals(1, buffer.get(0));
+        key = 0;
+        Integer value = (Integer) oak.get(key);
+        assertTrue(value != null);
+        assertEquals((Integer) 1, value);
+        key = 3;
+        value = (Integer) oak.get(key);
+        assertTrue(value != null);
+        assertEquals((Integer) 1, value);
 
         for(int i = 0; i < 10; i++){
-            key.putInt(0,i);
+            key = i;
             oak.put(key, val);
             oak.remove(key);
         }
@@ -274,26 +280,10 @@ public class MemoryManagerTest {
     @Test
     public void checkStartStopThread() {
 
-        Comparator<Object> comparator = new Comparator<Object>() {
-            @Override
-            public int compare(Object o1, Object o2) {
-                ByteBuffer bb1 = (ByteBuffer) o1;
-                ByteBuffer bb2 = (ByteBuffer) o2;
-                int i1 = bb1.getInt(bb1.position());
-                int i2 = bb2.getInt(bb2.position());
-                if (i1 > i2) {
-                    return 1;
-                } else if (i1 < i2) {
-                    return -1;
-                } else {
-                    return 0;
-                }
-            }
-        };
-        ByteBuffer min = ByteBuffer.allocate(10);
-        min.putInt(Integer.MIN_VALUE);
-        min.flip();
-        OakMapOffHeapImpl oak = new OakMapOffHeapImpl(comparator, min, new SimpleNoFreeMemoryPoolImpl(Integer.MAX_VALUE), maxItemsPerChunk, maxBytesPerChunkItem);
+        OakMapBuilder builder = OakMapBuilder.getDefaultBuilder()
+                .setChunkMaxItems(maxItemsPerChunk)
+                .setChunkBytesPerItem(maxBytesPerChunkItem);
+        OakMapOffHeapImpl<Integer, Integer> oak = builder.buildOffHeapOakMap();
         OakMemoryManager memoryManager = oak.memoryManager;
 
         assertEquals(0, memoryManager.getValue(memoryManager.timeStamps[1].get()));
@@ -305,21 +295,16 @@ public class MemoryManagerTest {
         assertEquals(1, memoryManager.getValue(memoryManager.timeStamps[1].get()));
         assertTrue(memoryManager.isIdle(memoryManager.timeStamps[1].get()));
 
-        ByteBuffer key = ByteBuffer.allocate(4);
-        key.putInt(0);
-        key.flip();
+        Integer key = 0;
         oak.put(key, key);
         assertEquals(2, memoryManager.getValue(memoryManager.timeStamps[1].get()));
         assertTrue(memoryManager.isIdle(memoryManager.timeStamps[1].get()));
 
-        ByteBuffer bb = ByteBuffer.allocate(4);
-        bb.putInt(0);
-        bb.flip();
-        OakBuffer buffer = oak.get(bb);
+        Integer value = (Integer) oak.get(key);
         assertEquals(3, memoryManager.getValue(memoryManager.timeStamps[1].get()));
         assertTrue(memoryManager.isIdle(memoryManager.timeStamps[1].get()));
-        assertTrue(buffer != null);
-        assertEquals(0, buffer.getInt(0));
+        assertTrue(value != null);
+        assertEquals((Integer) 0, value);
         assertEquals(3, memoryManager.getValue(memoryManager.timeStamps[1].get()));
         assertTrue(memoryManager.isIdle(memoryManager.timeStamps[1].get()));
 
@@ -336,7 +321,7 @@ public class MemoryManagerTest {
         memoryManager.startThread();
         assertEquals(5, memoryManager.getValue(memoryManager.timeStamps[1].get()));
         assertFalse(memoryManager.isIdle(memoryManager.timeStamps[1].get()));
-        oak.get(bb);
+        oak.get(key);
         assertFalse(memoryManager.isIdle(memoryManager.timeStamps[1].get()));
         assertEquals(5, memoryManager.getValue(memoryManager.timeStamps[1].get()));
         memoryManager.stopThread();
@@ -362,10 +347,7 @@ public class MemoryManagerTest {
 
 
         for (int i = 0; i < 2 * maxItemsPerChunk; i++) {
-            bb = ByteBuffer.allocateDirect(4);
-            bb.putInt(i);
-            bb.flip();
-            oak.put(bb, bb);
+            oak.put(i, i);
         }
         assertEquals(7 + 2 * maxItemsPerChunk, memoryManager.getValue(memoryManager.timeStamps[1].get()));
         assertTrue(memoryManager.isIdle(memoryManager.timeStamps[1].get()));
@@ -374,10 +356,7 @@ public class MemoryManagerTest {
         assertEquals(8 + 2 * maxItemsPerChunk, memoryManager.getValue(memoryManager.timeStamps[1].get()));
         assertFalse(memoryManager.isIdle(memoryManager.timeStamps[1].get()));
         for (int i = 0; i < 2 * maxItemsPerChunk; i++) {
-            bb = ByteBuffer.allocateDirect(4);
-            bb.putInt(i);
-            bb.flip();
-            oak.put(bb, bb);
+            oak.put(i, i);
         }
         assertEquals(8 + 2 * maxItemsPerChunk, memoryManager.getValue(memoryManager.timeStamps[1].get()));
         assertFalse(memoryManager.isIdle(memoryManager.timeStamps[1].get()));
@@ -385,26 +364,24 @@ public class MemoryManagerTest {
         assertEquals(8 + 2 * maxItemsPerChunk, memoryManager.getValue(memoryManager.timeStamps[1].get()));
         assertTrue(memoryManager.isIdle(memoryManager.timeStamps[1].get()));
 
-        for (int i = 0; i < 2 * maxItemsPerChunk; i++) {
-            bb = ByteBuffer.allocateDirect(4);
-            bb.putInt(i);
-            bb.flip();
-            buffer = oak.get(bb);
-            assertTrue(buffer != null);
-            assertEquals(i, buffer.getInt(0));
+        for (Integer i = 0; i < 2 * maxItemsPerChunk; i++) {
+            value = (Integer) oak.get(i);
+            assertTrue(value != null);
+            assertEquals(i, value);
         }
 
         try (CloseableIterator iter = oak.entriesIterator()) {
             assertEquals(9 + 4 * maxItemsPerChunk, memoryManager.getValue(memoryManager.timeStamps[1].get()));
             assertFalse(memoryManager.isIdle(memoryManager.timeStamps[1].get()));
-            int i = 0;
+            Integer i = 0;
             while (iter.hasNext()) {
-                Map.Entry<ByteBuffer, OakBuffer> e = (Map.Entry<ByteBuffer, OakBuffer>) iter.next();
-                assertEquals(i, ((OakBuffer) (e.getValue())).getInt(0));
-                assertEquals(i, e.getKey().getInt(0));
+                Map.Entry<Integer, Integer> e = (Map.Entry<Integer, Integer>) iter.next();
+                assertEquals(i, e.getValue());
+                assertEquals(i, e.getKey());
                 i++;
             }
-            assertEquals(2 * maxItemsPerChunk, i);
+            Integer twiceMaxItemsPerChunk = 2 * maxItemsPerChunk;
+            assertEquals(twiceMaxItemsPerChunk, i);
         }
 
         try (CloseableIterator iter = oak.valuesIterator()) {
@@ -412,14 +389,14 @@ public class MemoryManagerTest {
             assertFalse(memoryManager.isIdle(memoryManager.timeStamps[1].get()));
             int i = 0;
             while (iter.hasNext()) {
-                assertEquals(i, ((OakBuffer) (iter.next())).getInt(0));
+                assertEquals(i, iter.next());
                 i++;
             }
-            oak.get(bb);
+            oak.get(0);
             assertEquals(2 * maxItemsPerChunk, i);
             assertEquals(10 + 4 * maxItemsPerChunk, memoryManager.getValue(memoryManager.timeStamps[1].get()));
             assertFalse(memoryManager.isIdle(memoryManager.timeStamps[1].get()));
-            try (CloseableIterator<OakBuffer> ignored = oak.descendingMap().valuesIterator()) {
+            try (CloseableIterator<Integer> ignored = oak.descendingMap().valuesIterator()) {
                 assertFalse(memoryManager.isIdle(memoryManager.timeStamps[1].get()));
             }
             assertFalse(memoryManager.isIdle(memoryManager.timeStamps[1].get()));
@@ -433,106 +410,52 @@ public class MemoryManagerTest {
     @Test
     public void checkOneChunk() {
 
-        Comparator<Object> comparator = new Comparator<Object>() {
-            @Override
-            public int compare(Object o1, Object o2) {
-                ByteBuffer bb1 = (ByteBuffer) o1;
-                ByteBuffer bb2 = (ByteBuffer) o2;
-                int i1 = bb1.getInt(bb1.position());
-                int i2 = bb2.getInt(bb2.position());
-                if (i1 > i2) {
-                    return 1;
-                } else if (i1 < i2) {
-                    return -1;
-                } else {
-                    return 0;
-                }
-            }
-        };
-        ByteBuffer min = ByteBuffer.allocate(10);
-        min.putInt(Integer.MIN_VALUE);
-        min.flip();
-        OakMapOffHeapImpl oak = new OakMapOffHeapImpl(comparator, min, new SimpleNoFreeMemoryPoolImpl(Integer.MAX_VALUE), maxItemsPerChunk, maxBytesPerChunkItem);
+        OakMapBuilder builder = OakMapBuilder.getDefaultBuilder()
+                .setChunkMaxItems(maxItemsPerChunk)
+                .setChunkBytesPerItem(maxBytesPerChunkItem);
+        OakMapOffHeapImpl oak = builder.buildOffHeapOakMap();
 
-        ByteBuffer bb;
-        OakBuffer buffer;
-
-        bb = ByteBuffer.allocateDirect(4);
-        bb.putInt(128);
-        bb.flip();
-        oak.put(bb, bb);
+        oak.put(128, 128);
 
         for (int i = 0; i < 270; i++) {
-            bb = ByteBuffer.allocateDirect(4);
-            bb.putInt(i);
-            bb.flip();
-            oak.put(bb, bb);
+            oak.put(i, i);
         }
 
-        for (int i = 0; i < 270; i++) {
-            bb = ByteBuffer.allocateDirect(4);
-            bb.putInt(i);
-            bb.flip();
-            buffer = oak.get(bb);
-            assertTrue(buffer != null);
-            assertEquals(i, buffer.getInt(0));
+        for (Integer i = 0; i < 270; i++) {
+            Integer value = (Integer) oak.get(i);
+            assertTrue(value != null);
+            assertEquals(i, value);
         }
 
     }
 
     @Test
     public void releaseCalls() {
-        Comparator<Object> comparator = new Comparator<Object>() {
-            @Override
-            public int compare(Object o1, Object o2) {
-                ByteBuffer bb1 = (ByteBuffer) o1;
-                ByteBuffer bb2 = (ByteBuffer) o2;
-                int i1 = bb1.getInt(bb1.position());
-                int i2 = bb2.getInt(bb2.position());
-                if (i1 > i2) {
-                    return 1;
-                } else if (i1 < i2) {
-                    return -1;
-                } else {
-                    return 0;
-                }
-            }
-        };
-        int items = (maxItemsPerChunk * maxBytesPerChunkItem) / 4;
-        ByteBuffer min = ByteBuffer.allocate(10);
-        min.putInt(Integer.MIN_VALUE);
-        min.flip();
-        OakMapOffHeapImpl oak = new OakMapOffHeapImpl(comparator, min, new SimpleNoFreeMemoryPoolImpl(Integer.MAX_VALUE), maxItemsPerChunk, maxBytesPerChunkItem);
-        OakMemoryManager memoryManager = oak.memoryManager;
 
-        ByteBuffer bb;
+        int items = (maxItemsPerChunk * maxBytesPerChunkItem) / 4;
+        OakMapBuilder builder = OakMapBuilder.getDefaultBuilder()
+                .setChunkMaxItems(maxItemsPerChunk)
+                .setChunkBytesPerItem(maxBytesPerChunkItem);
+        OakMapOffHeapImpl oak = builder.buildOffHeapOakMap();
+        OakMemoryManager memoryManager = oak.memoryManager;
 
         assertEquals(0, memoryManager.releasedArray.get(1).size());
 
         for (int i = 0; i < items; i++) {
-            bb = ByteBuffer.allocateDirect(4);
-            bb.putInt(i);
-            bb.flip();
-            oak.put(bb, bb);
+            oak.put(i, i);
         }
 
         int releases = memoryManager.releasedArray.get(1).size();
 
-        bb = ByteBuffer.allocateDirect(4);
-        bb.putInt(0);
-        bb.flip();
-        oak.remove(bb);
+        oak.remove(0);
 
         assertEquals(releases + 1, memoryManager.releasedArray.get(1).size());
 
-        oak.put(bb, bb);
+        oak.put(0, 0);
         assertEquals(releases + 1, memoryManager.releasedArray.get(1).size());
 
         for (int i = 0; i < 100; i++) {
-            bb = ByteBuffer.allocateDirect(4);
-            bb.putInt(i);
-            bb.flip();
-            oak.remove(bb);
+            oak.remove(i);
             if(OakMemoryManager.RELEASES == 10) {
                 if (i < 7) {
                     assertEquals(releases + 2 + i, memoryManager.releasedArray.get(1).size());
@@ -547,21 +470,15 @@ public class MemoryManagerTest {
         int now = memoryManager.releasedArray.get(1).size();
 
         for (int i = 0; i < items; i++) {
-            bb = ByteBuffer.allocateDirect(4);
-            bb.putInt(i);
-            bb.flip();
-            oak.put(bb, bb);
+            oak.put(i, i);
         }
 
         assertEquals(now, memoryManager.releasedArray.get(1).size());
 
-        for (int i = 0; i < items; i++) {
-            bb = ByteBuffer.allocateDirect(4);
-            bb.putInt(i);
-            bb.flip();
-            OakBuffer buffer = oak.get(bb);
-            assertTrue(buffer != null);
-            assertEquals(i, buffer.getInt(0));
+        for (Integer i = 0; i < items; i++) {
+            Integer value = (Integer) oak.get(i);
+            assertTrue(value != null);
+            assertEquals(i, value);
         }
 
         assertEquals(now, memoryManager.releasedArray.get(1).size());
@@ -570,40 +487,33 @@ public class MemoryManagerTest {
 
     @Test
     public void compute(){
-        Consumer<WritableOakBuffer> func = buffer -> {
-            if (buffer.getInt(0) == 0) {
-                buffer.putInt(0, 1);
+        OakMapBuilder builder = OakMapBuilder.getDefaultBuilder()
+                .setChunkMaxItems(maxItemsPerChunk)
+                .setChunkBytesPerItem(maxBytesPerChunkItem);
+        OakMapOffHeapImpl<Integer, Integer> oak = builder.buildOffHeapOakMap();
+
+        Computer computer = new Computer() {
+            @Override
+            public void apply(ByteBuffer byteBuffer) {
+                if (byteBuffer.getInt(0) == 0) {
+                    byteBuffer.putInt(0, 1);
+                }
             }
         };
-        OakMapOffHeapImpl oak = new OakMapOffHeapImpl(new SimpleNoFreeMemoryPoolImpl(Integer.MAX_VALUE), maxItemsPerChunk, maxBytesPerChunkItem);
-        ByteBuffer bb = ByteBuffer.allocateDirect(4);
-        bb.putInt(0,0);
-        oak.put(bb,bb);
-        OakBuffer buffer = oak.get(bb);
-        assertTrue(buffer != null);
-        assertEquals(0, buffer.getInt(0));
-        oak.computeIfPresent(bb, func);
-        buffer = oak.get(bb);
-        assertTrue(buffer != null);
-        assertEquals(1, buffer.getInt(0));
-        oak.computeIfPresent(bb, func);
-        buffer = oak.get(bb);
-        assertTrue(buffer != null);
-        assertEquals(1, buffer.getInt(0));
-        func = buf -> {
-            if (buf.getInt(0) == 1) {
-                buf.putInt(1);
-                buf.putInt(1);
-            }
-        };
-        oak.computeIfPresent(bb, func);
-        buffer = oak.get(bb);
-        assertTrue(buffer != null);
-        assertEquals(1, buffer.getInt(0));
-        assertEquals(1, buffer.getInt(4));
 
-
-
+        Integer key = 0;
+        oak.put(key, key);
+        Integer value = oak.get(key);
+        assertTrue(value != null);
+        assertEquals(key, value);
+        oak.computeIfPresent(key, computer);
+        value = oak.get(key);
+        assertTrue(value != null);
+        assertEquals((Integer) 1, value);
+        oak.computeIfPresent(key, computer);
+        value = oak.get(key);
+        assertTrue(value != null);
+        assertEquals((Integer) 1, value);
         oak.close();
 
     }

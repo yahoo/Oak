@@ -23,36 +23,20 @@ import static org.junit.Assert.assertFalse;
 
 public class MultiThreadTest {
 
-    private OakMapOffHeapImpl oak;
+    private OakMapOffHeapImpl<Integer, Integer> oak;
     private final int NUM_THREADS = 20;
     private ArrayList<Thread> threads;
     private CountDownLatch latch;
     int maxItemsPerChunk = 2048;
-    int maxBytesPerChunkItem = 100;
+    int maxBytesPerChunkItem = Integer.BYTES;
 
 
     @Before
     public void init() {
-        Comparator<Object> comparator = new Comparator<Object>() {
-            @Override
-            public int compare(Object o1, Object o2) {
-                ByteBuffer bb1 = (ByteBuffer) o1;
-                ByteBuffer bb2 = (ByteBuffer) o2;
-                int i1 = bb1.getInt(bb1.position());
-                int i2 = bb2.getInt(bb2.position());
-                if (i1 > i2) {
-                    return 1;
-                } else if (i1 < i2) {
-                    return -1;
-                } else {
-                    return 0;
-                }
-            }
-        };
-        ByteBuffer min = ByteBuffer.allocate(10);
-        min.putInt(Integer.MIN_VALUE);
-        min.flip();
-        oak = new OakMapOffHeapImpl(comparator, min, maxItemsPerChunk, maxBytesPerChunkItem);
+        OakMapBuilder builder = OakMapBuilder.getDefaultBuilder()
+                .setChunkMaxItems(maxItemsPerChunk)
+                .setChunkBytesPerItem(maxBytesPerChunkItem);
+        oak = builder.buildOffHeapOakMap();
         latch = new CountDownLatch(1);
         threads = new ArrayList<>(NUM_THREADS);
 
@@ -73,128 +57,85 @@ public class MultiThreadTest {
                 e.printStackTrace();
             }
 
-            for (int i = 0; i < (int) Math.round(0.5 * maxItemsPerChunk); i++) {
-                ByteBuffer bb = ByteBuffer.allocate(4);
-                bb.putInt(i);
-                bb.flip();
-                OakBuffer buffer = oak.get(bb);
-                assertTrue(buffer == null);
+            Integer value;
+
+            for (Integer i = 0; i < (int) Math.round(0.5 * maxItemsPerChunk); i++) {
+                value = oak.get(i);
+                assertTrue(value == null);
             }
-            for (int i = maxItemsPerChunk; i < 2 * maxItemsPerChunk; i++) {
-                ByteBuffer bb = ByteBuffer.allocate(4);
-                bb.putInt(i);
-                bb.flip();
-                oak.put(bb, bb);
+            for (Integer i = maxItemsPerChunk; i < 2 * maxItemsPerChunk; i++) {
+                oak.putIfAbsent(i, i);
             }
-            for (int i = maxItemsPerChunk; i < 2 * maxItemsPerChunk; i++) {
-                ByteBuffer bb = ByteBuffer.allocate(4);
-                bb.putInt(i);
-                bb.flip();
-                OakBuffer buffer = oak.get(bb);
-                assertTrue(buffer != null);
-                assertEquals(i, buffer.getInt(0));
+            for (Integer i = maxItemsPerChunk; i < 2 * maxItemsPerChunk; i++) {
+                value = oak.get(i);
+                assertTrue(value != null);
+                assertEquals(i, value);
             }
-            for (int i = 0; i < (int) Math.round(0.5 * maxItemsPerChunk); i++) {
-                ByteBuffer bb = ByteBuffer.allocate(4);
-                bb.putInt(i);
-                bb.flip();
-                OakBuffer buffer = oak.get(bb);
-                assertTrue(buffer == null);
+            for (Integer i = 0; i < (int) Math.round(0.5 * maxItemsPerChunk); i++) {
+                value = oak.get(i);
+                assertTrue(value == null);
             }
-            for (int i = 2 * maxItemsPerChunk; i < 3 * maxItemsPerChunk; i++) {
-                ByteBuffer bb = ByteBuffer.allocate(4);
-                bb.putInt(i);
-                bb.flip();
-                oak.put(bb, bb);
+            for (Integer i = 2 * maxItemsPerChunk; i < 3 * maxItemsPerChunk; i++) {
+                oak.putIfAbsent(i, i);
             }
-            for (int i = 2 * maxItemsPerChunk; i < 3 * maxItemsPerChunk; i++) {
-                ByteBuffer bb = ByteBuffer.allocate(4);
-                bb.putInt(i);
-                bb.flip();
-                oak.remove(bb);
+            for (Integer i = 2 * maxItemsPerChunk; i < 3 * maxItemsPerChunk; i++) {
+                oak.remove(i);
             }
-            for (int i = maxItemsPerChunk; i < 2 * maxItemsPerChunk; i++) {
-                ByteBuffer bb = ByteBuffer.allocate(4);
-                bb.putInt(i);
-                bb.flip();
-                OakBuffer buffer = oak.get(bb);
-                assertTrue(buffer != null);
-                assertEquals(i, buffer.getInt(0));
+            for (Integer i = maxItemsPerChunk; i < 2 * maxItemsPerChunk; i++) {
+                value = oak.get(i);
+                assertTrue(value != null);
+                assertEquals(i, value);
             }
-            for (int i = (int) Math.round(0.5 * maxItemsPerChunk); i < maxItemsPerChunk; i++) {
-                ByteBuffer bb = ByteBuffer.allocate(4);
-                bb.putInt(i);
-                bb.flip();
-                oak.put(bb, bb);
+            for (Integer i = (int) Math.round(0.5 * maxItemsPerChunk); i < maxItemsPerChunk; i++) {
+                oak.putIfAbsent(i, i);
             }
-            for (int i = 3 * maxItemsPerChunk; i < 4 * maxItemsPerChunk; i++) {
-                ByteBuffer bb = ByteBuffer.allocate(4);
-                bb.putInt(i);
-                bb.flip();
-                OakBuffer buffer = oak.get(bb);
-                assertTrue(buffer == null);
+            for (Integer i = (int) Math.round(0.5 * maxItemsPerChunk); i < maxItemsPerChunk; i++) {
+                value = oak.get(i);
+                assertTrue(value != null);
+                assertEquals(i, value);
             }
-            for (int i = 3 * maxItemsPerChunk; i < 4 * maxItemsPerChunk; i++) {
-                ByteBuffer bb = ByteBuffer.allocate(4);
-                bb.putInt(i);
-                bb.flip();
-                oak.remove(bb);
+            for (Integer i = 3 * maxItemsPerChunk; i < 4 * maxItemsPerChunk; i++) {
+                value = oak.get(i);
+                assertTrue(value == null);
+            }
+            for (Integer i = 3 * maxItemsPerChunk; i < 4 * maxItemsPerChunk; i++) {
+                oak.remove(i);
             }
 
             Iterator valIter = oak.valuesIterator();
-            int c = (int) Math.round(0.5 * maxItemsPerChunk);
-            while (valIter.hasNext()) {
-                ByteBuffer bb = ByteBuffer.allocate(4);
-                bb.putInt(c);
-                bb.flip();
-                OakBuffer buffer = oak.get(bb);
-                assertTrue(buffer != null);
-                assertEquals(c, buffer.getInt(0));
-                assertEquals(c, ((OakBuffer) (valIter.next())).getInt(0));
+            Integer twiceMaxItemsPerChunk = 2 * maxItemsPerChunk;
+            Integer c = (int) Math.round(0.5 * maxItemsPerChunk);
+            while (valIter.hasNext() && c < twiceMaxItemsPerChunk) {
+                value = oak.get(c);
+                assertTrue(value != null);
+                assertEquals(c, value);
+                assertEquals(c, valIter.next());
                 c++;
-                if (c == 2 * maxItemsPerChunk) {
-                    break;
-                }
             }
-            assertEquals(2 * maxItemsPerChunk, c);
+            assertEquals(twiceMaxItemsPerChunk, c);
 
-            ByteBuffer from = ByteBuffer.allocate(4);
-            from.putInt(0);
-            from.flip();
-            ByteBuffer to = ByteBuffer.allocate(4);
-            to.putInt(2 * maxItemsPerChunk);
-            to.flip();
+            Integer from = 0;
+            Integer to = twiceMaxItemsPerChunk;
             OakMap sub = oak.subMap(from, true, to, false);
             valIter = sub.valuesIterator();
             c = (int) Math.round(0.5 * maxItemsPerChunk);
             while (valIter.hasNext()) {
-                ByteBuffer bb = ByteBuffer.allocate(4);
-                bb.putInt(c);
-                bb.flip();
-                OakBuffer buffer = oak.get(bb);
-                assertTrue(buffer != null);
-                assertEquals(c, buffer.getInt(0));
-                assertEquals(c, ((OakBuffer) (valIter.next())).getInt(0));
+                value = oak.get(c);
+                assertTrue(value != null);
+                assertEquals(c, value);
+                assertEquals(c, valIter.next());
                 c++;
             }
-            assertEquals(2 * maxItemsPerChunk, c);
+            assertEquals(twiceMaxItemsPerChunk, c);
 
-            from = ByteBuffer.allocate(4);
-            from.putInt(1);
-            from.flip();
-            to = ByteBuffer.allocate(4);
-            to.putInt((int) Math.round(0.5 * maxItemsPerChunk));
-            to.flip();
+            from = 1;
+            to = (int) Math.round(0.5 * maxItemsPerChunk);
             sub = oak.subMap(from, true, to, false);
             valIter = sub.valuesIterator();
             assertFalse(valIter.hasNext());
 
-            from = ByteBuffer.allocate(4);
-            from.putInt(4 * maxItemsPerChunk);
-            from.flip();
-            to = ByteBuffer.allocate(4);
-            to.putInt(5 * maxItemsPerChunk);
-            to.flip();
+            from = 4 * maxItemsPerChunk;
+            to = 5 * maxItemsPerChunk;
             sub = oak.subMap(from, true, to, false);
             valIter = sub.valuesIterator();
             assertFalse(valIter.hasNext());
@@ -206,7 +147,7 @@ public class MultiThreadTest {
                 ByteBuffer bb1 = ByteBuffer.allocate(4);
                 bb1.putInt(i + 1);
                 bb1.flip();
-                oak.putIfAbsent(bb, bb1);
+                oak.putIfAbsent(i, i + 1);
             }
 
 
@@ -225,27 +166,18 @@ public class MultiThreadTest {
         for (int i = 0; i < NUM_THREADS; i++) {
             threads.get(i).join();
         }
-        for (int i = (int) Math.round(0.5 * maxItemsPerChunk); i < 2 * maxItemsPerChunk; i++) {
-            ByteBuffer bb = ByteBuffer.allocate(4);
-            bb.putInt(i);
-            bb.flip();
-            OakBuffer buffer = oak.get(bb);
-            assertTrue(buffer != null);
-            assertEquals(i, buffer.getInt(0));
+        for (Integer i = (int) Math.round(0.5 * maxItemsPerChunk); i < 2 * maxItemsPerChunk; i++) {
+            Integer value = oak.get(i);
+            assertTrue(value != null);
+            assertEquals(i, value);
         }
-        for (int i = 2 * maxItemsPerChunk; i < 4 * maxItemsPerChunk; i++) {
-            ByteBuffer bb = ByteBuffer.allocate(4);
-            bb.putInt(i);
-            bb.flip();
-            OakBuffer buffer = oak.get(bb);
-            assertTrue(buffer == null);
+        for (Integer i = 2 * maxItemsPerChunk; i < 4 * maxItemsPerChunk; i++) {
+            Integer value = oak.get(i);
+            assertTrue(value == null);
         }
-        for (int i = 0; i < (int) Math.round(0.5 * maxItemsPerChunk); i++) {
-            ByteBuffer bb = ByteBuffer.allocate(4);
-            bb.putInt(i);
-            bb.flip();
-            OakBuffer buffer = oak.get(bb);
-            assertTrue(buffer == null);
+        for (Integer i = 0; i < (int) Math.round(0.5 * maxItemsPerChunk); i++) {
+            Integer value = oak.get(i);
+            assertTrue(value == null);
         }
     }
 
@@ -265,133 +197,95 @@ public class MultiThreadTest {
             }
 
             Integer i;
-            Iterator iter;
-            ByteBuffer bb;
+            Integer value = 1;
+            Iterator<Integer> iter;
 
             for (i = 0; i < 6 * maxItemsPerChunk; i++) {
-                bb = ByteBuffer.allocate(4);
-                bb.putInt(i);
-                bb.flip();
-                oak.putIfAbsent(bb, bb);
+                oak.putIfAbsent(i, i);
+                value = oak.get(i);
+                Assert.assertTrue(value != null);
+                assertEquals(i, value);
             }
 
             iter = oak.valuesIterator();
             i = 0;
-            while (iter.hasNext()) {
-                OakBuffer buffer = ((OakBuffer) (iter.next()));
-                if (buffer == null) {
-                    continue;
-                }
-                try {
-                    i = buffer.getInt(0);
-                } catch (NullPointerException exp) {
-                }
-
+            while (iter.hasNext() && i < 2 * maxItemsPerChunk) {
+                value = iter.next();
+                Assert.assertTrue(value != null);
+                assertEquals(i, value);
+                i++;
             }
-            Assert.assertTrue(i > maxItemsPerChunk);
+
             iter = oak.descendingMap().valuesIterator();
             while (iter.hasNext()) {
-                OakBuffer buffer = ((OakBuffer) (iter.next()));
-                if (buffer == null) {
+                value = iter.next();
+                if (value == null) {
                     continue;
                 }
-                try {
-                    i = buffer.getInt(0);
-                } catch (NullPointerException exp) {
-                }
             }
-            assertEquals(0, i.intValue());
+            assertEquals(0, value.intValue());
 
             for (i = 2 * maxItemsPerChunk; i < 3 * maxItemsPerChunk; i++) {
-                bb = ByteBuffer.allocate(4);
-                bb.putInt(i);
-                bb.flip();
-                oak.remove(bb);
+                oak.remove(i);
             }
             iter = oak.valuesIterator();
             i = 0;
             while (iter.hasNext()) {
-                OakBuffer buffer = ((OakBuffer) (iter.next()));
-                if (buffer == null) {
+                i = iter.next();
+                if (i == null) {
                     continue;
-                }
-                try {
-                    i = buffer.getInt(0);
-                } catch (NullPointerException exp) {
                 }
             }
             Assert.assertTrue(i > maxItemsPerChunk);
             iter = oak.descendingMap().valuesIterator();
             while (iter.hasNext()) {
-                OakBuffer buffer = ((OakBuffer) (iter.next()));
-                if (buffer == null) {
+                i = iter.next();
+                if (i == null) {
                     continue;
                 }
-                try {
-                    i = buffer.getInt(0);
-                } catch (NullPointerException exp) {
-                }
             }
-            assertEquals(0, i.intValue());
 
-            Consumer<WritableOakBuffer> func = buffer -> {
-                if (buffer.getInt(0) == 0) {
-                    buffer.putInt(0);
-                    buffer.putInt(1);
+            Computer computer = new Computer() {
+                @Override
+                public void apply(ByteBuffer byteBuffer) {
+                    if (byteBuffer.getInt(0) == 0) {
+                        byteBuffer.putInt(0, 1);
+                    }
                 }
             };
 
             for (i = 2 * maxItemsPerChunk; i < 3 * maxItemsPerChunk; i++) {
-                bb = ByteBuffer.allocate(4);
-                bb.putInt(i);
-                bb.flip();
-                oak.computeIfPresent(bb, func);
+                oak.computeIfPresent(i, computer);
             }
 
             for (i = 5 * maxItemsPerChunk; i < 6 * maxItemsPerChunk; i++) {
-                bb = ByteBuffer.allocate(4);
-                bb.putInt(i);
-                bb.flip();
-                oak.remove(bb);
+                oak.remove(i);
             }
+
             iter = oak.valuesIterator();
             i = 0;
             while (iter.hasNext()) {
-                OakBuffer buffer = ((OakBuffer) (iter.next()));
-                if (buffer == null) {
+                i = iter.next();
+                if (i == null) {
                     continue;
                 }
-                try {
-                    i = buffer.getInt(0);
-                } catch (NullPointerException exp) {
-                }
             }
-            Assert.assertTrue(i > maxItemsPerChunk);
+
             iter = oak.descendingMap().valuesIterator();
             while (iter.hasNext()) {
-                OakBuffer buffer = ((OakBuffer) (iter.next()));
-                if (buffer == null) {
+                i = iter.next();
+                if (i == null) {
                     continue;
                 }
-                try {
-                    i = buffer.getInt(0);
-                } catch (NullPointerException exp) {
-                }
             }
-            assertEquals(0, i.intValue());
+            assertTrue(i <= 1);
 
             for (i = 0; i < 6 * maxItemsPerChunk; i++) {
-                bb = ByteBuffer.allocate(4);
-                bb.putInt(i);
-                bb.flip();
-                oak.putIfAbsent(bb, bb);
+                oak.putIfAbsent(i, i);
             }
 
             for (i = 0; i < maxItemsPerChunk; i++) {
-                bb = ByteBuffer.allocate(4);
-                bb.putInt(i);
-                bb.flip();
-                oak.computeIfPresent(bb, func);
+                oak.computeIfPresent(i, computer);
             }
 
         }
@@ -410,16 +304,11 @@ public class MultiThreadTest {
             threads.get(i).join();
         }
 
-        for (int i = 0; i < 6 * maxItemsPerChunk; i++) {
-            ByteBuffer bb = ByteBuffer.allocate(4);
-            bb.putInt(i);
-            bb.flip();
-            OakBuffer buffer = oak.get(bb);
-            assertTrue(buffer != null);
-            assertEquals(i, buffer.getInt(0));
-            if (i == 0) {
-                assertEquals(1, buffer.getInt(4));
-            }
+        for (Integer i = 0; i < 2 * maxItemsPerChunk; i++) {
+            Integer value = oak.get(i);
+            assertTrue(value != null);
+            if (i > 0)
+                assertEquals(i, value);
         }
     }
 }

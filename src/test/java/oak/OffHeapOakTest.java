@@ -16,7 +16,6 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.Map;
-import java.util.Map.Entry;
 import java.util.concurrent.CountDownLatch;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -25,62 +24,51 @@ import static junit.framework.TestCase.assertTrue;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 
-import oak.OakMap.KeyInfo;
-
 public class OffHeapOakTest {
-    private OakMapOffHeapImpl oak;
+    private OakMapOffHeapImpl<Integer, Integer> oak;
     private final int NUM_THREADS = 12;
     private ArrayList<Thread> threads;
     private CountDownLatch latch;
-    private Consumer<WritableOakBuffer> emptyFunc;
+    private Computer emptyComputer;
     int maxItemsPerChunk = 2048;
     int maxBytesPerChunkItem = 100;
 
     @Before
     public void init() {
-        oak = new OakMapOffHeapImpl(maxItemsPerChunk, maxBytesPerChunkItem);
+        OakMapBuilder builder = OakMapBuilder.getDefaultBuilder()
+                .setChunkMaxItems(maxItemsPerChunk)
+                .setChunkBytesPerItem(maxBytesPerChunkItem);
+        oak = builder.buildOffHeapOakMap();
         latch = new CountDownLatch(1);
         threads = new ArrayList<>(NUM_THREADS);
-        emptyFunc = buffer -> {
-            ByteBuffer bb = buffer.getByteBuffer();
+        emptyComputer = new Computer() {
+            @Override
+            public void apply(ByteBuffer byteBuffer) {
+                return;
+            }
         };
     }
 
     @Test
     public void testPutIfAbsent() {
-        for (int i = 0; i < 2 * maxItemsPerChunk; i++) {
-            ByteBuffer bb = ByteBuffer.allocate(4);
-            bb.putInt(i);
-            bb.flip();
-            oak.put(bb, bb);
+        for (Integer i = 0; i < 2 * maxItemsPerChunk; i++) {
+            oak.put(i, i);
         }
-        for (int i = 0; i < 2 * maxItemsPerChunk; i++) {
-            ByteBuffer bb = ByteBuffer.allocate(4);
-            bb.putInt(i);
-            bb.flip();
-            OakBuffer buffer = oak.get(bb);
-            assertTrue(buffer != null);
-            TestCase.assertEquals(i, buffer.getInt(0));
+        for (Integer i = 0; i < 2 * maxItemsPerChunk; i++) {
+            Integer value = oak.get(i);
+            assertTrue(value != null);
+            TestCase.assertEquals(i, value);
         }
-        for (int i = 0; i < 2 * maxItemsPerChunk; i++) {
-            ByteBuffer bb = ByteBuffer.allocate(4);
-            bb.putInt(i);
-            bb.flip();
-            oak.remove(bb);
+        for (Integer i = 0; i < 2 * maxItemsPerChunk; i++) {
+            oak.remove(i);
         }
-        for (int i = 0; i < 2 * maxItemsPerChunk; i++) {
-            ByteBuffer bb = ByteBuffer.allocate(4);
-            bb.putInt(i);
-            bb.flip();
-            oak.put(bb, bb);
+        for (Integer i = 0; i < 2 * maxItemsPerChunk; i++) {
+            oak.put(i, i);
         }
-        for (int i = 0; i < 2 * maxItemsPerChunk; i++) {
-            ByteBuffer bb = ByteBuffer.allocate(4);
-            bb.putInt(i);
-            bb.flip();
-            OakBuffer buffer = oak.get(bb);
-            assertTrue(buffer != null);
-            TestCase.assertEquals(i, buffer.getInt(0));
+        for (Integer i = 0; i < 2 * maxItemsPerChunk; i++) {
+            Integer value = oak.get(i);
+            assertTrue(value != null);
+            TestCase.assertEquals(i, value);
         }
     }
 
@@ -97,13 +85,10 @@ public class OffHeapOakTest {
             threads.get(i).join();
         }
 
-        for (int i = 0; i < 6 * maxItemsPerChunk; i++) {
-            ByteBuffer bb = ByteBuffer.allocate(4);
-            bb.putInt(i);
-            bb.flip();
-            OakBuffer buffer = oak.get(bb);
-            assertTrue(buffer != null);
-            assertEquals(i, buffer.getInt(0));
+        for (Integer i = 0; i < 6 * maxItemsPerChunk; i++) {
+            Integer value = oak.get(i);
+            assertTrue(value != null);
+            assertEquals(i, value);
         }
     }
 
@@ -123,73 +108,33 @@ public class OffHeapOakTest {
             }
 
             for (int i = 0; i < 6 * maxItemsPerChunk; i++) {
-                ByteBuffer bb = ByteBuffer.allocate(4);
-                bb.putInt(i);
-                bb.flip();
-                oak.put(bb, bb);
+                oak.put(i, i);
             }
 
             for (int i = 0; i < 6 * maxItemsPerChunk; i++) {
-                ByteBuffer bb = ByteBuffer.allocate(4);
-                bb.putInt(i);
-                bb.flip();
-                oak.remove(bb);
+                oak.remove(i);
             }
 
             for (int i = 0; i < 6 * maxItemsPerChunk; i++) {
-                ByteBuffer bb = ByteBuffer.allocate(4);
-                bb.putInt(i);
-                bb.flip();
-                oak.putIfAbsent(bb, bb);
+                oak.putIfAbsent(i, i);
             }
 
             for (int i = 0; i < 6 * maxItemsPerChunk; i++) {
-                ByteBuffer bb = ByteBuffer.allocate(4);
-                bb.putInt(i);
-                bb.flip();
-                oak.remove(bb);
+                oak.remove(i);
             }
 
             for (int i = 0; i < 6 * maxItemsPerChunk; i++) {
-                ByteBuffer bb = ByteBuffer.allocate(4);
-                bb.putInt(i);
-                bb.flip();
-                oak.put(bb, bb);
+                oak.put(i, i);
             }
 
             for (int i = 0; i < maxItemsPerChunk; i++) {
                 ByteBuffer bb = ByteBuffer.allocate(4);
                 bb.putInt(i);
                 bb.flip();
-                oak.putIfAbsentComputeIfPresent(bb, new KeyCreator(), buff -> 4, new ValueCreator(i), 4, emptyFunc);
-                oak.putIfAbsentComputeIfPresent(bb, () -> bb, emptyFunc);
+                oak.putIfAbsentComputeIfPresent(i, i, emptyComputer);
+                oak.putIfAbsentComputeIfPresent(i, i, emptyComputer);
             }
 
-        }
-    }
-
-    public class ValueCreator implements Consumer<ByteBuffer>  {
-
-        int i;
-
-        public ValueCreator(int i) {
-            this.i = i;
-        }
-
-        @Override
-        public void accept(ByteBuffer byteBuffer) {
-            byteBuffer.putInt(i);
-            byteBuffer.flip();
-        }
-    }
-
-    public class KeyCreator implements Consumer<KeyInfo> {
-        @Override
-        public void accept(KeyInfo keyInfo) {
-            ByteBuffer key = (ByteBuffer) keyInfo.key;
-            ByteBuffer buffer = keyInfo.buffer;
-            int position = buffer.position() + keyInfo.index;
-            buffer.putInt(position, key.getInt(0));
         }
     }
 
@@ -198,59 +143,46 @@ public class OffHeapOakTest {
 
     @Test
     public void testPutIfAbsentComputeIfPresentWithValueCreator() {
-        Consumer<WritableOakBuffer> func = writableOakBuffer -> {
-            if (writableOakBuffer.getInt() == 0) writableOakBuffer.putInt(0, 1);
-        };
-        ByteBuffer key = ByteBuffer.allocate(4);
-        key.putInt(0);
-        key.flip();
-        assertFalse(oak.computeIfPresent(key, func));
 
-        oak.putIfAbsentComputeIfPresent(key, new KeyCreator(), buff -> 4, new ValueCreator(0), 4, func);
-        OakBuffer buffer = oak.get(key);
-        assertTrue(buffer != null);
-        assertEquals(0, buffer.getInt(0));
-        oak.putIfAbsentComputeIfPresent(key, new KeyCreator(), buff -> 4, new ValueCreator(0), 4, func);
-        buffer = oak.get(key);
-        assertTrue(buffer != null);
-        assertEquals(1, buffer.getInt(0));
-        assertEquals(4, buffer.remaining());
-        ByteBuffer two = ByteBuffer.allocate(4);
-        two.putInt(2);
-        two.flip();
-        oak.put(key, two);
-        assertEquals(4, buffer.remaining());
-        assertEquals(2, buffer.getInt(0));
-        assertTrue(oak.computeIfPresent(key, func));
-        assertEquals(4, buffer.remaining());
-        assertEquals(2, buffer.getInt(0));
-        Consumer<WritableOakBuffer> func2 = writableOakBuffer -> {
-            if (writableOakBuffer.getInt() == 0) {
-                writableOakBuffer.putInt(0, 0);
-                writableOakBuffer.putInt(1);
+        Computer computer = new Computer() {
+            @Override
+            public void apply(ByteBuffer byteBuffer) {
+                if (byteBuffer.getInt() == 0)
+                    byteBuffer.putInt(0, 1);
             }
         };
+
+        Integer key = 0;
+        assertFalse(oak.computeIfPresent(key, computer));
+
+        oak.putIfAbsentComputeIfPresent(key, key, computer);
+        Integer value = oak.get(key);
+        assertTrue(value != null);
+        assertEquals(key, value);
+        oak.putIfAbsentComputeIfPresent(key, key, computer);
+        value = oak.get(key);
+        assertTrue(value != null);
+        assertEquals((Integer) 1, value);
+        Integer two = 2;
+        oak.put(key, two);
+        value = oak.get(key);
+        assertTrue(value != null);
+        assertEquals((Integer) 2, value);
+        assertTrue(oak.computeIfPresent(key, computer));
+        assertEquals((Integer) 2, value);
         oak.put(key, key);
-        oak.putIfAbsentComputeIfPresent(key, new KeyCreator(), buff -> 4, new ValueCreator(0),4, func2);
-        assertEquals(8, buffer.remaining());
-        assertEquals(0, buffer.getInt(0));
-        assertEquals(1, buffer.getInt(4));
+        oak.putIfAbsentComputeIfPresent(key, key, computer);
+        value = oak.get(key);
+        assertTrue(value != null);
+        assertEquals((Integer) 1, value);
         oak.remove(key);
-        assertFalse(oak.computeIfPresent(key, func2));
-        thrown.expect(NullPointerException.class);
-        assertEquals(8, buffer.remaining());
+        assertFalse(oak.computeIfPresent(key, computer));
     }
 
     @Test
     public void testValuesTransformIterator() {
-        for (int i = 0; i < 100; i++) {
-            ByteBuffer key = ByteBuffer.allocate(4);
-            key.putInt(i);
-            key.flip();
-            ByteBuffer value = ByteBuffer.allocate(4);
-            value.putInt(i);
-            value.flip();
-            oak.put(key, value);
+        for (Integer i = 0; i < 100; i++) {
+            oak.put(i, i);
         }
 
         Function<ByteBuffer,Integer> function = new Function<ByteBuffer, Integer>() {
@@ -269,13 +201,7 @@ public class OffHeapOakTest {
     @Test
     public void testEntriesTransformIterator() {
         for (int i = 0; i < 100; i++) {
-            ByteBuffer key = ByteBuffer.allocate(4);
-            key.putInt(i);
-            key.flip();
-            ByteBuffer value = ByteBuffer.allocate(4);
-            value.putInt(i + 1);
-            value.flip();
-            oak.put(key, value);
+            oak.put(i, i + 1);
         }
 
         Function<Map.Entry<ByteBuffer, ByteBuffer>, Integer> function = new Function<Map.Entry<ByteBuffer, ByteBuffer>, Integer>() {

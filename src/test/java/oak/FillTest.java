@@ -16,22 +16,33 @@ public class FillTest {
 
     private static int NUM_THREADS;
 
-    static OakMap oak;
+    static OakMapOffHeapImpl<Integer, Integer> oak;
     static ConcurrentSkipListMap<ByteBuffer, ByteBuffer> skiplist;
-    static boolean java = false;
     private static final long K = 1024;
-//    private static final long M = K * K;
-//    static final long G = M * K;
 
     private static int keySize = 10;
     private static int valSize = (int) Math.round(5 * K);
     private static int numOfEntries;
 
-    static ByteBuffer key = ByteBuffer.allocate(keySize);
-    private static ByteBuffer val = ByteBuffer.allocate(valSize);
+    static Integer key;
+    private static Integer val;
 
     static private ArrayList<Thread> threads = new ArrayList<>(NUM_THREADS);
     static private CountDownLatch latch = new CountDownLatch(1);
+
+    public static class FillTestKeySizeCalculator implements SizeCalculator<Integer> {
+
+        public int calculateSize(Integer object) {
+            return keySize;
+        }
+    }
+
+    public static class FillTestValueSizeCalculator implements SizeCalculator<Integer> {
+
+        public int calculateSize(Integer object) {
+            return valSize;
+        }
+    }
 
     static class RunThreads implements Runnable {
         CountDownLatch latch;
@@ -50,8 +61,8 @@ public class FillTest {
 
             Random r = new Random();
 
-            ByteBuffer myKey = ByteBuffer.allocate(keySize);
-            ByteBuffer myVal = ByteBuffer.allocate(valSize);
+            Integer myKey;
+            Integer myVal;
 
             int id = OakMapOffHeapImpl.getThreadIndex();
             int amount = (int) Math.round(numOfEntries * 0.5) / NUM_THREADS;
@@ -75,33 +86,13 @@ public class FillTest {
                 arr[nextIdx] = tmp;
                 usedIdx--;
 
-                if (java) {
-                    ByteBuffer newKey = ByteBuffer.allocate(keySize);
-                    for(int j = 0; j < keySize ; j++){
-                        newKey.put(j,key.get(j));
-                    }
-                    ByteBuffer newVal = ByteBuffer.allocate(valSize);
-                    for(int j = 0; j < valSize ; j++){
-                        newVal.put(j,val.get(j));
-                    }
-                    newKey.putInt(0, next);
-                    newVal.putInt(0, next);
-                    skiplist.putIfAbsent(newKey, newVal);
-                    continue;
-                }
-                myKey.putInt(0, next);
-                myVal.putInt(0, next);
+                myKey = next;
+                myVal = next;
                 oak.putIfAbsent(myKey, myVal);
             }
 
             for (int i = end-1; i >= start; i--) {
-                myKey.putInt(0, i);
-                if(java){
-                    if(skiplist.get(myKey) == null){
-                        System.out.println("error");
-                    }
-                    continue;
-                }
+                myKey = i;
                 if(oak.get(myKey) == null){
                     System.out.println("error");
                 }
@@ -112,42 +103,29 @@ public class FillTest {
 
     public static void main(String[] args) throws InterruptedException {
 
-        int maxItemsPerChunk = 2048;
-        int maxBytesPerChunkItem = 100;
+        OakMapBuilder builder = OakMapBuilder
+                .getDefaultBuilder()
+                .setChunkMaxItems(2048)
+                .setChunkBytesPerItem(100)
+                .setKeySizeCalculator(new FillTestKeySizeCalculator())
+                .setValueSizeCalculator(new FillTestValueSizeCalculator());
 
-        if (args[0].equals("off") || args[0].equals("on")) {
-            oak = new OakMapOffHeapImpl(maxItemsPerChunk, maxBytesPerChunkItem);
-        } else if (args[0].equals("java")) {
-            java = true;
-            skiplist = new ConcurrentSkipListMap<>();
-        }
+        oak = builder.buildOffHeapOakMap();
 
         NUM_THREADS = Integer.parseInt(args[1]);
 
         numOfEntries = Integer.parseInt(args[2]);
 
-
-//        System.out.println("Time to connect jconsole");
-//        TimeUnit.SECONDS.sleep(20);
-
-        key.putInt(0, 0);
-        val.putInt(0, 0);
+        key = 0;
+        val = 0;
 
         for (int i = 0; i < NUM_THREADS; i++) {
             threads.add(new Thread(new RunThreads(latch)));
         }
 
         for (int i = 0; i < (int) Math.round(numOfEntries * 0.5); i++) {
-            if (java) {
-                ByteBuffer newKey = ByteBuffer.allocate(keySize);
-                ByteBuffer newVal = ByteBuffer.allocate(valSize);
-                newKey.putInt(0, i);
-                newVal.putInt(0, i);
-                skiplist.putIfAbsent(newKey, newVal);
-                continue;
-            }
-            key.putInt(0, i);
-            val.putInt(0, i);
+            key = i;
+            val = i;
             oak.putIfAbsent(key, val);
         }
 
@@ -165,24 +143,14 @@ public class FillTest {
 
         long stopTime = System.currentTimeMillis();
 
-        for (int i = 0; i < numOfEntries; i++) {
-            key.putInt(0, i);
-            if (java) {
-                ByteBuffer bb = skiplist.get(key);
-                if (bb == null) {
-                    return;
-                }
-                if (bb.getInt(0) != i) {
-                    return;
-                }
-                continue;
-            }
-            OakBuffer buffer = oak.get(key);
-            if (buffer == null) {
+        for (Integer i = 0; i < numOfEntries; i++) {
+            key = i;
+            Integer val = oak.get(key);
+            if (val == null) {
                 System.out.println("buffer != null i==" + i);
                 return;
             }
-            if (buffer.getInt(0) != i) {
+            if (val != i) {
                 System.out.println("buffer.getInt(0) != i i==" + i);
                 return;
             }

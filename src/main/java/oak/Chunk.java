@@ -18,11 +18,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicMarkableReference;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.AtomicReferenceArray;
-import java.util.function.Consumer;
-import java.util.function.Function;
-import oak.OakMap.KeyInfo;
 
-public class Chunk {
+public class Chunk<K, V> {
 
     /*-------------- Constants --------------*/
 
@@ -45,12 +42,17 @@ public class Chunk {
     private static final double REBALANCE_PROB_PERC = 30;
     private static final double SORTED_REBALANCE_RATIO = 1.6;
     private static final double MAX_ENTRIES_FACTOR = 2;
+    private static final double MAX_IDLE_ENTRIES_FACTOR = 5;
     private static final double MAX_ITEMS_FACTOR = 2;
     private static final double MAX_BYTES_FACTOR = 1.25;
 
     // when chunk is frozen, all of the elements in pending puts array will be this OpData
     private static final OpData FROZEN_OP_DATA =
         new OpData(Operation.NO_OP, 0, 0, 0, null);
+
+    // defaults
+    public static int BYTES_PER_ITEM_DEFAULT = 64;
+    public static int MAX_ITEMS_DEFAULT = 256;
 
     /*-------------- Members --------------*/
 
@@ -78,6 +80,11 @@ public class Chunk {
     private final int maxItems;
     private final int maxKeyBytes;
     AtomicInteger externalSize; // for updating oak's size
+    // for writing the keys into the bytebuffers
+    private final Serializer<K> keySerializer;
+    private final SizeCalculator<K> keySizeCalculator;
+    private final Serializer<V> valueSerializer;
+    private final SizeCalculator<V> valueSizeCalculator;
 
     /*-------------- Constructors --------------*/
 
@@ -100,7 +107,10 @@ public class Chunk {
      */
     Chunk(  ByteBuffer minKey, Chunk creator, Comparator<Object> comparator,
             OakMemoryManager memoryManager,
-            int maxItems, int bytesPerItem, AtomicInteger externalSize) {
+            int maxItems, int bytesPerItem, AtomicInteger externalSize,
+            Serializer<K> keySerializer, SizeCalculator<K> keySizeCalculator,
+            Serializer<V> valueSerializer, SizeCalculator<V> valueSizeCalculator
+            ) {
         this.memoryManager = memoryManager;
         this.maxItems = maxItems;
         this.maxKeyBytes = maxItems * bytesPerItem;
@@ -109,7 +119,8 @@ public class Chunk {
         this.handles = new Handle[maxItems + FIRST_ITEM];
         this.handleIndex = new AtomicInteger(FIRST_ITEM);
         if (memoryManager != null) {
-            this.keysManager = new KeysManagerOffHeapImpl(this.maxKeyBytes, memoryManager);
+            this.keysManager = new KeysManagerOffHeapImpl(this.maxKeyBytes, memoryManager,
+                    keySerializer, keySizeCalculator);
         } else {
             this.keysManager = new KeysManagerOnHeapImpl(this.maxKeyBytes);
         }
@@ -128,6 +139,11 @@ public class Chunk {
         this.comparator = comparator;
         this.byteBufferPerThread = new ByteBuffer[MAX_THREADS]; // init to null
         this.externalSize = externalSize;
+
+        this.keySerializer = keySerializer;
+        this.keySizeCalculator = keySizeCalculator;
+        this.valueSerializer = valueSerializer;
+        this.valueSizeCalculator = valueSizeCalculator;
     }
 
     enum State {
@@ -142,14 +158,14 @@ public class Chunk {
         int entryIndex;
         int handleIndex;
         int prevHandleIndex;
-        Consumer<WritableOakBuffer> function;
+        Computer computer;
 
-        OpData(Operation op, int entryIndex, int handleIndex, int prevHandleIndex, Consumer<WritableOakBuffer> function) {
+        OpData(Operation op, int entryIndex, int handleIndex, int prevHandleIndex, Computer computer) {
             this.op = op;
             this.entryIndex = entryIndex;
             this.handleIndex = handleIndex;
             this.prevHandleIndex = prevHandleIndex;
-            this.function = function;
+            this.computer = computer;
         }
     }
 
@@ -238,14 +254,8 @@ public class Chunk {
     /**
      * write key in place
      **/
-    private void writeKey(ByteBuffer key, int ki, int length) {
-        keysManager.writeKey(key, ki, length);
-    }
-
-    private void writeKey(Object key,
-                          Consumer<KeyInfo> keyCreator,
-                          int ki) {
-        keysManager.writeKey(key, keyCreator, ki);
+    private void writeKey(Object key, int ki) {
+        keysManager.writeKey(key, ki);
     }
 
     /**
@@ -271,7 +281,7 @@ public class Chunk {
     /**
      * look up key
      */
-    LookUp lookUp(Object key) {
+    LookUp lookUp(K key) {
         // binary search sorted part of key array to quickly find node to start search at
         // it finds previous-to-key so start with its next
         int curr = get(binaryFind(key), OFFSET_NEXT);
@@ -319,7 +329,7 @@ public class Chunk {
      * @return the index of the entry from which to start a linear search -
      * if key is found, its previous entry is returned!
      */
-    private int binaryFind(Object key) {
+    private int binaryFind(K key) {
         // if there are no sorted keys, or the first item is already larger than key -
         // return the head node for a regular linear search
         if ((sortedCount == 0) || compare(readKey(FIRST_ITEM), key) >= 0)
@@ -380,13 +390,13 @@ public class Chunk {
         return hi;
     }
 
-    int allocateEntryAndKey(ByteBuffer key) {
+    int allocateEntryAndKey(K key) {
         int ei = entryIndex.getAndAdd(FIELDS);
         if (ei + FIELDS > entries.length) {
             return -1;
         }
 
-        int length = key.remaining();
+        int length = keySizeCalculator.calculateSize(key);
         int ki = keyIndex.getAndAdd(length);
         if (ki + length >= keysManager.length()) {
             return -1;
@@ -394,84 +404,14 @@ public class Chunk {
 
         // key and value must be set before linking to the list so it will make sense when reached before put is done
         set(ei, OFFSET_HANDLE_INDEX, -1); // set value index to -1, value is init to null
-        writeKey(key, ki, length);
+        writeKey(key, ki);
         set(ei, OFFSET_KEY_INDEX, ki);
         set(ei, OFFSET_KEY_LENGTH, length);
 
         return ei;
     }
 
-    int allocateEntryAndKey(Object key,
-                            Consumer<KeyInfo> keyCreator,
-                            Function<Object, Integer> keyCapacityCalculator) {
-        int ei = entryIndex.getAndAdd(FIELDS);
-        if (ei + FIELDS > entries.length) {
-            return -1;
-        }
-
-        int length = keyCapacityCalculator.apply(key);
-        int ki = keyIndex.getAndAdd(length);
-        if (ki + length >= keysManager.length()) {
-            return -1;
-        }
-
-        // key and value must be set before linking to the list so it will make sense when reached before put is done
-        set(ei, OFFSET_HANDLE_INDEX, -1); // set value index to -1, value is init to null
-        writeKey(key, keyCreator, ki);
-        set(ei, OFFSET_KEY_INDEX, ki);
-        set(ei, OFFSET_KEY_LENGTH, length);
-
-        return ei;
-    }
-
-    int linkEntry(int ei, ByteBuffer key, boolean cas) {
-        int prev, curr, cmp;
-        int anchor = -1;
-
-        while (true) {
-            // start iterating from quickly-found node (by binary search) in sorted part of order-array
-            if (anchor == -1) anchor = binaryFind(key);
-            curr = anchor;
-
-            // iterate items until key's position is found
-            while (true) {
-                prev = curr;
-                curr = get(prev, OFFSET_NEXT);    // index of next item in list
-
-                // if no item, done searching - add to end of list
-                if (curr == NONE) {
-                    break;
-                }
-                // compare current item's key to ours
-                cmp = compare(readKey(curr), key);
-
-                // if current item's key is larger, done searching - add between prev and curr
-                if (cmp > 0) {
-                    break;
-                }
-
-                // if same key, someone else managed to add the key to the linked list
-                if (cmp == 0) {
-                    return curr;
-                }
-            }
-
-            // link to list between next and previous
-            // first change this key's next to point to curr
-            set(ei, OFFSET_NEXT, curr); // no need for CAS since put is not even published yet
-            if (cas) {
-                if (casEntriesArray(prev, OFFSET_NEXT, curr, ei)) {
-                    return ei;
-                }
-                // CAS didn't succeed, try again
-            } else {
-                // without CAS (used by rebalance)
-                set(prev, OFFSET_NEXT, ei);
-            }
-        }
-    }
-
-    int linkEntry(int ei, boolean cas, Object key) {
+    int linkEntry(int ei, boolean cas, K key) {
         int prev, curr, cmp;
         int anchor = -1;
 
@@ -521,9 +461,16 @@ public class Chunk {
     /**
      * write value in place
      **/
-    void writeValue(int hi, Pair<Integer, ByteBuffer> pair) {
-        assert memoryManager != null || pair.getKey() == 0;
-        handles[hi].setValue(pair.getValue(), pair.getKey());
+    void writeValue(int hi, V value) {
+        assert memoryManager != null;
+        ByteBuffer byteBuffer;
+        int i = 0;
+        Pair<Integer, ByteBuffer> pair = memoryManager.allocate(valueSizeCalculator.calculateSize(value));
+        i = pair.getKey();
+        assert i == 0;
+        byteBuffer = pair.getValue();
+        valueSerializer.serialize(value, byteBuffer);
+        handles[hi].setValue(byteBuffer, i);
     }
 
     public int getMaxItems() { return maxItems; }
@@ -568,7 +515,7 @@ public class Chunk {
         } else if (operation == Operation.COMPUTE){
             Handle h = handles[foundHandleIdx];
             if(h != null){
-                boolean succ = h.compute(opData.function,memoryManager);
+                boolean succ = h.compute(opData.computer, memoryManager);
                 if (!succ) {
                     // we tried to perform the compute but the handle was deleted,
                     // we can get to pointToValue with Operation.COMPUTE only from PIACIP
@@ -884,8 +831,16 @@ public class Chunk {
         // 4. There are too many used bytes.
         return (sortedCount == 0 && numOfEntries * MAX_ENTRIES_FACTOR > maxItems) ||
                 (sortedCount > 0 && (sortedCount * SORTED_REBALANCE_RATIO) < numOfEntries) ||
-                (numOfEntries * MAX_ENTRIES_FACTOR > maxItems && numOfItems * MAX_ITEMS_FACTOR < numOfEntries) ||
+                (numOfEntries * MAX_IDLE_ENTRIES_FACTOR > maxItems && numOfItems * MAX_IDLE_ENTRIES_FACTOR < numOfEntries) ||
                 (usedBytes * MAX_BYTES_FACTOR > maxKeyBytes);
+    }
+
+    int getNumOfItems() {
+        return statistics.getCompactedCount();
+    }
+
+    int getNumOfEntries() {
+        return entryIndex.get() / FIELDS;
     }
 
     /*-------------- Iterators --------------*/
@@ -894,7 +849,7 @@ public class Chunk {
         return new AscendingIter();
     }
 
-    AscendingIter ascendingIter(Object from) {
+    AscendingIter ascendingIter(K from) {
         return new AscendingIter(from);
     }
 
@@ -902,7 +857,7 @@ public class Chunk {
         return new DescendingIter();
     }
 
-    DescendingIter descendingIter(Object from, boolean inclusive) {
+    DescendingIter descendingIter(K from, boolean inclusive) {
         return new DescendingIter(from, inclusive);
     }
 
@@ -927,7 +882,7 @@ public class Chunk {
             }
         }
 
-        AscendingIter(Object from) {
+        AscendingIter(K from) {
             next = get(binaryFind(from), OFFSET_NEXT);
             int handle = get(next, OFFSET_HANDLE_INDEX);
             while (next != Chunk.NONE && handle < 0) {
@@ -969,7 +924,7 @@ public class Chunk {
         private int anchor;
         private int prevAnchor;
         private IntStack stack;
-        private Object from;
+        private K from;
         private boolean inclusive;
 
         DescendingIter() {
@@ -980,7 +935,7 @@ public class Chunk {
             initNext();
         }
 
-        DescendingIter(Object from, boolean inclusive) {
+        DescendingIter(K from, boolean inclusive) {
             this.from = from;
             this.inclusive = inclusive;
             stack = new IntStack(entries.length / FIELDS);

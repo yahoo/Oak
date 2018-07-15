@@ -20,7 +20,7 @@ import static org.junit.Assert.assertEquals;
 
 public class MultiThreadRangeTest {
 
-    private OakMapOffHeapImpl oak;
+    private OakMapOffHeapImpl<Integer, Integer> oak;
     private final int NUM_THREADS = 1;
     private ArrayList<Thread> threads;
     private CountDownLatch latch;
@@ -29,26 +29,10 @@ public class MultiThreadRangeTest {
 
     @Before
     public void init() {
-        Comparator<Object> comparator = new Comparator<Object>() {
-            @Override
-            public int compare(Object o1, Object o2) {
-                ByteBuffer bb1 = (ByteBuffer) o1;
-                ByteBuffer bb2 = (ByteBuffer) o2;
-                int i1 = bb1.getInt(bb1.position());
-                int i2 = bb2.getInt(bb2.position());
-                if (i1 > i2) {
-                    return 1;
-                } else if (i1 < i2) {
-                    return -1;
-                } else {
-                    return 0;
-                }
-            }
-        };
-        ByteBuffer min = ByteBuffer.allocate(10);
-        min.putInt(Integer.MIN_VALUE);
-        min.flip();
-        oak = new OakMapOffHeapImpl(comparator, min, maxItemsPerChunk, maxBytesPerChunkItem);
+        OakMapBuilder builder = OakMapBuilder.getDefaultBuilder()
+                .setChunkMaxItems(maxItemsPerChunk)
+                .setChunkBytesPerItem(maxBytesPerChunkItem);
+        oak = builder.buildOffHeapOakMap();
         latch = new CountDownLatch(1);
         threads = new ArrayList<>(NUM_THREADS);
     }
@@ -93,10 +77,7 @@ public class MultiThreadRangeTest {
         Random r = new Random();
         for (int i = 5 * maxItemsPerChunk; i > 0; ) {
             Integer j = r.nextInt(10 * maxItemsPerChunk);
-            ByteBuffer bb = ByteBuffer.allocate(4);
-            bb.putInt(j);
-            bb.flip();
-            if (oak.putIfAbsent(bb, bb)) i--;
+            if (oak.putIfAbsent(j, j)) i--;
         }
 
         for (int i = 0; i < NUM_THREADS; i++) {
@@ -108,12 +89,8 @@ public class MultiThreadRangeTest {
         }
 
         int size = 0;
-        for (int i = 0; i < 10 * maxItemsPerChunk; i++) {
-            ByteBuffer bb = ByteBuffer.allocate(4);
-            bb.putInt(i);
-            bb.flip();
-            OakBuffer buffer = oak.get(bb);
-            if (buffer != null) size++;
+        for (Integer i = 0; i < 10 * maxItemsPerChunk; i++) {
+            if (oak.get(i) != null) size++;
         }
         assertEquals(5 * maxItemsPerChunk, size);
     }

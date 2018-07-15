@@ -14,7 +14,6 @@ import org.junit.Test;
 import org.junit.rules.ExpectedException;
 
 import java.nio.ByteBuffer;
-import java.util.function.Consumer;
 
 import static junit.framework.TestCase.assertTrue;
 import static org.junit.Assert.assertEquals;
@@ -22,19 +21,22 @@ import static org.junit.Assert.assertFalse;
 
 public class SingleThreadTest {
 
-    private OakMapOffHeapImpl oak;
+    private OakMapOffHeapImpl<Integer, Integer> oak;
     int maxItemsPerChunk = 2048;
-    int maxBytesPerChunkItem = 100;
+    int maxBytesPerChunkItem = Integer.BYTES;
 
     @Before
     public void init() {
-        oak = new OakMapOffHeapImpl(maxItemsPerChunk, maxBytesPerChunkItem);
+        OakMapBuilder builder = OakMapBuilder.getDefaultBuilder()
+                .setChunkMaxItems(maxItemsPerChunk)
+                .setChunkBytesPerItem(maxBytesPerChunkItem);
+        oak = builder.buildOffHeapOakMap();
     }
 
     private int countNumOfChunks() {
-        Chunk c = oak.skiplist.firstEntry().getValue();
+        Chunk<Integer, Integer> c = oak.skiplist.firstEntry().getValue();
         int counter = 1;
-        Chunk next = c.next.getReference();
+        Chunk<Integer, Integer> next = c.next.getReference();
         assertFalse(c.next.isMarked());
         while (next != null) {
             assertFalse(next.next.isMarked());
@@ -47,207 +49,130 @@ public class SingleThreadTest {
     @Test
     public void testPutAndGet() {
         assertEquals(1, countNumOfChunks());
-        for (int i = 0; i < 2 * maxItemsPerChunk; i++) {
-            ByteBuffer bb = ByteBuffer.allocate(4);
-            bb.putInt(i);
-            bb.flip();
-            oak.put(bb, bb);
+        for (Integer i = 0; i < 2 * maxItemsPerChunk; i++) {
+            oak.put(i, i);
         }
         assertEquals(4, countNumOfChunks());
-        for (int i = 0; i < 2 * maxItemsPerChunk; i++) {
-            ByteBuffer bb = ByteBuffer.allocate(4);
-            bb.putInt(i);
-            bb.flip();
-            OakBuffer buffer = oak.get(bb);
-            assertTrue(buffer != null);
-            TestCase.assertEquals(i, buffer.getInt(0));
+        for (Integer i = 0; i < 2 * maxItemsPerChunk; i++) {
+            Integer value = oak.get(i);
+            assertTrue(value != null);
+            TestCase.assertEquals(i, value);
         }
         assertEquals(4, countNumOfChunks());
-        ByteBuffer bb = ByteBuffer.allocate(4);
-        bb.putInt(10);
-        bb.flip();
-        OakBuffer buffer = oak.get(bb);
-        assertTrue(buffer != null);
-        TestCase.assertEquals(10, buffer.getInt(0));
-        boolean check = false;
-        try{
-            buffer.getInt(4);
-        } catch (Exception exp){
-            check = true;
-        }
-        assertTrue(check);
-        ByteBuffer bb2 = ByteBuffer.allocate(4);
-        bb2.putInt(11);
-        bb2.flip();
-        oak.put(bb, bb2);
-        buffer = oak.get(bb);
-        assertTrue(buffer != null);
-        TestCase.assertEquals(11, buffer.getInt(0));
+        Integer value = oak.get(10);
+        assertTrue(value != null);
+        TestCase.assertEquals((Integer) 10, value);
+        oak.put(10, 11);
+        value = oak.get(10);
+        assertTrue(value != null);
+        TestCase.assertEquals((Integer) 11, value);
     }
 
     @Test
     public void testPutIfAbsent() {
-        for (int i = 0; i < 2 * maxItemsPerChunk; i++) {
-            ByteBuffer bb = ByteBuffer.allocate(4);
-            bb.putInt(i);
-            bb.flip();
-            assertTrue(oak.putIfAbsent(bb, bb));
+        Integer value;
+        for (Integer i = 0; i < 2 * maxItemsPerChunk; i++) {
+            value = oak.get(i);
+            assertTrue(value == null);
+            assertTrue(oak.putIfAbsent(i, i));
         }
-        for (int i = 0; i < 2 * maxItemsPerChunk; i++) {
-            ByteBuffer bb = ByteBuffer.allocate(4);
-            bb.putInt(i);
-            bb.flip();
-            OakBuffer buffer = oak.get(bb);
-            assertTrue(buffer != null);
-            TestCase.assertEquals(i, buffer.getInt(0));
+        for (Integer i = 0; i < 2 * maxItemsPerChunk; i++) {
+            value = oak.get(i);
+            assertTrue(value != null);
+            TestCase.assertEquals(i, value);
         }
-        for (int i = 0; i < 2 * maxItemsPerChunk; i++) {
-            ByteBuffer bb = ByteBuffer.allocate(4);
-            bb.putInt(i);
-            bb.flip();
-            ByteBuffer bb1 = ByteBuffer.allocate(4);
-            bb1.putInt(i + 1);
-            bb1.flip();
-            assertFalse(oak.putIfAbsent(bb, bb1));
+        for (Integer i = 0; i < 2 * maxItemsPerChunk; i++) {
+            assertFalse(oak.putIfAbsent(i, i + 1));
         }
-        for (int i = 0; i < 2 * maxItemsPerChunk; i++) {
-            ByteBuffer bb = ByteBuffer.allocate(4);
-            bb.putInt(i);
-            bb.flip();
-            OakBuffer buffer = oak.get(bb);
-            assertTrue(buffer != null);
-            TestCase.assertEquals(i, buffer.getInt(0));
+        for (Integer i = 0; i < 2 * maxItemsPerChunk; i++) {
+            value = oak.get(i);
+            assertTrue(value != null);
+            TestCase.assertEquals(i, value);
         }
     }
 
     @Test
     public void testRemoveAndGet() {
-        for (int i = 0; i < 2 * maxItemsPerChunk; i++) {
-            ByteBuffer bb = ByteBuffer.allocate(4);
-            bb.putInt(i);
-            bb.flip();
-            oak.remove(bb);
+        for (Integer i = 0; i < 2 * maxItemsPerChunk; i++) {
+            oak.remove(i);
         }
         assertEquals(1, countNumOfChunks());
-        for (int i = 0; i < 2 * maxItemsPerChunk; i++) {
-            ByteBuffer bb = ByteBuffer.allocate(4);
-            bb.putInt(i);
-            bb.flip();
-            OakBuffer buffer = oak.get(bb);
-            assertTrue(buffer == null);
+        for (Integer i = 0; i < 2 * maxItemsPerChunk; i++) {
+            Integer value = oak.get(i);
+            assertTrue(value == null);
         }
         assertEquals(1, countNumOfChunks());
     }
 
     @Test
     public void testGraduallyRemove() {
-        for (int i = 0; i < 4 * maxItemsPerChunk; i++) {
-            ByteBuffer bb = ByteBuffer.allocate(4);
-            bb.putInt(i);
-            bb.flip();
-            OakBuffer buffer = oak.get(bb);
-            assertTrue(buffer == null);
+        Integer value;
+        for (Integer i = 0; i < 4 * maxItemsPerChunk; i++) {
+            value = oak.get(i);
+            assertTrue(value == null);
         }
-        for (int i = 0; i < 4 * maxItemsPerChunk; i++) {
-            ByteBuffer bb = ByteBuffer.allocate(4);
-            bb.putInt(i);
-            bb.flip();
-            oak.put(bb, bb);
+        for (Integer i = 0; i < 4 * maxItemsPerChunk; i++) {
+            oak.putIfAbsent(i, i);
         }
         assertEquals(8, countNumOfChunks());
-        for (int i = 0; i < 4 * maxItemsPerChunk; i++) {
-            ByteBuffer bb = ByteBuffer.allocate(4);
-            bb.putInt(i);
-            bb.flip();
-            OakBuffer buffer = oak.get(bb);
-            assertTrue(buffer != null);
-            TestCase.assertEquals(i, buffer.getInt(0));
+        for (Integer i = 0; i < 4 * maxItemsPerChunk; i++) {
+            value = oak.get(i);
+            assertTrue(value != null);
+            TestCase.assertEquals(i, value);
         }
-        for (int i = 2 * maxItemsPerChunk; i < 3 * maxItemsPerChunk; i++) {
-            ByteBuffer bb = ByteBuffer.allocate(4);
-            bb.putInt(i);
-            bb.flip();
-            oak.remove(bb);
+        for (Integer i = 2 * maxItemsPerChunk; i < 3 * maxItemsPerChunk; i++) {
+            oak.remove(i);
+            value = oak.get(i);
+            assertTrue(value == null);
         }
-        for (int i = maxItemsPerChunk; i < 2 * maxItemsPerChunk; i++) {
-            ByteBuffer bb = ByteBuffer.allocate(4);
-            bb.putInt(i);
-            bb.flip();
-            oak.remove(bb);
+        for (Integer i = maxItemsPerChunk; i < 2 * maxItemsPerChunk; i++) {
+            oak.remove(i);
+            value = oak.get(i);
+            assertTrue(value == null);
         }
         Assert.assertTrue(countNumOfChunks() < 8);
         int countNow = countNumOfChunks();
-        for (int i = maxItemsPerChunk; i < 3 * maxItemsPerChunk; i++) {
-            ByteBuffer bb = ByteBuffer.allocate(4);
-            bb.putInt(i);
-            bb.flip();
-            OakBuffer buffer = oak.get(bb);
-            assertTrue(buffer == null);
+        for (Integer i = maxItemsPerChunk; i < 3 * maxItemsPerChunk; i++) {
+            value = oak.get(i);
+            assertTrue(value == null);
         }
-        for (int i = 0; i < maxItemsPerChunk; i++) {
-            ByteBuffer bb = ByteBuffer.allocate(4);
-            bb.putInt(i);
-            bb.flip();
-            OakBuffer buffer = oak.get(bb);
-            assertTrue(buffer != null);
-            TestCase.assertEquals(i, buffer.getInt(0));
+        for (Integer i = 0; i < maxItemsPerChunk; i++) {
+            value = oak.get(i);
+            assertTrue(value != null);
+            TestCase.assertEquals(i, value);
         }
-        for (int i = 3 * maxItemsPerChunk; i < 4 * maxItemsPerChunk; i++) {
-            ByteBuffer bb = ByteBuffer.allocate(4);
-            bb.putInt(i);
-            bb.flip();
-            OakBuffer buffer = oak.get(bb);
-            assertTrue(buffer != null);
-            TestCase.assertEquals(i, buffer.getInt(0));
+        for (Integer i = 3 * maxItemsPerChunk; i < 4 * maxItemsPerChunk; i++) {
+            value = oak.get(i);
+            assertTrue(value != null);
+            TestCase.assertEquals(i, value);
         }
-        for (int i = 0; i < maxItemsPerChunk; i++) {
-            ByteBuffer bb = ByteBuffer.allocate(4);
-            bb.putInt(i);
-            bb.flip();
-            oak.remove(bb);
+        for (Integer i = 0; i < maxItemsPerChunk; i++) {
+            oak.remove(i);
         }
-        for (int i = 0; i < 3 * maxItemsPerChunk; i++) {
-            ByteBuffer bb = ByteBuffer.allocate(4);
-            bb.putInt(i);
-            bb.flip();
-            OakBuffer buffer = oak.get(bb);
-            assertTrue(buffer == null);
+        for (Integer i = 0; i < 3 * maxItemsPerChunk; i++) {
+            value = oak.get(i);
+            assertTrue(value == null);
         }
-        for (int i = 3 * maxItemsPerChunk; i < 4 * maxItemsPerChunk; i++) {
-            ByteBuffer bb = ByteBuffer.allocate(4);
-            bb.putInt(i);
-            bb.flip();
-            OakBuffer buffer = oak.get(bb);
-            assertTrue(buffer != null);
-            TestCase.assertEquals(i, buffer.getInt(0));
+        for (Integer i = 3 * maxItemsPerChunk; i < 4 * maxItemsPerChunk; i++) {
+            value = oak.get(i);
+            assertTrue(value != null);
+            TestCase.assertEquals(i, value);
         }
-        for (int i = 3 * maxItemsPerChunk; i < 4 * maxItemsPerChunk; i++) {
-            ByteBuffer bb = ByteBuffer.allocate(4);
-            bb.putInt(i);
-            bb.flip();
-            oak.remove(bb);
+        for (Integer i = 3 * maxItemsPerChunk; i < 4 * maxItemsPerChunk; i++) {
+            oak.remove(i);
         }
-        for (int i = 0; i < 4 * maxItemsPerChunk; i++) {
-            ByteBuffer bb = ByteBuffer.allocate(4);
-            bb.putInt(i);
-            bb.flip();
-            OakBuffer buffer = oak.get(bb);
-            assertTrue(buffer == null);
+        for (Integer i = 0; i < 4 * maxItemsPerChunk; i++) {
+            value = oak.get(i);
+            assertTrue(value == null);
         }
         Assert.assertTrue(countNumOfChunks() < countNow);
         for (int i = 0; i < 4 * maxItemsPerChunk; i++) {
-            ByteBuffer bb = ByteBuffer.allocate(4);
-            bb.putInt(i);
-            bb.flip();
-            oak.put(bb, bb);
+            oak.put(i, i);
         }
-        for (int i = 0; i < 4 * maxItemsPerChunk; i++) {
-            ByteBuffer bb = ByteBuffer.allocate(4);
-            bb.putInt(i);
-            bb.flip();
-            OakBuffer buffer = oak.get(bb);
-            assertTrue(buffer != null);
-            TestCase.assertEquals(i, buffer.getInt(0));
+        for (Integer i = 0; i < 4 * maxItemsPerChunk; i++) {
+            value = oak.get(i);
+            assertTrue(value != null);
+            TestCase.assertEquals(i, value);
         }
         assertEquals(8, countNumOfChunks());
     }
@@ -257,89 +182,78 @@ public class SingleThreadTest {
 
     @Test
     public void testComputeIf() {
-        Consumer<WritableOakBuffer> func = writableOakBuffer -> {
-            if (writableOakBuffer.getInt() == 0) writableOakBuffer.putInt(0, 1);
-        };
-        ByteBuffer key = ByteBuffer.allocate(4);
-        key.putInt(0);
-        key.flip();
-        assertFalse(oak.computeIfPresent(key, func));
-        assertTrue(oak.putIfAbsent(key, key));
-        OakBuffer buffer = oak.get(key);
-        assertTrue(buffer != null);
-        assertEquals(0, buffer.getInt(0));
-        assertTrue(oak.computeIfPresent(key, func));
-        buffer = oak.get(key);
-        assertTrue(buffer != null);
-        assertEquals(1, buffer.getInt(0));
-        assertEquals(4, buffer.remaining());
-        ByteBuffer two = ByteBuffer.allocate(4);
-        two.putInt(2);
-        two.flip();
-        oak.put(key, two);
-        assertEquals(4, buffer.remaining());
-        assertEquals(2, buffer.getInt(0));
-        assertTrue(oak.computeIfPresent(key, func));
-        assertEquals(4, buffer.remaining());
-        assertEquals(2, buffer.getInt(0));
-        Consumer<WritableOakBuffer> func2 = writableOakBuffer -> {
-            if (writableOakBuffer.getInt() == 0) {
-                writableOakBuffer.putInt(0, 0);
-                writableOakBuffer.putInt(1);
+        Integer value;
+        Computer computer = new Computer() {
+            @Override
+            public void apply(ByteBuffer byteBuffer) {
+                if (byteBuffer.getInt() == 0)
+                    byteBuffer.putInt(0, 1);
             }
         };
+        Integer key = 0;
+        assertFalse(oak.computeIfPresent(key, computer));
+        assertTrue(oak.putIfAbsent(key, key));
+        value = oak.get(key);
+        assertTrue(value != null);
+        assertEquals(key, value);
+        assertTrue(oak.computeIfPresent(key, computer));
+        value = oak.get(key);
+        assertTrue(value != null);
+        assertEquals((Integer) 1, value);
+        Integer two = 2;
+        oak.put(key, two);
+        value = oak.get(key);
+        assertTrue(value != null);
+        assertEquals(two, value);
+        assertTrue(oak.computeIfPresent(key, computer));
+        value = oak.get(key);
+        assertTrue(value != null);
+        assertEquals(two, value);
         oak.put(key, key);
-        assertTrue(oak.computeIfPresent(key, func2));
-        assertEquals(8, buffer.remaining());
-        assertEquals(0, buffer.getInt(0));
-        assertEquals(1, buffer.getInt(4));
+        assertTrue(oak.computeIfPresent(key, computer));
+        value = oak.get(key);
+        assertTrue(value != null);
+        assertEquals((Integer) 1, value);
         oak.remove(key);
-        assertFalse(oak.computeIfPresent(key, func2));
-        thrown.expect(NullPointerException.class);
-        assertEquals(8, buffer.remaining());
+        assertFalse(oak.computeIfPresent(key, computer));
     }
 
     @Test
     public void testCompute() {
-        Consumer<WritableOakBuffer> func = writableOakBuffer -> {
-            if (writableOakBuffer.getInt() == 0) writableOakBuffer.putInt(0, 1);
-        };
-        ByteBuffer key = ByteBuffer.allocate(4);
-        key.putInt(0);
-        key.flip();
-        assertFalse(oak.computeIfPresent(key, func));
-        oak.putIfAbsentComputeIfPresent(key,() -> key,func);
-        OakBuffer buffer = oak.get(key);
-        assertTrue(buffer != null);
-        assertEquals(0, buffer.getInt(0));
-        oak.putIfAbsentComputeIfPresent(key,() -> key,func);
-        buffer = oak.get(key);
-        assertTrue(buffer != null);
-        assertEquals(1, buffer.getInt(0));
-        assertEquals(4, buffer.remaining());
-        ByteBuffer two = ByteBuffer.allocate(4);
-        two.putInt(2);
-        two.flip();
-        oak.put(key, two);
-        assertEquals(4, buffer.remaining());
-        assertEquals(2, buffer.getInt(0));
-        assertTrue(oak.computeIfPresent(key, func));
-        assertEquals(4, buffer.remaining());
-        assertEquals(2, buffer.getInt(0));
-        Consumer<WritableOakBuffer> func2 = writableOakBuffer -> {
-            if (writableOakBuffer.getInt() == 0) {
-                writableOakBuffer.putInt(0, 0);
-                writableOakBuffer.putInt(1);
+        Integer value;
+        Computer computer = new Computer() {
+            @Override
+            public void apply(ByteBuffer byteBuffer) {
+                if (byteBuffer.getInt() == 0)
+                    byteBuffer.putInt(0, 1);
             }
         };
+        Integer key = 0;
+        assertFalse(oak.computeIfPresent(key, computer));
+        oak.putIfAbsentComputeIfPresent(key, key, computer);
+        value = oak.get(key);
+        assertTrue(value != null);
+        assertEquals(key, value);
+        oak.putIfAbsentComputeIfPresent(key, key, computer);
+        value = oak.get(key);
+        assertTrue(value != null);
+        assertEquals((Integer) 1, value);
+        Integer two = 2;
+        oak.put(key, two);
+        value = oak.get(key);
+        assertTrue(value != null);
+        assertEquals(two, value);
+        assertTrue(oak.computeIfPresent(key, computer));
+        assertEquals(two, value);
         oak.put(key, key);
-        oak.putIfAbsentComputeIfPresent(key,() -> key,func2);
-        assertEquals(8, buffer.remaining());
-        assertEquals(0, buffer.getInt(0));
-        assertEquals(1, buffer.getInt(4));
+        value = oak.get(key);
+        assertTrue(value != null);
+        assertEquals(key, value);
+        oak.putIfAbsentComputeIfPresent(key, key, computer);
+        value = oak.get(key);
+        assertTrue(value != null);
+        assertEquals((Integer) 1, value);
         oak.remove(key);
-        assertFalse(oak.computeIfPresent(key, func2));
-        thrown.expect(NullPointerException.class);
-        assertEquals(8, buffer.remaining());
+        assertFalse(oak.computeIfPresent(key, computer));
     }
 }

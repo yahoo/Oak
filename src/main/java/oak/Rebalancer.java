@@ -10,12 +10,9 @@ import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Consumer;
-import java.util.function.Function;
 import java.util.logging.Logger;
-import oak.OakMap.KeyInfo;
 
-class Rebalancer {
+class Rebalancer<K, V> {
 
     Logger log = Logger.getLogger(Rebalancer.class.getName());
 
@@ -38,8 +35,8 @@ class Rebalancer {
     private final AtomicReference<List<Chunk>> newChunks = new AtomicReference<>(null);
     private final AtomicReference<List<Chunk>> engagedChunks = new AtomicReference<>(null);
     private final AtomicBoolean frozen = new AtomicBoolean(false);
-    private Chunk first;
-    private Chunk last;
+    private Chunk<K, V> first;
+    private Chunk<K, V> last;
     private int chunksInRange;
     private int itemsInRange;
     private int bytesInRange;
@@ -47,11 +44,16 @@ class Rebalancer {
     private final boolean offHeap;
     private final OakMemoryManager memoryManager;
     private final HandleFactory handleFactory;
-    private final ValueFactory valueFactory;
+    private final Serializer<K> keySerializer;
+    private final SizeCalculator<K> keySizeCalculator;
+    private final Serializer<V> valueSerializer;
+    private final SizeCalculator<V> valueSizeCalculator;
 
     /*-------------- Constructors --------------*/
 
-    Rebalancer(Chunk chunk, Comparator<Object> comparator, boolean offHeap, OakMemoryManager memoryManager, HandleFactory handleFactory, ValueFactory valueFactory) {
+    Rebalancer(Chunk chunk, Comparator<Object> comparator, boolean offHeap, OakMemoryManager memoryManager,
+               HandleFactory handleFactory, Serializer<K> keySerializer, SizeCalculator<K> keySizeCalculator,
+               Serializer<V> valueSerializer, SizeCalculator<V> valueSizeCalculator) {
         this.rebalanceSize = 2;
         this.maxAfterMergePart = 0.7;
         this.lowThreshold = 0.5;
@@ -73,7 +75,10 @@ class Rebalancer {
         itemsInRange = first.getStatistics().getCompactedCount();
         bytesInRange = first.keyIndex.get();
         this.handleFactory = handleFactory;
-        this.valueFactory = valueFactory;
+        this.keySerializer = keySerializer;
+        this.keySizeCalculator = keySizeCalculator;
+        this.valueSerializer = valueSerializer;
+        this.valueSizeCalculator = valueSizeCalculator;
     }
 
     static class RebalanceResult {
@@ -143,90 +148,7 @@ class Rebalancer {
      * @return if managed to CAS to newChunk list of rebalance
      * if we did then the put was inserted
      */
-    RebalanceResult createNewChunks(Object key, ByteBuffer value, Consumer<WritableOakBuffer> function, Operation operation) {
-
-        if (this.newChunks.get() != null) {
-            return new RebalanceResult(false, false); // this was done by another thread already
-        }
-
-        List<Chunk> frozenChunks = engagedChunks.get();
-
-        ListIterator<Chunk> iterFrozen = frozenChunks.listIterator();
-
-        Chunk firstFrozen = iterFrozen.next();
-        Chunk currFrozen = firstFrozen;
-        Chunk currNewChunk = new Chunk(firstFrozen.minKey, firstFrozen, firstFrozen.comparator, memoryManager, firstFrozen.getMaxItems(), firstFrozen.getBytesPerItem(), firstFrozen.externalSize);
-
-        int ei = firstFrozen.getFirstItemEntryIndex();
-
-        List<Chunk> newChunks = new LinkedList<>();
-
-        while (true) {
-            ei = currNewChunk.copyPart(currFrozen, ei, entriesLowThreshold, keyBytesLowThreshold);
-
-            // if completed reading curr frozen chunk
-            if (ei == Chunk.NONE) {
-                if (!iterFrozen.hasNext())
-                    break;
-
-                currFrozen = iterFrozen.next();
-                ei = currFrozen.getFirstItemEntryIndex();
-
-            } else { // filled new chunk up to ENETRIES_LOW_THRESHOLD
-
-                List<Chunk> frozenSuffix = frozenChunks.subList(iterFrozen.previousIndex(), frozenChunks.size());
-                // try to look ahead and add frozen suffix
-                if (canAppendSuffix(frozenSuffix, maxRangeToAppend, maxBytesToAppend)) {
-                    // maybe there is just a little bit copying left
-                    // and we don't want to open a whole new chunk just for it
-                    completeCopy(currNewChunk, ei, frozenSuffix);
-                    break;
-                } else {
-                    // we have to open an new chunk
-                    // TODO do we want to use slice here?
-                    ByteBuffer bb = currFrozen.readKey(ei);
-                    int remaining = bb.remaining();
-                    int position = bb.position();
-                    ByteBuffer newMinKey = ByteBuffer.allocate(remaining);
-                    int myPos = newMinKey.position();
-                    for (int i = 0; i < remaining; i++) {
-                        newMinKey.put(myPos + i, bb.get(i + position));
-                    }
-                    newMinKey.rewind();
-                    Chunk c = new Chunk(newMinKey, firstFrozen, currFrozen.comparator, memoryManager, currFrozen.getMaxItems(), currFrozen.getBytesPerItem(), currFrozen.externalSize);
-                    currNewChunk.next.set(c, false);
-                    newChunks.add(currNewChunk);
-                    currNewChunk = c;
-                }
-            }
-
-        }
-
-        newChunks.add(currNewChunk);
-
-        boolean putIfAbsent = true;
-        if (operation != Operation.NO_OP) { // help this op (for lock freedom)
-            putIfAbsent = helpOp(newChunks, key, value, function, operation);
-        }
-
-        // if fail here, another thread succeeded, and op is effectively gone
-        boolean cas = this.newChunks.compareAndSet(null, newChunks);
-        return new RebalanceResult(cas, putIfAbsent);
-    }
-
-    /**
-     * Split or compact
-     *
-     * @return if managed to CAS to newChunk list of rebalance
-     * if we did then the put was inserted
-     */
-    RebalanceResult createNewChunks(Object key,
-                                    Consumer<KeyInfo> keyCreator,
-                                    Function<Object, Integer> keyCapacityCalculator,
-                                    Consumer<ByteBuffer> valueCreator,
-                                    int valueCapacity,
-                                    Consumer<WritableOakBuffer> function,
-                                    Operation operation) {
+    RebalanceResult createNewChunks(K key, V value, Computer computer, Operation operation) {
 
         assert offHeap;
         if (this.newChunks.get() != null) {
@@ -239,7 +161,9 @@ class Rebalancer {
 
         Chunk firstFrozen = iterFrozen.next();
         Chunk currFrozen = firstFrozen;
-        Chunk currNewChunk = new Chunk(firstFrozen.minKey, firstFrozen, firstFrozen.comparator, memoryManager, currFrozen.getMaxItems(), currFrozen.getBytesPerItem(), currFrozen.externalSize);
+        Chunk currNewChunk = new Chunk<K, V>(firstFrozen.minKey, firstFrozen, firstFrozen.comparator, memoryManager,
+                currFrozen.getMaxItems(), currFrozen.getBytesPerItem(), currFrozen.externalSize,
+                keySerializer, keySizeCalculator, valueSerializer, valueSizeCalculator);
 
         int ei = firstFrozen.getFirstItemEntryIndex();
 
@@ -276,7 +200,9 @@ class Rebalancer {
                         newMinKey.put(myPos + i, bb.get(i + position));
                     }
                     newMinKey.rewind();
-                    Chunk c = new Chunk(newMinKey, firstFrozen, currFrozen.comparator, memoryManager, currFrozen.getMaxItems(), currFrozen.getBytesPerItem(), currFrozen.externalSize);
+                    Chunk c = new Chunk<K, V>(newMinKey, firstFrozen, currFrozen.comparator, memoryManager,
+                            currFrozen.getMaxItems(), currFrozen.getBytesPerItem(), currFrozen.externalSize,
+                            keySerializer, keySizeCalculator, valueSerializer, valueSizeCalculator);
                     currNewChunk.next.set(c, false);
                     newChunks.add(currNewChunk);
                     currNewChunk = c;
@@ -289,7 +215,7 @@ class Rebalancer {
 
         boolean putIfAbsent = false;
         if (operation != Operation.NO_OP) { // help this op (for lock freedom)
-            putIfAbsent = helpOp(newChunks, key, keyCreator, keyCapacityCalculator, valueCreator, valueCapacity, function, operation);
+            putIfAbsent = helpOp(newChunks, key, value, computer, operation);
         }
 
         // if fail here, another thread succeeded, and op is effectively gone
@@ -352,7 +278,7 @@ class Rebalancer {
 
     private void updateRangeView() {
         while (true) {
-            Chunk next = last.next.getReference();
+            Chunk<K, V> next = last.next.getReference();
             if (next == null || !next.isEngaged(this)) break;
             last = next;
             addToCounters(last);
@@ -369,7 +295,9 @@ class Rebalancer {
      * insert/remove this key and value to one of the newChunks
      * the key is guaranteed to be in the range of keys in the new chunk
      */
-    private boolean helpOp(List<Chunk> newChunks, Object key, ByteBuffer value, Consumer<WritableOakBuffer> function, Operation operation) {
+    private boolean helpOp(List<Chunk> newChunks, K key, V value, Computer computer, Operation operation) {
+
+        assert offHeap;
         assert key != null;
         assert operation == Operation.REMOVE || value != null;
         assert operation != Operation.REMOVE || value == null;
@@ -383,75 +311,10 @@ class Rebalancer {
             if(operation == Operation.PUT_IF_ABSENT) {
                 return false;
             } else if(operation == Operation.PUT) {
-                lookUp.handle.put(value, memoryManager);
-                return true;
-            } else if (operation == Operation.COMPUTE) {
-                boolean succ = lookUp.handle.compute(function, memoryManager);
-                if (succ) {
-                    return true;
-                }
-                // we tried to make the compute but the handle is marked as deleted, we can
-                // get Operation.COMPUTE here only from PIACIP in case a new handle was made.
-                // So actually need to do a put if absent here...
-            }
-        }
-        // We continue here for the cases where new entry/handle need to be created and inserted
-
-        int ei;
-        if (lookUp == null) { // no entry
-            if (operation == Operation.REMOVE) return true;
-            ei = c.allocateEntryAndKey((ByteBuffer) key);
-            assert ei > 0; // chunk can't be full
-            int eiLink = c.linkEntry(ei, (ByteBuffer) key, false);
-            assert eiLink == ei; // no one else can insert
-        } else {
-            ei = lookUp.entryIndex;
-        }
-
-        int hi = -1;
-        if (operation != Operation.REMOVE) {
-            hi = c.allocateHandle(handleFactory);
-            assert hi > 0; // chunk can't be full
-            c.writeValue(hi, valueFactory.createValue(value, memoryManager)); // write value in place
-        }
-
-        // set pointer to value
-        Chunk.OpData opData = new Chunk.OpData(Operation.NO_OP, ei, hi, -1, null);  // prev and op don't matter
-        c.pointToValueCAS(opData, false);
-
-        return true;
-    }
-
-    /**
-     * insert/remove this key and value to one of the newChunks
-     * the key is guaranteed to be in the range of keys in the new chunk
-     */
-    private boolean helpOp(List<Chunk> newChunks, Object key,
-                           Consumer<KeyInfo> keyCreator,
-                           Function<Object, Integer> keyCapacityCalculator,
-                           Consumer<ByteBuffer> valueCreator,
-                           int valueCapacity,
-                           Consumer<WritableOakBuffer> function,
-                           Operation operation) {
-
-        assert offHeap;
-        assert key != null;
-        assert operation == Operation.REMOVE || valueCreator != null;
-        assert operation != Operation.REMOVE || valueCreator == null;
-
-        Chunk c = findChunkInList(newChunks, key);
-
-        // look for key
-        Chunk.LookUp lookUp = c.lookUp(key);
-
-        if (lookUp != null && lookUp.handle != null) {
-            if(operation == Operation.PUT_IF_ABSENT) {
-                return false;
-            } else if(operation == Operation.PUT) {
-                lookUp.handle.put(valueCreator, valueCapacity, memoryManager);
+                lookUp.handle.put(value, valueSerializer, valueSizeCalculator, memoryManager);
                 return false;
             } else if (operation == Operation.COMPUTE) {
-                lookUp.handle.compute(function, memoryManager);
+                lookUp.handle.compute(computer, memoryManager);
                 return false;
             }
         }
@@ -460,7 +323,7 @@ class Rebalancer {
         int ei;
         if (lookUp == null) { // no entry
             if (operation == Operation.REMOVE) return true;
-            ei = c.allocateEntryAndKey(key, keyCreator, keyCapacityCalculator);
+            ei = c.allocateEntryAndKey(key);
             if (ei <= 0)
                 throw new NullPointerException("Chunk was full during helpOp");
             int eiLink = c.linkEntry(ei, false, key);
@@ -474,7 +337,7 @@ class Rebalancer {
             hi = c.allocateHandle(handleFactory);
             assert hi > 0; // chunk can't be full
 
-            c.writeValue(hi, valueFactory.createValue(valueCreator, valueCapacity, memoryManager)); // write value in place
+            c.writeValue(hi, value); // write value in place
 
         }
 
@@ -522,7 +385,7 @@ class Rebalancer {
     }
 
     private List<Chunk> createEngagedList() {
-        Chunk current = first;
+        Chunk<K, V> current = first;
         List<Chunk> engaged = new LinkedList<>();
 
         while (current != null && current.isEngaged(this)) {

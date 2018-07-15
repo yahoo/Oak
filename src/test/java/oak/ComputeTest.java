@@ -16,32 +16,104 @@ public class ComputeTest {
 
     private static int NUM_THREADS;
 
-    static OakMap oak;
+    static OakMapOffHeapImpl<ByteBuffer, ByteBuffer> oak;
     private static final long K = 1024;
-//    private static final long M = K * K;
-//    static final long G = M * K;
 
     private static int keySize = 10;
     private static int valSize = (int) Math.round(5 * K);
     private static int numOfEntries;
 
-    static ByteBuffer key = ByteBuffer.allocate(keySize);
-    private static ByteBuffer val = ByteBuffer.allocate(valSize);
+    static ByteBuffer key = ByteBuffer.allocate(keySize * Integer.BYTES);
+    private static ByteBuffer val = ByteBuffer.allocate(valSize * Integer.BYTES);
 
     static private ArrayList<Thread> threads = new ArrayList<>(NUM_THREADS);
     static private CountDownLatch latch = new CountDownLatch(1);
 
-    static private Consumer<WritableOakBuffer> func = buffer -> {
-        if (buffer.getInt(0) == buffer.getInt(40)) {
-            return;
-        }
-        int[] arr = new int[10];
-        for (int i = 0; i < 50; i++) {
-            for (int j = 0; j < 10; j++) {
-                arr[j] = buffer.getInt();
+    public static class ComputeTestKeySerializer implements Serializer<ByteBuffer> {
+
+        public void serialize(ByteBuffer obj, ByteBuffer targetBuffer) {
+            for (int i = 0; i < keySize; i++) {
+                targetBuffer.putInt(Integer.BYTES * i, obj.getInt(Integer.BYTES * i));
             }
-            for (int j = 0; j < 10; j++) {
-                buffer.putInt(arr[j]);
+        }
+    }
+
+    public static class ComputeTestKeyDeserializer implements Deserializer<ByteBuffer> {
+
+        public ByteBuffer deserialize(ByteBuffer byteBuffer) {
+            ByteBuffer key = ByteBuffer.allocate(keySize);
+            key.position(0);
+            for (int i = 0; i < keySize; i++) {
+                key.putInt(Integer.BYTES * i, byteBuffer.getInt(Integer.BYTES * i));
+            }
+            key.position(0);
+            return key;
+        }
+    }
+
+    public static class ComputeTestKeySizeCalculator implements SizeCalculator<Integer> {
+
+        public int calculateSize(Integer object) {
+            return keySize * Integer.BYTES;
+        }
+    }
+
+    public static class ComputeTestValueSerializer implements Serializer<ByteBuffer> {
+
+        public void serialize(ByteBuffer obj, ByteBuffer targetBuffer) {
+            for (int i = 0; i < valSize; i++) {
+                targetBuffer.putInt(Integer.BYTES * i, obj.getInt(Integer.BYTES * i));
+            }
+        }
+    }
+
+    public static class ComputeTestValueDeserializer implements Deserializer<ByteBuffer> {
+
+        public ByteBuffer deserialize(ByteBuffer byteBuffer) {
+            ByteBuffer value = ByteBuffer.allocate(valSize);
+            value.position(0);
+            for (int i = 0; i < valSize; i++) {
+                key.putInt(Integer.BYTES * i, byteBuffer.getInt(Integer.BYTES * i));
+            }
+            value.position(0);
+            return value;
+        }
+    }
+
+    public static class ComputeTestValueSizeCalculator implements SizeCalculator<Integer> {
+
+        public int calculateSize(Integer object) {
+            return valSize * Integer.BYTES;
+        }
+    }
+
+    public static class ComputeTestKeysComparator implements OakComparator<ByteBuffer, ByteBuffer> {
+
+        public int compare(ByteBuffer buff1, ByteBuffer buff2) {
+            for (int i = 0; i < keySize; i++) {
+                if (buff1.getInt(Integer.BYTES * i) > buff2.getInt(Integer.BYTES * i))
+                    return 1;
+                else if (buff1.getInt(Integer.BYTES * i) < buff2.getInt(Integer.BYTES * i))
+                    return -1;
+            }
+            return 0;
+        }
+    }
+
+    static Computer computer = new Computer() {
+        @Override
+        public void apply(ByteBuffer byteBuffer) {
+            if (byteBuffer.getInt(0) == byteBuffer.getInt(Integer.BYTES * keySize)) {
+                return;
+            }
+            int[] arr = new int[keySize];
+            for (int i = 0; i < 50; i++) {
+                for (int j = 0; j < keySize; j++) {
+                    arr[j] = byteBuffer.getInt();
+                }
+                for (int j = 0; j < keySize; j++) {
+                    byteBuffer.putInt(arr[j]);
+                }
             }
         }
     };
@@ -61,8 +133,8 @@ public class ComputeTest {
                 e.printStackTrace();
             }
 
-            ByteBuffer myKey = ByteBuffer.allocate(keySize);
-            ByteBuffer myVal = ByteBuffer.allocate(valSize);
+            ByteBuffer myKey = ByteBuffer.allocate(keySize * Integer.BYTES);
+            ByteBuffer myVal = ByteBuffer.allocate(valSize * Integer.BYTES);
 
             Random r = new Random();
 
@@ -72,7 +144,7 @@ public class ComputeTest {
                 myKey.putInt(0, k);
                 myVal.putInt(0, k);
                 if (o % 2 == 0)
-                    oak.computeIfPresent(myKey, func);
+                    oak.computeIfPresent(myKey, computer);
                 else
                     oak.putIfAbsent(myKey, myVal);
 
@@ -83,17 +155,32 @@ public class ComputeTest {
 
     public static void main(String[] args) throws InterruptedException {
 
-        int maxItemsPerChunk = 2048;
-        int maxBytesPerChunkItem = 100;
+        ByteBuffer minKey = ByteBuffer.allocate(keySize * Integer.BYTES);
+        minKey.position(0);
+        for (int i = 0; i < keySize; i++) {
+            minKey.putInt(4 * i, Integer.MIN_VALUE);
+        }
+        minKey.position(0);
 
-        oak = new OakMapOffHeapImpl(maxItemsPerChunk, maxBytesPerChunkItem);
+        OakMapBuilder builder = new OakMapBuilder()
+                .setChunkMaxItems(2048)
+                .setChunkBytesPerItem(100)
+                .setKeySerializer(new ComputeTestKeySerializer())
+                .setKeyDeserializer(new ComputeTestKeyDeserializer())
+                .setKeySizeCalculator(new ComputeTestKeySizeCalculator())
+                .setValueSerializer(new ComputeTestValueSerializer())
+                .setValueDeserializer(new ComputeTestValueDeserializer())
+                .setValueSizeCalculator(new ComputeTestValueSizeCalculator())
+                .setMinKey(minKey)
+                .setKeysComparator(new ComputeTestKeysComparator())
+                .setSerializationsComparator(new ComputeTestKeysComparator())
+                .setSerializationAndKeyComparator(new ComputeTestKeysComparator());
+
+        oak = builder.buildOffHeapOakMap();
 
         NUM_THREADS = Integer.parseInt(args[1]);
         numOfEntries = Integer.parseInt(args[2]);
 
-
-//        System.out.println("Time to connect jconsole");
-//        TimeUnit.SECONDS.sleep(20);
 
         key.putInt(0, 0);
         val.putInt(0, 0);
@@ -124,17 +211,17 @@ public class ComputeTest {
 
         for (int i = 0; i < numOfEntries; i++) {
             key.putInt(0, i);
-            OakBuffer buffer = oak.get(key);
-            if (buffer == null) {
+            ByteBuffer val = oak.get(key);
+            if (val == null) {
                 continue;
             }
-            if (buffer.getInt(0) != i) {
+            if (val.getInt(0) != i) {
                 System.out.println("buffer.getInt(0) != i i==" + i);
                 return;
             }
-            int forty = buffer.getInt(40);
+            int forty = val.getInt((keySize - 1) * Integer.BYTES);
             if (forty != i && forty != 0) {
-                System.out.println(buffer.getInt(40));
+                System.out.println(val.getInt((keySize - 1) * Integer.BYTES));
                 return;
             }
         }

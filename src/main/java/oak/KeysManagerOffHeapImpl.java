@@ -9,24 +9,25 @@ package oak;
 import javafx.util.Pair;
 
 import java.nio.ByteBuffer;
-import java.util.AbstractMap.SimpleImmutableEntry;
-import java.util.Map.Entry;
-import java.util.function.Consumer;
 import java.util.logging.Logger;
-import oak.OakMap.KeyInfo;
 
-public class KeysManagerOffHeapImpl extends KeysManager {
+public class KeysManagerOffHeapImpl<K> extends KeysManager<K> {
 
     ByteBuffer keys;
     int i;
     OakMemoryManager memoryManager;
+    private final Serializer<K> keySerializer;
+    private final SizeCalculator<K> keySizeCalculator;
     Logger log = Logger.getLogger(KeysManagerOffHeapImpl.class.getName());
 
-    KeysManagerOffHeapImpl(int bytes, OakMemoryManager memoryManager) {
+    KeysManagerOffHeapImpl(int bytes, OakMemoryManager memoryManager,
+                           Serializer<K> keySerializer, SizeCalculator<K> keySizeCalculator) {
         Pair<Integer, ByteBuffer> pair = memoryManager.allocate(bytes);
         i = pair.getKey();
         keys = pair.getValue();
         this.memoryManager = memoryManager;
+        this.keySerializer = keySerializer;
+        this.keySizeCalculator = keySizeCalculator;
     }
 
     @Override
@@ -35,19 +36,10 @@ public class KeysManagerOffHeapImpl extends KeysManager {
     }
 
     @Override
-    void writeKey(ByteBuffer key, int ki, int length) {
-        int keyPos = key.position();
-        int myPos = keys.position();
-        for (int j = 0; j < length; j++) {
-            keys.put(myPos + ki + j, key.get(keyPos + j));
-        }
-    }
-
-    @Override
-    void writeKey(Object key,
-                  Consumer<KeyInfo> keyCreator,
-                  int ki) {
-        keyCreator.accept(new KeyInfo(keys, ki, key));
+    void writeKey(K key, int ki) {
+        ByteBuffer byteBuffer = keys.duplicate();
+        byteBuffer.position(keys.position() + ki);
+        keySerializer.serialize(key, byteBuffer);
     }
 
     @Override

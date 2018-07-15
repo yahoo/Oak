@@ -10,26 +10,44 @@ import java.nio.ByteBuffer;
 
 public class HeapUsageTest {
 
+    private static final long K = 1024;
+    private static final long M = K * K;
+    private static int keySize = 10;
+    private static int valSize = (int) Math.round(5 * K);
+
+    public static class HeapUsageTestKeySizeCalculator implements SizeCalculator<Integer> {
+
+        public int calculateSize(Integer object) {
+            return keySize;
+        }
+    }
+
+    public static class HeapUsageTestValueSizeCalculator implements SizeCalculator<Integer> {
+
+        public int calculateSize(Integer object) {
+            return valSize;
+        }
+    }
+
     public static void main(String[] args) throws InterruptedException {
 
-        int maxItemsPerChunk = 2048;
-        int maxBytesPerChunkItem = 100;
+        OakMapBuilder builder = OakMapBuilder
+                .getDefaultBuilder()
+                .setChunkMaxItems(2048)
+                .setChunkBytesPerItem(100)
+                .setKeySizeCalculator(new HeapUsageTestKeySizeCalculator())
+                .setValueSizeCalculator(new HeapUsageTestValueSizeCalculator());
 
-        final long K = 1024;
-        final long M = K * K;
-
-        int keySize = 10;
-        int valSize = (int) Math.round(5 * K);
         int numOfEntries = 360000;
 
         System.out.println("key size: " + keySize + "B" + ", value size: " + ((double) valSize) / K + "KB");
 
-        ByteBuffer key = ByteBuffer.allocate(keySize);
-        ByteBuffer val = ByteBuffer.allocate(valSize);
-        key.putInt(0, 0);
-        val.putInt(0, 0);
+        Integer key = 0;
+        Integer val = 0;
 
-        OakMapOffHeapImpl oak = new OakMapOffHeapImpl(maxItemsPerChunk, maxBytesPerChunkItem);
+
+
+        OakMapOffHeapImpl<Integer, Integer> oak = builder.buildOffHeapOakMap();
 
         long heapSize = Runtime.getRuntime().totalMemory(); // Get current size of heap in bytes
         long heapMaxSize = Runtime.getRuntime().maxMemory(); // Get maximum size of heap in bytes
@@ -42,8 +60,8 @@ public class HeapUsageTest {
 
 
         for (int i = 0; i < numOfEntries; i++) {
-            key.putInt(0, i);
-            val.putInt(0, i);
+            key = i;
+            val = i;
             oak.put(key, val);
         }
         System.out.println("\nAfter filling up oak");
@@ -58,19 +76,19 @@ public class HeapUsageTest {
         System.out.println("heap used: " + (heapSize - heapFreeSize) / M + "MB");
 
         for (int i = 0; i < numOfEntries; i++) {
-            key.putInt(0, i);
-            val.putInt(0, i);
+            key = i;
+            val = i;
             oak.put(key, val);
         }
 
-        for (int i = 0; i < numOfEntries; i++) {
-            key.putInt(0, i);
-            OakBuffer buffer = oak.get(key);
-            if (buffer == null) {
+        for (Integer i = 0; i < numOfEntries; i++) {
+            key = i;
+            Integer value = oak.get(key);
+            if (value == null) {
                 System.out.println("buffer != null i==" + i);
                 return;
             }
-            if (buffer.getInt(0) != i) {
+            if (value != i) {
                 System.out.println("buffer.getInt(0) != i i==" + i);
                 return;
             }

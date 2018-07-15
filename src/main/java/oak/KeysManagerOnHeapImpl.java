@@ -9,9 +9,8 @@ package oak;
 import java.nio.ByteBuffer;
 import java.util.Map.Entry;
 import java.util.function.Consumer;
-import oak.OakMap.KeyInfo;
 
-public class KeysManagerOnHeapImpl extends KeysManager {
+public class KeysManagerOnHeapImpl<K> extends KeysManager<K> {
 
     private final byte[] keys;
 
@@ -25,15 +24,7 @@ public class KeysManagerOnHeapImpl extends KeysManager {
     }
 
     @Override
-    void writeKey(ByteBuffer key, int ki, int length) {
-        // TODO here we assume array
-        System.arraycopy(key.array(), key.position(), keys, ki, length);
-    }
-
-    @Override
-    void writeKey(Object key,
-                  Consumer<KeyInfo> keyCreator,
-                  int ki) {
+    void writeKey(K key, int ki) {
         throw new UnsupportedOperationException();
     }
 

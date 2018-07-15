@@ -11,7 +11,7 @@ import javafx.util.Pair;
 import java.nio.ByteBuffer;
 import java.util.function.Consumer;
 
-class HandleOffHeapImpl extends Handle {
+class HandleOffHeapImpl<V> extends Handle<V> {
 
     private int i;
 
@@ -54,44 +54,20 @@ class HandleOffHeapImpl extends Handle {
     }
 
     @Override
-    void put(ByteBuffer value, OakMemoryManager memoryManager) {
+    void put(V newVal, Serializer<V> serializer, SizeCalculator<V> sizeCalculator, OakMemoryManager memoryManager) {
         writeLock.lock();
         if (isDeleted()) {
             writeLock.unlock();
             return;
         }
-        int pos = value.position();
-        int rem = value.remaining();
-        if (this.value.remaining() >= rem) { // try to reuse old space
-            for (int j = 0; j < rem; j++) {
-                this.value.put(j, value.get(pos + j));
-            }
-        } else {
-            memoryManager.release(this.i, this.value);
-            Pair<Integer, ByteBuffer> pair = memoryManager.allocate(rem);
-            this.i = pair.getKey();
-            this.value = pair.getValue();
-            for (int j = 0; j < rem; j++) {
-                this.value.put(j, value.get(pos + j));
-            }
-        }
-        writeLock.unlock();
-    }
-
-    @Override
-    void put(Consumer<ByteBuffer> valueCreator, int capacity, OakMemoryManager memoryManager) {
-        writeLock.lock();
-        if (isDeleted()) {
-            writeLock.unlock();
-            return;
-        }
+        int capacity = sizeCalculator.calculateSize(newVal);
         if (this.value.remaining() < capacity) { // try to reuse old space
             memoryManager.release(this.i, this.value);
             Pair<Integer, ByteBuffer> pair = memoryManager.allocate(capacity);
             this.i = pair.getKey();
             this.value = pair.getValue();
         }
-        valueCreator.accept(this.value);
+        serializer.serialize(newVal, this.value);
         writeLock.unlock();
     }
 

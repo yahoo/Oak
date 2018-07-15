@@ -8,11 +8,9 @@ package oak;
 
 import java.nio.ByteBuffer;
 import java.util.Map.Entry;
-import java.util.function.Consumer;
 import java.util.function.Function;
-import java.util.function.Supplier;
 
-public interface OakMap {
+public interface OakMap<K, V> {
 
     /* ------ Map API methods ------ */
 
@@ -26,27 +24,7 @@ public interface OakMap {
      * @param value value to be associated with the specified key
      * @throws NullPointerException if the specified key is null
      */
-    void put(ByteBuffer key, ByteBuffer value);
-
-    /**
-     * Associates the specified value with the specified key in this map.
-     * If the map previously contained a mapping for the key, the old
-     * value is replaced.
-     * Creates a copy of the value in the map.
-     *
-     * @param key                   key with which the specified value is to be associated
-     * @param keyCreator            writes the key on the given ByteBuffer, according to the given Object
-     * @param keyCapacityCalculator returns the key capacity (for allocation), according to the given key object
-     * @param valueCreator          the function to construct a value
-     * @param valueCapacity         the value ByteBuffer size
-     * @throws NullPointerException if the specified key is null
-     */
-    void put(
-            Object key,
-            Consumer<KeyInfo> keyCreator,
-            Function<Object, Integer> keyCapacityCalculator,
-            Consumer<ByteBuffer> valueCreator,
-            int valueCapacity);
+    void put(K key, V value);
 
     /**
      * If the specified key is not already associated
@@ -58,27 +36,7 @@ public interface OakMap {
      * @return {@code true} if there was no mapping for the key
      * @throws NullPointerException if the specified key or value is null
      */
-    boolean putIfAbsent(ByteBuffer key, ByteBuffer value);
-
-    /**
-     * If the specified key is not already associated
-     * with a value, associate it with the given value.
-     * Creates a copy of the value in the map.
-     *
-     * @param key                   key with which the specified value is to be associated
-     * @param keyCreator            writes the key on the given ByteBuffer, according to the given Object
-     * @param keyCapacityCalculator returns the key capacity (for allocation), according to the given key object
-     * @param valueCreator          the function to construct a value
-     * @param valueCapacity         the value ByteBuffer size
-     * @return {@code true} if there was no mapping for the key
-     * @throws NullPointerException if the specified key or value is null
-     */
-    boolean putIfAbsent(
-            Object key,
-            Consumer<KeyInfo> keyCreator,
-            Function<Object, Integer> keyCapacityCalculator,
-            Consumer<ByteBuffer> valueCreator,
-            int valueCapacity);
+    boolean putIfAbsent(K key, V value);
 
     /**
      * Removes the mapping for a key from this map if it is present.
@@ -86,18 +44,18 @@ public interface OakMap {
      * @param key key whose mapping is to be removed from the map
      * @throws NullPointerException if the specified key is null
      */
-    void remove(Object key);
+    void remove(K key);
 
     /**
      * Returns a read only view of the value to which the specified key is mapped,
      * or {@code null} if this map contains no mapping for the key.
      *
      * @param key the key whose associated value is to be returned
-     * @return a read only view of the value to which the specified key is mapped, or
+     * @return the value associated with that key, or
      * {@code null} if this map contains no mapping for the key
      * @throws NullPointerException if the specified key is null
      */
-    OakBuffer get(Object key);
+    V get(K key);
 
     /**
      * Returns a transformation of the value to which the specified key is mapped,
@@ -109,35 +67,35 @@ public interface OakMap {
      * {@code null} if this map contains no mapping for the key
      * @throws NullPointerException if the specified key is null
      */
-    <T> T getTransformation(Object key, Function<ByteBuffer,T> transformer);
+    <T> T getTransformation(K key, Function<ByteBuffer,T> transformer);
 
     /**
-     * Returns a read only transformation of the minimal key in the map,
+     * Returns the minimal key in the map,
      * or {@code null} if this map contains no keys.
      *
-     * @return a read only transformation of the minimal key in the map,
+     * @return the minimal key in the map,
      * or {@code null} if this map contains no keys.
      */
-     <T> T getMinKey(Function<ByteBuffer,T> transformer);
+     K getMinKey();
 
     /**
-     * Returns a read only transformation of the maximal key in the map,
+     * Returns the maximal key in the map,
      * or {@code null} if this map contains no keys.
      *
-     * @return a read only transformation of the maximal key in the map,
+     * @return the maximal key in the map,
      * or {@code null} if this map contains no keys.
      */
-     <T> T getMaxKey(Function<ByteBuffer,T> transformer);
+     K getMaxKey();
 
     /**
      * Updates the value for the specified key
      *
-     * @param key      key with which the specified value is to be associated
-     * @param function the function to update a value
+     * @param key      key with which the calculation is to be associated
+     * @param computer for computing the new value
      * @return {@code false} if there was no mapping for the key
      * @throws NullPointerException if the specified key or the function is null
      */
-    boolean computeIfPresent(Object key, Consumer<WritableOakBuffer> function);
+    boolean computeIfPresent(K key, Computer computer);
 
     /**
      * If the specified key is not already associated
@@ -145,30 +103,15 @@ public interface OakMap {
      * Else, updates the value for the specified key.
      *
      * @param key         key with which the specified value is to be associated
-     * @param constructor the function to construct a value
-     * @param function    the function to update a value
+     * @param value       value to be associated with the specified key
+     * @param computer    for computing the new value when the key is present
      */
-    void putIfAbsentComputeIfPresent(ByteBuffer key, Supplier<ByteBuffer> constructor, Consumer<WritableOakBuffer> function);
+    void putIfAbsentComputeIfPresent(K key, V value, Computer computer);
 
     /**
-     * If the specified key is not already associated
-     * with a value, associate it with a constructed value.
-     * Else, updates the value for the specified key.
-     *
-     * @param key                   key with which the specified value is to be associated
-     * @param keyCreator            writes the key on the given ByteBuffer, according to the given Object
-     * @param keyCapacityCalculator returns the key capacity (for allocation), according to the given key object
-     * @param valueCreator          the function to construct a value
-     * @param valueCapacity         the value ByteBuffer size
-     * @param function              the function to update a value
+     * returns the size in bytes of the occupied memory
      */
-    void putIfAbsentComputeIfPresent(
-            Object key,
-            Consumer<KeyInfo> keyCreator,
-            Function<Object, Integer> keyCapacityCalculator,
-            Consumer<ByteBuffer> valueCreator,
-            int valueCapacity,
-            Consumer<WritableOakBuffer> function);
+    long memorySize();
 
     /*-------------- SubMap --------------*/
 
@@ -200,7 +143,7 @@ public interface OakMap {
      *                                  range, and {@code fromKey} or {@code toKey} lies
      *                                  outside the bounds of the range
      */
-    OakMap subMap(Object fromKey, boolean fromInclusive, Object toKey, boolean toInclusive);
+    OakMap subMap(K fromKey, boolean fromInclusive, K toKey, boolean toInclusive);
 
     /**
      * Returns a view of the portion of this map whose keys are less than (or
@@ -223,7 +166,7 @@ public interface OakMap {
      *                                  restricted range, and {@code toKey} lies outside the
      *                                  bounds of the range
      */
-    OakMap headMap(Object toKey, boolean inclusive);
+    OakMap headMap(K toKey, boolean inclusive);
 
     /**
      * Returns a view of the portion of this map whose keys are greater than (or
@@ -246,7 +189,7 @@ public interface OakMap {
      *                                  restricted range, and {@code fromKey} lies outside the
      *                                  bounds of the range
      */
-    OakMap tailMap(Object fromKey, boolean inclusive);
+    OakMap tailMap(K fromKey, boolean inclusive);
 
     /* ---------------- View methods -------------- */
 
@@ -266,17 +209,17 @@ public interface OakMap {
      * Returns a {@link CloseableIterator} of the values contained in this map
      * in ascending order of the corresponding keys.
      */
-    CloseableIterator<OakBuffer> valuesIterator();
+    CloseableIterator<V> valuesIterator();
 
     /**
      * Returns a {@link CloseableIterator} of the mappings contained in this map in ascending key order.
      */
-    CloseableIterator<Entry<ByteBuffer, OakBuffer>> entriesIterator();
+    CloseableIterator<Entry<K, V>> entriesIterator();
 
     /**
      * Returns a {@link CloseableIterator} of the keys contained in this map in ascending order.
      */
-    CloseableIterator<ByteBuffer> keysIterator();
+    CloseableIterator<K> keysIterator();
 
     /**
      * Returns a {@link CloseableIterator} of transformations on the values contained in this map
@@ -294,18 +237,4 @@ public interface OakMap {
      * Returns a {@link CloseableIterator} of transformations on the keys contained in this map in ascending order.
      */
     <T> CloseableIterator<T> keysTransformIterator(Function<ByteBuffer,T> transformer);
-
-  // input for key creators
-    public static class KeyInfo {
-        public ByteBuffer buffer;    // for writing the key
-        public int index;          // the index in the ByteBuffer for writing the key
-        public Object key;         // the actual key object
-
-        public KeyInfo(ByteBuffer buffer, int index, Object key) {
-            this.buffer = buffer;
-            this.index = index;
-            this.key = key;
-        }
-    }
-
 }

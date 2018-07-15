@@ -12,24 +12,28 @@ import java.util.Map.Entry;
 import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Consumer;
 import java.util.function.Function;
-import java.util.function.Supplier;
 import java.util.logging.Logger;
 
-public class OakMapOffHeapImpl implements OakMap, AutoCloseable {
+public class OakMapOffHeapImpl<K, V> implements OakMap<K, V>, AutoCloseable {
 
     /*-------------- Members --------------*/
 
     Logger log = Logger.getLogger(OakMapOffHeapImpl.class.getName());
-    final ConcurrentSkipListMap<Object, Chunk> skiplist;    // skiplist of chunks for fast navigation
-    private final AtomicReference<Chunk> head;
+    final ConcurrentSkipListMap<Object, Chunk<K, V>> skiplist;    // skiplist of chunks for fast navigation
+    private final AtomicReference<Chunk<K, V>> head;
     private final ByteBuffer minKey;
     private final Comparator comparator;
     final OakMemoryManager memoryManager;
     private final HandleFactory handleFactory;
     private final ValueFactory valueFactory;
     private AtomicInteger size;
+    private Serializer<K> keySerializer;
+    private Deserializer<K> keyDeserializer;
+    private SizeCalculator<K> keySizeCalculator;
+    private Serializer<V> valueSerializer;
+    private Deserializer<V> valueDeserializer;
+    private SizeCalculator<V> valueSizeCalculator;
 
     /**
      * Lazily initialized descending key set
@@ -41,92 +45,57 @@ public class OakMapOffHeapImpl implements OakMap, AutoCloseable {
     /**
      * init with capacity = 2g
      */
-    public OakMapOffHeapImpl(int chunkMaxItems, int chunkBytesPerItem) {
-        this(new SimpleNoFreeMemoryPoolImpl(Integer.MAX_VALUE), chunkMaxItems, chunkBytesPerItem);
-    }
+    public OakMapOffHeapImpl(
+            K minKey,
+            Serializer<K> keySerializer,
+            Deserializer<K> keyDeserializer,
+            SizeCalculator<K> keySizeCalculator,
+            Serializer<V> valueSerializer,
+            Deserializer<V> valueDeserializer,
+            SizeCalculator<V> valueSizeCalculator,
+            OakComparator<K, K> keysComparator,
+            OakComparator<ByteBuffer, ByteBuffer> serializationsComparator,
+            OakComparator<ByteBuffer, K> serializationAndKeyComparator,
+            MemoryPool memoryPool,
+            int chunkMaxItems,
+            int chunkBytesPerItem) {
 
-    public OakMapOffHeapImpl(MemoryPool memoryPool, int chunkMaxItems, int chunkBytesPerItem) {
-        ByteBuffer bb = ByteBuffer.allocate(1).put(Byte.MIN_VALUE);
-        bb.rewind();
-        this.minKey = bb;
         this.size = new AtomicInteger(0);
-
-        this.comparator = Comparator.naturalOrder();
-
         this.memoryManager = new OakMemoryManager(memoryPool);
 
-        this.skiplist = new ConcurrentSkipListMap<>();
-        Chunk head = new Chunk(this.minKey, null, comparator, memoryManager, chunkMaxItems, chunkBytesPerItem, this.size);
-        this.skiplist.put(head.minKey, head);    // add first chunk (head) into skiplist
-        this.head = new AtomicReference<>(head);
+        this.keySerializer = keySerializer;
+        this.keyDeserializer = keyDeserializer;
+        this.keySizeCalculator = keySizeCalculator;
+        this.valueSerializer = valueSerializer;
+        this.valueDeserializer = valueDeserializer;
+        this.valueSizeCalculator = valueSizeCalculator;
 
-        this.descendingMap = null;
-        this.handleFactory = new HandleFactory(true);
-        this.valueFactory = new ValueFactory(true);
-    }
+        this.comparator = new Comparator() {
+            @Override
+            public int compare(Object o1, Object o2) {
+                if (o1 instanceof ByteBuffer) {
+                    if (o2 instanceof ByteBuffer) {
+                        return serializationsComparator.compare((ByteBuffer) o1, (ByteBuffer) o2);
+                    } else {
+                        return serializationAndKeyComparator.compare((ByteBuffer) o1, (K) o2);
+                    }
+                } else {
+                    if (o2 instanceof ByteBuffer) {
+                        return (-1) * serializationAndKeyComparator.compare((ByteBuffer) o2, (K) o1);
+                    } else {
+                        return keysComparator.compare((K) o1, (K) o2);
+                    }
+                }
+            }
+        };
 
-    /**
-     * init with capacity = 2g
-     */
-    public OakMapOffHeapImpl(Comparator<Object> comparator,
-                             ByteBuffer minKey,
-                             int chunkMaxItems,
-                             int chunkBytesPerItem) {
-        this(comparator, minKey, new SimpleNoFreeMemoryPoolImpl(Integer.MAX_VALUE), chunkMaxItems, chunkBytesPerItem);
-    }
-
-    public OakMapOffHeapImpl(Comparator<Object> comparator,
-                             Object minKey,
-                             Consumer<KeyInfo> keyCreator,
-                             Function<Object, Integer> keyCapacityCalculator,
-                             int chunkMaxItems,
-                             int chunkBytesPerItem) {
-        this(comparator, minKey, keyCreator, keyCapacityCalculator, new SimpleNoFreeMemoryPoolImpl(Integer.MAX_VALUE), chunkMaxItems, chunkBytesPerItem);
-    }
-
-    public OakMapOffHeapImpl(Comparator<Object> comparator,
-                             ByteBuffer minKey,
-                             MemoryPool memoryPool,
-                             int chunkMaxItems,
-                             int chunkBytesPerItem) {
-        ByteBuffer bb = ByteBuffer.allocate(minKey.remaining());
-        for (int i = 0; i < minKey.limit(); i++) {
-            bb.put(i, minKey.get(i));
-        }
-        this.minKey = bb;
-        this.size = new AtomicInteger(0);
-        this.comparator = comparator;
-
-        this.memoryManager = new OakMemoryManager(memoryPool);
-
-        this.skiplist = new ConcurrentSkipListMap<>(comparator);
-        Chunk head = new Chunk(this.minKey, null, comparator, memoryManager, chunkMaxItems, chunkBytesPerItem, this.size);
-        this.skiplist.put(head.minKey, head);    // add first chunk (head) into skiplist
-        this.head = new AtomicReference<>(head);
-
-        this.descendingMap = null;
-        this.handleFactory = new HandleFactory(true);
-        this.valueFactory = new ValueFactory(true);
-    }
-
-    public OakMapOffHeapImpl(Comparator<Object> comparator,
-                             Object minKey,
-                             Consumer<KeyInfo> keyCreator,
-                             Function<Object, Integer> keyCapacityCalculator,
-                             MemoryPool memoryPool,
-                             int chunkMaxItems,
-                             int chunkBytesPerItem) {
-        this.minKey = ByteBuffer.allocate(keyCapacityCalculator.apply(minKey));
+        this.minKey = ByteBuffer.allocate(this.keySizeCalculator.calculateSize(minKey));
         this.minKey.position(0);
-        KeyInfo minKeyInfo = new KeyInfo(this.minKey, 0, minKey);
-        keyCreator.accept(minKeyInfo);
-        this.size = new AtomicInteger(0);
-        this.comparator = comparator;
+        this.keySerializer.serialize(minKey, this.minKey);
 
-        this.memoryManager = new OakMemoryManager(memoryPool);
-
-        this.skiplist = new ConcurrentSkipListMap<>(comparator);
-        Chunk head = new Chunk(this.minKey, null, comparator, memoryManager, chunkMaxItems, chunkBytesPerItem, this.size);
+        this.skiplist = new ConcurrentSkipListMap<>(this.comparator);
+        Chunk<K, V> head = new Chunk<K, V>(this.minKey, null, comparator, memoryManager, chunkMaxItems,
+                chunkBytesPerItem, this.size, keySerializer, keySizeCalculator, valueSerializer, valueSizeCalculator);
         this.skiplist.put(head.minKey, head);    // add first chunk (head) into skiplist
         this.head = new AtomicReference<>(head);
 
@@ -135,12 +104,13 @@ public class OakMapOffHeapImpl implements OakMap, AutoCloseable {
         this.valueFactory = new ValueFactory(true);
     }
 
-  static int getThreadIndex() {
+
+    static int getThreadIndex() {
       // TODO use hash instead of modulo
       return (int) (Thread.currentThread().getId() % Chunk.MAX_THREADS);
-  }
+    }
 
-  /*-------------- Closable --------------*/
+    /*-------------- Closable --------------*/
 
     /**
      * cleans off heap memory
@@ -155,7 +125,8 @@ public class OakMapOffHeapImpl implements OakMap, AutoCloseable {
     /**
      * @return current off heap memory usage in bytes
      */
-    public long size() {
+    @Override
+    public long memorySize() {
         return memoryManager.pool.allocated();
     }
 
@@ -166,9 +137,9 @@ public class OakMapOffHeapImpl implements OakMap, AutoCloseable {
     /**
      * finds and returns the chunk where key should be located, starting from given chunk
      */
-    private Chunk iterateChunks(Chunk c, Object key) {
+    private Chunk<K, V> iterateChunks(Chunk<K, V> c, Object key) {
         // find chunk following given chunk (next)
-        Chunk next = c.next.getReference();
+        Chunk<K, V> next = c.next.getReference();
 
         // since skiplist isn't updated atomically in split/compaction, our key might belong in the next chunk
         // we need to iterate the chunks until we find the correct one
@@ -180,12 +151,13 @@ public class OakMapOffHeapImpl implements OakMap, AutoCloseable {
         return c;
     }
 
-    private Rebalancer.RebalanceResult rebalance(Chunk c, Object opKey, ByteBuffer opValue, Consumer<WritableOakBuffer> function, Operation op) {
+    private Rebalancer.RebalanceResult rebalance(Chunk<K, V> c, K key, V value, Computer computer, Operation op) {
         if (c == null) {
             assert op == Operation.NO_OP;
             return null;
         }
-        Rebalancer rebalancer = new Rebalancer(c, comparator, true, memoryManager, handleFactory, valueFactory);
+        Rebalancer rebalancer = new Rebalancer(c, comparator, true, memoryManager, handleFactory,
+                keySerializer, keySizeCalculator, valueSerializer, valueSizeCalculator);
 
         rebalancer = rebalancer.engageChunks(); // maybe we encountered a different rebalancer
 
@@ -194,54 +166,13 @@ public class OakMapOffHeapImpl implements OakMap, AutoCloseable {
         // will be redirected to help the rebalance procedure
         rebalancer.freeze();
 
-        Rebalancer.RebalanceResult result = rebalancer.createNewChunks(opKey, opValue, function, op); // split or compact
+        Rebalancer.RebalanceResult result = rebalancer.createNewChunks(key, value, computer, op); // split or compact
         // if returned true then this thread was responsible for the creation of the new chunks
         // and it inserted the put
 
         // lists may be generated by another thread
-        List<Chunk> newChunks = rebalancer.getNewChunks();
-        List<Chunk> engaged = rebalancer.getEngagedChunks();
-
-        connectToChunkList(engaged, newChunks);
-
-        updateIndexAndNormalize(engaged, newChunks);
-
-        for (Chunk chunk : engaged
-                ) {
-            chunk.release();
-        }
-
-        return result;
-    }
-
-    private Rebalancer.RebalanceResult rebalance(Chunk c,
-                                                 Object opKey,
-                                                 Consumer<KeyInfo> opKeyCreator,
-                                                 Function<Object, Integer> opKeyCapacityCalculator,
-                                                 Consumer<ByteBuffer> opValueCreator,
-                                                 int opValueCapacity,
-                                                 Consumer<WritableOakBuffer> function,
-                                                 Operation op) {
-        if (c == null) {
-            assert op == Operation.NO_OP;
-            return null;
-        }
-        Rebalancer rebalancer = new Rebalancer(c, comparator, true, memoryManager, handleFactory, valueFactory);
-
-        rebalancer = rebalancer.engageChunks(); // maybe we encountered a different rebalancer
-
-        // freeze all the engaged range.
-        // When completed, all update (put, next pointer update) operations on the engaged range
-        // will be redirected to help the rebalance procedure
-        rebalancer.freeze();
-
-        Rebalancer.RebalanceResult result = rebalancer.createNewChunks(opKey, opKeyCreator, opKeyCapacityCalculator, opValueCreator, opValueCapacity, function, op); // split or compact
-        // if returned true then this thread was responsible for the creation of the new chunks
-        // and it inserted the put
-
-        // lists may be generated by another thread
-        List<Chunk> newChunks = rebalancer.getNewChunks();
-        List<Chunk> engaged = rebalancer.getEngagedChunks();
+        List<Chunk<K, V>> newChunks = rebalancer.getNewChunks();
+        List<Chunk<K, V>> engaged = rebalancer.getEngagedChunks();
 
         connectToChunkList(engaged, newChunks);
 
@@ -261,25 +192,25 @@ public class OakMapOffHeapImpl implements OakMap, AutoCloseable {
 
     private void checkRebalance(Chunk c) {
         if (c.shouldRebalance()) {
-            rebalance(c, null, null, null, null, 0, null, Operation.NO_OP);
+            rebalance(c, null, null, null, Operation.NO_OP);
         }
     }
 
-    private void connectToChunkList(List<Chunk> engaged, List<Chunk> children) {
+    private void connectToChunkList(List<Chunk<K, V>> engaged, List<Chunk<K, V>> children) {
 
         updateLastChild(engaged, children);
 
-        Chunk firstEngaged = engaged.get(0);
+        Chunk<K, V> firstEngaged = engaged.get(0);
 
         // replace in linked list - we now need to find previous chunk to our chunk
         // and CAS its next to point to c1, which is the same c1 for all threads who reached this point
         // since prev might be marked (in compact itself) - we need to repeat this until successful
         while (true) {
             // start with first chunk (i.e., head)
-            Entry<Object, Chunk> lowerEntry = skiplist.lowerEntry(firstEngaged.minKey);
+            Entry<Object, Chunk<K, V>> lowerEntry = skiplist.lowerEntry(firstEngaged.minKey);
 
-            Chunk prev = lowerEntry != null ? lowerEntry.getValue() : null;
-            Chunk curr = (prev != null) ? prev.next.getReference() : null;
+            Chunk<K, V> prev = lowerEntry != null ? lowerEntry.getValue() : null;
+            Chunk<K, V> curr = (prev != null) ? prev.next.getReference() : null;
 
             // if didn't succeed to find prev through the skiplist - start from the head
             if (prev == null || curr != firstEngaged) {
@@ -321,17 +252,17 @@ public class OakMapOffHeapImpl implements OakMap, AutoCloseable {
 
     }
 
-    private void updateLastChild(List<Chunk> engaged, List<Chunk> children) {
-        Chunk lastEngaged = engaged.get(engaged.size() - 1);
-        Chunk nextToLast = lastEngaged.markAndGetNext(); // also marks last engaged chunk as deleted
-        Chunk lastChild = children.get(children.size() - 1);
+    private void updateLastChild(List<Chunk<K, V>> engaged, List<Chunk<K, V>> children) {
+        Chunk<K, V> lastEngaged = engaged.get(engaged.size() - 1);
+        Chunk<K, V> nextToLast = lastEngaged.markAndGetNext(); // also marks last engaged chunk as deleted
+        Chunk<K, V> lastChild = children.get(children.size() - 1);
 
         lastChild.next.compareAndSet(null, nextToLast, false, false);
     }
 
-    private void updateIndexAndNormalize(List<Chunk> engagedChunks, List<Chunk> children) {
-        Iterator<Chunk> iterEngaged = engagedChunks.iterator();
-        Iterator<Chunk> iterChildren = children.iterator();
+    private void updateIndexAndNormalize(List<Chunk<K, V>> engagedChunks, List<Chunk<K, V>> children) {
+        Iterator<Chunk<K, V>> iterEngaged = engagedChunks.iterator();
+        Iterator<Chunk<K, V>> iterChildren = children.iterator();
 
         Chunk firstEngaged = iterEngaged.next();
         Chunk firstChild = iterChildren.next();
@@ -362,7 +293,7 @@ public class OakMapOffHeapImpl implements OakMap, AutoCloseable {
         }
     }
 
-    private boolean rebalancePutIfAbsent(Chunk c, ByteBuffer key, ByteBuffer value) {
+    private boolean rebalancePutIfAbsent(Chunk<K, V> c, K key, V value) {
         Rebalancer.RebalanceResult result = rebalance(c, key, value, null, Operation.PUT_IF_ABSENT);
         assert result != null;
         if (!result.success) { // rebalance helped put
@@ -372,22 +303,7 @@ public class OakMapOffHeapImpl implements OakMap, AutoCloseable {
         return result.putIfAbsent;
     }
 
-    private boolean rebalancePutIfAbsent(Chunk c,
-                                         Object key,
-                                         Consumer<KeyInfo> keyCreator,
-                                         Function<Object, Integer> keyCapacityCalculator,
-                                         Consumer<ByteBuffer> valueCreator,
-                                         int valueCapacity) {
-        Rebalancer.RebalanceResult result = rebalance(c, key, keyCreator, keyCapacityCalculator, valueCreator, valueCapacity, null, Operation.PUT_IF_ABSENT);
-        assert result != null;
-        if (!result.success) { // rebalance helped put
-            return putIfAbsent(key, keyCreator, keyCapacityCalculator, valueCreator, valueCapacity, false);
-        }
-        memoryManager.stopThread();
-        return result.putIfAbsent;
-    }
-
-    private void rebalancePut(Chunk c, ByteBuffer key, ByteBuffer value) {
+    private void rebalancePut(Chunk<K, V> c, K key, V value) {
         Rebalancer.RebalanceResult result = rebalance(c, key, value, null, Operation.PUT);
         assert result != null;
         if (result.success) { // rebalance helped put
@@ -396,46 +312,16 @@ public class OakMapOffHeapImpl implements OakMap, AutoCloseable {
         put(key, value);
     }
 
-    private void rebalancePut(Chunk c,
-                              Object key,
-                              Consumer<KeyInfo> keyCreator,
-                              Function<Object, Integer> keyCapacityCalculator,
-                              Consumer<ByteBuffer> valueCreator,
-                              int valueCapacity) {
-        Rebalancer.RebalanceResult result = rebalance(c, key, keyCreator, keyCapacityCalculator, valueCreator,
-                valueCapacity, null, Operation.PUT);
-        assert result != null;
-        if (result.success) { // rebalance helped put
-            return;
-        }
-        put(key, keyCreator, keyCapacityCalculator, valueCreator, valueCapacity);
-    }
-
-    private void rebalanceCompute(Chunk c, ByteBuffer key, ByteBuffer value, Supplier<ByteBuffer> constructor, Consumer<WritableOakBuffer> function) {
-        Rebalancer.RebalanceResult result = rebalance(c, key, value, function, Operation.COMPUTE);
+    private void rebalanceCompute(Chunk<K, V> c, K key, V value, Computer computer) {
+        Rebalancer.RebalanceResult result = rebalance(c, key, value, computer, Operation.COMPUTE);
         assert result != null;
         if (result.success) { // rebalance helped compute
             return;
         }
-        putIfAbsentComputeIfPresent(key, constructor, function);
+        putIfAbsentComputeIfPresent(key, value, computer);
     }
 
-    private void rebalanceCompute(Chunk c,
-                                  Object key,
-                                  Consumer<KeyInfo> keyCreator,
-                                  Function<Object, Integer> keyCapacityCalculator,
-                                  Consumer<ByteBuffer> valueCreator,
-                                  int valueCapacity,
-                                  Consumer<WritableOakBuffer> function) {
-        Rebalancer.RebalanceResult result = rebalance(c, key, keyCreator, keyCapacityCalculator, valueCreator, valueCapacity, function, Operation.COMPUTE);
-        assert result != null;
-        if (result.success) { // rebalance helped compute
-            return;
-        }
-        putIfAbsentComputeIfPresent(key, keyCreator, keyCapacityCalculator, valueCreator, valueCapacity, function);
-    }
-
-    private boolean rebalanceRemove(Chunk c, Object key) {
+    private boolean rebalanceRemove(Chunk<K, V> c, K key) {
         Rebalancer.RebalanceResult result = rebalance(c, key, null, null, Operation.REMOVE);
         assert result != null;
         return result.success;
@@ -444,17 +330,17 @@ public class OakMapOffHeapImpl implements OakMap, AutoCloseable {
     /*-------------- oak.OakMap Methods --------------*/
 
     @Override
-    public void put(ByteBuffer key, ByteBuffer value) {
-        if (key == null || value == null || key.remaining() == 0 || value.remaining() == 0) {
+    public void put(K key, V value) {
+        if (key == null || value == null) {
             throw new NullPointerException();
         }
 
         memoryManager.startThread();
 
-        Chunk c = findChunk(key); // find chunk matching key
+        Chunk<K, V> c = findChunk(key); // find chunk matching key
         Chunk.LookUp lookUp = c.lookUp(key);
         if (lookUp != null && lookUp.handle != null) {
-            lookUp.handle.put(value, memoryManager);
+            lookUp.handle.put(value, valueSerializer, valueSizeCalculator, memoryManager);
             memoryManager.stopThread();
             return;
         }
@@ -491,96 +377,6 @@ public class OakMapOffHeapImpl implements OakMap, AutoCloseable {
                 memoryManager.stopThread();
                 return;
             }
-            int prevEi = c.linkEntry(ei, key, true);
-            if (prevEi != ei) {
-                ei = prevEi;
-                prevHi = c.getHandleIndex(prevEi);
-            }
-        }
-
-        int hi = c.allocateHandle(handleFactory);
-        if (hi == -1) {
-            rebalancePut(c, key, value);
-            memoryManager.stopThread();
-            return;
-        }
-
-        c.writeValue(hi, valueFactory.createValue(value, memoryManager)); // write value in place
-
-        Chunk.OpData opData = new Chunk.OpData(Operation.PUT, ei, hi, prevHi, null);
-
-        // publish put
-        if (!c.publish(opData)) {
-            rebalancePut(c, key, value);
-            memoryManager.stopThread();
-            return;
-        }
-
-        // set pointer to value
-        c.pointToValue(opData);
-
-        c.unpublish(opData);
-
-        checkRebalance(c);
-
-        memoryManager.stopThread();
-
-    }
-
-    @Override
-    public void put(Object key,
-                    Consumer<KeyInfo> keyCreator,
-                    Function<Object, Integer> keyCapacityCalculator,
-                    Consumer<ByteBuffer> valueCreator,
-                    int valueCapacity) {
-        if (key == null || keyCreator == null || keyCapacityCalculator == null ||
-                valueCreator == null || valueCapacity == 0) {
-            throw new NullPointerException();
-        }
-
-        memoryManager.startThread();
-
-        Chunk c = findChunk(key); // find chunk matching key
-        Chunk.LookUp lookUp = c.lookUp(key);
-        if (lookUp != null && lookUp.handle != null) {
-            lookUp.handle.put(valueCreator, valueCapacity, memoryManager);
-            memoryManager.stopThread();
-            return;
-        }
-
-        // if chunk is frozen or infant, we can't add to it
-        // we need to help rebalancer first, then proceed
-        Chunk.State state = c.state();
-        if (state == Chunk.State.INFANT) {
-            // the infant is already connected so rebalancer won't add this put
-            rebalance(c.creator(), null, null, null, null,
-                    0, null, Operation.NO_OP);
-            put(key, keyCreator, keyCapacityCalculator, valueCreator, valueCapacity);
-            memoryManager.stopThread();
-            return;
-        }
-        if (state == Chunk.State.FROZEN || state == Chunk.State.RELEASED) {
-            rebalancePut(c, key, keyCreator, keyCapacityCalculator, valueCreator, valueCapacity);
-            memoryManager.stopThread();
-            return;
-        }
-
-        int ei = -1;
-        int prevHi = -1;
-        if (lookUp != null) {
-            assert lookUp.handle == null;
-            ei = lookUp.entryIndex;
-            assert ei > 0;
-            prevHi = lookUp.handleIndex;
-        }
-
-        if (ei == -1) {
-            ei = c.allocateEntryAndKey(key, keyCreator, keyCapacityCalculator);
-            if (ei == -1) {
-                rebalancePut(c, key, keyCreator, keyCapacityCalculator, valueCreator, valueCapacity);
-                memoryManager.stopThread();
-                return;
-            }
             int prevEi = c.linkEntry(ei, true, key);
             if (prevEi != ei) {
                 ei = prevEi;
@@ -590,18 +386,18 @@ public class OakMapOffHeapImpl implements OakMap, AutoCloseable {
 
         int hi = c.allocateHandle(handleFactory);
         if (hi == -1) {
-            rebalancePut(c, key, keyCreator, keyCapacityCalculator, valueCreator, valueCapacity);
+            rebalancePut(c, key, value);
             memoryManager.stopThread();
             return;
         }
 
-        c.writeValue(hi, valueFactory.createValue(valueCreator, valueCapacity, memoryManager)); // write value in place
+        c.writeValue(hi, value); // write value in place
 
         Chunk.OpData opData = new Chunk.OpData(Operation.PUT, ei, hi, prevHi, null);
 
         // publish put
         if (!c.publish(opData)) {
-            rebalancePut(c, key, keyCreator, keyCapacityCalculator, valueCreator, valueCapacity);
+            rebalancePut(c, key, value);
             memoryManager.stopThread();
             return;
         }
@@ -617,12 +413,12 @@ public class OakMapOffHeapImpl implements OakMap, AutoCloseable {
     }
 
     @Override
-    public boolean putIfAbsent(ByteBuffer key, ByteBuffer value) {
+    public boolean putIfAbsent(K key, V value) {
         return putIfAbsent(key, value, true);
     }
 
-    public boolean putIfAbsent(ByteBuffer key, ByteBuffer value, boolean startThread) {
-        if (key == null || value == null || key.remaining() == 0 || value.remaining() == 0) {
+    public boolean putIfAbsent(K key, V value, boolean startThread) {
+        if (key == null || value == null) {
             throw new NullPointerException();
         }
 
@@ -664,102 +460,6 @@ public class OakMapOffHeapImpl implements OakMap, AutoCloseable {
             if (ei == -1) {
                 return rebalancePutIfAbsent(c, key, value);
             }
-            int prevEi = c.linkEntry(ei, key, true);
-            if (prevEi != ei) {
-                Handle handle = c.getHandle(prevEi);
-                if (handle == null) {
-                    ei = prevEi;
-                    prevHi = c.getHandleIndex(prevEi);
-                } else {
-                    memoryManager.stopThread();
-                    return false;
-                }
-            }
-        }
-
-        int hi = c.allocateHandle(handleFactory);
-        if (hi == -1) {
-            return rebalancePutIfAbsent(c, key, value);
-        }
-
-        c.writeValue(hi, valueFactory.createValue(value, memoryManager)); // write value in place
-
-        Chunk.OpData opData = new Chunk.OpData(Operation.PUT_IF_ABSENT, ei, hi, prevHi, null);
-
-        // publish put
-        if (!c.publish(opData)) {
-            return rebalancePutIfAbsent(c, key, value);
-        }
-
-        // set pointer to value
-        boolean ret = c.pointToValue(opData);
-
-        c.unpublish(opData);
-
-        checkRebalance(c);
-
-        memoryManager.stopThread();
-        return ret;
-    }
-
-    @Override
-    public boolean putIfAbsent(Object key,
-                               Consumer<KeyInfo> keyCreator,
-                               Function<Object, Integer> keyCapacityCalculator,
-                               Consumer<ByteBuffer> valueCreator,
-                               int valueCapacity) {
-        return putIfAbsent(key, keyCreator, keyCapacityCalculator, valueCreator, valueCapacity, true);
-    }
-
-    public boolean putIfAbsent(Object key,
-                               Consumer<KeyInfo> keyCreator,
-                               Function<Object, Integer> keyCapacityCalculator,
-                               Consumer<ByteBuffer> valueCreator,
-                               int valueCapacity,
-                               boolean startThread) {
-        if (key == null || keyCreator == null || keyCapacityCalculator == null ||
-                valueCreator == null || valueCapacity <= 0) {
-            throw new NullPointerException();
-        }
-
-        if (startThread) {
-            memoryManager.startThread();
-        }
-
-        Chunk c = findChunk(key); // find chunk matching key
-        Chunk.LookUp lookUp = c.lookUp(key);
-        if (lookUp != null && lookUp.handle != null) {
-            memoryManager.stopThread();
-            return false;
-        }
-
-        // if chunk is frozen or infant, we can't add to it
-        // we need to help rebalancer first, then proceed
-        Chunk.State state = c.state();
-        if (state == Chunk.State.INFANT) {
-            // the infant is already connected so rebalancer won't add this put
-            rebalance(c.creator(), null, null, null, Operation.NO_OP);
-            return putIfAbsent(key, keyCreator, keyCapacityCalculator, valueCreator, valueCapacity, false);
-        }
-        if (state == Chunk.State.FROZEN || state == Chunk.State.RELEASED) {
-            return rebalancePutIfAbsent(c, key, keyCreator, keyCapacityCalculator, valueCreator, valueCapacity);
-        }
-
-
-        int ei = -1;
-        int prevHi = -1;
-        if (lookUp != null) {
-            assert lookUp.handle == null;
-            ei = lookUp.entryIndex;
-            assert ei > 0;
-            prevHi = lookUp.handleIndex;
-        }
-
-        if (ei == -1) {
-            ei = c.allocateEntryAndKey(key, keyCreator, keyCapacityCalculator);
-            if (ei == -1) {
-                return rebalancePutIfAbsent(c, key, keyCreator, keyCapacityCalculator, valueCreator, valueCapacity);
-            }
             int prevEi = c.linkEntry(ei, true, key);
             if (prevEi != ei) {
                 Handle handle = c.getHandle(prevEi);
@@ -775,16 +475,16 @@ public class OakMapOffHeapImpl implements OakMap, AutoCloseable {
 
         int hi = c.allocateHandle(handleFactory);
         if (hi == -1) {
-            return rebalancePutIfAbsent(c, key, keyCreator, keyCapacityCalculator, valueCreator, valueCapacity);
+            return rebalancePutIfAbsent(c, key, value);
         }
 
-        c.writeValue(hi, valueFactory.createValue(valueCreator, valueCapacity, memoryManager)); // write value in place
+        c.writeValue(hi, value); // write value in place
 
         Chunk.OpData opData = new Chunk.OpData(Operation.PUT_IF_ABSENT, ei, hi, prevHi, null);
 
         // publish put
         if (!c.publish(opData)) {
-            return rebalancePutIfAbsent(c, key, keyCreator, keyCapacityCalculator, valueCreator, valueCapacity);
+            return rebalancePutIfAbsent(c, key, value);
         }
 
         // set pointer to value
@@ -799,8 +499,8 @@ public class OakMapOffHeapImpl implements OakMap, AutoCloseable {
     }
 
     @Override
-    public void  putIfAbsentComputeIfPresent(ByteBuffer key, Supplier<ByteBuffer> constructor, Consumer<WritableOakBuffer> function) {
-        if (key == null || key.remaining() == 0 || constructor == null || function == null) {
+    public void putIfAbsentComputeIfPresent(K key, V value, Computer computer) {
+        if (key == null || value == null || computer == null) {
             throw new NullPointerException();
         }
 
@@ -809,17 +509,12 @@ public class OakMapOffHeapImpl implements OakMap, AutoCloseable {
         Chunk c = findChunk(key); // find chunk matching key
         Chunk.LookUp lookUp = c.lookUp(key);
         if (lookUp != null && lookUp.handle != null) {
-            if (lookUp.handle.compute(function, memoryManager)) {
+            if (lookUp.handle.compute(computer, memoryManager)) {
                 // compute was successful and handle wasn't found deleted; in case
                 // this handle was already found as deleted, continue to construct another handle
                 memoryManager.stopThread();
                 return;
             }
-        }
-
-        ByteBuffer value = constructor.get();
-        if (value == null || value.remaining() == 0) {
-            throw new NullPointerException();
         }
 
         // if chunk is frozen or infant, we can't add to it
@@ -828,12 +523,12 @@ public class OakMapOffHeapImpl implements OakMap, AutoCloseable {
         if (state == Chunk.State.INFANT) {
             // the infant is already connected so rebalancer won't add this put
             rebalance(c.creator(), null, null, null, Operation.NO_OP);
-            putIfAbsentComputeIfPresent(key, constructor, function);
+            putIfAbsentComputeIfPresent(key, value, computer);
             memoryManager.stopThread();
             return;
         }
         if (state == Chunk.State.FROZEN || state == Chunk.State.RELEASED) {
-            rebalanceCompute(c, key, value, constructor, function);
+            rebalanceCompute(c, key, value, computer);
             memoryManager.stopThread();
             return;
         }
@@ -853,113 +548,7 @@ public class OakMapOffHeapImpl implements OakMap, AutoCloseable {
         if (ei == -1) {
             ei = c.allocateEntryAndKey(key);
             if (ei == -1) {
-                rebalanceCompute(c, key, value, constructor, function);
-                memoryManager.stopThread();
-                return;
-            }
-            int prevEi = c.linkEntry(ei, key, true);
-            if (prevEi != ei) {
-                Handle handle = c.getHandle(prevEi);
-                if (handle == null) {
-                    ei = prevEi;
-                    prevHi = c.getHandleIndex(prevEi);
-                } else {
-                    if (handle.compute(function, memoryManager)) {
-                        // compute was successful and handle wasn't found deleted; in case
-                        // this handle was already found as deleted, continue to construct another handle
-                        memoryManager.stopThread();
-                        return;
-                    }
-                }
-            }
-        }
-
-        int hi = c.allocateHandle(handleFactory);
-        if (hi == -1) {
-            rebalanceCompute(c, key, value, constructor, function);
-            memoryManager.stopThread();
-            return;
-        }
-
-        c.writeValue(hi, valueFactory.createValue(value, memoryManager)); // write value in place
-
-        Chunk.OpData opData = new Chunk.OpData(Operation.COMPUTE, ei, hi, prevHi, function);
-
-        // publish put
-        if (!c.publish(opData)) {
-            rebalanceCompute(c, key, value, constructor, function);
-            memoryManager.stopThread();
-            return;
-        }
-
-        // set pointer to value
-        c.pointToValue(opData);
-
-        c.unpublish(opData);
-
-        checkRebalance(c);
-
-        memoryManager.stopThread();
-
-    }
-
-    @Override
-    public void putIfAbsentComputeIfPresent(Object key,
-                                            Consumer<KeyInfo> keyCreator,
-                                            Function<Object, Integer> keyCapacityCalculator,
-                                            Consumer<ByteBuffer> valueCreator,
-                                            int valueCapacity,
-                                            Consumer<WritableOakBuffer> function) {
-        if (key == null || keyCreator == null || keyCapacityCalculator == null ||
-                valueCreator == null || valueCapacity <= 0 || function == null) {
-            throw new NullPointerException();
-        }
-
-        memoryManager.startThread();
-
-        Chunk c = findChunk(key); // find chunk matching key
-        Chunk.LookUp lookUp = c.lookUp(key);
-        if (lookUp != null && lookUp.handle != null) {
-            if (lookUp.handle.compute(function, memoryManager)) {
-                // compute was successful and handle wasn't found deleted; in case
-                // this handle was already found as deleted, continue to construct another handle
-                memoryManager.stopThread();
-                return;
-            }
-        }
-
-        // if chunk is frozen or infant, we can't add to it
-        // we need to help rebalancer first, then proceed
-        Chunk.State state = c.state();
-        if (state == Chunk.State.INFANT) {
-            // the infant is already connected so rebalancer won't add this put
-            rebalance(c.creator(), null, null, null, null, 0, null, Operation.NO_OP);
-            putIfAbsentComputeIfPresent(key, keyCreator, keyCapacityCalculator, valueCreator, valueCapacity, function);
-            memoryManager.stopThread();
-            return;
-        }
-        if (state == Chunk.State.FROZEN || state == Chunk.State.RELEASED) {
-            rebalanceCompute(c, key, keyCreator, keyCapacityCalculator, valueCreator, valueCapacity, function);
-            memoryManager.stopThread();
-            return;
-        }
-
-        // we come here when no key was found, which can be in 3 cases:
-        // 1. no entry in the linked list at all
-        // 2. entry in the linked list, but handle is not attached
-        // 3. entry in the linked list, handle attached, but handle is marked deleted
-        int ei = -1;
-        int prevHi = -1;
-        if (lookUp != null) {
-            ei = lookUp.entryIndex;
-            assert ei > 0;
-            prevHi = lookUp.handleIndex;
-        }
-
-        if (ei == -1) {
-            ei = c.allocateEntryAndKey(key, keyCreator, keyCapacityCalculator);
-            if (ei == -1) {
-                rebalanceCompute(c, key, keyCreator, keyCapacityCalculator, valueCreator, valueCapacity, function);
+                rebalanceCompute(c, key, value, computer);
                 memoryManager.stopThread();
                 return;
             }
@@ -970,7 +559,7 @@ public class OakMapOffHeapImpl implements OakMap, AutoCloseable {
                     ei = prevEi;
                     prevHi = c.getHandleIndex(prevEi);
                 } else {
-                    if (handle.compute(function, memoryManager)) {
+                    if (handle.compute(computer, memoryManager)) {
                         // compute was successful and handle wasn't found deleted; in case
                         // this handle was already found as deleted, continue to construct another handle
                         memoryManager.stopThread();
@@ -982,18 +571,18 @@ public class OakMapOffHeapImpl implements OakMap, AutoCloseable {
 
         int hi = c.allocateHandle(handleFactory);
         if (hi == -1) {
-            rebalanceCompute(c, key, keyCreator, keyCapacityCalculator, valueCreator, valueCapacity, function);
+            rebalanceCompute(c, key, value, computer);
             memoryManager.stopThread();
             return;
         }
 
-        c.writeValue(hi, valueFactory.createValue(valueCreator, valueCapacity, memoryManager)); // write value in place
+        c.writeValue(hi, value); // write value in place
 
-        Chunk.OpData opData = new Chunk.OpData(Operation.COMPUTE, ei, hi, prevHi, function);
+        Chunk.OpData opData = new Chunk.OpData(Operation.COMPUTE, ei, hi, prevHi, computer);
 
         // publish put
         if (!c.publish(opData)) {
-            rebalanceCompute(c, key, keyCreator, keyCapacityCalculator, valueCreator, valueCapacity, function);
+            rebalanceCompute(c, key, value, computer);
             memoryManager.stopThread();
             return;
         }
@@ -1009,7 +598,7 @@ public class OakMapOffHeapImpl implements OakMap, AutoCloseable {
     }
 
     @Override
-    public void remove(Object key) {
+    public void remove(K key) {
         if (key == null) {
             throw new NullPointerException();
         }
@@ -1091,20 +680,31 @@ public class OakMapOffHeapImpl implements OakMap, AutoCloseable {
     }
 
     @Override
-    public OakBuffer get(Object key) {
+    public V get(K key) {
         if (key == null) {
             throw new NullPointerException();
         }
 
         memoryManager.startThread();
-        Chunk c = findChunk(key); // find chunk matching key
+        Chunk<K, V> c = findChunk(key); // find chunk matching key
         Chunk.LookUp lookUp = c.lookUp(key);
-        memoryManager.stopThread();
-        return lookUp == null || lookUp.handle == null ? null : new OakBufferImpl(lookUp.handle);
+        if (lookUp == null || lookUp.handle == null) {
+            return null;
+        }
+        lookUp.handle.readLock.lock();
+        V value;
+        try {
+            ByteBuffer serializedValue = lookUp.handle.getImmutableByteBuffer();
+            value = valueDeserializer.deserialize(serializedValue);
+        } finally {
+            lookUp.handle.readLock.unlock();
+            memoryManager.stopThread();
+        }
+        return value;
     }
 
     @Override
-    public <T> T getTransformation(Object key, Function<ByteBuffer,T> transformer) {
+    public <T> T getTransformation(K key, Function<ByteBuffer,T> transformer) {
         if (key == null || transformer == null) {
             throw new NullPointerException();
         }
@@ -1129,23 +729,20 @@ public class OakMapOffHeapImpl implements OakMap, AutoCloseable {
     }
 
     @Override
-    public <T> T getMinKey(Function<ByteBuffer,T> transformer) {
-        if (transformer == null) {
-            throw new NullPointerException();
-        }
+    public K getMinKey() {
         memoryManager.startThread();
         Chunk c = skiplist.firstEntry().getValue();
-        ByteBuffer minKey = c.readMinKey();
-        T transformation = transformer.apply(minKey);
+        ByteBuffer serializedMinKey = c.readMinKey();
+        K minKey = keyDeserializer.deserialize(serializedMinKey);
         memoryManager.stopThread();
-        return transformation;
+        return minKey;
     }
 
     @Override
-    public <T> T getMaxKey(Function<ByteBuffer,T> transformer) {
+    public K getMaxKey() {
         memoryManager.startThread();
-        Chunk c = skiplist.lastEntry().getValue();
-        Chunk next = c.next.getReference();
+        Chunk<K, V> c = skiplist.lastEntry().getValue();
+        Chunk<K, V> next = c.next.getReference();
         // since skiplist isn't updated atomically in split/compaction, the max key might belong in the next chunk
         // we need to iterate the chunks until we find the last one
         while (next != null) {
@@ -1153,15 +750,15 @@ public class OakMapOffHeapImpl implements OakMap, AutoCloseable {
             next = c.next.getReference();
         }
 
-        ByteBuffer maxKey = c.readMaxKey();
-        T transformation = transformer.apply(maxKey);
+        ByteBuffer serializedMaxKey = c.readMaxKey();
+        K maxKey = keyDeserializer.deserialize(serializedMaxKey);
         memoryManager.stopThread();
-        return transformation;
+        return maxKey;
     }
 
     @Override
-    public boolean computeIfPresent(Object key, Consumer<WritableOakBuffer> function) {
-        if (key == null || function == null) {
+    public boolean computeIfPresent(K key, Computer computer) {
+        if (key == null || computer == null) {
             throw new NullPointerException();
         }
 
@@ -1172,7 +769,7 @@ public class OakMapOffHeapImpl implements OakMap, AutoCloseable {
 
         memoryManager.stopThread();
 
-        lookUp.handle.compute(function, memoryManager);
+        lookUp.handle.compute(computer, memoryManager);
         return true;
     }
 
@@ -1221,13 +818,13 @@ public class OakMapOffHeapImpl implements OakMap, AutoCloseable {
         /**
          * the next node to return from next();
          */
-        Chunk nextChunk;
+        Chunk<K, V> nextChunk;
         Chunk.AscendingIter nextChunkIter;
         int next;
         /**
          * Cache of next value field to maintain weak consistency
          */
-        OakBuffer nextValue;
+        Handle nextHandle;
 
         /**
          * Initializes ascending iterator for entire range.
@@ -1235,7 +832,7 @@ public class OakMapOffHeapImpl implements OakMap, AutoCloseable {
         Iter() {
             memoryManager.startThread();
             next = Chunk.NONE;
-            nextValue = null;
+            nextHandle = null;
             initChunk();
             findNextKey();
         }
@@ -1284,7 +881,7 @@ public class OakMapOffHeapImpl implements OakMap, AutoCloseable {
                 nextChunk = nextChunk.next.getReference(); // try next chunk
                 if (nextChunk == null) { // there is no next chunk
                     next = Chunk.NONE;
-                    nextValue = null;
+                    nextHandle = null;
                     return;
                 }
                 nextChunkIter = nextChunk.ascendingIter();
@@ -1295,9 +892,9 @@ public class OakMapOffHeapImpl implements OakMap, AutoCloseable {
             // set next value
             Handle h = nextChunk.getHandle(next);
             if (h != null) {
-                nextValue = new OakBufferImpl(h);
+                nextHandle = h;
             } else {
-                nextValue = null;
+                nextHandle = null;
             }
 
         }
@@ -1308,36 +905,48 @@ public class OakMapOffHeapImpl implements OakMap, AutoCloseable {
 
     }
 
-    class ValueIterator extends Iter<OakBuffer> {
+    class ValueIterator extends Iter<V> {
 
-        public OakBuffer next() {
-            OakBuffer v = nextValue;
+        public V next() {
+            Handle handle = nextHandle;
             advance();
-            return v;
+            if (handle == null)
+                return null;
+            handle.readLock.lock();
+            V value = valueDeserializer.deserialize(handle.getImmutableByteBuffer());
+            handle.readLock.unlock();
+            return value;
         }
     }
 
-    class EntryIterator extends Iter<Map.Entry<ByteBuffer, OakBuffer>> {
+    class EntryIterator extends Iter<Map.Entry<K, V>> {
 
-        public Map.Entry<ByteBuffer, OakBuffer> next() {
+        public Map.Entry<K, V> next() {
             int n = next;
             Chunk c = nextChunk;
-            OakBuffer v = nextValue;
+            Handle handle = nextHandle;
             advance();
-            ByteBuffer key = getKey(n, c);
-            key = key.slice(); // TODO can I get rid of this?
-            return new AbstractMap.SimpleImmutableEntry<>(key, v);
+            if (handle == null)
+                return null;
+            handle.readLock.lock();
+            V value = valueDeserializer.deserialize(handle.getImmutableByteBuffer());
+            handle.readLock.unlock();
+            ByteBuffer serializedKey = getKey(n, c);
+            serializedKey = serializedKey.slice(); // TODO can I get rid of this?
+            K key = keyDeserializer.deserialize(serializedKey);
+            return new AbstractMap.SimpleImmutableEntry<K, V>(key, value);
         }
     }
 
-    class KeyIterator extends Iter<ByteBuffer> {
+    class KeyIterator extends Iter<K> {
 
-        public ByteBuffer next() {
+        public K next() {
             int n = next;
             Chunk c = nextChunk;
             advance();
-            ByteBuffer key = getKey(n, c);
-            key = key.slice(); // TODO can I get rid of this?
+            ByteBuffer serializedKey = getKey(n, c);
+            serializedKey = serializedKey.slice(); // TODO can I get rid of this?
+            K key = keyDeserializer.deserialize(serializedKey);
             return key;
         }
     }
@@ -1410,17 +1019,17 @@ public class OakMapOffHeapImpl implements OakMap, AutoCloseable {
 // Factory methods for iterators
 
     @Override
-    public CloseableIterator<OakBuffer> valuesIterator() {
+    public CloseableIterator<V> valuesIterator() {
         return new ValueIterator();
     }
 
     @Override
-    public CloseableIterator<Map.Entry<ByteBuffer, OakBuffer>> entriesIterator() {
+    public CloseableIterator<Map.Entry<K, V>> entriesIterator() {
         return new EntryIterator();
     }
 
     @Override
-    public CloseableIterator<ByteBuffer> keysIterator() {
+    public CloseableIterator<K> keysIterator() {
         return new KeyIterator();
     }
 
@@ -1441,7 +1050,7 @@ public class OakMapOffHeapImpl implements OakMap, AutoCloseable {
 
     /* ---------------- Sub Map -------------- */
 
-    public class SubOakMap implements OakMap {
+    public class SubOakMap<K, V> implements OakMap<K, V> {
         /**
          * underlying map
          */
@@ -1449,11 +1058,11 @@ public class OakMapOffHeapImpl implements OakMap, AutoCloseable {
         /**
          * lower bound key, or null if from start
          */
-        private final Object lo;
+        private final K lo;
         /**
          * upper bound key, or null if to end
          */
-        private final Object hi;
+        private final K hi;
         /**
          * inclusion flag for lo
          */
@@ -1471,8 +1080,8 @@ public class OakMapOffHeapImpl implements OakMap, AutoCloseable {
          * Creates a new submap, initializing all fields.
          */
         public SubOakMap(OakMapOffHeapImpl oak,
-                         Object fromKey, boolean fromInclusive,
-                         Object toKey, boolean toInclusive,
+                         K fromKey, boolean fromInclusive,
+                         K toKey, boolean toInclusive,
                   boolean isDescending) {
             if (fromKey != null && toKey != null &&
                     oak.comparator.compare(fromKey, toKey) > 0)
@@ -1483,6 +1092,14 @@ public class OakMapOffHeapImpl implements OakMap, AutoCloseable {
             this.loInclusive = fromInclusive;
             this.hiInclusive = toInclusive;
             this.isDescending = isDescending;
+        }
+
+        /**
+         * @return current off heap memory usage of the original oak in bytes
+         */
+        @Override
+        public long memorySize() {
+            return oak.memorySize();
         }
 
         /*-------------- Utilities --------------*/
@@ -1512,11 +1129,11 @@ public class OakMapOffHeapImpl implements OakMap, AutoCloseable {
          * Utility to create submaps, where given bounds override
          * unbounded(null) ones and/or are checked against bounded ones.
          */
-        OakMapOffHeapImpl.SubOakMap newSubOakMap(Object fromKey, boolean fromInclusive,
-                                                 Object toKey, boolean toInclusive) {
+        OakMapOffHeapImpl.SubOakMap newSubOakMap(K fromKey, boolean fromInclusive,
+                                                 K toKey, boolean toInclusive) {
             if (isDescending) { // flip senses
                 // TODO look into this
-                Object tk = fromKey;
+                K tk = fromKey;
                 fromKey = toKey;
                 toKey = tk;
                 boolean ti = fromInclusive;
@@ -1550,88 +1167,60 @@ public class OakMapOffHeapImpl implements OakMap, AutoCloseable {
         /*-------------- oak.OakMap Methods --------------*/
 
         @Override
-        public void put(ByteBuffer key, ByteBuffer value) {
+        public void put(K key, V value) {
             oak.put(key, value);
         }
 
         @Override
-        public void put(Object key,
-                        Consumer<KeyInfo> keyCreator,
-                        Function<Object, Integer> keyCapacityCalculator,
-                        Consumer<ByteBuffer> valueCreator,
-                        int valueCapacity) {
-            oak.put(key, keyCreator, keyCapacityCalculator, valueCreator, valueCapacity);
-        }
-
-        @Override
-        public boolean putIfAbsent(ByteBuffer key, ByteBuffer value) {
+        public boolean putIfAbsent(K key, V value) {
             return oak.putIfAbsent(key, value);
         }
 
         @Override
-        public boolean putIfAbsent(Object key,
-                                   Consumer<KeyInfo> keyCreator,
-                                   Function<Object, Integer> keyCapacityCalculator,
-                                   Consumer<ByteBuffer> valueCreator,
-                                   int valueCapacity) {
-            return oak.putIfAbsent(key, keyCreator, keyCapacityCalculator, valueCreator, valueCapacity);
+        public void putIfAbsentComputeIfPresent(K key, V value, Computer computer) {
+            oak.putIfAbsentComputeIfPresent(key, value, computer);
         }
 
         @Override
-        public void putIfAbsentComputeIfPresent(ByteBuffer key, Supplier<ByteBuffer> constructor, Consumer<WritableOakBuffer> function) {
-            oak.putIfAbsentComputeIfPresent(key, constructor, function);
-        }
-
-        @Override
-        public void putIfAbsentComputeIfPresent(Object key,
-                                                Consumer<KeyInfo> keyCreator,
-                                                Function<Object, Integer> keyCapacityCalculator,
-                                                Consumer<ByteBuffer> valueCreator,
-                                                int valueCapacity,
-                                                Consumer<WritableOakBuffer> function) {
-            oak.putIfAbsentComputeIfPresent(key, keyCreator, keyCapacityCalculator, valueCreator, valueCapacity, function);
-        }
-
-        @Override
-        public void remove(Object key) {
+        public void remove(K key) {
             if (inBounds(key)) {
                 oak.remove(key);
             }
         }
 
         @Override
-        public OakBuffer get(Object key) {
+        public V get(K key) {
             if (key == null) throw new NullPointerException();
-            return (!inBounds(key)) ? null : oak.get(key);
+            return (!inBounds(key)) ? null : (V) oak.get(key);
         }
 
         @Override
-        public <T> T getTransformation(Object key, Function<ByteBuffer,T> transformer) {
+        public <T> T getTransformation(K key, Function<ByteBuffer,T> transformer) {
             if (key == null || transformer == null) throw new NullPointerException();
-            return (!inBounds(key)) ? null : oak.getTransformation(key, transformer);
+            return (!inBounds(key)) ? null : (T) oak.getTransformation(key, transformer);
         }
 
         @Override
-        public boolean computeIfPresent(Object key, Consumer<WritableOakBuffer> function) {
-            return oak.computeIfPresent(key, function);
+        public boolean computeIfPresent(K key, Computer computer) {
+            return oak.computeIfPresent(key, computer);
         }
 
         @Override
-        public OakMap subMap(Object fromKey, boolean fromInclusive, Object toKey, boolean toInclusive) {
+        public OakMap subMap(K fromKey, boolean fromInclusive, K toKey, boolean toInclusive) {
             if (fromKey == null || toKey == null)
                 throw new NullPointerException();
             return newSubOakMap(fromKey, fromInclusive, toKey, toInclusive);
         }
 
         @Override
-        public OakMap headMap(Object toKey, boolean inclusive) {
+        public OakMap headMap(K toKey, boolean inclusive) {
             if (toKey == null)
                 throw new NullPointerException();
             return newSubOakMap(null, false, toKey, inclusive);
         }
 
         @Override
-        public OakMap tailMap(Object fromKey, boolean inclusive) {
+        public OakMap tailMap(K fromKey, boolean inclusive) {
             if (fromKey == null)
                 throw new NullPointerException();
             return newSubOakMap(fromKey, inclusive, null, false);
@@ -1644,13 +1233,13 @@ public class OakMapOffHeapImpl implements OakMap, AutoCloseable {
         }
 
         @Override
-        public <T> T getMinKey(Function<ByteBuffer,T> transformer) {
-            return oak.getMinKey(transformer);
+        public K getMinKey() {
+            return (K) oak.getMinKey();
         }
 
         @Override
-        public <T> T getMaxKey(Function<ByteBuffer,T> transformer) {
-            return oak.getMaxKey(transformer);
+        public K getMaxKey() {
+            return (K) oak.getMaxKey();
         }
 
         /*-------------- Iterators --------------*/
@@ -1660,18 +1249,18 @@ public class OakMapOffHeapImpl implements OakMap, AutoCloseable {
             /**
              * the next node to return from next();
              */
-            Chunk nextChunk;
+            Chunk<K, V> nextChunk;
             Chunk.ChunkIter nextChunkIter;
             int next;
             /**
              * Cache of next value field to maintain weak consistency
              */
-            OakBuffer nextValue;
+            Handle nextHandle;
 
             SubOakMapIter() {
                 memoryManager.startThread();
                 next = Chunk.NONE;
-                nextValue = null;
+                nextHandle = null;
                 initChunk();
                 findNextKeyInRange();
             }
@@ -1700,17 +1289,17 @@ public class OakMapOffHeapImpl implements OakMap, AutoCloseable {
             private void initChunk() {
                 if (!isDescending) {
                     if (lo != null)
-                        nextChunk = oak.skiplist.floorEntry(lo).getValue();
+                        nextChunk = (Chunk<K, V>) oak.skiplist.floorEntry(lo).getValue();
                     else
-                        nextChunk = oak.skiplist.floorEntry(oak.minKey).getValue();
+                        nextChunk = (Chunk<K, V>) oak.skiplist.floorEntry(oak.minKey).getValue();
                     if (nextChunk == null) {
                         nextChunkIter = null;
                     } else {
                         nextChunkIter = lo != null ? nextChunk.ascendingIter(lo) : nextChunk.ascendingIter();
                     }
                 } else {
-                    nextChunk = hi != null ? oak.skiplist.floorEntry(hi).getValue()
-                            : oak.skiplist.lastEntry().getValue();
+                    nextChunk = hi != null ? (Chunk<K, V>) oak.skiplist.floorEntry(hi).getValue()
+                            : (Chunk<K, V>) oak.skiplist.lastEntry().getValue();
                     if (nextChunk == null) {
                         nextChunkIter = null;
                     } else {
@@ -1739,7 +1328,7 @@ public class OakMapOffHeapImpl implements OakMap, AutoCloseable {
                     nextChunk = nextChunk.next.getReference(); // try next chunk
                     if (nextChunk == null) { // there is no next chunk
                         next = Chunk.NONE;
-                        nextValue = null;
+                        nextHandle = null;
                         return false;
                     }
                     nextChunkIter = nextChunk.ascendingIter();
@@ -1759,7 +1348,7 @@ public class OakMapOffHeapImpl implements OakMap, AutoCloseable {
                     if (tooHigh(key)) {
                         // if we reached a key that is too high then there is no key in range
                         next = Chunk.NONE;
-                        nextValue = null;
+                        nextHandle = null;
                         return;
                     }
                     if (!findNextChunk()) {
@@ -1771,9 +1360,9 @@ public class OakMapOffHeapImpl implements OakMap, AutoCloseable {
                 // set next value
                 Handle h = nextChunk.getHandle(next);
                 if (h != null) {
-                    nextValue = new OakBufferImpl(h);
+                    nextHandle = h;
                 } else {
-                    nextValue = null;
+                    nextHandle = null;
                 }
             }
 
@@ -1784,25 +1373,25 @@ public class OakMapOffHeapImpl implements OakMap, AutoCloseable {
                     if (e == null) { // there no next chunk
                         assert minKey == oak.minKey;
                         next = Chunk.NONE;
-                        nextValue = null;
+                        nextHandle = null;
                         return false;
                     }
                     nextChunk = (Chunk) e.getValue();
                     Chunk nextNext = nextChunk.next.getReference();
                     if (nextNext == null) {
-                        nextChunkIter = nextChunk.descendingIter(minKey, false);
+                        nextChunkIter = nextChunk.descendingIter((K) keyDeserializer.deserialize(minKey), false);
                         continue;
                     }
                     ByteBuffer nextMinKey = nextNext.minKey;
-                    if (nextMinKey.compareTo(minKey) < 0) {
+                    if (comparator.compare(nextMinKey, minKey) < 0) {
                         nextChunk = nextNext;
                         nextMinKey = nextChunk.next.getReference().minKey;
-                        while (nextMinKey.compareTo(minKey) < 0) {
+                        while (comparator.compare(nextMinKey, minKey) < 0) {
                             nextChunk = nextChunk.next.getReference();
                             nextMinKey = nextChunk.next.getReference().minKey;
                         }
                     }
-                    nextChunkIter = nextChunk.descendingIter(minKey, false); // TODO check correctness
+                    nextChunkIter = nextChunk.descendingIter((K) keyDeserializer.deserialize(minKey), false); // TODO check correctness
                 }
                 return true;
             }
@@ -1819,7 +1408,7 @@ public class OakMapOffHeapImpl implements OakMap, AutoCloseable {
                     if (tooLow(key)) {
                         // if we reached a key that is too low then there is no key in range
                         next = Chunk.NONE;
-                        nextValue = null;
+                        nextHandle = null;
                         return;
                     }
                     if (!findPrevChunk()) {
@@ -1828,7 +1417,7 @@ public class OakMapOffHeapImpl implements OakMap, AutoCloseable {
                     next = nextChunkIter.next();
                     key = getKey(next, nextChunk);
                 }
-                nextValue = nextChunk.getHandle(next); // set next value
+                nextHandle = nextChunk.getHandle(next); // set next value
             }
 
             ByteBuffer getKey(int ki, Chunk c) {
@@ -1837,41 +1426,57 @@ public class OakMapOffHeapImpl implements OakMap, AutoCloseable {
 
         }
 
-        class SubOakValueIterator extends SubOakMapIter<OakBuffer> {
+        class SubOakValueIterator extends SubOakMapIter<V> {
 
             SubOakValueIterator() {
                 super();
             }
 
-            public OakBuffer next() {
-                OakBuffer v = nextValue;
+            public V next() {
+                Handle handle = nextHandle;
                 advance();
-                return v;
+                if (handle == null)
+                    return null;
+                handle.readLock.lock();
+                V value = (V) oak.valueDeserializer.deserialize(handle.getImmutableByteBuffer());
+                handle.readLock.unlock();
+                return value;
             }
         }
 
-        class SubOakEntryIterator extends SubOakMapIter<Map.Entry<ByteBuffer, OakBuffer>> {
+        class SubOakEntryIterator extends SubOakMapIter<Map.Entry<K, V>> {
 
             SubOakEntryIterator() {
                 super();
             }
 
-            public Map.Entry<ByteBuffer, OakBuffer> next() {
+            public Map.Entry<K, V> next() {
                 int n = next;
                 Chunk c = nextChunk;
-                OakBuffer v = nextValue;
+                Handle handle = nextHandle;
+                if (handle == null)
+                    return null;
                 advance();
-                return new AbstractMap.SimpleImmutableEntry<>(getKey(n, c), v);
+                handle.readLock.lock();
+                V value = (V) oak.valueDeserializer.deserialize(handle.getImmutableByteBuffer());
+                handle.readLock.unlock();
+                ByteBuffer serializedKey = getKey(n, c);
+                serializedKey = serializedKey.slice(); // TODO can I get rid of this?
+                K key = (K) keyDeserializer.deserialize(serializedKey);
+                return new AbstractMap.SimpleImmutableEntry<K, V>(key, value);
             }
         }
 
-        class SubOakKeyIterator extends SubOakMapIter<ByteBuffer> {
+        class SubOakKeyIterator extends SubOakMapIter<K> {
 
-            public ByteBuffer next() {
+            public K next() {
                 int n = next;
                 Chunk c = nextChunk;
                 advance();
-                return getKey(n, c);
+                ByteBuffer serializedKey = getKey(n, c);
+                serializedKey = serializedKey.slice(); // TODO can I get rid of this?
+                K key = (K) keyDeserializer.deserialize(serializedKey);
+                return key;
             }
         }
 
@@ -1943,17 +1548,17 @@ public class OakMapOffHeapImpl implements OakMap, AutoCloseable {
         // Factory methods for iterators
 
         @Override
-        public CloseableIterator<OakBuffer> valuesIterator() {
+        public CloseableIterator<V> valuesIterator() {
             return new SubOakValueIterator();
         }
 
         @Override
-        public CloseableIterator<Map.Entry<ByteBuffer, OakBuffer>> entriesIterator() {
+        public CloseableIterator<Map.Entry<K, V>> entriesIterator() {
             return new SubOakEntryIterator();
         }
 
         @Override
-        public CloseableIterator<ByteBuffer> keysIterator() {
+        public CloseableIterator<K> keysIterator() {
             return new SubOakKeyIterator();
         }
 

@@ -12,7 +12,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Consumer;
 
-abstract class Handle extends WritableOakBuffer {
+abstract class Handle<V> extends WritableOakBuffer {
 
     final ReentrantReadWriteLock.ReadLock readLock;
     final ReentrantReadWriteLock.WriteLock writeLock;
@@ -37,12 +37,10 @@ abstract class Handle extends WritableOakBuffer {
 
     abstract boolean remove(OakMemoryManager memoryManager);
 
-    abstract void put(ByteBuffer value, OakMemoryManager memoryManager);
-
-    abstract void put(Consumer<ByteBuffer> valueCreator, int capacity, OakMemoryManager memoryManager);
+    abstract void put(V newVal, Serializer<V> serializer, SizeCalculator<V> sizeCalculator, OakMemoryManager memoryManager);
 
     // returns false in case handle was found deleted and compute didn't take place, true otherwise
-    boolean compute(Consumer<WritableOakBuffer> function, OakMemoryManager memoryManager) {
+    boolean compute(Computer computer, OakMemoryManager memoryManager) {
         writeLock.lock();
         if (isDeleted()) {
             writeLock.unlock();
@@ -50,7 +48,7 @@ abstract class Handle extends WritableOakBuffer {
         }
         // TODO: invalidate oak buffer after accept
         try {
-            function.accept(new WritableOakBufferImpl(this, memoryManager));
+            computer.apply(this.value);
         } finally {
             value.rewind(); // TODO rewind?
             writeLock.unlock();
