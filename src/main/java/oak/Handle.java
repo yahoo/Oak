@@ -10,9 +10,8 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
-import java.util.function.Consumer;
 
-abstract class Handle<V> extends WritableOakBuffer {
+abstract class Handle<K, V> extends WritableOakBuffer {
 
     final ReentrantReadWriteLock.ReadLock readLock;
     final ReentrantReadWriteLock.WriteLock writeLock;
@@ -37,7 +36,7 @@ abstract class Handle<V> extends WritableOakBuffer {
 
     abstract boolean remove(OakMemoryManager memoryManager);
 
-    abstract void put(V newVal, Serializer<V> serializer, SizeCalculator<V> sizeCalculator, OakMemoryManager memoryManager);
+    abstract void put(V newVal, ValueSerializer<K, V> serializer, SizeCalculator<V> sizeCalculator, OakMemoryManager memoryManager);
 
     // returns false in case handle was found deleted and compute didn't take place, true otherwise
     boolean compute(Computer computer, OakMemoryManager memoryManager) {

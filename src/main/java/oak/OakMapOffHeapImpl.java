@@ -28,11 +28,9 @@ public class OakMapOffHeapImpl<K, V> implements OakMap<K, V>, AutoCloseable {
     private final HandleFactory handleFactory;
     private final ValueFactory valueFactory;
     private AtomicInteger size;
-    private Serializer<K> keySerializer;
-    private Deserializer<K> keyDeserializer;
+    private KeySerializer<K> keySerializer;
     private SizeCalculator<K> keySizeCalculator;
-    private Serializer<V> valueSerializer;
-    private Deserializer<V> valueDeserializer;
+    private ValueSerializer<K, V> valueSerializer;
     private SizeCalculator<V> valueSizeCalculator;
 
     /**
@@ -47,11 +45,9 @@ public class OakMapOffHeapImpl<K, V> implements OakMap<K, V>, AutoCloseable {
      */
     public OakMapOffHeapImpl(
             K minKey,
-            Serializer<K> keySerializer,
-            Deserializer<K> keyDeserializer,
+            KeySerializer<K> keySerializer,
             SizeCalculator<K> keySizeCalculator,
-            Serializer<V> valueSerializer,
-            Deserializer<V> valueDeserializer,
+            ValueSerializer<K, V> valueSerializer,
             SizeCalculator<V> valueSizeCalculator,
             OakComparator<K, K> keysComparator,
             OakComparator<ByteBuffer, ByteBuffer> serializationsComparator,
@@ -64,10 +60,8 @@ public class OakMapOffHeapImpl<K, V> implements OakMap<K, V>, AutoCloseable {
         this.memoryManager = new OakMemoryManager(memoryPool);
 
         this.keySerializer = keySerializer;
-        this.keyDeserializer = keyDeserializer;
         this.keySizeCalculator = keySizeCalculator;
         this.valueSerializer = valueSerializer;
-        this.valueDeserializer = valueDeserializer;
         this.valueSizeCalculator = valueSizeCalculator;
 
         this.comparator = new Comparator() {
@@ -691,11 +685,12 @@ public class OakMapOffHeapImpl<K, V> implements OakMap<K, V>, AutoCloseable {
         if (lookUp == null || lookUp.handle == null) {
             return null;
         }
+        ByteBuffer serializedKey = c.readKey(lookUp.entryIndex);
         lookUp.handle.readLock.lock();
         V value;
         try {
             ByteBuffer serializedValue = lookUp.handle.getImmutableByteBuffer();
-            value = valueDeserializer.deserialize(serializedValue);
+            value = valueSerializer.deserialize(serializedKey, serializedValue);
         } finally {
             lookUp.handle.readLock.unlock();
             memoryManager.stopThread();
@@ -733,7 +728,7 @@ public class OakMapOffHeapImpl<K, V> implements OakMap<K, V>, AutoCloseable {
         memoryManager.startThread();
         Chunk c = skiplist.firstEntry().getValue();
         ByteBuffer serializedMinKey = c.readMinKey();
-        K minKey = keyDeserializer.deserialize(serializedMinKey);
+        K minKey = keySerializer.deserialize(serializedMinKey);
         memoryManager.stopThread();
         return minKey;
     }
@@ -751,7 +746,7 @@ public class OakMapOffHeapImpl<K, V> implements OakMap<K, V>, AutoCloseable {
         }
 
         ByteBuffer serializedMaxKey = c.readMaxKey();
-        K maxKey = keyDeserializer.deserialize(serializedMaxKey);
+        K maxKey = keySerializer.deserialize(serializedMaxKey);
         memoryManager.stopThread();
         return maxKey;
     }
@@ -908,13 +903,18 @@ public class OakMapOffHeapImpl<K, V> implements OakMap<K, V>, AutoCloseable {
     class ValueIterator extends Iter<V> {
 
         public V next() {
+            int n = next;
             Handle handle = nextHandle;
+            Chunk c = nextChunk;
             advance();
             if (handle == null)
                 return null;
+            ByteBuffer serializedKey = getKey(n, c);
+            serializedKey = serializedKey.slice(); // TODO can I get rid of this?
             handle.readLock.lock();
-            V value = valueDeserializer.deserialize(handle.getImmutableByteBuffer());
+            V value = valueSerializer.deserialize(serializedKey, handle.getImmutableByteBuffer());
             handle.readLock.unlock();
+
             return value;
         }
     }
@@ -928,12 +928,12 @@ public class OakMapOffHeapImpl<K, V> implements OakMap<K, V>, AutoCloseable {
             advance();
             if (handle == null)
                 return null;
-            handle.readLock.lock();
-            V value = valueDeserializer.deserialize(handle.getImmutableByteBuffer());
-            handle.readLock.unlock();
             ByteBuffer serializedKey = getKey(n, c);
             serializedKey = serializedKey.slice(); // TODO can I get rid of this?
-            K key = keyDeserializer.deserialize(serializedKey);
+            K key = keySerializer.deserialize(serializedKey);
+            handle.readLock.lock();
+            V value = valueSerializer.deserialize(serializedKey, handle.getImmutableByteBuffer());
+            handle.readLock.unlock();
             return new AbstractMap.SimpleImmutableEntry<K, V>(key, value);
         }
     }
@@ -946,7 +946,7 @@ public class OakMapOffHeapImpl<K, V> implements OakMap<K, V>, AutoCloseable {
             advance();
             ByteBuffer serializedKey = getKey(n, c);
             serializedKey = serializedKey.slice(); // TODO can I get rid of this?
-            K key = keyDeserializer.deserialize(serializedKey);
+            K key = keySerializer.deserialize(serializedKey);
             return key;
         }
     }
@@ -1379,7 +1379,7 @@ public class OakMapOffHeapImpl<K, V> implements OakMap<K, V>, AutoCloseable {
                     nextChunk = (Chunk) e.getValue();
                     Chunk nextNext = nextChunk.next.getReference();
                     if (nextNext == null) {
-                        nextChunkIter = nextChunk.descendingIter((K) keyDeserializer.deserialize(minKey), false);
+                        nextChunkIter = nextChunk.descendingIter((K) keySerializer.deserialize(minKey), false);
                         continue;
                     }
                     ByteBuffer nextMinKey = nextNext.minKey;
@@ -1391,7 +1391,7 @@ public class OakMapOffHeapImpl<K, V> implements OakMap<K, V>, AutoCloseable {
                             nextMinKey = nextChunk.next.getReference().minKey;
                         }
                     }
-                    nextChunkIter = nextChunk.descendingIter((K) keyDeserializer.deserialize(minKey), false); // TODO check correctness
+                    nextChunkIter = nextChunk.descendingIter((K) keySerializer.deserialize(minKey), false); // TODO check correctness
                 }
                 return true;
             }
@@ -1433,12 +1433,16 @@ public class OakMapOffHeapImpl<K, V> implements OakMap<K, V>, AutoCloseable {
             }
 
             public V next() {
+                int n = next;
                 Handle handle = nextHandle;
+                Chunk c = nextChunk;
                 advance();
                 if (handle == null)
                     return null;
+                ByteBuffer serializedKey = getKey(n, c);
+                serializedKey = serializedKey.slice(); // TODO can I get rid of this?
                 handle.readLock.lock();
-                V value = (V) oak.valueDeserializer.deserialize(handle.getImmutableByteBuffer());
+                V value = (V) oak.valueSerializer.deserialize(serializedKey, handle.getImmutableByteBuffer());
                 handle.readLock.unlock();
                 return value;
             }
@@ -1454,15 +1458,15 @@ public class OakMapOffHeapImpl<K, V> implements OakMap<K, V>, AutoCloseable {
                 int n = next;
                 Chunk c = nextChunk;
                 Handle handle = nextHandle;
+                advance();
                 if (handle == null)
                     return null;
-                advance();
-                handle.readLock.lock();
-                V value = (V) oak.valueDeserializer.deserialize(handle.getImmutableByteBuffer());
-                handle.readLock.unlock();
                 ByteBuffer serializedKey = getKey(n, c);
                 serializedKey = serializedKey.slice(); // TODO can I get rid of this?
-                K key = (K) keyDeserializer.deserialize(serializedKey);
+                K key = (K) keySerializer.deserialize(serializedKey);
+                handle.readLock.lock();
+                V value = (V) oak.valueSerializer.deserialize(serializedKey, handle.getImmutableByteBuffer());
+                handle.readLock.unlock();
                 return new AbstractMap.SimpleImmutableEntry<K, V>(key, value);
             }
         }
@@ -1475,7 +1479,7 @@ public class OakMapOffHeapImpl<K, V> implements OakMap<K, V>, AutoCloseable {
                 advance();
                 ByteBuffer serializedKey = getKey(n, c);
                 serializedKey = serializedKey.slice(); // TODO can I get rid of this?
-                K key = (K) keyDeserializer.deserialize(serializedKey);
+                K key = (K) keySerializer.deserialize(serializedKey);
                 return key;
             }
         }

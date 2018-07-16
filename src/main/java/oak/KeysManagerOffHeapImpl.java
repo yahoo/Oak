@@ -16,12 +16,12 @@ public class KeysManagerOffHeapImpl<K> extends KeysManager<K> {
     ByteBuffer keys;
     int i;
     OakMemoryManager memoryManager;
-    private final Serializer<K> keySerializer;
+    private final KeySerializer<K> keySerializer;
     private final SizeCalculator<K> keySizeCalculator;
     Logger log = Logger.getLogger(KeysManagerOffHeapImpl.class.getName());
 
     KeysManagerOffHeapImpl(int bytes, OakMemoryManager memoryManager,
-                           Serializer<K> keySerializer, SizeCalculator<K> keySizeCalculator) {
+                           KeySerializer<K> keySerializer, SizeCalculator<K> keySizeCalculator) {
         Pair<Integer, ByteBuffer> pair = memoryManager.allocate(bytes);
         i = pair.getKey();
         keys = pair.getValue();

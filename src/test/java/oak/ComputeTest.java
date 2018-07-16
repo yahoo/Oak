@@ -10,7 +10,6 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Random;
 import java.util.concurrent.CountDownLatch;
-import java.util.function.Consumer;
 
 public class ComputeTest {
 
@@ -29,17 +28,16 @@ public class ComputeTest {
     static private ArrayList<Thread> threads = new ArrayList<>(NUM_THREADS);
     static private CountDownLatch latch = new CountDownLatch(1);
 
-    public static class ComputeTestKeySerializer implements Serializer<ByteBuffer> {
+    public static class ComputeTestKeySerializer implements KeySerializer<ByteBuffer> {
 
+        @Override
         public void serialize(ByteBuffer obj, ByteBuffer targetBuffer) {
             for (int i = 0; i < keySize; i++) {
                 targetBuffer.putInt(Integer.BYTES * i, obj.getInt(Integer.BYTES * i));
             }
         }
-    }
 
-    public static class ComputeTestKeyDeserializer implements Deserializer<ByteBuffer> {
-
+        @Override
         public ByteBuffer deserialize(ByteBuffer byteBuffer) {
             ByteBuffer key = ByteBuffer.allocate(keySize);
             key.position(0);
@@ -58,22 +56,21 @@ public class ComputeTest {
         }
     }
 
-    public static class ComputeTestValueSerializer implements Serializer<ByteBuffer> {
+    public static class ComputeTestValueSerializer implements ValueSerializer<ByteBuffer, ByteBuffer> {
 
-        public void serialize(ByteBuffer obj, ByteBuffer targetBuffer) {
+        @Override
+        public void serialize(ByteBuffer key, ByteBuffer value, ByteBuffer targetBuffer) {
             for (int i = 0; i < valSize; i++) {
-                targetBuffer.putInt(Integer.BYTES * i, obj.getInt(Integer.BYTES * i));
+                targetBuffer.putInt(Integer.BYTES * i, value.getInt(Integer.BYTES * i));
             }
         }
-    }
 
-    public static class ComputeTestValueDeserializer implements Deserializer<ByteBuffer> {
-
-        public ByteBuffer deserialize(ByteBuffer byteBuffer) {
+        @Override
+        public ByteBuffer deserialize(ByteBuffer serializedKey, ByteBuffer serializedValue) {
             ByteBuffer value = ByteBuffer.allocate(valSize);
             value.position(0);
             for (int i = 0; i < valSize; i++) {
-                key.putInt(Integer.BYTES * i, byteBuffer.getInt(Integer.BYTES * i));
+                value.putInt(Integer.BYTES * i, serializedValue.getInt(Integer.BYTES * i));
             }
             value.position(0);
             return value;
@@ -166,10 +163,8 @@ public class ComputeTest {
                 .setChunkMaxItems(2048)
                 .setChunkBytesPerItem(100)
                 .setKeySerializer(new ComputeTestKeySerializer())
-                .setKeyDeserializer(new ComputeTestKeyDeserializer())
                 .setKeySizeCalculator(new ComputeTestKeySizeCalculator())
                 .setValueSerializer(new ComputeTestValueSerializer())
-                .setValueDeserializer(new ComputeTestValueDeserializer())
                 .setValueSizeCalculator(new ComputeTestValueSizeCalculator())
                 .setMinKey(minKey)
                 .setKeysComparator(new ComputeTestKeysComparator())

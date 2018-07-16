@@ -44,16 +44,16 @@ class Rebalancer<K, V> {
     private final boolean offHeap;
     private final OakMemoryManager memoryManager;
     private final HandleFactory handleFactory;
-    private final Serializer<K> keySerializer;
+    private final KeySerializer<K> keySerializer;
     private final SizeCalculator<K> keySizeCalculator;
-    private final Serializer<V> valueSerializer;
+    private final ValueSerializer<K, V> valueSerializer;
     private final SizeCalculator<V> valueSizeCalculator;
 
     /*-------------- Constructors --------------*/
 
     Rebalancer(Chunk chunk, Comparator<Object> comparator, boolean offHeap, OakMemoryManager memoryManager,
-               HandleFactory handleFactory, Serializer<K> keySerializer, SizeCalculator<K> keySizeCalculator,
-               Serializer<V> valueSerializer, SizeCalculator<V> valueSizeCalculator) {
+               HandleFactory handleFactory, KeySerializer<K> keySerializer, SizeCalculator<K> keySizeCalculator,
+               ValueSerializer<K, V> valueSerializer, SizeCalculator<V> valueSizeCalculator) {
         this.rebalanceSize = 2;
         this.maxAfterMergePart = 0.7;
         this.lowThreshold = 0.5;

@@ -8,8 +8,11 @@ package oak;
 
 import java.nio.ByteBuffer;
 
-public interface Serializer<T> {
+public interface KeySerializer<K> {
 
-  // serializes object to byte buffer
-  void serialize(T obj, ByteBuffer targetBuffer);
+  // serializes the key
+  void serialize(K key, ByteBuffer targetBuffer);
+
+  // deserializes the given byte buffer
+  K deserialize(ByteBuffer byteBuffer);
 }

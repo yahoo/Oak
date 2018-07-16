@@ -17,11 +17,9 @@ import java.nio.ByteBuffer;
  */
 public class OakMapBuilder<K,V> {
 
-  private Serializer<K> keySerializer;
-  private Deserializer<K> keyDeserializer;
+  private KeySerializer<K> keySerializer;
   private SizeCalculator<K> keySizeCalculator;
-  private Serializer<V> valueSerializer;
-  private Deserializer<V> valueDeserializer;
+  private ValueSerializer<K, V> valueSerializer;
   private SizeCalculator<V> valueSizeCalculator;
 
   private K minKey;
@@ -38,10 +36,8 @@ public class OakMapBuilder<K,V> {
 
   public OakMapBuilder() {
     this.keySerializer = null;
-    this.keyDeserializer = null;
     this.keySizeCalculator = null;
     this.valueSerializer = null;
-    this.valueDeserializer = null;
     this.valueSizeCalculator = null;
 
     this.minKey = null;
@@ -55,13 +51,8 @@ public class OakMapBuilder<K,V> {
     this.memoryPool = new SimpleNoFreeMemoryPoolImpl(Integer.MAX_VALUE);
   }
 
-  public OakMapBuilder setKeySerializer(Serializer<K> keySerializer) {
+  public OakMapBuilder setKeySerializer(KeySerializer<K> keySerializer) {
     this.keySerializer = keySerializer;
-    return this;
-  }
-
-  public OakMapBuilder setKeyDeserializer(Deserializer<K> keyDeserializer) {
-    this.keyDeserializer = keyDeserializer;
     return this;
   }
 
@@ -70,13 +61,8 @@ public class OakMapBuilder<K,V> {
     return this;
   }
 
-  public OakMapBuilder setValueSerializer(Serializer<V> valueSerializer) {
+  public OakMapBuilder setValueSerializer(ValueSerializer<K, V> valueSerializer) {
     this.valueSerializer = valueSerializer;
-    return this;
-  }
-
-  public OakMapBuilder setValueDeserializer(Deserializer<V> valueDeserializer) {
-    this.valueDeserializer = valueDeserializer;
     return this;
   }
 
@@ -123,10 +109,8 @@ public class OakMapBuilder<K,V> {
   public OakMapOffHeapImpl buildOffHeapOakMap() {
 
     assert this.keySerializer != null;
-    assert this.keyDeserializer != null;
     assert this.keySizeCalculator != null;
     assert this.valueSerializer != null;
-    assert this.valueDeserializer != null;
     assert this.valueSizeCalculator != null;
     assert this.minKey != null;
     assert this.keysComparator != null;
@@ -136,10 +120,8 @@ public class OakMapBuilder<K,V> {
     return new OakMapOffHeapImpl(
             minKey,
             keySerializer,
-            keyDeserializer,
             keySizeCalculator,
             valueSerializer,
-            valueDeserializer,
             valueSizeCalculator,
             keysComparator,
             serializationsComparator,
@@ -159,24 +141,36 @@ public class OakMapBuilder<K,V> {
 
   public static OakMapBuilder<Integer, Integer> getDefaultBuilder() {
 
-    Serializer<Integer> serializer = new Serializer<Integer>() {
-      @Override
-      public void serialize(Integer obj, ByteBuffer targetBuffer) {
-        targetBuffer.putInt(targetBuffer.position(), obj);
-      }
-    };
+    KeySerializer<Integer> keySerializer = new KeySerializer<Integer>() {
 
-    Deserializer<Integer> deserializer = new Deserializer<Integer>() {
       @Override
-      public Integer deserialize(ByteBuffer byteBuffer) {
-        return byteBuffer.getInt(byteBuffer.position());
+      public void serialize(Integer key, ByteBuffer targetBuffer) {
+        targetBuffer.putInt(targetBuffer.position(), key);
       }
+
+      @Override
+      public Integer deserialize(ByteBuffer serializedKey) {
+        return serializedKey.getInt(serializedKey.position());
+      }
+
     };
 
     SizeCalculator<Integer> sizeCalculator = new SizeCalculator<Integer>() {
       @Override
       public int calculateSize(Integer object) {
         return Integer.BYTES;
+      }
+    };
+
+    ValueSerializer<Integer, Integer> valueSerializer = new ValueSerializer<Integer, Integer>() {
+      @Override
+      public void serialize(Integer key, Integer value, ByteBuffer targetBuffer) {
+        targetBuffer.putInt(targetBuffer.position(), value);
+      }
+
+      @Override
+      public Integer deserialize(ByteBuffer serializedKey, ByteBuffer serializedValue) {
+        return serializedValue.getInt(serializedValue.position());
       }
     };
 
@@ -205,11 +199,9 @@ public class OakMapBuilder<K,V> {
     };
 
     return new OakMapBuilder<Integer, Integer>()
-            .setKeySerializer(serializer)
-            .setKeyDeserializer(deserializer)
+            .setKeySerializer(keySerializer)
             .setKeySizeCalculator(sizeCalculator)
-            .setValueSerializer(serializer)
-            .setValueDeserializer(deserializer)
+            .setValueSerializer(valueSerializer)
             .setValueSizeCalculator(sizeCalculator)
             .setMinKey(new Integer(Integer.MIN_VALUE))
             .setKeysComparator(keysComparator)

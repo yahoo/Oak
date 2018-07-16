@@ -81,9 +81,9 @@ public class Chunk<K, V> {
     private final int maxKeyBytes;
     AtomicInteger externalSize; // for updating oak's size
     // for writing the keys into the bytebuffers
-    private final Serializer<K> keySerializer;
+    private final KeySerializer<K> keySerializer;
     private final SizeCalculator<K> keySizeCalculator;
-    private final Serializer<V> valueSerializer;
+    private final ValueSerializer<K, V> valueSerializer;
     private final SizeCalculator<V> valueSizeCalculator;
 
     /*-------------- Constructors --------------*/
@@ -105,11 +105,11 @@ public class Chunk<K, V> {
      * @param minKey  minimal key to be placed in chunk
      * @param creator the chunk that is responsible for this chunk creation
      */
-    Chunk(  ByteBuffer minKey, Chunk creator, Comparator<Object> comparator,
-            OakMemoryManager memoryManager,
-            int maxItems, int bytesPerItem, AtomicInteger externalSize,
-            Serializer<K> keySerializer, SizeCalculator<K> keySizeCalculator,
-            Serializer<V> valueSerializer, SizeCalculator<V> valueSizeCalculator
+    Chunk(ByteBuffer minKey, Chunk creator, Comparator<Object> comparator,
+          OakMemoryManager memoryManager,
+          int maxItems, int bytesPerItem, AtomicInteger externalSize,
+          KeySerializer<K> keySerializer, SizeCalculator<K> keySizeCalculator,
+          ValueSerializer<K, V> valueSerializer, SizeCalculator<V> valueSizeCalculator
             ) {
         this.memoryManager = memoryManager;
         this.maxItems = maxItems;
@@ -118,12 +118,7 @@ public class Chunk<K, V> {
         this.entryIndex = new AtomicInteger(FIRST_ITEM);
         this.handles = new Handle[maxItems + FIRST_ITEM];
         this.handleIndex = new AtomicInteger(FIRST_ITEM);
-        if (memoryManager != null) {
-            this.keysManager = new KeysManagerOffHeapImpl(this.maxKeyBytes, memoryManager,
-                    keySerializer, keySizeCalculator);
-        } else {
-            this.keysManager = new KeysManagerOnHeapImpl(this.maxKeyBytes);
-        }
+        this.keysManager = new KeysManagerOffHeapImpl(this.maxKeyBytes, memoryManager, keySerializer, keySizeCalculator);
         this.keyIndex = new AtomicInteger(FIRST_ITEM);
         this.sortedCount = 0;
         this.minKey = minKey;
@@ -469,7 +464,7 @@ public class Chunk<K, V> {
         i = pair.getKey();
         assert i == 0;
         byteBuffer = pair.getValue();
-        valueSerializer.serialize(value, byteBuffer);
+        valueSerializer.serialize(null, value, byteBuffer);
         handles[hi].setValue(byteBuffer, i);
     }
 

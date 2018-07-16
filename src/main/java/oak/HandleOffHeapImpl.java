@@ -9,9 +9,8 @@ package oak;
 import javafx.util.Pair;
 
 import java.nio.ByteBuffer;
-import java.util.function.Consumer;
 
-class HandleOffHeapImpl<V> extends Handle<V> {
+class HandleOffHeapImpl<K, V> extends Handle<K, V> {
 
     private int i;
 
@@ -54,7 +53,7 @@ class HandleOffHeapImpl<V> extends Handle<V> {
     }
 
     @Override
-    void put(V newVal, Serializer<V> serializer, SizeCalculator<V> sizeCalculator, OakMemoryManager memoryManager) {
+    void put(V newVal, ValueSerializer<K, V> serializer, SizeCalculator<V> sizeCalculator, OakMemoryManager memoryManager) {
         writeLock.lock();
         if (isDeleted()) {
             writeLock.unlock();
@@ -67,7 +66,7 @@ class HandleOffHeapImpl<V> extends Handle<V> {
             this.i = pair.getKey();
             this.value = pair.getValue();
         }
-        serializer.serialize(newVal, this.value);
+        serializer.serialize(null, newVal, this.value);
         writeLock.unlock();
     }
 
