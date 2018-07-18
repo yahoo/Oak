@@ -25,6 +25,10 @@ Oak implements the industry standard Java NavigableMap API. It provides strong (
 - Oak works off-heap and on-heap. In the case of off-heap, the keys and the values are copied and stored in a self-managed, off-heap ByteBuffer. With Oak, the use of off-heap memory is simple and efficient thanks to its use of uniform-sized chunks, and its epoch-based internal garbage collection has negligible overhead.
 - Oak’s forward and reverse scans are equally fast. Interestingly, prior algorithms like Java’s ConcurrentSkipListMap did not focus on reverse scans, and provided grossly inferior performance as a result.
 
+### Oak Design Requests
+1. As Oak takes the keys and the values off-heap, the keys and the values are going to be serialized and written to buffers. Therefore, the Objects defining the keys and the value types are requested to provide serializer and deserializer. 
+2. A possible way to eliminate the request for key/value serializer/deserializer is to ask for a key/value as a buffer (e.g. ByteBuffer) already as an input. However, this way requires double copy, as it is reasonable to assume Oak user has keys/values as an objects. Thus first copy is when the user creates a buffer from object, and second copy is when Oak copies the given buffer to its internally manageable memory. For better performance, Oak uses only the second copy. Oak allocates a space for a key/value and uses the given serializer to write the key/value directly to the allocated space. Therefore, Oak requests key/value size calculator to know the ammount of space to be allocated. Both the keys and the values are variable sized. 
+
 ## Installation
 Oak is a library to be used in your code. After downloading Oak use `mvn install` to compile and install. Then update dependencies, like:
 ```
@@ -43,10 +47,53 @@ The keys and values are of `ByteBuffer` type. Therefore, Oak can also be constru
 
 ## Usage
 
+In order to build Oak the user should first create `OakMapBuilder builder`, after that the Oak cobstruction is easy `oak = builder.buildOffHeapOakMap()`. Oak requires quite big ammount of parameters to be defined for Oak's construction, those parameters will be now explained.
+
 ```java
-OakMapOnHeapImpl oakOnHeap = new OakMapOnHeapImpl();
-OakMapOffHeapImpl oakOffHeap = new OakMapOffHeapImpl();
+OakMapBuilder builder = new OakMapBuilder()
+            .setKeySerializer(new OakKeySerializerImplementation(...))
+            .setKeySizeCalculator(new OffheapOakKeySizeCalculator(...))
+            .setValueSerializer(new OakValueSerializerImplementation(...))
+            .setValueSizeCalculator(new OffheapOakValueSizeCalculator(...))
+            .setMinKey(...)
+            .setKeysComparator(new OffheapOakKeysComparator(...))
+            .setSerializationsComparator(new OffheapOakSerializationsComparator(...))
+            .setSerializationAndKeyComparator(new OffheapOakSerializationAndKeyComparator(...));
 ```
+
+### Key/Value Serializer
+As explained above, any given key 'K' (value 'V') is requested to come with a serializer and desirializer and to implement the following interface that can be found in the Oak project. 
+
+```java
+public interface KeySerializer<K> {
+
+  // serializes the key
+  void serialize(K key, ByteBuffer targetBuffer);
+
+  // deserializes the given byte buffer
+  K deserialize(ByteBuffer byteBuffer);
+}
+
+public class OakKeySerializerImplementation implements KeySerializer<K>
+{...}
+```
+
+```java
+public interface ValueSerializer<K, V> {
+
+  // serializes the value (may use the key)
+  void serialize(K key, V value, ByteBuffer targetBuffer);
+
+  // deserializes the given byte buffer
+  V deserialize(ByteBuffer serializedKey, ByteBuffer serializedVlue);
+}
+
+public class OakValueSerializerImplementation implements ValueSerializer<K, V>
+{...}
+```
+
+### Key/Value Size Calculator
+
 
 ```java
 Comparator<ByteBuffer> comparator = new IntComparator();
