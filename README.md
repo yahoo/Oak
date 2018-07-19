@@ -13,7 +13,7 @@ Oak is a concurrent Key-Value Map that may keep all keys and values off-heap ena
 
 - [Background](#background)
 - [Install](#install)
-- [Configuration](#configuration)
+- [Builder](#builder)
 - [Usage](#usage)
 - [Contribute](#contribute)
 - [License](#license)
@@ -45,21 +45,9 @@ Oak will allocate off-heap memory with the requested capacity at construction.
 
 The keys and values are of `ByteBuffer` type. Therefore, Oak can also be constructed with a specified comparator that is a `Comparator<ByteBuffer>` to compare keys, and a minimum key that's also a `ByteBuffer`. However, it is highly recommended to use Oak without a special `Comparator<ByteBuffer>`.
 
-## Usage
+## Builder
 
-In order to build Oak the user should first create `OakMapBuilder builder`, after that the Oak construction is easy `oak = builder.buildOffHeapOakMap()`. Oak requires quite big amount of parameters to be defined for Oak's construction, those parameters will be now explained. Below please see an example how to create OakMapBuilder.
-
-```java
-OakMapBuilder builder = new OakMapBuilder()
-            .setKeySerializer(new OakKeySerializerImplementation(...))
-            .setKeySizeCalculator(new OakKeySizeCalculator(...))
-            .setValueSerializer(new OakValueSerializerImplementation(...))
-            .setValueSizeCalculator(new OakValueSizeCalculator(...))
-            .setMinKey(...)
-            .setKeysComparator(new OffheapOakKeysComparator(...))
-            .setSerializationsComparator(new OffheapOakSerializationsComparator(...))
-            .setSerializationAndKeyComparator(new OffheapOakSerializationAndKeyComparator(...));
-```
+In order to build Oak the user should first create `OakMapBuilder builder`, after that the Oak construction is easy `oak = builder.buildOffHeapOakMap()`. Oak requires quite big amount of parameters to be defined for Oak's construction, those parameters will be now explained.
 
 ### Key/Value Serializer
 As explained above, any given key 'K' (value 'V') is requested to come with a serializer and desirializer and to implement the following interface that can be found in the Oak project. 
@@ -115,6 +103,29 @@ public class OakValueSizeCalculator implements SizeCalculator<V>
 {...}
 ```
 
+### Minimal Key
+A key of type 'K' considered by the given constructors smaller then any other key (serialized or in the object mode).
+
+### Comparators
+After a Key-Value pair is inserted into Oak, it is kept in a serialized (buffered) state. However, Oak gets input key as an object, serialization of which is delayed until proved as needed. Thus, while searching through the map, Oak might compare between Object and Serialized keys.
+
+
+Below please see an example how to create OakMapBuilder.
+
+```java
+OakMapBuilder builder = new OakMapBuilder()
+            .setKeySerializer(new OakKeySerializerImplementation(...))
+            .setKeySizeCalculator(new OakKeySizeCalculator(...))
+            .setValueSerializer(new OakValueSerializerImplementation(...))
+            .setValueSizeCalculator(new OakValueSizeCalculator(...))
+            .setMinKey(...)
+            .setKeysComparator(new OffheapOakKeysComparator(...))
+            .setSerializationsComparator(new OffheapOakSerializationsComparator(...))
+            .setSerializationAndKeyComparator(new OffheapOakSerializationAndKeyComparator(...));
+```
+
+
+## Usage
 
 ```java
 Comparator<ByteBuffer> comparator = new IntComparator();
