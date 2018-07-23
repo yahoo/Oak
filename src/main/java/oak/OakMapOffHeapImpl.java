@@ -12,6 +12,7 @@ import java.util.Map.Entry;
 import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.logging.Logger;
 
@@ -145,7 +146,7 @@ public class OakMapOffHeapImpl<K, V> implements OakMap<K, V>, AutoCloseable {
         return c;
     }
 
-    private Rebalancer.RebalanceResult rebalance(Chunk<K, V> c, K key, V value, Computer computer, Operation op) {
+    private Rebalancer.RebalanceResult rebalance(Chunk<K, V> c, K key, V value, Consumer<ByteBuffer> computer, Operation op) {
         if (c == null) {
             assert op == Operation.NO_OP;
             return null;
@@ -306,7 +307,7 @@ public class OakMapOffHeapImpl<K, V> implements OakMap<K, V>, AutoCloseable {
         put(key, value);
     }
 
-    private void rebalanceCompute(Chunk<K, V> c, K key, V value, Computer computer) {
+    private void rebalanceCompute(Chunk<K, V> c, K key, V value, Consumer<ByteBuffer> computer) {
         Rebalancer.RebalanceResult result = rebalance(c, key, value, computer, Operation.COMPUTE);
         assert result != null;
         if (result.success) { // rebalance helped compute
@@ -493,7 +494,7 @@ public class OakMapOffHeapImpl<K, V> implements OakMap<K, V>, AutoCloseable {
     }
 
     @Override
-    public void putIfAbsentComputeIfPresent(K key, V value, Computer computer) {
+    public void putIfAbsentComputeIfPresent(K key, V value, Consumer<ByteBuffer> computer) {
         if (key == null || value == null || computer == null) {
             throw new NullPointerException();
         }
@@ -752,7 +753,7 @@ public class OakMapOffHeapImpl<K, V> implements OakMap<K, V>, AutoCloseable {
     }
 
     @Override
-    public boolean computeIfPresent(K key, Computer computer) {
+    public boolean computeIfPresent(K key, Consumer<ByteBuffer> computer) {
         if (key == null || computer == null) {
             throw new NullPointerException();
         }
@@ -1177,7 +1178,7 @@ public class OakMapOffHeapImpl<K, V> implements OakMap<K, V>, AutoCloseable {
         }
 
         @Override
-        public void putIfAbsentComputeIfPresent(K key, V value, Computer computer) {
+        public void putIfAbsentComputeIfPresent(K key, V value, Consumer<ByteBuffer> computer) {
             oak.putIfAbsentComputeIfPresent(key, value, computer);
         }
 
@@ -1201,7 +1202,7 @@ public class OakMapOffHeapImpl<K, V> implements OakMap<K, V>, AutoCloseable {
         }
 
         @Override
-        public boolean computeIfPresent(K key, Computer computer) {
+        public boolean computeIfPresent(K key, Consumer<ByteBuffer> computer) {
             return oak.computeIfPresent(key, computer);
         }
 

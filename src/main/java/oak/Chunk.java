@@ -18,6 +18,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicMarkableReference;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.AtomicReferenceArray;
+import java.util.function.Consumer;
 
 public class Chunk<K, V> {
 
@@ -153,9 +154,9 @@ public class Chunk<K, V> {
         int entryIndex;
         int handleIndex;
         int prevHandleIndex;
-        Computer computer;
+        Consumer<ByteBuffer> computer;
 
-        OpData(Operation op, int entryIndex, int handleIndex, int prevHandleIndex, Computer computer) {
+        OpData(Operation op, int entryIndex, int handleIndex, int prevHandleIndex, Consumer<ByteBuffer> computer) {
             this.op = op;
             this.entryIndex = entryIndex;
             this.handleIndex = handleIndex;

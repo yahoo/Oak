@@ -106,7 +106,7 @@ public class OakMapBuilder<K,V> {
     return this;
   }
 
-  public OakMapOffHeapImpl buildOffHeapOakMap() {
+  public OakMap build() {
 
     assert this.keySerializer != null;
     assert this.keySizeCalculator != null;

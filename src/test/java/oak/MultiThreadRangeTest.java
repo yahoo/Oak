@@ -11,7 +11,6 @@ import org.junit.Test;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.Iterator;
 import java.util.Random;
 import java.util.concurrent.CountDownLatch;
@@ -32,7 +31,7 @@ public class MultiThreadRangeTest {
         OakMapBuilder builder = OakMapBuilder.getDefaultBuilder()
                 .setChunkMaxItems(maxItemsPerChunk)
                 .setChunkBytesPerItem(maxBytesPerChunkItem);
-        oak = builder.buildOffHeapOakMap();
+        oak = (OakMapOffHeapImpl<Integer, Integer>) builder.build();
         latch = new CountDownLatch(1);
         threads = new ArrayList<>(NUM_THREADS);
     }

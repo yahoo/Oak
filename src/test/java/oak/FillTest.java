@@ -110,7 +110,7 @@ public class FillTest {
                 .setKeySizeCalculator(new FillTestKeySizeCalculator())
                 .setValueSizeCalculator(new FillTestValueSizeCalculator());
 
-        oak = builder.buildOffHeapOakMap();
+        oak = (OakMapOffHeapImpl<Integer, Integer>) builder.build();
 
         NUM_THREADS = Integer.parseInt(args[1]);
 

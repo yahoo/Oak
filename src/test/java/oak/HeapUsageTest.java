@@ -6,8 +6,6 @@
 
 package oak;
 
-import java.nio.ByteBuffer;
-
 public class HeapUsageTest {
 
     private static final long K = 1024;
@@ -47,7 +45,7 @@ public class HeapUsageTest {
 
 
 
-        OakMapOffHeapImpl<Integer, Integer> oak = builder.buildOffHeapOakMap();
+        OakMapOffHeapImpl<Integer, Integer> oak = (OakMapOffHeapImpl<Integer, Integer>) builder.build();
 
         long heapSize = Runtime.getRuntime().totalMemory(); // Get current size of heap in bytes
         long heapMaxSize = Runtime.getRuntime().maxMemory(); // Get maximum size of heap in bytes

@@ -8,6 +8,7 @@ package oak;
 
 import java.nio.ByteBuffer;
 import java.util.Map.Entry;
+import java.util.function.Consumer;
 import java.util.function.Function;
 
 public interface OakMap<K, V> {
@@ -95,7 +96,7 @@ public interface OakMap<K, V> {
      * @return {@code false} if there was no mapping for the key
      * @throws NullPointerException if the specified key or the function is null
      */
-    boolean computeIfPresent(K key, Computer computer);
+    boolean computeIfPresent(K key, Consumer<ByteBuffer> computer);
 
     /**
      * If the specified key is not already associated
@@ -106,7 +107,7 @@ public interface OakMap<K, V> {
      * @param value       value to be associated with the specified key
      * @param computer    for computing the new value when the key is present
      */
-    void putIfAbsentComputeIfPresent(K key, V value, Computer computer);
+    void putIfAbsentComputeIfPresent(K key, V value, Consumer<ByteBuffer> computer);
 
     /**
      * returns the size in bytes of the occupied memory

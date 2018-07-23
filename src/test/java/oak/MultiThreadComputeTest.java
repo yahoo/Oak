@@ -11,7 +11,6 @@ import org.junit.Test;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.concurrent.CountDownLatch;
 import java.util.function.Consumer;
 
@@ -24,8 +23,8 @@ public class MultiThreadComputeTest {
     private final int NUM_THREADS = 20;
     private ArrayList<Thread> threads;
     private CountDownLatch latch;
-    Computer computer;
-    Computer emptyComputer;
+    Consumer<ByteBuffer> computer;
+    Consumer<ByteBuffer> emptyComputer;
     int maxItemsPerChunk = 2048;
     int maxBytesPerChunkItem = 100;
 
@@ -35,22 +34,22 @@ public class MultiThreadComputeTest {
         OakMapBuilder builder = OakMapBuilder.getDefaultBuilder()
                 .setChunkMaxItems(maxItemsPerChunk)
                 .setChunkBytesPerItem(maxBytesPerChunkItem);
-        oak = builder.buildOffHeapOakMap();
+        oak = (OakMapOffHeapImpl<Integer, Integer>) builder.build();
         latch = new CountDownLatch(1);
         threads = new ArrayList<>(NUM_THREADS);
 
-        computer = new Computer() {
+        computer = new Consumer<ByteBuffer>() {
             @Override
-            public void apply(ByteBuffer byteBuffer) {
+            public void accept(ByteBuffer byteBuffer) {
                 if (byteBuffer.getInt(0) == 0) {
                     byteBuffer.putInt(0, 1);
                 }
             }
         };
 
-        emptyComputer = new Computer() {
+        emptyComputer = new Consumer<ByteBuffer>() {
             @Override
-            public void apply(ByteBuffer byteBuffer) {
+            public void accept(ByteBuffer byteBuffer) {
                 return;
             }
         };

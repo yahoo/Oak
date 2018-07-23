@@ -29,7 +29,7 @@ public class OffHeapOakTest {
     private final int NUM_THREADS = 12;
     private ArrayList<Thread> threads;
     private CountDownLatch latch;
-    private Computer emptyComputer;
+    private Consumer<ByteBuffer> emptyComputer;
     int maxItemsPerChunk = 2048;
     int maxBytesPerChunkItem = 100;
 
@@ -38,12 +38,12 @@ public class OffHeapOakTest {
         OakMapBuilder builder = OakMapBuilder.getDefaultBuilder()
                 .setChunkMaxItems(maxItemsPerChunk)
                 .setChunkBytesPerItem(maxBytesPerChunkItem);
-        oak = builder.buildOffHeapOakMap();
+        oak = (OakMapOffHeapImpl<Integer, Integer>) builder.build();
         latch = new CountDownLatch(1);
         threads = new ArrayList<>(NUM_THREADS);
-        emptyComputer = new Computer() {
+        emptyComputer = new Consumer<ByteBuffer>() {
             @Override
-            public void apply(ByteBuffer byteBuffer) {
+            public void accept(ByteBuffer byteBuffer) {
                 return;
             }
         };
@@ -144,9 +144,9 @@ public class OffHeapOakTest {
     @Test
     public void testPutIfAbsentComputeIfPresentWithValueCreator() {
 
-        Computer computer = new Computer() {
+        Consumer<ByteBuffer> computer = new Consumer<ByteBuffer>() {
             @Override
-            public void apply(ByteBuffer byteBuffer) {
+            public void accept(ByteBuffer byteBuffer) {
                 if (byteBuffer.getInt() == 0)
                     byteBuffer.putInt(0, 1);
             }

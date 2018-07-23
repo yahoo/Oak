@@ -10,6 +10,7 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Random;
 import java.util.concurrent.CountDownLatch;
+import java.util.function.Consumer;
 
 public class ComputeTest {
 
@@ -97,9 +98,9 @@ public class ComputeTest {
         }
     }
 
-    static Computer computer = new Computer() {
+    static Consumer<ByteBuffer> computer = new Consumer<ByteBuffer>() {
         @Override
-        public void apply(ByteBuffer byteBuffer) {
+        public void accept(ByteBuffer byteBuffer) {
             if (byteBuffer.getInt(0) == byteBuffer.getInt(Integer.BYTES * keySize)) {
                 return;
             }
@@ -171,7 +172,7 @@ public class ComputeTest {
                 .setSerializationsComparator(new ComputeTestKeysComparator())
                 .setSerializationAndKeyComparator(new ComputeTestKeysComparator());
 
-        oak = builder.buildOffHeapOakMap();
+        oak = (OakMapOffHeapImpl<ByteBuffer, ByteBuffer>) builder.build();
 
         NUM_THREADS = Integer.parseInt(args[1]);
         numOfEntries = Integer.parseInt(args[2]);

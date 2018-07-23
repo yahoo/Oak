@@ -13,7 +13,6 @@ import org.junit.Test;
 import org.junit.rules.ExpectedException;
 
 import java.nio.ByteBuffer;
-import java.util.Comparator;
 import java.util.Map;
 import java.util.function.Consumer;
 
@@ -118,7 +117,7 @@ public class MemoryManagerTest {
                 .setChunkMaxItems(maxItemsPerChunk)
                 .setChunkBytesPerItem(maxBytesPerChunkItem)
                 .setValueSizeCalculator(new checkOakCapacityTestValueSizeCalculator());
-        OakMapOffHeapImpl oak = builder.buildOffHeapOakMap();
+        OakMapOffHeapImpl oak = (OakMapOffHeapImpl<Integer, Integer>) builder.build();
         MemoryPool pool = oak.memoryManager.pool;
 
 
@@ -283,7 +282,7 @@ public class MemoryManagerTest {
         OakMapBuilder builder = OakMapBuilder.getDefaultBuilder()
                 .setChunkMaxItems(maxItemsPerChunk)
                 .setChunkBytesPerItem(maxBytesPerChunkItem);
-        OakMapOffHeapImpl<Integer, Integer> oak = builder.buildOffHeapOakMap();
+        OakMapOffHeapImpl<Integer, Integer> oak = (OakMapOffHeapImpl<Integer, Integer>) builder.build();
         OakMemoryManager memoryManager = oak.memoryManager;
 
         assertEquals(0, memoryManager.getValue(memoryManager.timeStamps[1].get()));
@@ -413,7 +412,7 @@ public class MemoryManagerTest {
         OakMapBuilder builder = OakMapBuilder.getDefaultBuilder()
                 .setChunkMaxItems(maxItemsPerChunk)
                 .setChunkBytesPerItem(maxBytesPerChunkItem);
-        OakMapOffHeapImpl oak = builder.buildOffHeapOakMap();
+        OakMapOffHeapImpl oak = (OakMapOffHeapImpl<Integer, Integer>) builder.build();
 
         oak.put(128, 128);
 
@@ -436,7 +435,7 @@ public class MemoryManagerTest {
         OakMapBuilder builder = OakMapBuilder.getDefaultBuilder()
                 .setChunkMaxItems(maxItemsPerChunk)
                 .setChunkBytesPerItem(maxBytesPerChunkItem);
-        OakMapOffHeapImpl oak = builder.buildOffHeapOakMap();
+        OakMapOffHeapImpl oak = (OakMapOffHeapImpl<Integer, Integer>) builder.build();
         OakMemoryManager memoryManager = oak.memoryManager;
 
         assertEquals(0, memoryManager.releasedArray.get(1).size());
@@ -490,11 +489,11 @@ public class MemoryManagerTest {
         OakMapBuilder builder = OakMapBuilder.getDefaultBuilder()
                 .setChunkMaxItems(maxItemsPerChunk)
                 .setChunkBytesPerItem(maxBytesPerChunkItem);
-        OakMapOffHeapImpl<Integer, Integer> oak = builder.buildOffHeapOakMap();
+        OakMapOffHeapImpl<Integer, Integer> oak = (OakMapOffHeapImpl<Integer, Integer>) builder.build();
 
-        Computer computer = new Computer() {
+        Consumer<ByteBuffer> computer = new Consumer<ByteBuffer>() {
             @Override
-            public void apply(ByteBuffer byteBuffer) {
+            public void accept(ByteBuffer byteBuffer) {
                 if (byteBuffer.getInt(0) == 0) {
                     byteBuffer.putInt(0, 1);
                 }

@@ -10,6 +10,7 @@ import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 import java.util.logging.Logger;
 
 class Rebalancer<K, V> {
@@ -148,7 +149,7 @@ class Rebalancer<K, V> {
      * @return if managed to CAS to newChunk list of rebalance
      * if we did then the put was inserted
      */
-    RebalanceResult createNewChunks(K key, V value, Computer computer, Operation operation) {
+    RebalanceResult createNewChunks(K key, V value, Consumer<ByteBuffer> computer, Operation operation) {
 
         assert offHeap;
         if (this.newChunks.get() != null) {
@@ -295,7 +296,7 @@ class Rebalancer<K, V> {
      * insert/remove this key and value to one of the newChunks
      * the key is guaranteed to be in the range of keys in the new chunk
      */
-    private boolean helpOp(List<Chunk> newChunks, K key, V value, Computer computer, Operation operation) {
+    private boolean helpOp(List<Chunk> newChunks, K key, V value, Consumer<ByteBuffer> computer, Operation operation) {
 
         assert offHeap;
         assert key != null;

@@ -14,6 +14,7 @@ import org.junit.Test;
 import org.junit.rules.ExpectedException;
 
 import java.nio.ByteBuffer;
+import java.util.function.Consumer;
 
 import static junit.framework.TestCase.assertTrue;
 import static org.junit.Assert.assertEquals;
@@ -30,7 +31,7 @@ public class SingleThreadTest {
         OakMapBuilder builder = OakMapBuilder.getDefaultBuilder()
                 .setChunkMaxItems(maxItemsPerChunk)
                 .setChunkBytesPerItem(maxBytesPerChunkItem);
-        oak = builder.buildOffHeapOakMap();
+        oak = (OakMapOffHeapImpl<Integer, Integer>) builder.build();
     }
 
     private int countNumOfChunks() {
@@ -183,9 +184,9 @@ public class SingleThreadTest {
     @Test
     public void testComputeIf() {
         Integer value;
-        Computer computer = new Computer() {
+        Consumer<ByteBuffer> computer = new Consumer<ByteBuffer>() {
             @Override
-            public void apply(ByteBuffer byteBuffer) {
+            public void accept(ByteBuffer byteBuffer) {
                 if (byteBuffer.getInt() == 0)
                     byteBuffer.putInt(0, 1);
             }
@@ -221,9 +222,9 @@ public class SingleThreadTest {
     @Test
     public void testCompute() {
         Integer value;
-        Computer computer = new Computer() {
+        Consumer<ByteBuffer> computer = new Consumer<ByteBuffer>() {
             @Override
-            public void apply(ByteBuffer byteBuffer) {
+            public void accept(ByteBuffer byteBuffer) {
                 if (byteBuffer.getInt() == 0)
                     byteBuffer.putInt(0, 1);
             }
