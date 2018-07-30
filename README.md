@@ -100,7 +100,9 @@ This is how to create the comparator class in your code:
 ```java
 public class OakKeyComparatorImplementation implements OakComparator<K>
 {...}
+```
 
+### Builder
 Below please find an example how to create OakMapBuilder.
 
 ```java
