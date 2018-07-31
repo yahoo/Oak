@@ -84,17 +84,16 @@ A key of type 'K' considered by the given constructors smaller then any other ke
 After a Key-Value pair is inserted into Oak, it is kept in a serialized (buffered) state. However, Oak gets input key as an object, serialization of which is delayed until proved as needed.
 Thus, while searching through the map, Oak might compare between keys in their Object and Serialized modes. Oak provides the following interface for a special comparator:
 ```java
-public interface OakComparator<K> extends Comparator<K>{
+public interface OakComparator<K> {
 
-  // Comparator between two keys in their serialized ByteBuffer mode
-  int SerializedKeysComparator(ByteBuffer serializedKey1, ByteBuffer serializedKey2);
+  int compareKeys(K key1, K key2);
 
-  // Comparator between two keys,
-  // when one is in Object mode and the other in serialized ByteBuffer mode
-  int SerializedKeysComparator(ByteBuffer serializedKey, K key)
+  int compareSerializedKeys(ByteBuffer serializedKey1, ByteBuffer serializedKey2);
 
+  int compareSerializedKeyAndKey(ByteBuffer serializedKey, K key);
 }
 ```
+
 This is how to create the comparator class in your code:
 
 ```java
@@ -117,31 +116,73 @@ OakMapBuilder builder = new OakMapBuilder()
 
 ## Usage
 
-```java
-Comparator<ByteBuffer> comparator = new IntComparator();
-ByteBuffer min = ByteBuffer.allocate(10);
-min.putInt(0,Integer.MIN_VALUE);
-OakMapOffHeapImpl oakInt = new OakMapOffHeapImpl(comparator, min);
-```
+### Integer to Integer build example
 
 ```java
-public class IntComparator implements Comparator<ByteBuffer> {
+    KeySerializer<Integer> keySerializer = new KeySerializer<Integer>() {
 
-    @Override
-    public int compare(ByteBuffer bb1, ByteBuffer bb2) {
-        int i1 = bb1.getInt(bb1.position());
-        int i2 = bb2.getInt(bb2.position());
-        if (i1 > i2) {
-            return 1;
-        } else if (i1 < i2) {
-            return -1;
-        } else {
-            return 0;
-        }
-    }
+      @Override
+      public void serialize(Integer key, ByteBuffer targetBuffer) {
+        targetBuffer.putInt(targetBuffer.position(), key);
+      }
 
-}
+      @Override
+      public Integer deserialize(ByteBuffer serializedKey) {
+        return serializedKey.getInt(serializedKey.position());
+      }
+
+			@Override
+      public int calculateSize(Integer object) {
+        return Integer.BYTES;
+      }
+    };
+
+    ValueSerializer<Integer, Integer> valueSerializer = new ValueSerializer<Integer, Integer>() {
+      @Override
+      public void serialize(Integer key, Integer value, ByteBuffer targetBuffer) {
+        targetBuffer.putInt(targetBuffer.position(), value);
+      }
+
+      @Override
+      public Integer deserialize(ByteBuffer serializedKey, ByteBuffer serializedValue) {
+        return serializedValue.getInt(serializedValue.position());
+      }
+
+      @Override
+      public int calculateSize(Integer object) {
+        return Integer.BYTES;
+      }
+    };
+
+    OakComparator<Integer> keysComparator = new OakComparator<Integer>() {
+
+      @Override
+      public int compareKeys(Integer int1, Integer int2) {
+        return intsCompare(int1, int2);
+      }
+
+      @Override
+      public int compareSerializedKeys(ByteBuffer buff1, ByteBuffer buff2) {
+        int int1 = buff1.getInt(buff1.position());
+        int int2 = buff2.getInt(buff2.position());
+        return intsCompare(int1, int2);
+      }
+
+      @Override
+      public int compareSerializedKeyAndKey(ByteBuffer buff1, Integer int2) {
+        int int1 = buff1.getInt(buff1.position());
+        return intsCompare(int1, int2);
+      }
+     };
+
+     OakMapBuilder builder = new OakMapBuilder<Integer, Integer>()
+                 .setKeySerializer(keySerializer)
+                 .setValueSerializer(valueSerializer)
+                 .setMinKey(new Integer(Integer.MIN_VALUE))
+                 .setKeysComparator(keysComparator)
+                 .setMemoryCapacity(1048576); // 1MB in bytes
 ```
+
 
 ### OakMap Methods
 
