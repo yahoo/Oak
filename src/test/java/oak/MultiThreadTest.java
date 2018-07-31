@@ -22,7 +22,7 @@ import static org.junit.Assert.assertFalse;
 
 public class MultiThreadTest {
 
-    private OakMapOffHeapImpl<Integer, Integer> oak;
+    private OakMapOldOffHeapImpl<Integer, Integer> oak;
     private final int NUM_THREADS = 20;
     private ArrayList<Thread> threads;
     private CountDownLatch latch;
@@ -35,7 +35,7 @@ public class MultiThreadTest {
         OakMapBuilder builder = OakMapBuilder.getDefaultBuilder()
                 .setChunkMaxItems(maxItemsPerChunk)
                 .setChunkBytesPerItem(maxBytesPerChunkItem);
-        oak = (OakMapOffHeapImpl<Integer, Integer>) builder.build();
+        oak = (OakMapOldOffHeapImpl<Integer, Integer>) builder.build();
         latch = new CountDownLatch(1);
         threads = new ArrayList<>(NUM_THREADS);
 
@@ -115,7 +115,7 @@ public class MultiThreadTest {
 
             Integer from = 0;
             Integer to = twiceMaxItemsPerChunk;
-            OakMap sub = oak.subMap(from, true, to, false);
+            OakMapOld sub = oak.subMap(from, true, to, false);
             valIter = sub.valuesIterator();
             c = (int) Math.round(0.5 * maxItemsPerChunk);
             while (valIter.hasNext()) {

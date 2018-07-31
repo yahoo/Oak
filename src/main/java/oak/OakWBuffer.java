@@ -7,8 +7,47 @@
 package oak;
 
 import java.nio.*;
+import java.util.function.Consumer;
 
-public abstract class WritableOakBuffer extends OakBuffer {
+public interface OakWBuffer {
+
+    /**
+     * Returns this buffer's capacity.
+     *
+     * @return The capacity of this buffer
+     */
+    public abstract int capacity() throws NullPointerException;
+
+    /**
+     * Returns this buffer's position.
+     *
+     * @return The position of this buffer
+     */
+    public abstract int position() throws NullPointerException;
+
+    /**
+     * Returns this buffer's limit.
+     *
+     * @return The limit of this buffer
+     */
+    public abstract int limit() throws NullPointerException;
+
+    /**
+     * Returns the number of elements between the current position and the
+     * limit.
+     *
+     * @return The number of elements remaining in this buffer
+     */
+    public abstract int remaining() throws NullPointerException;
+
+    /**
+     * Tells whether there are any elements between the current position and
+     * the limit.
+     *
+     * @return <tt>true</tt> if, and only if, there is at least one element
+     * remaining in this buffer
+     */
+    public abstract boolean hasRemaining() throws NullPointerException;
 
     /**
      * Sets this buffer's position.  If the mark is defined and larger than the
@@ -19,14 +58,14 @@ public abstract class WritableOakBuffer extends OakBuffer {
      * @return This buffer
      * @throws IllegalArgumentException If the preconditions on <tt>newPosition</tt> do not hold
      */
-    public abstract WritableOakBuffer position(int newPosition);
+    public abstract OakWBuffer position(int newPosition);
 
     /**
      * Sets this buffer's mark at its position.
      *
      * @return This buffer
      */
-    public abstract WritableOakBuffer mark();
+    public abstract OakWBuffer mark();
 
     /**
      * Resets this buffer's position to the previously-marked position.
@@ -37,7 +76,7 @@ public abstract class WritableOakBuffer extends OakBuffer {
      * @return This buffer
      * @throws InvalidMarkException If the mark has not been set
      */
-    public abstract WritableOakBuffer reset();
+    public abstract OakWBuffer reset();
 
     /**
      * Clears this buffer.  The position is set to zero, the limit is set to
@@ -56,7 +95,7 @@ public abstract class WritableOakBuffer extends OakBuffer {
      *
      * @return This buffer
      */
-    public abstract WritableOakBuffer clear();
+    public abstract OakWBuffer clear();
 
     /**
      * Flips this buffer.  The limit is set to the current position and then
@@ -79,7 +118,7 @@ public abstract class WritableOakBuffer extends OakBuffer {
      *
      * @return This buffer
      */
-    public abstract WritableOakBuffer flip();
+    public abstract OakWBuffer flip();
 
     /**
      * Rewinds this buffer.  The position is set to zero and the mark is
@@ -96,10 +135,10 @@ public abstract class WritableOakBuffer extends OakBuffer {
      *
      * @return This buffer
      */
-    public abstract WritableOakBuffer rewind();
+    public abstract OakWBuffer rewind();
 
     /**
-     *
+     * Going to be deprecated!!!!!!!!!
      * @return the actual ByteBuffer
      */
     public abstract ByteBuffer getByteBuffer();
@@ -116,34 +155,15 @@ public abstract class WritableOakBuffer extends OakBuffer {
     public abstract byte get();
 
     /**
-     * Relative <i>put</i> method&nbsp;&nbsp;<i>(optional operation)</i>.
-     * <p>
-     * <p> Writes the given byte into this buffer at the current
-     * position, and then increments the position. </p>
+     * Absolute <i>get</i> method.  Reads the byte at the given
+     * index.
      *
-     * @param b The byte to be written
-     * @return This buffer
-     * @throws BufferOverflowException If this buffer's current position is not smaller than its limit
-     * @throws ReadOnlyBufferException If this buffer is read-only
-     */
-    public abstract WritableOakBuffer put(byte b);
-
-    /**
-     * Absolute <i>put</i> method&nbsp;&nbsp;<i>(optional operation)</i>.
-     * <p>
-     * <p> Writes the given byte into this buffer at the given
-     * index. </p>
-     *
-     * @param index The index at which the byte will be written
-     * @param b     The byte value to be written
-     * @return This buffer
+     * @param index The index from which the byte will be read
+     * @return The byte at the given index
      * @throws IndexOutOfBoundsException If <tt>index</tt> is negative
      *                                   or not smaller than the buffer's limit
-     * @throws ReadOnlyBufferException   If this buffer is read-only
      */
-    public abstract WritableOakBuffer put(int index, byte b);
-
-    // -- Bulk get operations --
+    public abstract byte get(int index) throws NullPointerException;
 
     /**
      * Relative bulk <i>get</i> method.
@@ -185,28 +205,35 @@ public abstract class WritableOakBuffer extends OakBuffer {
      * @throws IndexOutOfBoundsException If the preconditions on the <tt>offset</tt> and <tt>length</tt>
      *                                   parameters do not hold
      */
-    public WritableOakBuffer get(byte[] dst, int offset, int length) {
-        return null;
-    }
+    public abstract OakWBuffer get(byte[] dst, int offset, int length);
 
     /**
-     * Relative bulk <i>get</i> method.
+     * Relative <i>put</i> method&nbsp;&nbsp;<i>(optional operation)</i>.
      * <p>
-     * <p> This method transfers bytes from this buffer into the given
-     * destination array.  An invocation of this method of the form
-     * <tt>src.get(a)</tt> behaves in exactly the same way as the invocation
-     * <p>
-     * <pre>
-     *     src.get(a, 0, a.length) </pre>
+     * <p> Writes the given byte into this buffer at the current
+     * position, and then increments the position. </p>
      *
-     * @param dst The destination array
+     * @param b The byte to be written
      * @return This buffer
-     * @throws BufferUnderflowException If there are fewer than <tt>length</tt> bytes
-     *                                  remaining in this buffer
+     * @throws BufferOverflowException If this buffer's current position is not smaller than its limit
+     * @throws ReadOnlyBufferException If this buffer is read-only
      */
-    public WritableOakBuffer get(byte[] dst) {
-        return get(dst, 0, dst.length);
-    }
+    public abstract OakWBuffer put(byte b);
+
+    /**
+     * Absolute <i>put</i> method&nbsp;&nbsp;<i>(optional operation)</i>.
+     * <p>
+     * <p> Writes the given byte into this buffer at the given
+     * index. </p>
+     *
+     * @param index The index at which the byte will be written
+     * @param b     The byte value to be written
+     * @return This buffer
+     * @throws IndexOutOfBoundsException If <tt>index</tt> is negative
+     *                                   or not smaller than the buffer's limit
+     * @throws ReadOnlyBufferException   If this buffer is read-only
+     */
+    public abstract OakWBuffer put(int index, byte b);
 
     // -- Bulk put operations --
 
@@ -243,7 +270,7 @@ public abstract class WritableOakBuffer extends OakBuffer {
      * @throws IllegalArgumentException If the source buffer is this buffer
      * @throws ReadOnlyBufferException  If this buffer is read-only
      */
-    public abstract WritableOakBuffer put(byte[] src, int offset, int length);
+    public abstract OakWBuffer put(byte[] src, int offset, int length);
 
     /**
      * Relative bulk <i>put</i> method&nbsp;&nbsp;<i>(optional operation)</i>.
@@ -261,9 +288,19 @@ public abstract class WritableOakBuffer extends OakBuffer {
      * @throws BufferOverflowException If there is insufficient space in this buffer
      * @throws ReadOnlyBufferException If this buffer is read-only
      */
-    public WritableOakBuffer put(byte[] src) {
-        return put(src, 0, src.length);
-    }
+    public OakWBuffer put(byte[] src);
+
+    /**
+     * Retrieves this buffer's byte order.
+     * <p>
+     * <p> The byte order is used when reading or writing multibyte values, and
+     * when creating buffers that are views of this byte buffer.  The order of
+     * a newly-created byte buffer is always {@link ByteOrder#BIG_ENDIAN
+     * BIG_ENDIAN}.  </p>
+     *
+     * @return This buffer's byte order
+     */
+    public abstract ByteOrder order() throws NullPointerException;
 
     /**
      * Modifies this buffer's byte order.
@@ -273,7 +310,7 @@ public abstract class WritableOakBuffer extends OakBuffer {
      *           or {@link ByteOrder#LITTLE_ENDIAN LITTLE_ENDIAN}
      * @return This buffer
      */
-    public abstract WritableOakBuffer order(ByteOrder bo);
+    public abstract OakWBuffer order(ByteOrder bo);
 
     /**
      * Relative <i>get</i> method for reading a char value.
@@ -289,6 +326,20 @@ public abstract class WritableOakBuffer extends OakBuffer {
     public abstract char getChar();
 
     /**
+     * Absolute <i>get</i> method for reading a char value.
+     * <p>
+     * <p> Reads two bytes at the given index, composing them into a
+     * char value according to the current byte order.  </p>
+     *
+     * @param index The index from which the bytes will be read
+     * @return The char value at the given index
+     * @throws IndexOutOfBoundsException If <tt>index</tt> is negative
+     *                                   or not smaller than the buffer's limit,
+     *                                   minus one
+     */
+    public abstract char getChar(int index) throws NullPointerException;
+
+    /**
      * Relative <i>put</i> method for writing a char
      * value&nbsp;&nbsp;<i>(optional operation)</i>.
      * <p>
@@ -302,7 +353,7 @@ public abstract class WritableOakBuffer extends OakBuffer {
      *                                 remaining in this buffer
      * @throws ReadOnlyBufferException If this buffer is read-only
      */
-    public abstract WritableOakBuffer putChar(char value);
+    public abstract OakWBuffer putChar(char value);
 
     /**
      * Absolute <i>put</i> method for writing a char
@@ -319,7 +370,7 @@ public abstract class WritableOakBuffer extends OakBuffer {
      *                                   minus one
      * @throws ReadOnlyBufferException   If this buffer is read-only
      */
-    public abstract WritableOakBuffer putChar(int index, char value);
+    public abstract OakWBuffer putChar(int index, char value);
 
     /**
      * Relative <i>get</i> method for reading a short value.
@@ -335,6 +386,20 @@ public abstract class WritableOakBuffer extends OakBuffer {
     public abstract short getShort();
 
     /**
+     * Absolute <i>get</i> method for reading a short value.
+     * <p>
+     * <p> Reads two bytes at the given index, composing them into a
+     * short value according to the current byte order.  </p>
+     *
+     * @param index The index from which the bytes will be read
+     * @return The short value at the given index
+     * @throws IndexOutOfBoundsException If <tt>index</tt> is negative
+     *                                   or not smaller than the buffer's limit,
+     *                                   minus one
+     */
+    public abstract short getShort(int index) throws NullPointerException;
+
+    /**
      * Relative <i>put</i> method for writing a short
      * value&nbsp;&nbsp;<i>(optional operation)</i>.
      * <p>
@@ -348,7 +413,7 @@ public abstract class WritableOakBuffer extends OakBuffer {
      *                                 remaining in this buffer
      * @throws ReadOnlyBufferException If this buffer is read-only
      */
-    public abstract WritableOakBuffer putShort(short value);
+    public abstract OakWBuffer putShort(short value);
 
     /**
      * Absolute <i>put</i> method for writing a short
@@ -365,7 +430,7 @@ public abstract class WritableOakBuffer extends OakBuffer {
      *                                   minus one
      * @throws ReadOnlyBufferException   If this buffer is read-only
      */
-    public abstract WritableOakBuffer putShort(int index, short value);
+    public abstract OakWBuffer putShort(int index, short value);
 
     /**
      * Relative <i>get</i> method for reading an int value.
@@ -381,6 +446,20 @@ public abstract class WritableOakBuffer extends OakBuffer {
     public abstract int getInt();
 
     /**
+     * Absolute <i>get</i> method for reading an int value.
+     * <p>
+     * <p> Reads four bytes at the given index, composing them into a
+     * int value according to the current byte order.  </p>
+     *
+     * @param index The index from which the bytes will be read
+     * @return The int value at the given index
+     * @throws IndexOutOfBoundsException If <tt>index</tt> is negative
+     *                                   or not smaller than the buffer's limit,
+     *                                   minus three
+     */
+    public abstract int getInt(int index) throws NullPointerException;
+
+    /**
      * Relative <i>put</i> method for writing an int
      * value&nbsp;&nbsp;<i>(optional operation)</i>.
      * <p>
@@ -394,7 +473,7 @@ public abstract class WritableOakBuffer extends OakBuffer {
      *                                 remaining in this buffer
      * @throws ReadOnlyBufferException If this buffer is read-only
      */
-    public abstract WritableOakBuffer putInt(int value);
+    public abstract OakWBuffer putInt(int value);
 
     /**
      * Absolute <i>put</i> method for writing an int
@@ -411,7 +490,7 @@ public abstract class WritableOakBuffer extends OakBuffer {
      *                                   minus three
      * @throws ReadOnlyBufferException   If this buffer is read-only
      */
-    public abstract WritableOakBuffer putInt(int index, int value);
+    public abstract OakWBuffer putInt(int index, int value);
 
     /**
      * Relative <i>get</i> method for reading a long value.
@@ -427,6 +506,20 @@ public abstract class WritableOakBuffer extends OakBuffer {
     public abstract long getLong();
 
     /**
+     * Absolute <i>get</i> method for reading a long value.
+     * <p>
+     * <p> Reads eight bytes at the given index, composing them into a
+     * long value according to the current byte order.  </p>
+     *
+     * @param index The index from which the bytes will be read
+     * @return The long value at the given index
+     * @throws IndexOutOfBoundsException If <tt>index</tt> is negative
+     *                                   or not smaller than the buffer's limit,
+     *                                   minus seven
+     */
+    public abstract long getLong(int index) throws NullPointerException;
+
+    /**
      * Relative <i>put</i> method for writing a long
      * value&nbsp;&nbsp;<i>(optional operation)</i>.
      * <p>
@@ -440,7 +533,7 @@ public abstract class WritableOakBuffer extends OakBuffer {
      *                                 remaining in this buffer
      * @throws ReadOnlyBufferException If this buffer is read-only
      */
-    public abstract WritableOakBuffer putLong(long value);
+    public abstract OakWBuffer putLong(long value);
 
     /**
      * Absolute <i>put</i> method for writing a long
@@ -457,7 +550,7 @@ public abstract class WritableOakBuffer extends OakBuffer {
      *                                   minus seven
      * @throws ReadOnlyBufferException   If this buffer is read-only
      */
-    public abstract WritableOakBuffer putLong(int index, long value);
+    public abstract OakWBuffer putLong(int index, long value);
 
     /**
      * Relative <i>get</i> method for reading a float value.
@@ -473,6 +566,20 @@ public abstract class WritableOakBuffer extends OakBuffer {
     public abstract float getFloat();
 
     /**
+     * Absolute <i>get</i> method for reading a float value.
+     * <p>
+     * <p> Reads four bytes at the given index, composing them into a
+     * float value according to the current byte order.  </p>
+     *
+     * @param index The index from which the bytes will be read
+     * @return The float value at the given index
+     * @throws IndexOutOfBoundsException If <tt>index</tt> is negative
+     *                                   or not smaller than the buffer's limit,
+     *                                   minus three
+     */
+    public abstract float getFloat(int index) throws NullPointerException;
+
+    /**
      * Relative <i>put</i> method for writing a float
      * value&nbsp;&nbsp;<i>(optional operation)</i>.
      * <p>
@@ -486,7 +593,7 @@ public abstract class WritableOakBuffer extends OakBuffer {
      *                                 remaining in this buffer
      * @throws ReadOnlyBufferException If this buffer is read-only
      */
-    public abstract WritableOakBuffer putFloat(float value);
+    public abstract OakWBuffer putFloat(float value);
 
     /**
      * Absolute <i>put</i> method for writing a float
@@ -503,7 +610,7 @@ public abstract class WritableOakBuffer extends OakBuffer {
      *                                   minus three
      * @throws ReadOnlyBufferException   If this buffer is read-only
      */
-    public abstract WritableOakBuffer putFloat(int index, float value);
+    public abstract OakWBuffer putFloat(int index, float value);
 
     /**
      * Relative <i>get</i> method for reading a double value.
@@ -519,6 +626,20 @@ public abstract class WritableOakBuffer extends OakBuffer {
     public abstract double getDouble();
 
     /**
+     * Absolute <i>get</i> method for reading a double value.
+     * <p>
+     * <p> Reads eight bytes at the given index, composing them into a
+     * double value according to the current byte order.  </p>
+     *
+     * @param index The index from which the bytes will be read
+     * @return The double value at the given index
+     * @throws IndexOutOfBoundsException If <tt>index</tt> is negative
+     *                                   or not smaller than the buffer's limit,
+     *                                   minus seven
+     */
+    public abstract double getDouble(int index) throws NullPointerException;
+
+    /**
      * Relative <i>put</i> method for writing a double
      * value&nbsp;&nbsp;<i>(optional operation)</i>.
      * <p>
@@ -532,7 +653,7 @@ public abstract class WritableOakBuffer extends OakBuffer {
      *                                 remaining in this buffer
      * @throws ReadOnlyBufferException If this buffer is read-only
      */
-    public abstract WritableOakBuffer putDouble(double value);
+    public abstract OakWBuffer putDouble(double value);
 
     /**
      * Absolute <i>put</i> method for writing a double
@@ -549,5 +670,6 @@ public abstract class WritableOakBuffer extends OakBuffer {
      *                                   minus seven
      * @throws ReadOnlyBufferException   If this buffer is read-only
      */
-    public abstract WritableOakBuffer putDouble(int index, double value);
+    public abstract OakWBuffer putDouble(int index, double value);
+
 }

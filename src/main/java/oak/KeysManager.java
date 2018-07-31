@@ -19,6 +19,7 @@ public abstract class KeysManager<K> {
 
     abstract ByteBuffer getKeys();
 
+    // Shuold be thread-safe
     abstract void release();
 
     abstract void copyKeys(KeysManager srcKeysManager, int srcIndex, int index, int lengthToCopy);

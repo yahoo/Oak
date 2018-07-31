@@ -9,7 +9,7 @@ package oak;
 import java.nio.ByteBuffer;
 
 /**
- * This class builds a new OakMap instance, and sets serializers, deserializers and allocation size calculators,
+ * This class builds a new OakMapOld instance, and sets serializers, deserializers and allocation size calculators,
  * received from the user.
  *
  * @param <K> The key object type.
@@ -17,7 +17,7 @@ import java.nio.ByteBuffer;
  */
 public class OakMapBuilder<K,V> {
 
-  private KeySerializer<K> keySerializer;
+  private Serializer<K> keySerializer;
   private SizeCalculator<K> keySizeCalculator;
   private ValueSerializer<K, V> valueSerializer;
   private SizeCalculator<V> valueSizeCalculator;
@@ -51,7 +51,7 @@ public class OakMapBuilder<K,V> {
     this.memoryPool = new SimpleNoFreeMemoryPoolImpl(Integer.MAX_VALUE);
   }
 
-  public OakMapBuilder setKeySerializer(KeySerializer<K> keySerializer) {
+  public OakMapBuilder setKeySerializer(Serializer<K> keySerializer) {
     this.keySerializer = keySerializer;
     return this;
   }
@@ -106,7 +106,7 @@ public class OakMapBuilder<K,V> {
     return this;
   }
 
-  public OakMap build() {
+  public OakMapOld build() {
 
     assert this.keySerializer != null;
     assert this.keySizeCalculator != null;
@@ -117,7 +117,7 @@ public class OakMapBuilder<K,V> {
     assert this.serializationsComparator != null;
     assert this.serializationAndKeyComparator != null;
 
-    return new OakMapOffHeapImpl(
+    return new OakMapOldOffHeapImpl(
             minKey,
             keySerializer,
             keySizeCalculator,
@@ -141,7 +141,7 @@ public class OakMapBuilder<K,V> {
 
   public static OakMapBuilder<Integer, Integer> getDefaultBuilder() {
 
-    KeySerializer<Integer> keySerializer = new KeySerializer<Integer>() {
+    Serializer<Integer> keySerializer = new Serializer<Integer>() {
 
       @Override
       public void serialize(Integer key, ByteBuffer targetBuffer) {

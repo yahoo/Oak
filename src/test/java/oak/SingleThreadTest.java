@@ -22,7 +22,7 @@ import static org.junit.Assert.assertFalse;
 
 public class SingleThreadTest {
 
-    private OakMapOffHeapImpl<Integer, Integer> oak;
+    private OakMapOldOffHeapImpl<Integer, Integer> oak;
     int maxItemsPerChunk = 2048;
     int maxBytesPerChunkItem = Integer.BYTES;
 
@@ -31,7 +31,7 @@ public class SingleThreadTest {
         OakMapBuilder builder = OakMapBuilder.getDefaultBuilder()
                 .setChunkMaxItems(maxItemsPerChunk)
                 .setChunkBytesPerItem(maxBytesPerChunkItem);
-        oak = (OakMapOffHeapImpl<Integer, Integer>) builder.build();
+        oak = (OakMapOldOffHeapImpl<Integer, Integer>) builder.build();
     }
 
     private int countNumOfChunks() {

@@ -25,7 +25,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 
 public class OffHeapOakTest {
-    private OakMapOffHeapImpl<Integer, Integer> oak;
+    private OakMapOldOffHeapImpl<Integer, Integer> oak;
     private final int NUM_THREADS = 12;
     private ArrayList<Thread> threads;
     private CountDownLatch latch;
@@ -38,7 +38,7 @@ public class OffHeapOakTest {
         OakMapBuilder builder = OakMapBuilder.getDefaultBuilder()
                 .setChunkMaxItems(maxItemsPerChunk)
                 .setChunkBytesPerItem(maxBytesPerChunkItem);
-        oak = (OakMapOffHeapImpl<Integer, Integer>) builder.build();
+        oak = (OakMapOldOffHeapImpl<Integer, Integer>) builder.build();
         latch = new CountDownLatch(1);
         threads = new ArrayList<>(NUM_THREADS);
         emptyComputer = new Consumer<ByteBuffer>() {

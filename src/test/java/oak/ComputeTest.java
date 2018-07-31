@@ -16,7 +16,7 @@ public class ComputeTest {
 
     private static int NUM_THREADS;
 
-    static OakMapOffHeapImpl<ByteBuffer, ByteBuffer> oak;
+    static OakMapOldOffHeapImpl<ByteBuffer, ByteBuffer> oak;
     private static final long K = 1024;
 
     private static int keySize = 10;
@@ -29,7 +29,7 @@ public class ComputeTest {
     static private ArrayList<Thread> threads = new ArrayList<>(NUM_THREADS);
     static private CountDownLatch latch = new CountDownLatch(1);
 
-    public static class ComputeTestKeySerializer implements KeySerializer<ByteBuffer> {
+    public static class ComputeTestKeySerializer implements Serializer<ByteBuffer> {
 
         @Override
         public void serialize(ByteBuffer obj, ByteBuffer targetBuffer) {
@@ -172,7 +172,7 @@ public class ComputeTest {
                 .setSerializationsComparator(new ComputeTestKeysComparator())
                 .setSerializationAndKeyComparator(new ComputeTestKeysComparator());
 
-        oak = (OakMapOffHeapImpl<ByteBuffer, ByteBuffer>) builder.build();
+        oak = (OakMapOldOffHeapImpl<ByteBuffer, ByteBuffer>) builder.build();
 
         NUM_THREADS = Integer.parseInt(args[1]);
         numOfEntries = Integer.parseInt(args[2]);

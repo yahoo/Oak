@@ -6,9 +6,11 @@
 
 package oak;
 
+import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.util.function.Function;
 
-public abstract class OakBuffer {
+public interface OakRBuffer {
 
     /**
      * Returns this buffer's capacity.
@@ -154,4 +156,13 @@ public abstract class OakBuffer {
      *                                   minus seven
      */
     public abstract double getDouble(int index) throws NullPointerException;
+
+    /**
+     * Returns a transformation of ByteBuffer content.
+     *
+     * @param transformer the function that executes the transformation
+     * @return a transformation of the ByteBuffer content
+     * @throws NullPointerException if the transformer is null
+     */
+    public abstract <T> T transform(Function<ByteBuffer, T> transformer);
 }

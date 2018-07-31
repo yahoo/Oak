@@ -19,7 +19,7 @@ import static org.junit.Assert.assertEquals;
 
 public class MultiThreadComputeTest {
 
-    private OakMapOffHeapImpl<Integer, Integer> oak;
+    private OakMapOldOffHeapImpl<Integer, Integer> oak;
     private final int NUM_THREADS = 20;
     private ArrayList<Thread> threads;
     private CountDownLatch latch;
@@ -34,7 +34,7 @@ public class MultiThreadComputeTest {
         OakMapBuilder builder = OakMapBuilder.getDefaultBuilder()
                 .setChunkMaxItems(maxItemsPerChunk)
                 .setChunkBytesPerItem(maxBytesPerChunkItem);
-        oak = (OakMapOffHeapImpl<Integer, Integer>) builder.build();
+        oak = (OakMapOldOffHeapImpl<Integer, Integer>) builder.build();
         latch = new CountDownLatch(1);
         threads = new ArrayList<>(NUM_THREADS);
 

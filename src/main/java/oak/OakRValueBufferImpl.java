@@ -6,13 +6,15 @@
 
 package oak;
 
+import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.util.function.Function;
 
-public class OakBufferImpl extends OakBuffer {
+public class OakRValueBufferImpl implements OakRBuffer {
 
     private Handle handle;
 
-    OakBufferImpl(Handle handle) {
+    OakRValueBufferImpl(Handle handle) {
         this.handle = handle;
     }
 
@@ -106,6 +108,26 @@ public class OakBufferImpl extends OakBuffer {
     @Override
     public double getDouble(int index) {
         return handle.getDoubleLock(index);
+    }
+
+    /**
+     * @throws NullPointerException if the transformer is null;
+     */
+    @Override
+    public <T> T transform(Function<ByteBuffer, T> transformer) {
+        if (transformer == null) {
+            throw new NullPointerException();
+        }
+
+        T transformation;
+        try {
+            handle.readLock.lock();
+            ByteBuffer value = handle.getImmutableByteBuffer();
+            transformation = transformer.apply(value);
+        } finally {
+            handle.readLock.unlock();
+        }
+        return transformation;
     }
 
 }

@@ -16,7 +16,7 @@ public class FillTest {
 
     private static int NUM_THREADS;
 
-    static OakMapOffHeapImpl<Integer, Integer> oak;
+    static OakMapOldOffHeapImpl<Integer, Integer> oak;
     static ConcurrentSkipListMap<ByteBuffer, ByteBuffer> skiplist;
     private static final long K = 1024;
 
@@ -64,7 +64,7 @@ public class FillTest {
             Integer myKey;
             Integer myVal;
 
-            int id = OakMapOffHeapImpl.getThreadIndex();
+            int id = OakMapOldOffHeapImpl.getThreadIndex();
             int amount = (int) Math.round(numOfEntries * 0.5) / NUM_THREADS;
             int start = id * amount + (int) Math.round(numOfEntries * 0.5);
             int end = (id + 1) * amount + (int) Math.round(numOfEntries * 0.5);
@@ -110,7 +110,7 @@ public class FillTest {
                 .setKeySizeCalculator(new FillTestKeySizeCalculator())
                 .setValueSizeCalculator(new FillTestValueSizeCalculator());
 
-        oak = (OakMapOffHeapImpl<Integer, Integer>) builder.build();
+        oak = (OakMapOldOffHeapImpl<Integer, Integer>) builder.build();
 
         NUM_THREADS = Integer.parseInt(args[1]);
 

@@ -45,7 +45,7 @@ public class HeapUsageTest {
 
 
 
-        OakMapOffHeapImpl<Integer, Integer> oak = (OakMapOffHeapImpl<Integer, Integer>) builder.build();
+        OakMapOldOffHeapImpl<Integer, Integer> oak = (OakMapOldOffHeapImpl<Integer, Integer>) builder.build();
 
         long heapSize = Runtime.getRuntime().totalMemory(); // Get current size of heap in bytes
         long heapMaxSize = Runtime.getRuntime().maxMemory(); // Get maximum size of heap in bytes

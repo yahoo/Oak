@@ -10,7 +10,7 @@ import javafx.util.Pair;
 
 import java.nio.ByteBuffer;
 
-class HandleOffHeapImpl<K, V> extends Handle<K, V> {
+class HandleOffHeapImpl<V> extends Handle<V> {
 
     private int i;
 
@@ -53,20 +53,20 @@ class HandleOffHeapImpl<K, V> extends Handle<K, V> {
     }
 
     @Override
-    void put(V newVal, ValueSerializer<K, V> serializer, SizeCalculator<V> sizeCalculator, OakMemoryManager memoryManager) {
+    void put(V newVal, Serializer<V> serializer, OakMemoryManager memoryManager) {
         writeLock.lock();
         if (isDeleted()) {
             writeLock.unlock();
             return;
         }
-        int capacity = sizeCalculator.calculateSize(newVal);
+        int capacity = serializer.calculateSize(newVal);
         if (this.value.remaining() < capacity) { // try to reuse old space
             memoryManager.release(this.i, this.value);
             Pair<Integer, ByteBuffer> pair = memoryManager.allocate(capacity);
             this.i = pair.getKey();
             this.value = pair.getValue();
         }
-        serializer.serialize(null, newVal, this.value);
+        serializer.serialize(newVal, this.value);
         writeLock.unlock();
     }
 

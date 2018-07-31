@@ -21,7 +21,7 @@ import static org.junit.Assert.assertFalse;
 
 public class SingleThreadIteratorTest {
 
-    private OakMapOffHeapImpl<Integer, Integer> oak;
+    private OakMapOldOffHeapImpl<Integer, Integer> oak;
     int maxItemsPerChunk = 2048;
     int maxBytesPerChunkItem = 100;
 
@@ -30,7 +30,7 @@ public class SingleThreadIteratorTest {
         OakMapBuilder builder = OakMapBuilder.getDefaultBuilder()
                 .setChunkMaxItems(maxItemsPerChunk)
                 .setChunkBytesPerItem(maxBytesPerChunkItem);
-        oak = (OakMapOffHeapImpl<Integer, Integer>) builder.build();
+        oak = (OakMapOldOffHeapImpl<Integer, Integer>) builder.build();
     }
 
     @Rule
@@ -112,7 +112,7 @@ public class SingleThreadIteratorTest {
 
     @Test
     public void testGetRange() {
-        OakMap sub = oak.subMap(0, true, 3 * maxItemsPerChunk, false);
+        OakMapOld sub = oak.subMap(0, true, 3 * maxItemsPerChunk, false);
         Iterator<Integer> iter = sub.valuesIterator();
         assertFalse(iter.hasNext());
 
@@ -184,7 +184,7 @@ public class SingleThreadIteratorTest {
             assertEquals(i, iter.next());
         }
         assertEquals(0, i.intValue());
-        OakMap map = oak.descendingMap();
+        OakMapOld map = oak.descendingMap();
         iter = map.descendingMap().valuesIterator();
         i = 0;
         while (iter.hasNext()) {
@@ -201,7 +201,7 @@ public class SingleThreadIteratorTest {
         }
         assertEquals(0, i.intValue());
 
-        OakMap sub = oak.subMap(1, false, 4, true);
+        OakMapOld sub = oak.subMap(1, false, 4, true);
         iter = sub.descendingMap().valuesIterator();
         i = 5;
         while (iter.hasNext()) {
@@ -242,7 +242,7 @@ public class SingleThreadIteratorTest {
         }
         assertEquals(0, i.intValue());
 
-        OakMap sub = oak.subMap(1, false, 4, true);
+        OakMapOld sub = oak.subMap(1, false, 4, true);
         iter = sub.valuesIterator();
         i = 2;
         while (iter.hasNext()) {
