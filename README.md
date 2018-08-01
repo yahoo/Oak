@@ -120,15 +120,15 @@ OakMapBuilder builder = new OakMapBuilder()
 
 Oak supports several methods, unusual of the methods are going to be further discussed below:
 ```java
-public void close();  					// cleans off heap memory
-public long memorySize(); 			// current off heap memory usage in bytes
-public int entries(); 					// Number of key-value pairs inside the map
-void put(K key, V value);				// If the key exists, the old value is replaced
-boolean putIfAbsent(K key, V value); 	// If the key doesn’t exist, associate it with the given value
-void remove(K key);							// Removes the mapping for the key, if it is present
-V get(K key);										// Returns deserialized copy of the value to which the key is mapped
-K getMinKey();									// The minimal key in the map
-K getMaxKey();									// The maximal key in the map
+public void close(); // cleans off heap memory
+public long memorySize(); // current off heap memory usage in bytes
+public int entries(); // Number of key-value pairs inside the map
+void put(K key, V value); // If the key exists, the old value is replaced
+boolean putIfAbsent(K key, V value); // If the key doesn’t exist, associate it with the given value
+void remove(K key); // Removes the mapping for the key, if it is present
+V get(K key); // Returns deserialized copy of the value to which the key is mapped
+K getMinKey(); // The minimal key in the map
+K getMaxKey(); // The maximal key in the map
 // Updates the value for the key, using the user-supplied computer function
 boolean computeIfPresent(K key, Consumer<OakWBuffer> computer);
 // If the key doesn’t exist, associate it with the given value, otherwise update the value for the key
@@ -136,15 +136,15 @@ void putIfAbsentComputeIfPresent(K key, V value, Consumer<ByteBuffer> computer);
 
 // Returns a view of the portion of the map with keys range from fromKey to toKey
 OakMap subMap(K fromKey, boolean fromInclusive, K toKey, boolean toInclusive);
-OakMap headMap(K toKey, boolean inclusive);			// Returns a view of the portion of the map with keys less than toKey
-OakMap tailMap(K fromKey, boolean inclusive);		// Returns a view of the portion of the map with keys greater than toKey
-OakMap descendingMap();													// Returns a reverse order view of the mappings contained in the map
+OakMap headMap(K toKey, boolean inclusive); // Returns a view of the portion of the map with keys less than toKey
+OakMap tailMap(K fromKey, boolean inclusive); // Returns a view of the portion of the map with keys greater than toKey
+OakMap descendingMap(); // Returns a reverse order view of the mappings contained in the map
 
-CloseableIterator<V> valuesIterator();					// Iterates over the values contained in the map
-CloseableIterator<Map.Entry<K, V>> entriesIterator(); 	// Iterates over the mappings contained in the map
-CloseableIterator<K> keysIterator();						// Iterates over the keys contained in the map
+CloseableIterator<V> valuesIterator(); // Iterates over the values contained in the map
+CloseableIterator<Map.Entry<K, V>> entriesIterator(); // Iterates over the mappings contained in the map
+CloseableIterator<K> keysIterator(); // Iterates over the keys contained in the map
 
-OakBufferView createBufferView();								// get the mappings as OakBuffers without costly deserialization
+OakBufferView createBufferView(); // get the mappings as OakBuffers without costly deserialization
 // get the transformed mappings, using user-supplied transform function
 OakTransformView createTransformView(Function<ByteBuffer, ByteBufferT> transformer);
 ```
