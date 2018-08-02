@@ -103,7 +103,7 @@ public class OakKeyComparatorImplementation implements OakComparator<K>
 ```
 
 ### Builder
-Below please find an example how to create OakMapBuilder.
+Below please find an example how to create OakMapBuilder. For more comprehensive code example please refer to [Usage](#usage) section.
 
 ```java
 OakMapBuilder builder = new OakMapBuilder()
@@ -118,10 +118,10 @@ OakMapBuilder builder = new OakMapBuilder()
 
 ### OakMap Methods
 
-Oak supports several methods, unusual of the methods are going to be further discussed below:
+Oak supports similar to ConcurrentNavigableMap API, unusual API methods are going to be further discussed below:
 ```java
-public void close(); // cleans off heap memory
-public long memorySize(); // current off heap memory usage in bytes
+public void close(); // Cleans off heap memory
+public long memorySize(); // Returns current off heap memory usage in bytes
 public int entries(); // Number of key-value pairs inside the map
 void put(K key, V value); // If the key exists, the old value is replaced
 boolean putIfAbsent(K key, V value); // If the key doesn’t exist, associate it with the given value
@@ -149,6 +149,21 @@ OakBufferView createBufferView(); // get the mappings as OakBuffers without cost
 OakTransformView createTransformView(Function<ByteBuffer, ByteBufferT> transformer);
 ```
 
+### OakBuffers
+Oak provides two types of memory buffers: *OakRBuffer* (read-only) and *OakWBuffer* (read and write). Those buffers support API identical to read-only Java ByteBuffers for OakRBuffer and writable Java ByteBuffer for OakWBuffer.
+Unfortunately, direct extension of the ByteBuffer class is impossible outside of the ByteBuffer package. Oak buffers allow the user direct access to the underlying serialized key-value pairs, without caring for concurrent accesses and memory management. Oak buffers help to avoid the unnecessary copies and deserialization of the underlying mappings.
+However, since the value updates happen in-place and all accesses share the same underlying memory, reader may evidence different values or even value deletion associated with the same key.
+
+### Notes for data retrieval
+1. The data can be retrieved via the following four methods: `V get(K key)`, `CloseableIterator<V> valuesIterator()`, `CloseableIterator<Map.Entry<K, V>> entriesIterator()`, `CloseableIterator<K> keysIterator()`
+2. Those four methods returns keys and/or values using deseriliazation (copy) and creating the Objects of the requested type. This is costly, and we strongly advice to use Oak provided Buffers or Transformations to operate directly on the internal data.
+3. For better performance of data retrieval, Oak supplies OakBufferView of the OakMap. The OakBufferView provides the same four methods for data retrieval, but the output is presented as OakRBuffer, namely: `OakRBuffer get(K key)`, `CloseableIterator<OakRBuffer> valuesIterator()`, `CloseableIterator<Map.Entry<OakRBuffer, OakRBuffer>> entriesIterator()`, `CloseableIterator<OakRBuffer> keysIterator()`
+4. OakRBuffer can represent either key or value. After getting OakRBuffer user can use the same interface as *read-only* ByteBuffer, like `int getInt(int index)`, `char getChar(int index)`, `limit()`, etc. Notice that Null Pointer Exception can happen as a a result of any OakRBuffer method in case the mapping was concurrently deleted.
+5.
+
+### Notes for data ingestion
+1. `void put(K key, V value)` doesn't return the value previously associated with the key, if key existed
+2. `boolean computeIfPresent(K key, Consumer<OakWBuffer> computer)` gets the user-defined computer. The computer is invoked in case the key exists. The computer is provided with OakWBuffer representing the serialized value associated with the key.
 
 ## Usage
 
@@ -222,13 +237,7 @@ OakTransformView createTransformView(Function<ByteBuffer, ByteBufferT> transform
 
 
 
-Off heap oak also supports:
-```java
-long size();
-void close();
-```
-
-#### Code Examples
+### Code Examples
 
 ```java
 ByteBuffer bb = ByteBuffer.allocate(4);
