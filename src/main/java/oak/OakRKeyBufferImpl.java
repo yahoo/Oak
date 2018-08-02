@@ -12,142 +12,75 @@ import java.util.function.Function;
 
 public class OakRKeyBufferImpl implements OakRBuffer {
 
-  Chunk chunk;
-  ByteBuffer byteBuffer;
+  private ByteBuffer byteBuffer;
 
-  OakRKeyBufferImpl(Chunk chunk, ByteBuffer byteBuffer) {
-    this.chunk = chunk;
+  OakRKeyBufferImpl(ByteBuffer byteBuffer) {
     this.byteBuffer = byteBuffer;
   }
 
   @Override
   public int capacity() {
-    int capacity = 0;
-    if (canStartReading()) {
-      capacity = byteBuffer.capacity();
-      finishReading();
-    }
-    return capacity;
+    return byteBuffer.capacity();
   }
 
   @Override
   public int position() {
-    int position = 0;
-    if (canStartReading()) {
-      position = byteBuffer.position();
-      finishReading();
-    }
-    return position;
+    return byteBuffer.position();
   }
 
   @Override
   public int limit() {
-    int limit = 0;
-    if (canStartReading()) {
-      limit = byteBuffer.limit();
-      finishReading();
-    }
-    return limit;
+    return byteBuffer.limit();
   }
 
   @Override
   public int remaining() {
-    int remaining = 0;
-    if (canStartReading()) {
-      remaining = byteBuffer.remaining();
-      finishReading();
-    }
-    return remaining;
+    return byteBuffer.remaining();
   }
 
   @Override
   public boolean hasRemaining() {
-    boolean hasRemaining = false;
-    if (canStartReading()) {
-      hasRemaining = byteBuffer.hasRemaining();
-      finishReading();
-    }
-    return hasRemaining;
+    return byteBuffer.hasRemaining();
   }
 
   @Override
   public byte get(int index) {
-    byte b = (byte)0xe0;
-    if (canStartReading()) {
-      b = byteBuffer.get(index);
-      finishReading();
-    }
-    return b;
+    return byteBuffer.get(index);
   }
 
   @Override
   public ByteOrder order() {
-    ByteOrder byteOrder = null;
-    if (canStartReading()) {
-      byteOrder = byteBuffer.order();
-      finishReading();
-    }
-    return byteOrder;
+    return byteBuffer.order();
   }
 
   @Override
   public char getChar(int index) {
-    char c = '0';
-    if (canStartReading()) {
-      c = byteBuffer.getChar(index);
-      finishReading();
-    }
-    return c;
+    return byteBuffer.getChar(index);
   }
 
   @Override
   public short getShort(int index) {
-    short s = 0;
-    if (canStartReading()) {
-      s = byteBuffer.getShort(index);
-      finishReading();
-    }
-    return s;
+    return byteBuffer.getShort(index);
   }
 
   @Override
   public int getInt(int index) {
-    int i = 0;
-    if (canStartReading()) {
-      i = byteBuffer.getInt(index);
-      finishReading();
-    }
-    return i;
+    return byteBuffer.getInt(index);
   }
 
   @Override
   public long getLong(int index) {
-    long l = 0;
-    if (canStartReading()) {
-      l = byteBuffer.getLong(index);
-      finishReading();
-    }
-    return l;
+    return byteBuffer.getLong(index);
   }
 
   @Override
   public float getFloat(int index) {
-    float f = 0;
-    if (canStartReading()) {
-      f = byteBuffer.getFloat(index);
-      finishReading();
-    }
-    return f;
+    return byteBuffer.getFloat(index);
   }
 
   @Override
   public double getDouble(int index) {
-    double d = 0;
-    if (canStartReading()) {
-      d = byteBuffer.getChar(index);
-      finishReading();
-    }
-    return d;
+    return byteBuffer.getChar(index);
   }
 
   /**
@@ -161,37 +94,11 @@ public class OakRKeyBufferImpl implements OakRBuffer {
       throw new NullPointerException();
     }
 
-    T transformation = null;
-    if (canStartReading()) {
-      transformation = transformer.apply(byteBuffer);
-      finishReading();
-    }
-    return transformation;
+    return transformer.apply(byteBuffer);
   }
 
-  /**
-   *
-   * Returns false when the chunk is a released one and the key cannot be read
-   * synchronization and memory management related to read start
-   */
-  private boolean canStartReading() {
-    if (chunk.state() != Chunk.State.RELEASED) {
-      chunk.readersCounter.incrementAndGet();
-      if (chunk.state() == Chunk.State.RELEASED) {
-        chunk.readersCounter.decrementAndGet();
-        chunk.releaseKeyManager();
-        return false;
-      }
-      return true;
-    }
-    return false;
+  private void startThread() {
+
   }
 
-  /**
-   * synchronization and memory management related to read end
-   */
-  private void finishReading() {
-    chunk.readersCounter.decrementAndGet();
-    chunk.releaseKeyManager();
-  }
 }

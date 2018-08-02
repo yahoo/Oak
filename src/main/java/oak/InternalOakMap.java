@@ -50,35 +50,18 @@ public class InternalOakMap<K, V> implements AutoCloseable {
           K minKey,
           Serializer<K> keySerializer,
           Serializer<V> valueSerializer,
-          OakComparator<K> comparator,
-          MemoryPool memoryPool,
+          Comparator comparator,
+          OakMemoryManager memoryManager,
           int chunkMaxItems,
           int chunkBytesPerItem) {
 
     this.size = new AtomicInteger(0);
-    this.memoryManager = new OakMemoryManager(memoryPool);
+    this.memoryManager = memoryManager;
 
     this.keySerializer = keySerializer;
     this.valueSerializer = valueSerializer;
 
-    this.comparator = new Comparator() {
-      @Override
-      public int compare(Object o1, Object o2) {
-        if (o1 instanceof ByteBuffer) {
-          if (o2 instanceof ByteBuffer) {
-            return comparator.compareSerializedKeys((ByteBuffer) o1, (ByteBuffer) o2);
-          } else {
-            return comparator.compareSerializedKeyAndKey((ByteBuffer) o1, (K) o2);
-          }
-        } else {
-          if (o2 instanceof ByteBuffer) {
-            return (-1) * comparator.compareSerializedKeyAndKey((ByteBuffer) o2, (K) o1);
-          } else {
-            return comparator.compareKeys((K) o1, (K) o2);
-          }
-        }
-      }
-    };
+    this.comparator = comparator;
 
     this.minKey = ByteBuffer.allocate(this.keySerializer.calculateSize(minKey));
     this.minKey.position(0);
@@ -287,7 +270,6 @@ public class InternalOakMap<K, V> implements AutoCloseable {
     if (!result.success) { // rebalance helped put
       return putIfAbsent(key, value, false);
     }
-    memoryManager.stopThread();
     return result.putIfAbsent;
   }
 
@@ -322,13 +304,10 @@ public class InternalOakMap<K, V> implements AutoCloseable {
       throw new NullPointerException();
     }
 
-    memoryManager.startThread();
-
     Chunk<K, V> c = findChunk(key); // find chunk matching key
     Chunk.LookUp lookUp = c.lookUp(key);
     if (lookUp != null && lookUp.handle != null) {
       lookUp.handle.put(value, valueSerializer, memoryManager);
-      memoryManager.stopThread();
       return;
     }
 
@@ -339,12 +318,10 @@ public class InternalOakMap<K, V> implements AutoCloseable {
       // the infant is already connected so rebalancer won't add this put
       rebalance(c.creator(), null, null, null, Operation.NO_OP);
       put(key, value);
-      memoryManager.stopThread();
       return;
     }
     if (state == Chunk.State.FROZEN || state == Chunk.State.RELEASED) {
       rebalancePut(c, key, value);
-      memoryManager.stopThread();
       return;
     }
 
@@ -361,7 +338,6 @@ public class InternalOakMap<K, V> implements AutoCloseable {
       ei = c.allocateEntryAndKey(key);
       if (ei == -1) {
         rebalancePut(c, key, value);
-        memoryManager.stopThread();
         return;
       }
       int prevEi = c.linkEntry(ei, true, key);
@@ -374,7 +350,6 @@ public class InternalOakMap<K, V> implements AutoCloseable {
     int hi = c.allocateHandle(handleFactory);
     if (hi == -1) {
       rebalancePut(c, key, value);
-      memoryManager.stopThread();
       return;
     }
 
@@ -385,7 +360,6 @@ public class InternalOakMap<K, V> implements AutoCloseable {
     // publish put
     if (!c.publish(opData)) {
       rebalancePut(c, key, value);
-      memoryManager.stopThread();
       return;
     }
 
@@ -395,8 +369,6 @@ public class InternalOakMap<K, V> implements AutoCloseable {
     c.unpublish(opData);
 
     checkRebalance(c);
-
-    memoryManager.stopThread();
   }
 
   public boolean putIfAbsent(K key, V value) {
@@ -415,7 +387,6 @@ public class InternalOakMap<K, V> implements AutoCloseable {
     Chunk c = findChunk(key); // find chunk matching key
     Chunk.LookUp lookUp = c.lookUp(key);
     if (lookUp != null && lookUp.handle != null) {
-      memoryManager.stopThread();
       return false;
     }
 
@@ -453,7 +424,6 @@ public class InternalOakMap<K, V> implements AutoCloseable {
           ei = prevEi;
           prevHi = c.getHandleIndex(prevEi);
         } else {
-          memoryManager.stopThread();
           return false;
         }
       }
@@ -480,7 +450,6 @@ public class InternalOakMap<K, V> implements AutoCloseable {
 
     checkRebalance(c);
 
-    memoryManager.stopThread();
     return ret;
   }
 
@@ -489,15 +458,12 @@ public class InternalOakMap<K, V> implements AutoCloseable {
       throw new NullPointerException();
     }
 
-    memoryManager.startThread();
-
     Chunk c = findChunk(key); // find chunk matching key
     Chunk.LookUp lookUp = c.lookUp(key);
     if (lookUp != null && lookUp.handle != null) {
       if (lookUp.handle.compute(computer, memoryManager)) {
         // compute was successful and handle wasn't found deleted; in case
         // this handle was already found as deleted, continue to construct another handle
-        memoryManager.stopThread();
         return;
       }
     }
@@ -509,12 +475,10 @@ public class InternalOakMap<K, V> implements AutoCloseable {
       // the infant is already connected so rebalancer won't add this put
       rebalance(c.creator(), null, null, null, Operation.NO_OP);
       putIfAbsentComputeIfPresent(key, value, computer);
-      memoryManager.stopThread();
       return;
     }
     if (state == Chunk.State.FROZEN || state == Chunk.State.RELEASED) {
       rebalanceCompute(c, key, value, computer);
-      memoryManager.stopThread();
       return;
     }
 
@@ -534,7 +498,6 @@ public class InternalOakMap<K, V> implements AutoCloseable {
       ei = c.allocateEntryAndKey(key);
       if (ei == -1) {
         rebalanceCompute(c, key, value, computer);
-        memoryManager.stopThread();
         return;
       }
       int prevEi = c.linkEntry(ei, true, key);
@@ -547,7 +510,6 @@ public class InternalOakMap<K, V> implements AutoCloseable {
           if (handle.compute(computer, memoryManager)) {
             // compute was successful and handle wasn't found deleted; in case
             // this handle was already found as deleted, continue to construct another handle
-            memoryManager.stopThread();
             return;
           }
         }
@@ -557,7 +519,6 @@ public class InternalOakMap<K, V> implements AutoCloseable {
     int hi = c.allocateHandle(handleFactory);
     if (hi == -1) {
       rebalanceCompute(c, key, value, computer);
-      memoryManager.stopThread();
       return;
     }
 
@@ -568,7 +529,6 @@ public class InternalOakMap<K, V> implements AutoCloseable {
     // publish put
     if (!c.publish(opData)) {
       rebalanceCompute(c, key, value, computer);
-      memoryManager.stopThread();
       return;
     }
 
@@ -578,8 +538,6 @@ public class InternalOakMap<K, V> implements AutoCloseable {
     c.unpublish(opData);
 
     checkRebalance(c);
-
-    memoryManager.stopThread();
   }
 
   public void remove(K key) {
@@ -590,8 +548,6 @@ public class InternalOakMap<K, V> implements AutoCloseable {
     boolean logical = true;
     Handle prev = null;
 
-    memoryManager.startThread();
-
     while (true) {
 
       Chunk c = findChunk(key); // find chunk matching key
@@ -600,18 +556,15 @@ public class InternalOakMap<K, V> implements AutoCloseable {
         prev = lookUp.handle; // remember previous handle
       }
       if (!logical && lookUp != null && prev != lookUp.handle) {
-        memoryManager.stopThread();
         return;  // someone else used this entry
       }
 
       if (lookUp == null || lookUp.handle == null) {
-        memoryManager.stopThread();
         return;
       }
 
       if (logical) {
         if (!lookUp.handle.remove(memoryManager)) {
-          memoryManager.stopThread();
           return;
         }
       }
@@ -630,7 +583,6 @@ public class InternalOakMap<K, V> implements AutoCloseable {
           logical = false;
           continue;
         }
-        memoryManager.stopThread();
         return;
       }
 
@@ -645,7 +597,6 @@ public class InternalOakMap<K, V> implements AutoCloseable {
           logical = false;
           continue;
         }
-        memoryManager.stopThread();
         return;
       }
 
@@ -655,8 +606,6 @@ public class InternalOakMap<K, V> implements AutoCloseable {
       c.unpublish(opData);
 
       checkRebalance(c);
-
-      memoryManager.stopThread();
 
       return;
 
@@ -668,13 +617,11 @@ public class InternalOakMap<K, V> implements AutoCloseable {
       throw new NullPointerException();
     }
 
-    memoryManager.startThread();
     Chunk<K, V> c = findChunk(key); // find chunk matching key
     Chunk.LookUp lookUp = c.lookUp(key);
     if (lookUp == null || lookUp.handle == null) {
       return null;
     }
-    memoryManager.stopThread();
     return new OakRValueBufferImpl(lookUp.handle);
   }
 
@@ -683,16 +630,15 @@ public class InternalOakMap<K, V> implements AutoCloseable {
       throw new NullPointerException();
     }
 
-    memoryManager.startThread();
     Chunk<K, V> c = findChunk(key); // find chunk matching key
     Chunk.LookUp lookUp = c.lookUp(key);
     if (lookUp == null || lookUp.handle == null) {
       return null;
     }
 
-    OakRValueBufferImpl oakRValueBuffer = new OakRValueBufferImpl(lookUp.handle);
-    T transformation = oakRValueBuffer.transform(transformer);
-    memoryManager.stopThread();
+    lookUp.handle.readLock.lock();
+    T transformation = transformer.apply(lookUp.handle.getImmutableByteBuffer());
+    lookUp.handle.readLock.unlock();
     return transformation;
   }
 
@@ -701,26 +647,13 @@ public class InternalOakMap<K, V> implements AutoCloseable {
       throw new NullPointerException();
     }
 
-    memoryManager.startThread();
-    Chunk<K, V> c;
-    T transformation;
-    do {
-      c = findChunk(key); // find chunk matching key
-      Chunk.LookUp lookUp = c.lookUp(key);
-      if (lookUp == null || lookUp.handle == null || lookUp.entryIndex == -1) {
-        memoryManager.stopThread();
-        return null;
-      }
-      ByteBuffer serializedKey = c.readKey(lookUp.entryIndex);
-      OakRKeyBufferImpl oakRKeyBuffer = new OakRKeyBufferImpl(c, serializedKey);
-      transformation = oakRKeyBuffer.transform(transformer);
-      if (transformation != null) {
-        break;
-      }
-    } while (c.state() == Chunk.State.RELEASED);
-
-    memoryManager.stopThread();
-    return transformation;
+    Chunk<K, V> c = findChunk(key); // find chunk matching key
+    Chunk.LookUp lookUp = c.lookUp(key);
+    if (lookUp == null || lookUp.handle == null || lookUp.entryIndex == -1) {
+      return null;
+    }
+    ByteBuffer serializedKey = c.readKey(lookUp.entryIndex);
+    return transformer.apply(serializedKey);
   }
 
   public OakRBuffer getKey(K key) {
@@ -728,24 +661,19 @@ public class InternalOakMap<K, V> implements AutoCloseable {
       throw new NullPointerException();
     }
 
-    memoryManager.startThread();
     Chunk<K, V> c = findChunk(key);
     Chunk.LookUp lookUp = c.lookUp(key);
     if (lookUp == null || lookUp.handle == null || lookUp.entryIndex == -1) {
-      memoryManager.stopThread();
       return null;
     }
     ByteBuffer serializedKey = c.readKey(lookUp.entryIndex);
-    memoryManager.stopThread();
-    return new OakRKeyBufferImpl(c, serializedKey);
+    return new OakRKeyBufferImpl(serializedKey);
   }
 
   public OakRBuffer getMinKey() {
-    memoryManager.startThread();
     Chunk<K, V> c = skiplist.firstEntry().getValue();
     ByteBuffer serializedMinKey = c.readMinKey();
-    memoryManager.stopThread();
-    return new OakRKeyBufferImpl(c, serializedMinKey);
+    return new OakRKeyBufferImpl(serializedMinKey);
   }
 
   public <T> T getMinKeyTransformation(Function<ByteBuffer,T> transformer) {
@@ -753,26 +681,13 @@ public class InternalOakMap<K, V> implements AutoCloseable {
       throw new NullPointerException();
     }
 
-    memoryManager.startThread();
-    Chunk<K, V> c;
-    T transformation;
+    Chunk<K, V> c = skiplist.firstEntry().getValue();
+    ByteBuffer serializedMinKey = c.readMinKey();
 
-    do {
-      c = skiplist.firstEntry().getValue();
-      ByteBuffer serializedMinKey = c.readMinKey();
-      OakRKeyBufferImpl oakRKeyBuffer = new OakRKeyBufferImpl(c, serializedMinKey);
-      transformation = oakRKeyBuffer.transform(transformer);
-      if (transformation != null) {
-        break;
-      }
-    } while (c.state() == Chunk.State.RELEASED);
-
-    memoryManager.stopThread();
-    return transformation;
+    return transformer.apply(serializedMinKey);
   }
 
   public OakRBuffer getMaxKey() {
-    memoryManager.startThread();
     Chunk<K, V> c = skiplist.lastEntry().getValue();
     Chunk<K, V> next = c.next.getReference();
     // since skiplist isn't updated atomically in split/compaction, the max key might belong in the next chunk
@@ -783,8 +698,7 @@ public class InternalOakMap<K, V> implements AutoCloseable {
     }
 
     ByteBuffer serializedMaxKey = c.readMaxKey();
-    memoryManager.stopThread();
-    return new OakRKeyBufferImpl(c, serializedMaxKey);
+    return new OakRKeyBufferImpl(serializedMaxKey);
   }
 
   public <T> T getMaxKeyTransformation(Function<ByteBuffer,T> transformer) {
@@ -792,29 +706,16 @@ public class InternalOakMap<K, V> implements AutoCloseable {
       throw new NullPointerException();
     }
 
-    memoryManager.startThread();
-    Chunk<K, V> c, next;
-    T transformation;
-
-    do {
-      c = skiplist.lastEntry().getValue();
+    Chunk<K, V> c = skiplist.lastEntry().getValue();
+    Chunk<K, V> next = c.next.getReference();
+    // since skiplist isn't updated atomically in split/compaction, the max key might belong in the next chunk
+    // we need to iterate the chunks until we find the last one
+    while (next != null) {
+      c = next;
       next = c.next.getReference();
-      // since skiplist isn't updated atomically in split/compaction, the max key might belong in the next chunk
-      // we need to iterate the chunks until we find the last one
-      while (next != null) {
-        c = next;
-        next = c.next.getReference();
-      }
-      ByteBuffer serializedMaxKey = c.readMaxKey();
-      OakRKeyBufferImpl oakRKeyBuffer = new OakRKeyBufferImpl(c, serializedMaxKey);
-      transformation = oakRKeyBuffer.transform(transformer);
-      if (transformation != null) {
-        break;
-      }
-    } while (c.state() == Chunk.State.RELEASED);
-
-    memoryManager.stopThread();
-    return transformation;
+    }
+    ByteBuffer serializedMaxKey = c.readMaxKey();
+    return transformer.apply(serializedMaxKey);
   }
 
   public boolean computeIfPresent(K key, Consumer<OakWBuffer> computer) {
@@ -822,12 +723,9 @@ public class InternalOakMap<K, V> implements AutoCloseable {
       throw new NullPointerException();
     }
 
-    memoryManager.startThread();
     Chunk c = findChunk(key); // find chunk matching key
     Chunk.LookUp lookUp = c.lookUp(key);
     if (lookUp == null || lookUp.handle == null) return false;
-
-    memoryManager.stopThread();
 
     lookUp.handle.compute(computer, memoryManager);
     return true;
@@ -847,29 +745,29 @@ public class InternalOakMap<K, V> implements AutoCloseable {
    */
   abstract class Iter<T> implements CloseableIterator<T> {
 
-    private final K lo;
+    protected final K lo;
     /**
      * upper bound key, or null if to end
      */
-    private final K hi;
+    protected final K hi;
     /**
      * inclusion flag for lo
      */
-    private final boolean loInclusive;
+    protected final boolean loInclusive;
     /**
      * inclusion flag for hi
      */
-    private final boolean hiInclusive;
+    protected final boolean hiInclusive;
     /**
      * direction
      */
-    private final boolean isDescending;
+    protected final boolean isDescending;
 
     /**
      * the next node to return from next();
      */
     Chunk<K, V> nextChunk;
-    Chunk.AscendingIter nextChunkIter;
+    Chunk.ChunkIter nextChunkIter;
     int next;
     /**
      * Cache of next value field to maintain weak consistency
@@ -1075,10 +973,13 @@ public class InternalOakMap<K, V> implements AutoCloseable {
 
   class ValueIterator extends Iter<OakRBuffer> {
 
+    public ValueIterator(K lo, boolean loInclusive, K hi, boolean hiInclusive, boolean isDescending) {
+      super(lo, loInclusive, hi, hiInclusive, isDescending);
+    }
+
     public OakRBuffer next() {
-      int n = next;
+      memoryManager.startThread();
       Handle handle = nextHandle;
-      Chunk c = nextChunk;
       advance();
       if (handle == null)
         return null;
@@ -1087,9 +988,37 @@ public class InternalOakMap<K, V> implements AutoCloseable {
     }
   }
 
+  class ValueTransformIterator<T> extends Iter<T> {
+
+    Function<ByteBuffer, T> transformer;
+
+    public ValueTransformIterator(K lo, boolean loInclusive, K hi, boolean hiInclusive, boolean isDescending,
+                                  Function<ByteBuffer, T> transformer) {
+      super(lo, loInclusive, hi, hiInclusive, isDescending);
+      this.transformer = transformer;
+    }
+
+    public T next() {
+      memoryManager.startThread();
+      Handle handle = nextHandle;
+      advance();
+      if (handle == null)
+        return null;
+      handle.readLock.lock();
+      T transformation = transformer.apply(handle.getImmutableByteBuffer());
+      handle.readLock.unlock();
+      return transformation;
+    }
+  }
+
   class EntryIterator extends Iter<Map.Entry<OakRBuffer, OakRBuffer>> {
 
+    public EntryIterator(K lo, boolean loInclusive, K hi, boolean hiInclusive, boolean isDescending) {
+      super(lo, loInclusive, hi, hiInclusive, isDescending);
+    }
+
     public Map.Entry<OakRBuffer, OakRBuffer> next() {
+      memoryManager.startThread();
       int n = next;
       Chunk c = nextChunk;
       Handle handle = nextHandle;
@@ -1099,34 +1028,89 @@ public class InternalOakMap<K, V> implements AutoCloseable {
       ByteBuffer serializedKey = getKey(n, c);
       serializedKey = serializedKey.slice(); // TODO can I get rid of this?
       return new AbstractMap.SimpleImmutableEntry<OakRBuffer, OakRBuffer>
-              (new OakRKeyBufferImpl(c, serializedKey), new OakRValueBufferImpl(handle));
+              (new OakRKeyBufferImpl(serializedKey), new OakRValueBufferImpl(handle));
+    }
+  }
+
+  class EntryTransformIterator<T> extends Iter<T> {
+
+    Function<Map.Entry<ByteBuffer, ByteBuffer>, T> transformer;
+
+    public EntryTransformIterator(K lo, boolean loInclusive, K hi, boolean hiInclusive, boolean isDescending,
+                                  Function<Map.Entry<ByteBuffer, ByteBuffer>, T> transformer) {
+      super(lo, loInclusive, hi, hiInclusive, isDescending);
+      this.transformer = transformer;
+    }
+
+    public T next() {
+      memoryManager.startThread();
+      int n = next;
+      Chunk c = nextChunk;
+      Handle handle = nextHandle;
+      advance();
+      if (handle == null)
+        return null;
+      ByteBuffer serializedKey = getKey(n, c);
+      serializedKey = serializedKey.slice(); // TODO can I get rid of this?
+      handle.readLock.lock();
+      ByteBuffer serializedValue = handle.getImmutableByteBuffer();
+      Map.Entry<ByteBuffer, ByteBuffer> entry = new AbstractMap.SimpleImmutableEntry<ByteBuffer, ByteBuffer>(serializedKey, serializedValue);
+      T transformation = transformer.apply(entry);
+      handle.readLock.unlock();
+      return transformation;
     }
   }
 
   class KeyIterator extends Iter<OakRBuffer> {
 
+    public KeyIterator(K lo, boolean loInclusive, K hi, boolean hiInclusive, boolean isDescending) {
+      super(lo, loInclusive, hi, hiInclusive, isDescending);
+    }
+
     public OakRBuffer next() {
+      memoryManager.startThread();
       int n = next;
       Chunk c = nextChunk;
       advance();
       ByteBuffer serializedKey = getKey(n, c);
       serializedKey = serializedKey.slice(); // TODO can I get rid of this?
-      return new OakRKeyBufferImpl(c, serializedKey);
+      return new OakRKeyBufferImpl(serializedKey);
+    }
+  }
+
+  class KeyTransformIterator<T> extends Iter<T> {
+
+    Function<ByteBuffer, T> transformer;
+
+    public KeyTransformIterator(K lo, boolean loInclusive, K hi, boolean hiInclusive, boolean isDescending,
+                                Function<ByteBuffer, T> transformer) {
+      super(lo, loInclusive, hi, hiInclusive, isDescending);
+      this.transformer = transformer;
+    }
+
+    public T next() {
+      memoryManager.startThread();
+      int n = next;
+      Chunk c = nextChunk;
+      advance();
+      ByteBuffer serializedKey = getKey(n, c);
+      serializedKey = serializedKey.slice(); // TODO can I get rid of this?
+      return transformer.apply(serializedKey);
     }
   }
 
   // Factory methods for iterators
 
-  public CloseableIterator<OakRBuffer> valuesIterator() {
-    return new ValueIterator();
+  public CloseableIterator<OakRBuffer> valuesIterator(K lo, boolean loInclusive, K hi, boolean hiInclusive, boolean isDescending) {
+    return new ValueIterator(lo, loInclusive, hi, hiInclusive, isDescending);
   }
 
-  public CloseableIterator<Map.Entry<OakRBuffer, OakRBuffer>> entriesIterator() {
-    return new EntryIterator();
+  public CloseableIterator<Map.Entry<OakRBuffer, OakRBuffer>> entriesIterator(K lo, boolean loInclusive, K hi, boolean hiInclusive, boolean isDescending) {
+    return new EntryIterator(lo, loInclusive, hi, hiInclusive, isDescending);
   }
 
-  public CloseableIterator<OakRBuffer> keysIterator() {
-    return new KeyIterator();
+  public CloseableIterator<OakRBuffer> keysIterator(K lo, boolean loInclusive, K hi, boolean hiInclusive, boolean isDescending) {
+    return new KeyIterator(lo, loInclusive, hi, hiInclusive, isDescending);
   }
 
 }

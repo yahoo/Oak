@@ -8,6 +8,7 @@ package oak;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.util.ConcurrentModificationException;
 import java.util.function.Function;
 
 public class OakRValueBufferImpl implements OakRBuffer {
@@ -20,114 +21,137 @@ public class OakRValueBufferImpl implements OakRBuffer {
 
     @Override
     public int capacity() {
-        return handle.capacityLock();
+        start();
+        int capacity = handle.capacity();
+        end();
+        return capacity;
     }
 
     @Override
     public int position() {
-        return handle.positionLock();
+        start();
+        int position = handle.position();
+        end();
+        return position;
     }
 
     @Override
     public int limit() {
-        return handle.limitLock();
+        start();
+        int limit = handle.limit();
+        end();
+        return limit;
     }
 
     @Override
     public int remaining() {
-        return handle.remainingLock();
+        start();
+        int remaining = handle.remaining();
+        end();
+        return remaining;
     }
 
     @Override
     public boolean hasRemaining() {
-        return handle.hasRemainingLock();
+        start();
+        boolean hasRemaining = handle.hasRemaining();
+        end();
+        return hasRemaining;
     }
 
     @Override
     public byte get(int index) {
-        return handle.getLock(index);
+        start();
+        byte b = handle.get(index);
+        end();
+        return b;
     }
 
-
-    /**
-     * @throws NullPointerException if the key was removed
-     */
     @Override
     public ByteOrder order() {
-        return handle.orderLock();
+        ByteOrder order;
+        start();
+        order = handle.order();
+        end();
+        return order;
     }
 
-    /**
-     * @throws NullPointerException if the key was removed
-     */
     @Override
     public char getChar(int index) {
-        return handle.getCharLock(index);
+        char c;
+        start();
+        c = handle.getChar(index);
+        end();
+        return c;
     }
 
-
-    /**
-     * @throws NullPointerException if the key was removed
-     */
     @Override
     public short getShort(int index) {
-        return handle.getShortLock(index);
+        short s;
+        start();
+        s = handle.getShort(index);
+        end();
+        return s;
     }
 
-
-    /**
-     * @throws NullPointerException if the key was removed
-     */
     @Override
     public int getInt(int index) {
-        return handle.getIntLock(index);
+        int i;
+        start();
+        i = handle.getInt(index);
+        end();
+        return i;
     }
 
-
-    /**
-     * @throws NullPointerException if the key was removed
-     */
     @Override
     public long getLong(int index) {
-        return handle.getLongLock(index);
+        long l;
+        start();
+        l = handle.getLong(index);
+        end();
+        return l;
     }
 
-
-    /**
-     * @throws NullPointerException if the key was removed
-     */
     @Override
     public float getFloat(int index) {
-        return handle.getFloatLock(index);
+        float f;
+        start();
+        f = handle.getFloat(index);
+        end();
+        return f;
     }
 
-
-    /**
-     * @throws NullPointerException if the key was removed
-     */
     @Override
     public double getDouble(int index) {
-        return handle.getDoubleLock(index);
+        double d;
+        start();
+        d = handle.getDouble(index);
+        end();
+        return d;
     }
 
-    /**
-     * @throws NullPointerException if the transformer is null;
-     */
     @Override
     public <T> T transform(Function<ByteBuffer, T> transformer) {
         if (transformer == null) {
             throw new NullPointerException();
         }
 
-        T transformation;
-        try {
-            handle.readLock.lock();
-            ByteBuffer value = handle.getImmutableByteBuffer();
-            transformation = transformer.apply(value);
-        } finally {
-            handle.readLock.unlock();
-        }
+        start();
+        T transformation = transformer.apply(handle.getImmutableByteBuffer());
+        end();
         return transformation;
+    }
+
+    private void start() {
+        handle.readLock.lock();
+        if (handle.isDeleted()) {
+            handle.readLock.unlock();
+            throw new ConcurrentModificationException();
+        }
+    }
+
+    private void end() {
+        handle.readLock.unlock();
     }
 
 }

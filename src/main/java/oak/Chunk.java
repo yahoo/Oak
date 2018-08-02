@@ -83,7 +83,6 @@ public class Chunk<K, V> {
     // for writing the keys into the bytebuffers
     private final Serializer<K> keySerializer;
     private final Serializer<V> valueSerializer;
-    public final AtomicInteger readersCounter;
 
     /*-------------- Constructors --------------*/
 
@@ -139,7 +138,6 @@ public class Chunk<K, V> {
 
         this.keySerializer = keySerializer;
         this.valueSerializer = valueSerializer;
-        this.readersCounter = new AtomicInteger(0);
     }
 
     enum State {
@@ -169,14 +167,6 @@ public class Chunk<K, V> {
 
     void release() {
         if (state.compareAndSet(State.FROZEN, State.RELEASED)) {
-            if (readersCounter.get() == 0) {
-                keysManager.release();
-            }
-        }
-    }
-
-    public void releaseKeyManager() {
-        if (state.get() == State.RELEASED && readersCounter.get() == 0) {
             keysManager.release();
         }
     }

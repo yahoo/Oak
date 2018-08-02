@@ -17,38 +17,34 @@ import java.nio.ByteBuffer;
  */
 public class OakMapBuilder<K,V> {
 
+  private int MAX_MEM_CAPACITY = Integer.MAX_VALUE;
+
   private Serializer<K> keySerializer;
-  private SizeCalculator<K> keySizeCalculator;
-  private ValueSerializer<K, V> valueSerializer;
-  private SizeCalculator<V> valueSizeCalculator;
+  private Serializer<V> valueSerializer;
 
   private K minKey;
 
   // comparators
-  private OakComparator<K,K> keysComparator;
-  private OakComparator<ByteBuffer,ByteBuffer> serializationsComparator;
-  private OakComparator<ByteBuffer,K> serializationAndKeyComparator;
+  private OakComparator<K> comparator;
 
   // Off-heap fields
   private int chunkMaxItems;
   private int chunkBytesPerItem;
   private MemoryPool memoryPool;
+  private int memoryCapacity;
 
   public OakMapBuilder() {
     this.keySerializer = null;
-    this.keySizeCalculator = null;
     this.valueSerializer = null;
-    this.valueSizeCalculator = null;
 
     this.minKey = null;
 
-    this.keysComparator = null;
-    this.serializationsComparator = null;
-    this.serializationAndKeyComparator = null;
+    this.comparator = null;
 
     this.chunkMaxItems = Chunk.MAX_ITEMS_DEFAULT;
     this.chunkBytesPerItem = Chunk.BYTES_PER_ITEM_DEFAULT;
-    this.memoryPool = new SimpleNoFreeMemoryPoolImpl(Integer.MAX_VALUE);
+    this.memoryCapacity = MAX_MEM_CAPACITY;
+    this.memoryPool = null;new SimpleNoFreeMemoryPoolImpl(Integer.MAX_VALUE);
   }
 
   public OakMapBuilder setKeySerializer(Serializer<K> keySerializer) {
@@ -56,18 +52,8 @@ public class OakMapBuilder<K,V> {
     return this;
   }
 
-  public OakMapBuilder setKeySizeCalculator(SizeCalculator<K> keySizeCalculator) {
-    this.keySizeCalculator = keySizeCalculator;
-    return this;
-  }
-
-  public OakMapBuilder setValueSerializer(ValueSerializer<K, V> valueSerializer) {
+  public OakMapBuilder setValueSerializer(Serializer<V> valueSerializer) {
     this.valueSerializer = valueSerializer;
-    return this;
-  }
-
-  public OakMapBuilder setValueSizeCalculator(SizeCalculator<V> valueSizeCalculator) {
-    this.valueSizeCalculator = valueSizeCalculator;
     return this;
   }
 
@@ -91,41 +77,26 @@ public class OakMapBuilder<K,V> {
     return this;
   }
 
-  public OakMapBuilder setKeysComparator(OakComparator<K,K> keysComparator) {
-    this.keysComparator = keysComparator;
+  public OakMapBuilder setMemoryCapacity(int memoryCapacity) {
+    this.memoryCapacity = memoryCapacity;
     return this;
   }
 
-  public OakMapBuilder setSerializationsComparator(OakComparator<ByteBuffer,ByteBuffer> serializationsComparator) {
-    this.serializationsComparator = serializationsComparator;
+  public OakMapBuilder setComparator(OakComparator<K> comparator) {
+    this.comparator = comparator;
     return this;
   }
 
-  public OakMapBuilder setSerializationAndKeyComparator(OakComparator<ByteBuffer,K> serializationAndKeyComparator) {
-    this.serializationAndKeyComparator = serializationAndKeyComparator;
-    return this;
-  }
+  public OakMap build() {
 
-  public OakMapOld build() {
+    if (memoryPool == null)
+      memoryPool = new SimpleNoFreeMemoryPoolImpl(memoryCapacity);
 
-    assert this.keySerializer != null;
-    assert this.keySizeCalculator != null;
-    assert this.valueSerializer != null;
-    assert this.valueSizeCalculator != null;
-    assert this.minKey != null;
-    assert this.keysComparator != null;
-    assert this.serializationsComparator != null;
-    assert this.serializationAndKeyComparator != null;
-
-    return new OakMapOldOffHeapImpl(
+    return new OakMap(
             minKey,
             keySerializer,
-            keySizeCalculator,
             valueSerializer,
-            valueSizeCalculator,
-            keysComparator,
-            serializationsComparator,
-            serializationAndKeyComparator,
+            comparator,
             memoryPool,
             chunkMaxItems,
             chunkBytesPerItem);
@@ -141,7 +112,7 @@ public class OakMapBuilder<K,V> {
 
   public static OakMapBuilder<Integer, Integer> getDefaultBuilder() {
 
-    Serializer<Integer> keySerializer = new Serializer<Integer>() {
+    Serializer<Integer> serializer = new Serializer<Integer>() {
 
       @Override
       public void serialize(Integer key, ByteBuffer targetBuffer) {
@@ -153,59 +124,36 @@ public class OakMapBuilder<K,V> {
         return serializedKey.getInt(serializedKey.position());
       }
 
+      @Override
+      public int calculateSize(Integer key) { return Integer.BYTES; }
+
     };
 
-    SizeCalculator<Integer> sizeCalculator = new SizeCalculator<Integer>() {
-      @Override
-      public int calculateSize(Integer object) {
-        return Integer.BYTES;
-      }
-    };
+    OakComparator<Integer> comparator = new OakComparator<Integer>() {
 
-    ValueSerializer<Integer, Integer> valueSerializer = new ValueSerializer<Integer, Integer>() {
       @Override
-      public void serialize(Integer key, Integer value, ByteBuffer targetBuffer) {
-        targetBuffer.putInt(targetBuffer.position(), value);
+      public int compareKeys(Integer key1, Integer key2) {
+        return intsCompare(key1, key2);
       }
 
       @Override
-      public Integer deserialize(ByteBuffer serializedKey, ByteBuffer serializedValue) {
-        return serializedValue.getInt(serializedValue.position());
-      }
-    };
-
-    OakComparator<Integer, Integer> keysComparator = new OakComparator<Integer, Integer>() {
-      @Override
-      public int compare(Integer int1, Integer int2) {
+      public int compareSerializedKeys(ByteBuffer serializedKey1, ByteBuffer serializedKey2) {
+        int int1 = serializedKey1.getInt(serializedKey1.position());
+        int int2 = serializedKey2.getInt(serializedKey2.position());
         return intsCompare(int1, int2);
       }
-    };
 
-    OakComparator<ByteBuffer, ByteBuffer> serializationsComparator = new OakComparator<ByteBuffer, ByteBuffer>() {
       @Override
-      public int compare(ByteBuffer buff1, ByteBuffer buff2) {
-        int int1 = buff1.getInt(buff1.position());
-        int int2 = buff2.getInt(buff2.position());
-        return intsCompare(int1, int2);
-      }
-    };
-
-    OakComparator<ByteBuffer, Integer> serializationAndKeyComparator = new OakComparator<ByteBuffer, Integer>() {
-      @Override
-      public int compare(ByteBuffer buff1, Integer int2) {
-        int int1 = buff1.getInt(buff1.position());
-        return intsCompare(int1, int2);
+      public int compareSerializedKeyAndKey(ByteBuffer serializedKey, Integer key) {
+        int int1 = serializedKey.getInt(serializedKey.position());
+        return intsCompare(int1, key);
       }
     };
 
     return new OakMapBuilder<Integer, Integer>()
-            .setKeySerializer(keySerializer)
-            .setKeySizeCalculator(sizeCalculator)
-            .setValueSerializer(valueSerializer)
-            .setValueSizeCalculator(sizeCalculator)
+            .setKeySerializer(serializer)
+            .setValueSerializer(serializer)
             .setMinKey(new Integer(Integer.MIN_VALUE))
-            .setKeysComparator(keysComparator)
-            .setSerializationsComparator(serializationsComparator)
-            .setSerializationAndKeyComparator(serializationAndKeyComparator);
+            .setComparator(comparator);
   }
 }

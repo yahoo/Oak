@@ -48,26 +48,24 @@ public class ComputeTest {
             key.position(0);
             return key;
         }
-    }
 
-    public static class ComputeTestKeySizeCalculator implements SizeCalculator<Integer> {
-
-        public int calculateSize(Integer object) {
+        @Override
+        public int calculateSize(ByteBuffer buff) {
             return keySize * Integer.BYTES;
         }
     }
 
-    public static class ComputeTestValueSerializer implements ValueSerializer<ByteBuffer, ByteBuffer> {
+    public static class ComputeTestValueSerializer implements Serializer<ByteBuffer> {
 
         @Override
-        public void serialize(ByteBuffer key, ByteBuffer value, ByteBuffer targetBuffer) {
+        public void serialize(ByteBuffer value, ByteBuffer targetBuffer) {
             for (int i = 0; i < valSize; i++) {
                 targetBuffer.putInt(Integer.BYTES * i, value.getInt(Integer.BYTES * i));
             }
         }
 
         @Override
-        public ByteBuffer deserialize(ByteBuffer serializedKey, ByteBuffer serializedValue) {
+        public ByteBuffer deserialize(ByteBuffer serializedValue) {
             ByteBuffer value = ByteBuffer.allocate(valSize);
             value.position(0);
             for (int i = 0; i < valSize; i++) {
@@ -76,16 +74,14 @@ public class ComputeTest {
             value.position(0);
             return value;
         }
-    }
 
-    public static class ComputeTestValueSizeCalculator implements SizeCalculator<Integer> {
-
-        public int calculateSize(Integer object) {
+        @Override
+        public int calculateSize(ByteBuffer buff) {
             return valSize * Integer.BYTES;
         }
     }
 
-    public static class ComputeTestKeysComparator implements OakComparator<ByteBuffer, ByteBuffer> {
+    public static class ComputeTestComparator implements OakComparator<ByteBuffer> {
 
         public int compare(ByteBuffer buff1, ByteBuffer buff2) {
             for (int i = 0; i < keySize; i++) {
