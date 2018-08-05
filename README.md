@@ -20,7 +20,7 @@ It's faster and scales better with additional CPU cores than popular ConcurrentN
 - [Builder](#builder)
 - [API](#api)
 - [Usage](#usage)
-- [Oak Views] (#views)
+- [Oak Views](#views)
 - [Contribute](#contribute)
 - [License](#license)
 
@@ -163,12 +163,12 @@ However, since the value updates happen in-place and all accesses share the same
 	- `CloseableIterator<K> keysIterator()`
 2. Those four methods returns keys and/or values using deseriliazation (copy) and creating the Objects of the requested type. This is costly, and we strongly advice to use Oak provided Buffers or Transformations to operate directly on the internal data.
 3. For better performance of data retrieval, Oak supplies OakBufferView of the OakMap. The OakBufferView provides the same four methods for data retrieval, but the output is presented as OakRBuffer, namely:
- - `OakRBuffer get(K key)`,
- - `CloseableIterator<OakRBuffer> valuesIterator()`,
- - `CloseableIterator<Map.Entry<OakRBuffer, OakRBuffer>> entriesIterator()`,
- - `CloseableIterator<OakRBuffer> keysIterator()`
+	- `OakRBuffer get(K key)`,
+	- `CloseableIterator<OakRBuffer> valuesIterator()`,
+	- `CloseableIterator<Map.Entry<OakRBuffer, OakRBuffer>> entriesIterator()`,
+	- `CloseableIterator<OakRBuffer> keysIterator()`
 4. OakRBuffer can represent either key or value. After getting OakRBuffer user can use the same interface as *read-only* ByteBuffer, like `int getInt(int index)`, `char getChar(int index)`, `limit()`, etc. Notice that ConcurrentModificationException can be thrown as a a result of any OakRBuffer method in case the mapping was concurrently deleted.
-5. For deeper understanding of the data retrieval Oak views, please refer to [Oak Views] (#views) section
+5. For deeper understanding of the data retrieval Oak views, please refer to [Oak Views](#views) section
 
 ### Notes for data ingestion
 1. The data can be ingested and updated via the following four methods:
