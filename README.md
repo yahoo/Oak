@@ -147,7 +147,7 @@ CloseableIterator<K> keysIterator(); // Iterates over the keys contained in the 
 
 OakBufferView createBufferView(); // get the mappings as OakBuffers without costly deserialization
 // get the transformed mappings, using user-supplied transform function
-OakTransformView createTransformView(Function<ByteBuffer, ByteBufferT> transformer);
+OakTransformView createTransformView(BiFunction<ByteBuffer, ByteBuffer, T> transformer);
 ```
 
 ### OakBuffers
@@ -168,7 +168,7 @@ However, since the value updates happen in-place and all accesses share the same
 	- `CloseableIterator<Map.Entry<OakRBuffer, OakRBuffer>> entriesIterator()`,
 	- `CloseableIterator<OakRBuffer> keysIterator()`
 4. OakRBuffer can represent either key or value. After getting OakRBuffer user can use the same interface as *read-only* ByteBuffer, like `int getInt(int index)`, `char getChar(int index)`, `limit()`, etc. Notice that ConcurrentModificationException can be thrown as a a result of any OakRBuffer method in case the mapping was concurrently deleted.
-5. For deeper understanding of the data retrieval Oak views, please refer to [Oak Views](#views) section
+5. For further understanding of the data retrieval via Oak transform view, please refer to [Oak Views](#views) section.
 
 ### Notes for data ingestion
 1. The data can be ingested and updated via the following four methods:
@@ -247,88 +247,108 @@ However, since the value updates happen in-place and all accesses share the same
                  .setMinKey(new Integer(Integer.MIN_VALUE))
                  .setKeysComparator(keysComparator)
                  .setMemoryCapacity(1048576); // 1MB in bytes
+
+     OakMap<Integer,Integer> oak = (OakMap<Integer, Integer>) builder.build();
 ```
-
-
-
 
 ### Code Examples
 
+##### Simple Put and Get
 ```java
-ByteBuffer bb = ByteBuffer.allocate(4);
-bb.putInt(0,0);
-```
-
-##### Put
-```java
-oak.put(bb,bb);
+oak.put(Integer(10),Integer(100));
+Integer i = oak.get(Integer(10));
 ```
 
 ##### PutIfAbsent
 ```java
-boolean res = oak.putIfAbsent(bb,bb);
+boolean res = oak.putIfAbsent(Integer(11),Integer(110));
 ```
 
 ##### Remove
 ```java
-oak.remove(bb);
+oak.remove(Integer(11));
 ```
 
-#### Get
+#### Get OakRBuffer
 ```java
-OakBuffer buffer = oak.getHandle(bb);
+OakBufferView oakView = oak.createBufferView();
+OakRBuffer buffer = oakView.get(Integer(10));
 if(buffer != null) {
     try {
         int get = buffer.getInt(0);
-    } catch (NullPointerException e){
+    } catch (ConcurrentModificationException e){
     }
 }
 ```
 
 #### Compute
 ```java
-Consumer<WritableOakBuffer> func = buf -> {
+Consumer<OakWBuffer> func = buf -> {
     if (buf.getInt(0) == 1) {
         buf.putInt(1);
         buf.putInt(1);
     }
 };
-oak.computeIfPresent(bb, func);
+oak.computeIfPresent(Integer(10), func);
 ```
 
-##### Iterator
+##### Simple Iterator
 ```java
-try (CloseableIterator<ByteBuffer> iterator = oak.keysIterator()) {
+try (CloseableIterator<Integer> iterator = oak.keysIterator()) {
     while (iter.hasNext()) {
-        ByteBuffer buffer = iter.next();
+        Integer i = iter.next();
     }
 }
 ```
 
-##### Descending Iterator
+##### Simple Descending Iterator
 ```java
-try (CloseableIterator iter = oak.descendingMap().entriesIterator()) {
+try (CloseableIterator<Integer, Integer> iter = oak.descendingMap().entriesIterator()) {
     while (iter.hasNext()) {
-        Map.Entry<ByteBuffer, OakBuffer> e = (Map.Entry<ByteBuffer, OakBuffer>) iter.next();
+        Map.Entry<Integer, Integer> e = iter.next();
     }
 }
 ```
 
-##### Range Iterator
+##### Simple Range Iterator
 ```java
-ByteBuffer from = ByteBuffer.allocate(4);
-from.putInt(0,1);
-ByteBuffer to = ByteBuffer.allocate(4);
-to.putInt(0,4);
+Integer from = Integer(4);
+Integer to = Integer(6);
 
 OakMap sub = oak.subMap(from, false, to, true);
-try (CloseableIterator<OakBuffer>  iter = sub.valuesIterator()) {
+try (CloseableIterator<Integer>  iter = sub.valuesIterator()) {
     while (iter.hasNext()) {
-        OakBuffer buffer = iter.next();
+        Integer i = iter.next();
     }
 }
 ```
+
 ## Views
+
+In addition to OakBufferView explained above, Oak supplies OakTransformView, allowing manipulating on ByteBuffers instead on OakRBuffer. It might be preferable for those who prefer to directly retrieve the modified (transformed) data from OakMap. Transform view can be create via `OakTransformView createTransformView(BiFunction<ByteBuffer, ByteBuffer, T> transformer)`.
+It requires a transform function `BiFunction<ByteBuffer, ByteBuffer, T> transformer)` that may transform key-value pairs given as **read-only** ByteBuffers into any `T` object. The first ByteBuffer parameter is the key and the second is the value. OakTransformView API is the same as of OakBufferView, but `T` object is the return value, namely:
+	- `T get(K key)`,
+	- `CloseableIterator<T> valuesIterator()`,
+	- `CloseableIterator<Map.Entry<T, T>> entriesIterator()`,
+	- `CloseableIterator<T> keysIterator()`
+
+### Code example
+
+```java
+BiFunction<ByteBuffer,ByteBuffer, Integer> func = (k,v) -> {
+    if (k.getInt(0) == 1) {
+        return k.getInt(0)*y.getInt(0);
+    } else return 0;
+};
+
+OakTransformView oakView = oak.createTransformView(func);
+
+try (CloseableIterator<Integer> iter = oakView.entriesIterator()) {
+    while (iter.hasNext()) {
+        Integer i = iter.next();
+    }
+}
+```
 
 ## Contribute
 
