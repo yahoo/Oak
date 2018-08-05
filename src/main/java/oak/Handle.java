@@ -8,6 +8,7 @@ package oak;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.util.ConcurrentModificationException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
@@ -307,7 +308,7 @@ abstract class Handle<K, V> extends WritableOakBuffer {
         readLock.lock();
         if (isDeleted()) {
             readLock.unlock();
-            throw new NullPointerException();
+            throw new ConcurrentModificationException();
         }
         char c;
         try {
