@@ -16,7 +16,7 @@ public class ComputeTest {
 
     private static int NUM_THREADS;
 
-    static OakMapOldOffHeapImpl<ByteBuffer, ByteBuffer> oak;
+    static OakMap<ByteBuffer, ByteBuffer> oak;
     private static final long K = 1024;
 
     private static int keySize = 10;
@@ -83,7 +83,8 @@ public class ComputeTest {
 
     public static class ComputeTestComparator implements OakComparator<ByteBuffer> {
 
-        public int compare(ByteBuffer buff1, ByteBuffer buff2) {
+        @Override
+        public int compareKeys(ByteBuffer buff1, ByteBuffer buff2) {
             for (int i = 0; i < keySize; i++) {
                 if (buff1.getInt(Integer.BYTES * i) > buff2.getInt(Integer.BYTES * i))
                     return 1;
@@ -92,21 +93,31 @@ public class ComputeTest {
             }
             return 0;
         }
+
+        @Override
+        public int compareSerializedKeys(ByteBuffer serializedKey1, ByteBuffer serializedKey2) {
+            return compareKeys(serializedKey1, serializedKey2);
+        }
+
+        @Override
+        public int compareSerializedKeyAndKey(ByteBuffer serializedKey, ByteBuffer key) {
+            return compareKeys(serializedKey, key);
+        }
     }
 
-    static Consumer<ByteBuffer> computer = new Consumer<ByteBuffer>() {
+    static Consumer<OakWBuffer> computer = new Consumer<OakWBuffer>() {
         @Override
-        public void accept(ByteBuffer byteBuffer) {
-            if (byteBuffer.getInt(0) == byteBuffer.getInt(Integer.BYTES * keySize)) {
+        public void accept(OakWBuffer oakWBuffer) {
+            if (oakWBuffer.getInt(0) == oakWBuffer.getInt(Integer.BYTES * keySize)) {
                 return;
             }
             int[] arr = new int[keySize];
             for (int i = 0; i < 50; i++) {
                 for (int j = 0; j < keySize; j++) {
-                    arr[j] = byteBuffer.getInt();
+                    arr[j] = oakWBuffer.getInt();
                 }
                 for (int j = 0; j < keySize; j++) {
-                    byteBuffer.putInt(arr[j]);
+                    oakWBuffer.putInt(arr[j]);
                 }
             }
         }
@@ -160,15 +171,11 @@ public class ComputeTest {
                 .setChunkMaxItems(2048)
                 .setChunkBytesPerItem(100)
                 .setKeySerializer(new ComputeTestKeySerializer())
-                .setKeySizeCalculator(new ComputeTestKeySizeCalculator())
                 .setValueSerializer(new ComputeTestValueSerializer())
-                .setValueSizeCalculator(new ComputeTestValueSizeCalculator())
                 .setMinKey(minKey)
-                .setKeysComparator(new ComputeTestKeysComparator())
-                .setSerializationsComparator(new ComputeTestKeysComparator())
-                .setSerializationAndKeyComparator(new ComputeTestKeysComparator());
+                .setComparator(new ComputeTestComparator());
 
-        oak = (OakMapOldOffHeapImpl<ByteBuffer, ByteBuffer>) builder.build();
+        oak = (OakMap<ByteBuffer, ByteBuffer>) builder.build();
 
         NUM_THREADS = Integer.parseInt(args[1]);
         numOfEntries = Integer.parseInt(args[2]);

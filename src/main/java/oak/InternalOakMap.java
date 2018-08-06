@@ -268,7 +268,7 @@ public class InternalOakMap<K, V> implements AutoCloseable {
     Rebalancer.RebalanceResult result = rebalance(c, key, value, null, Operation.PUT_IF_ABSENT);
     assert result != null;
     if (!result.success) { // rebalance helped put
-      return putIfAbsent(key, value, false);
+      return putIfAbsent(key, value);
     }
     return result.putIfAbsent;
   }
@@ -372,16 +372,8 @@ public class InternalOakMap<K, V> implements AutoCloseable {
   }
 
   public boolean putIfAbsent(K key, V value) {
-    return putIfAbsent(key, value, true);
-  }
-
-  public boolean putIfAbsent(K key, V value, boolean startThread) {
     if (key == null || value == null) {
       throw new NullPointerException();
-    }
-
-    if (startThread) {
-      memoryManager.startThread();
     }
 
     Chunk c = findChunk(key); // find chunk matching key
@@ -396,7 +388,7 @@ public class InternalOakMap<K, V> implements AutoCloseable {
     if (state == Chunk.State.INFANT) {
       // the infant is already connected so rebalancer won't add this put
       rebalance(c.creator(), null, null, null, Operation.NO_OP);
-      return putIfAbsent(key, value, false);
+      return putIfAbsent(key, value);
     }
     if (state == Chunk.State.FROZEN || state == Chunk.State.RELEASED) {
       return rebalancePutIfAbsent(c, key, value);
@@ -1051,11 +1043,22 @@ public class InternalOakMap<K, V> implements AutoCloseable {
       if (handle == null)
         return null;
       ByteBuffer serializedKey = getKey(n, c);
+      System.out.println("EntryTransformIterator: serializedKey position: " + serializedKey.position());
       serializedKey = serializedKey.slice(); // TODO can I get rid of this?
       handle.readLock.lock();
+      if (handle.isDeleted()) {
+        handle.readLock.unlock();
+        return null;
+      }
       ByteBuffer serializedValue = handle.getImmutableByteBuffer();
+      System.out.println("EntryTransformIterator: serializedValue position: " + serializedValue.position());
       Map.Entry<ByteBuffer, ByteBuffer> entry = new AbstractMap.SimpleImmutableEntry<ByteBuffer, ByteBuffer>(serializedKey, serializedValue);
+      if (serializedKey == null || serializedValue == null || entry == null) {
+        handle.readLock.unlock();
+        return null;
+      }
       T transformation = transformer.apply(entry);
+      System.out.println("EntryTransformIterator: " + transformation.toString());
       handle.readLock.unlock();
       return transformation;
     }
@@ -1101,16 +1104,28 @@ public class InternalOakMap<K, V> implements AutoCloseable {
 
   // Factory methods for iterators
 
-  public CloseableIterator<OakRBuffer> valuesIterator(K lo, boolean loInclusive, K hi, boolean hiInclusive, boolean isDescending) {
+  public CloseableIterator<OakRBuffer> valuesBufferViewIterator(K lo, boolean loInclusive, K hi, boolean hiInclusive, boolean isDescending) {
     return new ValueIterator(lo, loInclusive, hi, hiInclusive, isDescending);
   }
 
-  public CloseableIterator<Map.Entry<OakRBuffer, OakRBuffer>> entriesIterator(K lo, boolean loInclusive, K hi, boolean hiInclusive, boolean isDescending) {
+  public CloseableIterator<Map.Entry<OakRBuffer, OakRBuffer>> entriesBufferViewIterator(K lo, boolean loInclusive, K hi, boolean hiInclusive, boolean isDescending) {
     return new EntryIterator(lo, loInclusive, hi, hiInclusive, isDescending);
   }
 
-  public CloseableIterator<OakRBuffer> keysIterator(K lo, boolean loInclusive, K hi, boolean hiInclusive, boolean isDescending) {
+  public CloseableIterator<OakRBuffer> keysBufferViewIterator(K lo, boolean loInclusive, K hi, boolean hiInclusive, boolean isDescending) {
     return new KeyIterator(lo, loInclusive, hi, hiInclusive, isDescending);
+  }
+
+  public <T> CloseableIterator<T> valuesTransformIterator(K lo, boolean loInclusive, K hi, boolean hiInclusive, boolean isDescending, Function<ByteBuffer, T> transformer) {
+    return new ValueTransformIterator(lo, loInclusive, hi, hiInclusive, isDescending, transformer);
+  }
+
+  public <T> CloseableIterator<T> entriesTransformIterator(K lo, boolean loInclusive, K hi, boolean hiInclusive, boolean isDescending, Function<Map.Entry<ByteBuffer, ByteBuffer>, T> transformer) {
+    return new EntryTransformIterator(lo, loInclusive, hi, hiInclusive, isDescending, transformer);
+  }
+
+  public <T> CloseableIterator<T> keysTransformIterator(K lo, boolean loInclusive, K hi, boolean hiInclusive, boolean isDescending, Function<ByteBuffer, T> transformer) {
+    return new KeyTransformIterator(lo, loInclusive, hi, hiInclusive, isDescending, transformer);
   }
 
 }

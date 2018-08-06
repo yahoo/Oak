@@ -7,6 +7,7 @@
 package oak;
 
 import java.nio.ByteBuffer;
+import java.util.AbstractMap;
 import java.util.Comparator;
 import java.util.Map;
 import java.util.function.Consumer;
@@ -18,6 +19,7 @@ public class OakMap<K, V> {
   final OakMemoryManager memoryManager;
   private Function<ByteBuffer, K> keyDeserializeTransformer;
   private Function<ByteBuffer, V> valueDeserializeTransformer;
+  private Function<Map.Entry<ByteBuffer, ByteBuffer>, Map.Entry<K, V>> entryDeserializeTransformer;
   public final Comparator comparator;
 
   // SubOakMap fields
@@ -74,6 +76,14 @@ public class OakMap<K, V> {
       @Override
       public V apply(ByteBuffer byteBuffer) {
         return valueSerializer.deserialize(byteBuffer);
+      }
+    };
+    this.entryDeserializeTransformer = new Function<Map.Entry<ByteBuffer, ByteBuffer>, Map.Entry<K, V>>() {
+      @Override
+      public Map.Entry<K, V> apply(Map.Entry<ByteBuffer, ByteBuffer> entry) {
+        if (entry == null || entry.getKey() == null || entry.getValue() == null)
+          return null;
+        return new AbstractMap.SimpleImmutableEntry<K, V>(keySerializer.deserialize(entry.getKey()), valueSerializer.deserialize(entry.getValue()));
       }
     };
   }
@@ -243,7 +253,7 @@ public class OakMap<K, V> {
    * @return {@code false} if there was no mapping for the key
    * @throws NullPointerException if the specified key or the function is null
    */
-  boolean computeIfPresent(K key, Consumer<ByteBuffer> computer) {
+  boolean computeIfPresent(K key, Consumer<OakWBuffer> computer) {
     if (key == null || computer == null)
       throw new NullPointerException();
     if (!inBounds(key))
@@ -264,7 +274,7 @@ public class OakMap<K, V> {
    * @param value       value to be associated with the specified key
    * @param computer    for computing the new value when the key is present
    */
-  void putIfAbsentComputeIfPresent(K key, V value, Consumer<ByteBuffer> computer) {
+  void putIfAbsentComputeIfPresent(K key, V value, Consumer<OakWBuffer> computer) {
     if (key == null || value == null || computer == null)
       throw new NullPointerException();
     if (!inBounds(key))
@@ -352,7 +362,7 @@ public class OakMap<K, V> {
    *                                  bounds of the range
    */
   OakMap headMap(K toKey, boolean inclusive) {
-    if (this.comparator.compare(this.fromKey, toKey) > 0) {
+    if (this.fromKey != null && this.comparator.compare(this.fromKey, toKey) > 0) {
       throw new IllegalArgumentException();
     }
 
@@ -382,7 +392,7 @@ public class OakMap<K, V> {
    *                                  bounds of the range
    */
   OakMap tailMap(K fromKey, boolean inclusive) {
-    if (this.comparator.compare(fromKey, this.toKey) > 0) {
+    if (this.toKey != null && this.comparator.compare(fromKey, this.toKey) > 0) {
       throw new IllegalArgumentException();
     }
 
@@ -412,23 +422,21 @@ public class OakMap<K, V> {
    * in ascending order of the corresponding keys.
    */
   CloseableIterator<V> valuesIterator() {
-    return internalOakMap.valuesIterator(fromKey, fromInclusive, toKey, toInclusive, isDescending);
+    return internalOakMap.valuesTransformIterator(fromKey, fromInclusive, toKey, toInclusive, isDescending, valueDeserializeTransformer);
   }
 
   /**
    * Returns a {@link CloseableIterator} of the mappings contained in this map in ascending key order.
    */
   CloseableIterator<Map.Entry<K, V>> entriesIterator() {
-    //TODO
-    return null;
+    return internalOakMap.entriesTransformIterator(fromKey, fromInclusive, toKey, toInclusive, isDescending, entryDeserializeTransformer);
   }
 
   /**
    * Returns a {@link CloseableIterator} of the keys contained in this map in ascending order.
    */
   CloseableIterator<K> keysIterator() {
-    //TODO
-    return null;
+    return internalOakMap.keysTransformIterator(fromKey, fromInclusive, toKey, toInclusive, isDescending, keyDeserializeTransformer);
   }
 
 }

@@ -115,13 +115,13 @@ public class OakMapBuilder<K,V> {
     Serializer<Integer> serializer = new Serializer<Integer>() {
 
       @Override
-      public void serialize(Integer key, ByteBuffer targetBuffer) {
-        targetBuffer.putInt(targetBuffer.position(), key);
+      public void serialize(Integer obj, ByteBuffer targetBuffer) {
+        targetBuffer.putInt(targetBuffer.position(), obj);
       }
 
       @Override
-      public Integer deserialize(ByteBuffer serializedKey) {
-        return serializedKey.getInt(serializedKey.position());
+      public Integer deserialize(ByteBuffer serializedObj) {
+        return serializedObj.getInt(serializedObj.position());
       }
 
       @Override

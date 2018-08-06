@@ -21,7 +21,7 @@ import static org.junit.Assert.assertFalse;
 
 public class SingleThreadIteratorTest {
 
-    private OakMapOldOffHeapImpl<Integer, Integer> oak;
+    private OakMap<Integer, Integer> oak;
     int maxItemsPerChunk = 2048;
     int maxBytesPerChunkItem = 100;
 
@@ -30,7 +30,7 @@ public class SingleThreadIteratorTest {
         OakMapBuilder builder = OakMapBuilder.getDefaultBuilder()
                 .setChunkMaxItems(maxItemsPerChunk)
                 .setChunkBytesPerItem(maxBytesPerChunkItem);
-        oak = (OakMapOldOffHeapImpl<Integer, Integer>) builder.build();
+        oak = (OakMap<Integer, Integer>) builder.build();
     }
 
     @Rule
@@ -112,7 +112,7 @@ public class SingleThreadIteratorTest {
 
     @Test
     public void testGetRange() {
-        OakMapOld sub = oak.subMap(0, true, 3 * maxItemsPerChunk, false);
+        OakMap sub = oak.subMap(0, true, 3 * maxItemsPerChunk, false);
         Iterator<Integer> iter = sub.valuesIterator();
         assertFalse(iter.hasNext());
 
@@ -184,8 +184,8 @@ public class SingleThreadIteratorTest {
             assertEquals(i, iter.next());
         }
         assertEquals(0, i.intValue());
-        OakMapOld map = oak.descendingMap();
-        iter = map.descendingMap().valuesIterator();
+        OakMap map = oak.descendingMap();
+        iter = oak.valuesIterator();
         i = 0;
         while (iter.hasNext()) {
             assertEquals(i, iter.next());
@@ -201,7 +201,7 @@ public class SingleThreadIteratorTest {
         }
         assertEquals(0, i.intValue());
 
-        OakMapOld sub = oak.subMap(1, false, 4, true);
+        OakMap sub = oak.subMap(1, false, 4, true);
         iter = sub.descendingMap().valuesIterator();
         i = 5;
         while (iter.hasNext()) {
@@ -242,7 +242,7 @@ public class SingleThreadIteratorTest {
         }
         assertEquals(0, i.intValue());
 
-        OakMapOld sub = oak.subMap(1, false, 4, true);
+        OakMap sub = oak.subMap(1, false, 4, true);
         iter = sub.valuesIterator();
         i = 2;
         while (iter.hasNext()) {

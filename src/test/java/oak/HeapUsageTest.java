@@ -6,6 +6,8 @@
 
 package oak;
 
+import java.nio.ByteBuffer;
+
 public class HeapUsageTest {
 
     private static final long K = 1024;
@@ -13,16 +15,38 @@ public class HeapUsageTest {
     private static int keySize = 10;
     private static int valSize = (int) Math.round(5 * K);
 
-    public static class HeapUsageTestKeySizeCalculator implements SizeCalculator<Integer> {
+    public static class FillTestKeySerializer implements Serializer<Integer> {
 
-        public int calculateSize(Integer object) {
+        @Override
+        public void serialize(Integer key, ByteBuffer targetBuffer) {
+            targetBuffer.putInt(targetBuffer.position(), key);
+        }
+
+        @Override
+        public Integer deserialize(ByteBuffer serializedKey) {
+            return serializedKey.getInt(serializedKey.position());
+        }
+
+        @Override
+        public int calculateSize(Integer key) {
             return keySize;
         }
     }
 
-    public static class HeapUsageTestValueSizeCalculator implements SizeCalculator<Integer> {
+    public static class FillTestValueSerializer implements Serializer<Integer> {
 
-        public int calculateSize(Integer object) {
+        @Override
+        public void serialize(Integer value, ByteBuffer targetBuffer) {
+            targetBuffer.putInt(targetBuffer.position(), value);
+        }
+
+        @Override
+        public Integer deserialize(ByteBuffer serializedValue) {
+            return serializedValue.getInt(serializedValue.position());
+        }
+
+        @Override
+        public int calculateSize(Integer value) {
             return valSize;
         }
     }
@@ -33,8 +57,8 @@ public class HeapUsageTest {
                 .getDefaultBuilder()
                 .setChunkMaxItems(2048)
                 .setChunkBytesPerItem(100)
-                .setKeySizeCalculator(new HeapUsageTestKeySizeCalculator())
-                .setValueSizeCalculator(new HeapUsageTestValueSizeCalculator());
+                .setKeySerializer(new FillTestKeySerializer())
+                .setValueSerializer(new FillTestValueSerializer());
 
         int numOfEntries = 360000;
 
@@ -45,7 +69,7 @@ public class HeapUsageTest {
 
 
 
-        OakMapOldOffHeapImpl<Integer, Integer> oak = (OakMapOldOffHeapImpl<Integer, Integer>) builder.build();
+        OakMap<Integer, Integer> oak = (OakMap<Integer, Integer>) builder.build();
 
         long heapSize = Runtime.getRuntime().totalMemory(); // Get current size of heap in bytes
         long heapMaxSize = Runtime.getRuntime().maxMemory(); // Get maximum size of heap in bytes

@@ -25,11 +25,11 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 
 public class OffHeapOakTest {
-    private OakMapOldOffHeapImpl<Integer, Integer> oak;
+    private OakMap<Integer, Integer> oak;
     private final int NUM_THREADS = 12;
     private ArrayList<Thread> threads;
     private CountDownLatch latch;
-    private Consumer<ByteBuffer> emptyComputer;
+    private Consumer<OakWBuffer> emptyComputer;
     int maxItemsPerChunk = 2048;
     int maxBytesPerChunkItem = 100;
 
@@ -38,12 +38,12 @@ public class OffHeapOakTest {
         OakMapBuilder builder = OakMapBuilder.getDefaultBuilder()
                 .setChunkMaxItems(maxItemsPerChunk)
                 .setChunkBytesPerItem(maxBytesPerChunkItem);
-        oak = (OakMapOldOffHeapImpl<Integer, Integer>) builder.build();
+        oak = (OakMap<Integer, Integer>) builder.build();
         latch = new CountDownLatch(1);
         threads = new ArrayList<>(NUM_THREADS);
-        emptyComputer = new Consumer<ByteBuffer>() {
+        emptyComputer = new Consumer<OakWBuffer>() {
             @Override
-            public void accept(ByteBuffer byteBuffer) {
+            public void accept(OakWBuffer oakWBuffer) {
                 return;
             }
         };
@@ -144,11 +144,11 @@ public class OffHeapOakTest {
     @Test
     public void testPutIfAbsentComputeIfPresentWithValueCreator() {
 
-        Consumer<ByteBuffer> computer = new Consumer<ByteBuffer>() {
+        Consumer<OakWBuffer> computer = new Consumer<OakWBuffer>() {
             @Override
-            public void accept(ByteBuffer byteBuffer) {
-                if (byteBuffer.getInt() == 0)
-                    byteBuffer.putInt(0, 1);
+            public void accept(OakWBuffer oakWBuffer) {
+                if (oakWBuffer.getInt() == 0)
+                    oakWBuffer.putInt(0, 1);
             }
         };
 
@@ -185,13 +185,7 @@ public class OffHeapOakTest {
             oak.put(i, i);
         }
 
-        Function<ByteBuffer,Integer> function = new Function<ByteBuffer, Integer>() {
-            @Override
-            public Integer apply(ByteBuffer byteBuffer) {
-                return byteBuffer.getInt();
-            }
-        };
-        Iterator<Integer> iter = oak.valuesTransformIterator(function);
+        Iterator<Integer> iter = oak.valuesIterator();
 
         for (int i = 0; i < 100; i++) {
             assertEquals(i, (int) iter.next());
@@ -212,10 +206,11 @@ public class OffHeapOakTest {
                 return value - key;
             }
         };
-        Iterator<Integer> iter = oak.entriesTransformIterator(function);
+        Iterator<Map.Entry<Integer, Integer>> iter = oak.entriesIterator();
 
         for (int i = 0; i < 100; i++) {
-            assertEquals(1, (int) iter.next());
+            Map.Entry<Integer, Integer> entry = iter.next();
+            assertEquals(1, entry.getValue() - entry.getKey());
         }
     }
 }

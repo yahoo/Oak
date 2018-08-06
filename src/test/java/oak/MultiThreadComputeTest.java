@@ -19,12 +19,12 @@ import static org.junit.Assert.assertEquals;
 
 public class MultiThreadComputeTest {
 
-    private OakMapOldOffHeapImpl<Integer, Integer> oak;
+    private OakMap<Integer, Integer> oak;
     private final int NUM_THREADS = 20;
     private ArrayList<Thread> threads;
     private CountDownLatch latch;
-    Consumer<ByteBuffer> computer;
-    Consumer<ByteBuffer> emptyComputer;
+    Consumer<OakWBuffer> computer;
+    Consumer<OakWBuffer> emptyComputer;
     int maxItemsPerChunk = 2048;
     int maxBytesPerChunkItem = 100;
 
@@ -34,22 +34,22 @@ public class MultiThreadComputeTest {
         OakMapBuilder builder = OakMapBuilder.getDefaultBuilder()
                 .setChunkMaxItems(maxItemsPerChunk)
                 .setChunkBytesPerItem(maxBytesPerChunkItem);
-        oak = (OakMapOldOffHeapImpl<Integer, Integer>) builder.build();
+        oak = (OakMap<Integer, Integer>) builder.build();
         latch = new CountDownLatch(1);
         threads = new ArrayList<>(NUM_THREADS);
 
-        computer = new Consumer<ByteBuffer>() {
+        computer = new Consumer<OakWBuffer>() {
             @Override
-            public void accept(ByteBuffer byteBuffer) {
-                if (byteBuffer.getInt(0) == 0) {
-                    byteBuffer.putInt(0, 1);
+            public void accept(OakWBuffer oakWBuffer) {
+                if (oakWBuffer.getInt(0) == 0) {
+                    oakWBuffer.putInt(0, 1);
                 }
             }
         };
 
-        emptyComputer = new Consumer<ByteBuffer>() {
+        emptyComputer = new Consumer<OakWBuffer>() {
             @Override
-            public void accept(ByteBuffer byteBuffer) {
+            public void accept(OakWBuffer oakWBuffer) {
                 return;
             }
         };
