@@ -81,22 +81,23 @@ public class OakMap<K, V> {
     this.entryDeserializeTransformer = new Function<Map.Entry<ByteBuffer, ByteBuffer>, Map.Entry<K, V>>() {
       @Override
       public Map.Entry<K, V> apply(Map.Entry<ByteBuffer, ByteBuffer> entry) {
-        if (entry == null || entry.getKey() == null || entry.getValue() == null)
-          return null;
-        return new AbstractMap.SimpleImmutableEntry<K, V>(keySerializer.deserialize(entry.getKey()), valueSerializer.deserialize(entry.getValue()));
+        return new AbstractMap.SimpleEntry<K, V>(keySerializer.deserialize(entry.getKey()), valueSerializer.deserialize(entry.getValue()));
       }
     };
   }
 
   private OakMap(InternalOakMap internalOakMap, OakMemoryManager memoryManager,
                  Function<ByteBuffer, K> keyDeserializeTransformer,
-                 Function<ByteBuffer, V> valueDeserializeTransformer, Comparator comparator,
+                 Function<ByteBuffer, V> valueDeserializeTransformer,
+                 Function<Map.Entry<ByteBuffer, ByteBuffer>, Map.Entry<K, V>> entryDeserializeTransformer,
+                 Comparator comparator,
                  K fromKey, boolean fromInclusive, K toKey,
                  boolean toInclusive, boolean isDescending) {
     this.internalOakMap = internalOakMap;
     this.memoryManager = memoryManager;
     this.keyDeserializeTransformer = keyDeserializeTransformer;
     this.valueDeserializeTransformer = valueDeserializeTransformer;
+    this.entryDeserializeTransformer = entryDeserializeTransformer;
     this.comparator = comparator;
     this.fromKey = fromKey;
     this.fromInclusive = fromInclusive;
@@ -337,7 +338,7 @@ public class OakMap<K, V> {
       throw new IllegalArgumentException();
     }
     return new OakMap<K, V>(this.internalOakMap, this.memoryManager, this.keyDeserializeTransformer,
-            this.valueDeserializeTransformer, this.comparator, fromKey, fromInclusive, toKey, toInclusive, this.isDescending);
+            this.valueDeserializeTransformer, this.entryDeserializeTransformer, this.comparator, fromKey, fromInclusive, toKey, toInclusive, this.isDescending);
   }
 
   /**
@@ -367,7 +368,7 @@ public class OakMap<K, V> {
     }
 
     return new OakMap<K, V>(this.internalOakMap, this.memoryManager, this.keyDeserializeTransformer,
-            this.valueDeserializeTransformer, this.comparator, this.fromKey, this.fromInclusive, toKey, inclusive, this.isDescending);
+            this.valueDeserializeTransformer, this.entryDeserializeTransformer, this.comparator, this.fromKey, this.fromInclusive, toKey, inclusive, this.isDescending);
   }
 
   /**
@@ -397,7 +398,7 @@ public class OakMap<K, V> {
     }
 
     return new OakMap<K, V>(this.internalOakMap, this.memoryManager, this.keyDeserializeTransformer,
-            this.valueDeserializeTransformer, this.comparator, fromKey, inclusive, this.toKey, this.toInclusive, this.isDescending);
+            this.valueDeserializeTransformer, this.entryDeserializeTransformer, this.comparator, fromKey, inclusive, this.toKey, this.toInclusive, this.isDescending);
   }
 
     /* ---------------- View methods -------------- */
@@ -414,7 +415,7 @@ public class OakMap<K, V> {
    */
   OakMap descendingMap() {
     return new OakMap<K, V>(this.internalOakMap, this.memoryManager, this.keyDeserializeTransformer,
-            this.valueDeserializeTransformer, this.comparator, this.fromKey, this.fromInclusive, this.toKey, this.toInclusive, true);
+            this.valueDeserializeTransformer, this.entryDeserializeTransformer, this.comparator, this.fromKey, this.fromInclusive, this.toKey, this.toInclusive, true);
   }
 
   /**

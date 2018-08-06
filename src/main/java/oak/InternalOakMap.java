@@ -1043,7 +1043,6 @@ public class InternalOakMap<K, V> implements AutoCloseable {
       if (handle == null)
         return null;
       ByteBuffer serializedKey = getKey(n, c);
-      System.out.println("EntryTransformIterator: serializedKey position: " + serializedKey.position());
       serializedKey = serializedKey.slice(); // TODO can I get rid of this?
       handle.readLock.lock();
       if (handle.isDeleted()) {
@@ -1051,14 +1050,12 @@ public class InternalOakMap<K, V> implements AutoCloseable {
         return null;
       }
       ByteBuffer serializedValue = handle.getImmutableByteBuffer();
-      System.out.println("EntryTransformIterator: serializedValue position: " + serializedValue.position());
-      Map.Entry<ByteBuffer, ByteBuffer> entry = new AbstractMap.SimpleImmutableEntry<ByteBuffer, ByteBuffer>(serializedKey, serializedValue);
-      if (serializedKey == null || serializedValue == null || entry == null) {
+      Map.Entry<ByteBuffer, ByteBuffer> entry = new AbstractMap.SimpleEntry<ByteBuffer, ByteBuffer>(serializedKey, serializedValue);
+      if (serializedKey == null || serializedValue == null || entry == null || transformer == null) {
         handle.readLock.unlock();
         return null;
       }
       T transformation = transformer.apply(entry);
-      System.out.println("EntryTransformIterator: " + transformation.toString());
       handle.readLock.unlock();
       return transformation;
     }
