@@ -1050,8 +1050,8 @@ public class InternalOakMap<K, V> implements AutoCloseable {
         return null;
       }
       ByteBuffer serializedValue = handle.getImmutableByteBuffer();
-      Map.Entry<ByteBuffer, ByteBuffer> entry = new AbstractMap.SimpleImmutableEntry<ByteBuffer, ByteBuffer>(serializedKey, serializedValue);
-      if (serializedKey == null || serializedValue == null || entry == null) {
+      Map.Entry<ByteBuffer, ByteBuffer> entry = new AbstractMap.SimpleEntry<ByteBuffer, ByteBuffer>(serializedKey, serializedValue);
+      if (serializedKey == null || serializedValue == null || entry == null || transformer == null) {
         handle.readLock.unlock();
         return null;
       }
