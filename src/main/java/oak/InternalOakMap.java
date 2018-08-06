@@ -35,11 +35,6 @@ public class InternalOakMap<K, V> implements AutoCloseable {
   private Serializer<K> keySerializer;
   private Serializer<V> valueSerializer;
 
-  /**
-   * Lazily initialized descending key set
-   */
-  private InternalOakMap descendingMap;
-
     /*-------------- Constructors --------------*/
 
   /**
@@ -73,7 +68,6 @@ public class InternalOakMap<K, V> implements AutoCloseable {
     this.skiplist.put(head.minKey, head);    // add first chunk (head) into skiplist
     this.head = new AtomicReference<>(head);
 
-    this.descendingMap = null;
     this.handleFactory = new HandleFactory(true);
   }
 

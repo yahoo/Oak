@@ -449,6 +449,13 @@ public class OakMap<K, V> {
     return new OakBufferView(internalOakMap,this, fromKey, toKey);
   }
 
+  /**
+   * Return the OakMap view, where the mappings are presented as OakBuffers without costly deserialization
+   */
+  public <T> OakTransformView createTransformView(Function<Map.Entry<ByteBuffer, ByteBuffer>, T> transformer){
+    return new OakTransformView<K, T>(internalOakMap,this, fromKey, toKey, transformer);
+  }
+
   /* ---------------- Package visibility getters for the views methods -------------- */
   boolean getIsDescending(){
     return isDescending;
