@@ -120,6 +120,7 @@ public class OakMap<K, V> {
    */
   public int entries() {
     if (this.fromKey != null || this.toKey != null) {
+      // this is a SubMap, for SubMap number of keys can not be counted
       throw new UnsupportedOperationException();
     }
 
@@ -138,7 +139,7 @@ public class OakMap<K, V> {
    * @param value value to be associated with the specified key
    * @throws NullPointerException if the specified key is null
    */
-  void put(K key, V value) {
+  public void put(K key, V value) {
     if (key == null || value == null)
       throw new NullPointerException();
     if (!inBounds(key))
@@ -286,8 +287,8 @@ public class OakMap<K, V> {
   }
 
   /*-------------- SubMap --------------*/
-
-  private boolean inBounds(K key) {
+  // package visibility to be used by the views
+  boolean inBounds(K key) {
     int res;
     if (fromKey != null) {
       res = comparator.compare(key, fromKey);
@@ -400,7 +401,7 @@ public class OakMap<K, V> {
             this.valueDeserializeTransformer, this.comparator, fromKey, inclusive, this.toKey, this.toInclusive, this.isDescending);
   }
 
-    /* ---------------- View methods -------------- */
+    /* ---------------- Retrieval methods -------------- */
 
   /**
    * Returns a reverse order view of the mappings contained in this map.
@@ -412,7 +413,7 @@ public class OakMap<K, V> {
    *
    * @return a reverse order view of this map
    */
-  OakMap descendingMap() {
+  public OakMap descendingMap() {
     return new OakMap<K, V>(this.internalOakMap, this.memoryManager, this.keyDeserializeTransformer,
             this.valueDeserializeTransformer, this.comparator, this.fromKey, this.fromInclusive, this.toKey, this.toInclusive, true);
   }
@@ -421,22 +422,42 @@ public class OakMap<K, V> {
    * Returns a {@link CloseableIterator} of the values contained in this map
    * in ascending order of the corresponding keys.
    */
-  CloseableIterator<V> valuesIterator() {
+  public CloseableIterator<V> valuesIterator() {
     return internalOakMap.valuesTransformIterator(fromKey, fromInclusive, toKey, toInclusive, isDescending, valueDeserializeTransformer);
   }
 
   /**
    * Returns a {@link CloseableIterator} of the mappings contained in this map in ascending key order.
    */
-  CloseableIterator<Map.Entry<K, V>> entriesIterator() {
+  public CloseableIterator<Map.Entry<K, V>> entriesIterator() {
     return internalOakMap.entriesTransformIterator(fromKey, fromInclusive, toKey, toInclusive, isDescending, entryDeserializeTransformer);
   }
 
   /**
    * Returns a {@link CloseableIterator} of the keys contained in this map in ascending order.
    */
-  CloseableIterator<K> keysIterator() {
+  public CloseableIterator<K> keysIterator() {
     return internalOakMap.keysTransformIterator(fromKey, fromInclusive, toKey, toInclusive, isDescending, keyDeserializeTransformer);
   }
 
+  /* ---------------- View methods -------------- */
+  /**
+   * Return the OakMap view, where the mappings are presented as OakBuffers without costly deserialization
+   */
+  public OakBufferView createBufferView(){
+    return new OakBufferView(internalOakMap,this, fromKey, toKey);
+  }
+
+  /* ---------------- Package visibility getters for the views methods -------------- */
+  boolean getIsDescending(){
+    return isDescending;
+  }
+
+  boolean getFromInclusive() {
+    return fromInclusive;
+  }
+
+  boolean getToInclusive() {
+    return toInclusive;
+  }
 }
