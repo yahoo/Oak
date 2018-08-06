@@ -81,9 +81,7 @@ public class OakMap<K, V> {
     this.entryDeserializeTransformer = new Function<Map.Entry<ByteBuffer, ByteBuffer>, Map.Entry<K, V>>() {
       @Override
       public Map.Entry<K, V> apply(Map.Entry<ByteBuffer, ByteBuffer> entry) {
-        if (entry == null || entry.getKey() == null || entry.getValue() == null)
-          return null;
-        return new AbstractMap.SimpleImmutableEntry<K, V>(keySerializer.deserialize(entry.getKey()), valueSerializer.deserialize(entry.getValue()));
+        return new AbstractMap.SimpleEntry<K, V>(keySerializer.deserialize(entry.getKey()), valueSerializer.deserialize(entry.getValue()));
       }
     };
   }
