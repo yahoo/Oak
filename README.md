@@ -1,17 +1,17 @@
 # Oak
-> Oak (Off-heap Allocated Keys) is a scalable concurrent Key Value (KV) map for real-time analytics.
+> Oak (Off-heap Allocated Keys) is a scalable, concurrent, in-memory Key Value (KV) map.
 
 Oak is a concurrent Key-Value Map that may keep all keys and values off-heap enabling working with bigger heap sizes comparing to JVM managed heap.
 Oak implements API similar to the industry standard Java8 ConcurrentNavigableMap API. It provides strong (atomic) semantics for read, write, read-modify-write, and (non-atomic) range query (scan) operations, both forward and backward.
-Oak is optimized for big keys and values, in particular for incremental maintenance of objects (e.g., aggregation).
-It's faster and scales better with additional CPU cores than popular ConcurrentNavigableMap implementations, such as Doug Lee’s ConcurrentSkipListMap, which is Java’s default.
+Oak is optimized for big keys and values, in particular for incremental maintenance of objects (update in-place).
+It's faster and scales better with additional CPU cores than popular Java's ConcurrentNavigableMap [ConcurrentSkipListMap](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/ConcurrentSkipListMap.html).
 
 ## Why Oak?
-1. Oak provides great performance, has fine synchronization, and thus scales well with numbers of threads.
-2. Oak's embedded, efficient, epoch-based memory management mostly eliminates JVM GC overheads.
-3. Oak takes all the keys and the data off-heap, thus allows working with huge heap (RAM) above 50G, without JVM GC overheads.
+1. Oak provides great performance, has fine synchronization, and thus scales well with numbers of threads, [some performance evaluation](https://git.ouroath.com/anastas/oak/wiki/Performance).
+2. Oak takes all the keys and the data off-heap, thus allows working with huge heap (RAM) above 50G, without JVM GC overheads.
+	- To support off-heap, Oak has embedded, efficient, epoch-based memory management that mostly eliminates JVM GC overheads.
 4. Oak provides rich **atomic** API. For example, in the current Java ConcurrentSkipListMap implementation, compute() is not guaranteed to be atomic. Oak’s update operations (such as put and compute) take user-provided lambda functions for easy integration in a range of use cases.
-5. Descending Scans: Oak is expediting descending scans without the complexity of managing a doubly-linked list. In our experiments, Oak’s descending scans are 4.8x faster than ConcurrentSkipListMap’s. Bottom line the scans in both directions are similarly fast.
+5. Descending Scans: Oak is expediting descending scans without an additional complexity. In our experiments, Oak’s descending scans are 4.8x faster than ConcurrentSkipListMap’s. Bottom line, in Oak, the scans in both directions are similarly fast, [some performance evaluation](https://git.ouroath.com/anastas/oak/wiki/Performance).
 
 ## Table of Contents
 
@@ -25,14 +25,13 @@ It's faster and scales better with additional CPU cores than popular ConcurrentN
 - [License](#license)
 
 ## Background
-- Oak’s internal index is built on contiguous chunks of memory; this speeds up searches through the index due to access locality.
-- Oak provides an efficient implementation of the ConcurrentNavigableMap.compute(key, updateFunction) API; an atomic, zero-copy update in-place. Specifically, Oak allows user to find an old value associated with the key and to update it in place to updateFunction(old value). This allows the Oak users to focus on business logic without dealing with the hard problems data layout and concurrency control presents.
-- Further on, Oak supports an atomic putIfAbsentComputeIfPresent(key, buildFunction, updateFunction) interface. This provides the ability to look for a key, and if the key doesn't exist, the new key-->buildFunction(place to update) mapping is added, otherwise the key’s value is updated with update(old value). This interface works concurrently with other updates and requires only one search traversal.
-- Oak works off-heap. As a future work it will be extended on-heap. In the case of off-heap, the keys and the values are copied and stored in a self-managed, off-heap ByteBuffer. With Oak, the use of off-heap memory is simple and efficient thanks to its use of uniform-sized chunks, and its epoch-based internal garbage collection has negligible overhead.
+- Oak index is built on contiguous chunks of memory; this speeds up searches through the index due to access locality. Read more about [Oak design](https://git.ouroath.com/anastas/oak/wiki/Design).
+- Oak works off-heap, thus the keys and the values are copied and stored in a self-managed, off-heap byte arrays.
 
 ### Oak Design Requests
-1. *Serializer:* as explained, Oak takes the keys and the values off-heap, thus the keys and the values are going to be serialized and written (copied) to buffers. Therefore, for the keys and the values it is requested to provide a serializer, deserializer, and serialized size calculator. [example] (### Key/Value Serializer)
-	- A possible way to eliminate the serializer request is to ask for an input key/value as a buffer (e.g. ByteBuffer). However, this requires double copy, if Oak user has keys/values as an objects. Thus first copy is when the user creates a buffer from object, and second copy is when Oak copies the given buffer to its internally manageable memory. For better performance, Oak uses only the second copy. Oak allocates a space for a key/value and uses the given serializer to write the key/value directly to the allocated space. Oak requests key/value size calculator to know the amount of space to be allocated. Both the keys and the values are variable sized.
+To efficiently manage its content Oak requires that the user defines two auxiliary tools: a Serializer and a Comparator; both are passed during construction.
+1. *Serializer:* Oak's input keys and the values are going to be serialized and written (copied) to buffers. Therefore, for the keys and the values it is requested to provide a serializer, deserializer, and serialized size calculator. [example] (### Key/Value Serializer)
+For better performance, Oak allocates the space for a key/value and uses the given serializer to write the key/value directly to the allocated space. Oak requests key/value size calculator to know the amount of space to be allocated. Both the keys and the values are variable sized.
 2. *Comparator:* In order to compare the internally kept, serialized keys with the deserialized key given for the search, Oak requires a special comparator. The comparator should be able to compare between keys in their serialized and deserialized (object) variants.
 
 ## Install
@@ -48,9 +47,14 @@ Finally, import the relevant classes and use Oak according to the description be
 
 ## Builder
 
-In order to build Oak the user should first create `OakMapBuilder builder`, after that the Oak construction is easy `oak = builder.build()`.
-Oak requires multiple parameters to be defined for Oak's construction, those parameters will be explained below.
-When constructing off-heap with Oak, the memory capacity (per Oak instance) needs to be specified. Oak will allocate the off-heap memory with the requested capacity at construction (and later manage this memory).
+In order to build Oak the user should first create the builder, after that the Oak construction is easy:.
+```java
+OakMapBuilder<K,V> builder = ... \\ create a builder with the following details
+OakMap<K,V> oak = builder.build();
+```
+
+Oak requires multiple parameters to be defined for Oak's builder, those parameters will be explained below.
+When constructing off-heap Oak, the memory capacity (per Oak instance) needs to be specified. Oak will allocate the off-heap memory with the requested capacity at construction (and later manage this memory).
 
 ### Key/Value Serializer
 As explained above, OakMap<K,V> is given key 'K' and value 'V', which are requested to come with a serializer, deserializer and size calculator. Oak user is requested to implement the following interface that can be found in the Oak project.
@@ -80,7 +84,7 @@ public class OakValueSerializerImplementation implements Serializer<V>
 ```
 
 ### Minimal Key
-Oak requires a key that can represent a negative infinity according to the user-defined comparision among the keys. The requested minimal key is a key of type 'K' considered by the given comparators smaller then any other key (serialized or in the object mode).
+Oak requires a key that can represent a negative infinity according to the user-defined comparision among the keys. The requested minimal key is a key of type 'K' considered by the given comparators smaller then any other key (serialized or in the object mode). Minimal key is requested to be passed for the builder creation.
 
 ### Comparator
 After a Key-Value pair is inserted into Oak, it is kept in a serialized (buffered) state. However, Oak gets input key as an object, serialization of which is delayed until proved as needed.
@@ -104,56 +108,29 @@ public class OakKeyComparatorImplementation implements OakComparator<K>
 ```
 
 ### Builder
-Below please find an example how to create OakMapBuilder. For more comprehensive code example please refer to [Usage](#usage) section.
+Below please find an example how to create OakMapBuilder and OakMap. For more comprehensive code example please refer to [Usage](#usage) section.
 
 ```java
-OakMapBuilder builder = new OakMapBuilder()
+OakMapBuilder<K,V> builder = new OakMapBuilder()
             .setKeySerializer(new OakKeySerializerImplementation(...))
             .setValueSerializer(new OakValueSerializerImplementation(...))
             .setMinKey(...)
             .setKeysComparator(new OakKeyComparatorImplementation(...))
             .setMemoryCapacity(...);
+
+OakMap<K,V> oak = builder.build();
 ```
 
 ## API
 
 ### OakMap Methods
-
-Oak supports similar to ConcurrentNavigableMap API, unusual API methods are going to be further discussed below:
-```java
-public void close(); // Cleans off heap memory
-public long memorySize(); // Returns current off heap memory usage in bytes
-public int entries(); // Number of key-value pairs inside the map
-void put(K key, V value); // If the key exists, the old value is replaced
-boolean putIfAbsent(K key, V value); // If the key doesn’t exist, associate it with the given value
-void remove(K key); // Removes the mapping for the key, if it is present
-V get(K key); // Returns deserialized copy of the value to which the key is mapped
-K getMinKey(); // The minimal key in the map
-K getMaxKey(); // The maximal key in the map
-// Updates the value for the key, using the user-supplied computer function
-boolean computeIfPresent(K key, Consumer<OakWBuffer> computer);
-// If the key doesn’t exist, associate it with the given value, otherwise update the value for the key
-void putIfAbsentComputeIfPresent(K key, V value, Consumer<ByteBuffer> computer);
-
-// Returns a view of the portion of the map with keys range from fromKey to toKey
-OakMap subMap(K fromKey, boolean fromInclusive, K toKey, boolean toInclusive);
-OakMap headMap(K toKey, boolean inclusive); // Returns a view of the portion of the map with keys less than toKey
-OakMap tailMap(K fromKey, boolean inclusive); // Returns a view of the portion of the map with keys greater than toKey
-OakMap descendingMap(); // Returns a reverse order view of the mappings contained in the map
-
-CloseableIterator<V> valuesIterator(); // Iterates over the values contained in the map
-CloseableIterator<Map.Entry<K, V>> entriesIterator(); // Iterates over the mappings contained in the map
-CloseableIterator<K> keysIterator(); // Iterates over the keys contained in the map
-
-OakBufferView createBufferView(); // get the mappings as OakBuffers without costly deserialization
-// get the transformed mappings, using user-supplied transform function
-OakTransformView createTransformView(BiFunction<ByteBuffer, ByteBuffer, T> transformer);
-```
+You are welcome to take a look on the Oak's [full API](https://git.ouroath.com/anastas/oak/wiki/Full-API)
+Oak supports similar to ConcurrentNavigableMap API, unusual API methods and special cases are going to be further discussed below.
 
 ### OakBuffers
 Oak provides two types of memory buffers: *OakRBuffer* (read-only) and *OakWBuffer* (read and write). Those buffers support API identical to read-only Java ByteBuffers for OakRBuffer and writable Java ByteBuffer for OakWBuffer.
 Unfortunately, direct extension of the ByteBuffer class is impossible outside of the ByteBuffer package. Oak buffers allow the user a direct access to the underlying serialized key-value pairs, without caring for concurrent accesses and memory management. Oak buffers help to avoid the unnecessary copies and deserialization of the underlying mappings.
-However, since the value updates happen in-place and all accesses share the same underlying memory, reader may evidence different values or even value deletion associated with the same key.
+However, since the value updates happen in-place and all accesses share the same underlying memory, reader may evidence different values or even value deletion associated with the same key. This is normal behavior for concurrent map that doesn't use a copies of the objects.
 
 ### Notes for data retrieval
 1. The data can be retrieved via the following four methods:
@@ -179,6 +156,10 @@ However, since the value updates happen in-place and all accesses share the same
  	- `void putIfAbsentComputeIfPresent(K key, V value, Consumer<ByteBuffer> computer)`
 2. In contrast to ConcurrentNavigableMap API `void put(K key, V value)` doesn't return the value previously associated with the key, if key existed. Similarly `void remove(K key)` doesn't remove boolean explaining whether key was really deleted, if key existed.
 3. `boolean computeIfPresent(K key, Consumer<OakWBuffer> computer)` gets the user-defined computer function. The computer is invoked in case the key exists. The computer is provided with OakWBuffer representing the serialized value associated with the key. The computer effect is atomic, meaning either all updates are sean to the concurrent readers or none.
+4. In contrast to Java's ConcurrentSkipListMap, Oak provides an efficient and **atomic** implementation of the ConcurrentNavigableMap.compute(key, updateFunction) API; zero-copy update in-place.
+	- Specifically, Oak allows user to find an old value associated with the key and to update it in place to updateFunction(old value). While Java's ConcurrentSkipListMap atomically swaps the pointer to the new value object creating another copy. This allows the Oak users to focus on business logic without dealing with the hard problems data layout and concurrency control presents.
+5. Further on, Oak supports an atomic putIfAbsentComputeIfPresent(key, buildFunction, updateFunction) interface (not part of ConcurrentNavigableMap).
+	- This provides the ability to look for a key, and if the key doesn't exist, the new key-->buildFunction(place to update) mapping is added, otherwise the key’s value is updated with update(old value). This interface works concurrently with other updates and requires only one search traversal.
 
 ## Usage
 
@@ -241,7 +222,7 @@ However, since the value updates happen in-place and all accesses share the same
       }
      };
 
-     OakMapBuilder builder = new OakMapBuilder<Integer, Integer>()
+     OakMapBuilder<Integer, Integer> builder = new OakMapBuilder<Integer, Integer>()
                  .setKeySerializer(keySerializer)
                  .setValueSerializer(valueSerializer)
                  .setMinKey(new Integer(Integer.MIN_VALUE))
@@ -325,8 +306,8 @@ try (CloseableIterator<Integer>  iter = sub.valuesIterator()) {
 
 ## Views
 
-In addition to OakBufferView explained above, Oak supplies OakTransformView, allowing manipulating on ByteBuffers instead on OakRBuffer. It might be preferable for those who prefer to directly retrieve the modified (transformed) data from OakMap. Transform view can be create via `OakTransformView createTransformView(BiFunction<ByteBuffer, ByteBuffer, T> transformer)`.
-It requires a transform function `BiFunction<ByteBuffer, ByteBuffer, T> transformer)` that may transform key-value pairs given as **read-only** ByteBuffers into any `T` object. The first ByteBuffer parameter is the key and the second is the value. OakTransformView API is the same as of OakBufferView, but `T` object is the return value, namely:
+In addition to OakBufferView explained above, Oak supplies OakTransformView, allowing manipulating on ByteBuffers instead on OakRBuffer. It might be preferable for those who prefer to directly retrieve the modified (transformed) data from OakMap. Transform view can be create via `OakTransformView createTransformView(Function<Map.Entry<ByteBuffer, ByteBuffer>, T> transformer)`.
+It requires a transform function `Function<Map.Entry<ByteBuffer, ByteBuffer>, T> transformer` that may transform key-value pairs given as **read-only** ByteBuffers into any `T` object. The first ByteBuffer parameter (of the Entry) is the key and the second is the value. OakTransformView API is the same as of OakBufferView, but `T` object is the return value, namely:
 	- `T get(K key)`,
 	- `CloseableIterator<T> valuesIterator()`,
 	- `CloseableIterator<Map.Entry<T, T>> entriesIterator()`,
@@ -335,9 +316,9 @@ It requires a transform function `BiFunction<ByteBuffer, ByteBuffer, T> transfor
 ### Code example
 
 ```java
-BiFunction<ByteBuffer,ByteBuffer, Integer> func = (k,v) -> {
-    if (k.getInt(0) == 1) {
-        return k.getInt(0)*y.getInt(0);
+Function<Map.Entry<ByteBuffer, ByteBuffer>, Integer> func = (e) -> {
+    if (e.getKey().getInt(0) == 1) {
+        return e.getKey().getInt(0)*e.getValue().getInt(0);
     } else return 0;
 };
 
