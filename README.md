@@ -137,37 +137,37 @@ Note, however, that since Oak's get method avoids copying the value and instead 
 
 An OakRBuffer can represent either a key or a value. The OakRBuffer's user can use the standard interface of a *read-only* ByteBuffer, for example, `int getInt(int index)`, `char getChar(int index)`, `limit()`, etc. Notice that ConcurrentModificationException can be thrown as a result of any OakRBuffer method in case the mapping is concurrently deleted.
 
-### Notes for data retrieval
-1. For better performance of data retrieval, Oak supplies OakBufferView of the OakMap. The OakBufferView provides the following four methods for data retrieval, the output is presented as OakRBuffer, namely:
+### Notes on data retrieval
+1. For better performance of data retrieval, Oak supplies an OakBufferView of the OakMap. The OakBufferView provides the following four methods for data retrieval, whose result is presented as an OakRBuffer:
 	- `OakRBuffer get(K key)`
 	- `CloseableIterator<OakRBuffer> valuesIterator()`
 	- `CloseableIterator<Map.Entry<OakRBuffer, OakRBuffer>> entriesIterator()`
 	- `CloseableIterator<OakRBuffer> keysIterator()`
-2. Without OakBufferView OakMap's data can be directly retrieved via the following four methods:
+2. Without the OakBufferView, OakMap's data can be directly retrieved via the following four methods:
 	- `V get(K key)`
 	- `CloseableIterator<V> valuesIterator()`
 	- `CloseableIterator<Map.Entry<K, V>> entriesIterator()`
 	- `CloseableIterator<K> keysIterator()`
-3. However, those four direct methods return keys and/or values using deseriliazation (copy) and creating the Objects of the requested type. This is costly, and we strongly advice to use OakBufferView or OakTransformView to operate directly on the internal data.
-4. For further understanding of the data retrieval via OakTransformView, please refer to [Oak Views](#views) section.
+   However, these direct methods return keys and/or values as Objects by applying deseriliazation (copy). This is costly,  and we strongly advice to use OakBufferView or OakTransformView to operate directly on the internal data representation.
+3. For further understanding of data retrieval via OakTransformView, please refer to the [Oak Views](#views) section.
 
-### Notes for data ingestion
-1. The data can be ingested and updated via the following five methods:
+### Notes on data ingestion
+1. Data can be ingested and updated via the following five methods:
  	- `void put(K key, V value)`
  	- `boolean putIfAbsent(K key, V value)`
  	- `void remove(K key)`
  	- `boolean computeIfPresent(K key, Consumer<OakWBuffer> computer)`
  	- `void putIfAbsentComputeIfPresent(K key, V value, Consumer<OakWBuffer> computer)`
-2. In contrast to ConcurrentNavigableMap API `void put(K key, V value)` doesn't return the value previously associated with the key, if key existed. Similarly `void remove(K key)` doesn't return boolean explaining whether key was really deleted, if key existed.
+2. In contrast to the ConcurrentNavigableMap API, `void put(K key, V value)` does not return the value previously associated with the key, if key existed. Likewise, `void remove(K key)` does not return a boolean indicating whether key was actually deleted, if key existed.
 3. `boolean computeIfPresent(K key, Consumer<OakWBuffer> computer)` gets the user-defined computer function. The computer is invoked in case the key exists.
-The computer is provided with OakWBuffer representing the serialized value associated with the key. The computer effect is atomic, meaning either all updates are sean to the concurrent readers or none.
-The compute functionality gives the Oak user an efficient zero-copy update in place, which allows the Oak users to focus on business logic without dealing with the hard problems data layout and concurrency control presents.
-5. Further on, Oak supports an atomic `void putIfAbsentComputeIfPresent(K key, V value, Consumer<OakWBuffer> computer)` interface (not part of ConcurrentNavigableMap).
-	- This provides the ability to look for a key, and if the key doesn't exist, the new key-->serializeValue(place to update) mapping is added, otherwise the key’s value is updated with computer(old value). This interface works concurrently with other updates and requires only one search traversal.
+The computer is provided with OakWBuffer, representing the serialized value associated with the key. The computer's effect is atomic, meaning that either all updates are seen by concurrent readers, or none are.
+The compute functionality offers the Oak user an efficient zero-copy update-in-place, which allows Oak users to focus on business logic without dealing with the hard problems that data layout and concurrency control present.
+5. Oak additionally supports an atomic `void putIfAbsentComputeIfPresent(K key, V value, Consumer<OakWBuffer> computer)` interface, (which is not part of ConcurrentNavigableMap).
+This API looks for a key. If the key does not exist, it adds a new Serialized key --> Serialized value mapping. Otherwise, the value associated with the key is updated with computer(old value). This interface works concurrently with other updates and requires only one search traversal.
 
 ## Usage
 
-Integer to Integer build example can be seen in [Code Examples](https://git.ouroath.com/anastas/oak/wiki/Code-Examples).
+An Integer to Integer build example can be seen in [Code Examples](https://git.ouroath.com/anastas/oak/wiki/Code-Examples). Here we illustrate individual operations.
 
 ### Code Examples
 
