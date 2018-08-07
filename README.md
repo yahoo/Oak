@@ -244,11 +244,13 @@ try (CloseableIterator<Integer>  iter = sub.valuesIterator()) {
 
 ## Transformations
 
-In addition to the OakBufferView explained above, Oak provides the OakTransformView, which allows manipulating ByteBuffers instead of OakRBuffers. This view might be useful for directly retrieving modified (transformed) data from the OakMap. Transform view is created via `OakTransformView createTransformView(Function<Map.Entry<ByteBuffer, ByteBuffer>, T> transformer)`.
+In addition to the OakBufferView explained above, Oak provides the OakTransformView, which allows manipulating ByteBuffers instead of OakRBuffers. This view might be useful for directly retrieving modified (transformed) data from the OakMap.
+
+Transform view is created via `OakTransformView createTransformView(Function<Map.Entry<ByteBuffer, ByteBuffer>, T> transformer)`.
 It requires a transform function `Function<Map.Entry<ByteBuffer, ByteBuffer>, T> transformer` that transforms key-value pairs given as **read-only** ByteBuffers into arbitrary `T` objects. The first ByteBuffer parameter (of the Entry) is the key and the second is the value. The API of OakTransformView is the same as that of OakBufferView, except that the return value type is `T`; namely:
-	- `T get(K key)`,
-	- `CloseableIterator<T> valuesIterator()`,
-	- `CloseableIterator<Map.Entry<T, T>> entriesIterator()`,
+	- `T get(K key)`
+	- `CloseableIterator<T> valuesIterator()`
+	- `CloseableIterator<Map.Entry<T, T>> entriesIterator()`
 	- `CloseableIterator<T> keysIterator()`
 
 ### Code example
