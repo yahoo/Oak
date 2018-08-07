@@ -20,7 +20,7 @@ It is faster and scales better with additional CPU cores than the popular Java C
 - [Builder](#builder)
 - [API](#api)
 - [Usage](#usage)
-- [Oak Transform View](#transform View)
+- [Oak Transform View](#transform)
 - [Contribute](#contribute)
 - [License](#license)
 
@@ -148,8 +148,9 @@ An OakRBuffer can represent either a key or a value. The OakRBuffer's user can u
 	- `CloseableIterator<V> valuesIterator()`
 	- `CloseableIterator<Map.Entry<K, V>> entriesIterator()`
 	- `CloseableIterator<K> keysIterator()`
+	
 	However, these direct methods return keys and/or values as Objects by applying deseriliazation (copy). This is costly,  and we strongly advice to use OakBufferView or OakTransformView to operate directly on the internal data representation.
-3. For further understanding of data retrieval via OakTransformView, please refer to the [Oak Transform Views](#Oak Transform View) section.
+3. For further understanding of data retrieval via OakTransformView, please refer to the [Oak Transform Views](#transform) section.
 
 ### Notes on data ingestion
 1. Data can be ingested and updated via the following five methods:
