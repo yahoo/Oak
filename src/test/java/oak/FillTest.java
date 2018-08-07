@@ -86,7 +86,7 @@ public class FillTest {
             Integer myKey;
             Integer myVal;
 
-            int id = OakMapOldOffHeapImpl.getThreadIndex();
+            int id = InternalOakMap.getThreadIndex();
             int amount = (int) Math.round(numOfEntries * 0.5) / NUM_THREADS;
             int start = id * amount + (int) Math.round(numOfEntries * 0.5);
             int end = (id + 1) * amount + (int) Math.round(numOfEntries * 0.5);

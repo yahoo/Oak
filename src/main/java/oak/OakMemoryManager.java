@@ -75,7 +75,7 @@ class OakMemoryManager { // TODO interface allocate, release
 
     void release(int i, ByteBuffer bb) {
 //        assert !assertDoubleRelease(bb);
-        int idx = OakMapOldOffHeapImpl.getThreadIndex();
+        int idx = InternalOakMap.getThreadIndex();
         LinkedList<Triplet> myList = releasedArray.get(idx);
         myList.addFirst(new Triplet(this.max.get(), i, bb));
 //        myList.addFirst(new Triplet(-1, i, bb));
@@ -119,7 +119,7 @@ class OakMemoryManager { // TODO interface allocate, release
     }
 
     void startThread() {
-        int idx = OakMapOldOffHeapImpl.getThreadIndex();
+        int idx = InternalOakMap.getThreadIndex();
         AtomicLong timeStamp = timeStamps[idx];
         long l = timeStamp.get();
         long b = l;
@@ -141,7 +141,7 @@ class OakMemoryManager { // TODO interface allocate, release
     }
 
     void stopThread() {
-        int idx = OakMapOldOffHeapImpl.getThreadIndex();
+        int idx = InternalOakMap.getThreadIndex();
         AtomicLong timeStamp = timeStamps[idx];
         long l = timeStamp.get();
         assert !isIdle(l);

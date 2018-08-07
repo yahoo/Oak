@@ -9,7 +9,7 @@ package oak;
 import java.nio.ByteBuffer;
 
 /**
- * This class builds a new OakMapOld instance, and sets serializers, deserializers and allocation size calculators,
+ * This class builds a new OakMap instance, and sets serializers, deserializers and allocation size calculators,
  * received from the user.
  *
  * @param <K> The key object type.

@@ -209,7 +209,7 @@ public class Chunk<K, V> {
         int ki = get(entryIndex, OFFSET_KEY_INDEX);
         int length = get(entryIndex, OFFSET_KEY_LENGTH);
 
-        int idx = OakMapOldOffHeapImpl.getThreadIndex();
+        int idx = InternalOakMap.getThreadIndex();
         if (byteBufferPerThread[idx] == null) {
             byteBufferPerThread[idx] = keysManager.getKeys().asReadOnlyBuffer();
         }
@@ -356,7 +356,7 @@ public class Chunk<K, V> {
      **/
     boolean publish(OpData opData) {
 
-        int idx = OakMapOldOffHeapImpl.getThreadIndex();
+        int idx = InternalOakMap.getThreadIndex();
         // publish into thread array
         return casPendingArray(idx, null, opData);
     }
@@ -366,7 +366,7 @@ public class Chunk<K, V> {
      * if CAS didn't succeed then this means that a rebalancer did this already
      **/
     void unpublish(OpData oldOpData) {
-        int idx = OakMapOldOffHeapImpl.getThreadIndex();
+        int idx = InternalOakMap.getThreadIndex();
         casPendingArray(idx, oldOpData, null); // publish into thread array
     }
 

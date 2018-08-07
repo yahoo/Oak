@@ -20,7 +20,7 @@ import java.util.logging.Logger;
 import java.util.NoSuchElementException;
 import java.util.AbstractMap;
 
-public class InternalOakMap<K, V> implements AutoCloseable {
+class InternalOakMap<K, V> implements AutoCloseable {
 
   /*-------------- Members --------------*/
 
@@ -28,7 +28,7 @@ public class InternalOakMap<K, V> implements AutoCloseable {
   final ConcurrentSkipListMap<Object, Chunk<K, V>> skiplist;    // skiplist of chunks for fast navigation
   private final AtomicReference<Chunk<K, V>> head;
   private final ByteBuffer minKey;
-  public final Comparator comparator;
+  final Comparator comparator;
   final OakMemoryManager memoryManager;
   private final HandleFactory handleFactory;
   private AtomicInteger size;
@@ -41,7 +41,7 @@ public class InternalOakMap<K, V> implements AutoCloseable {
    * init with capacity = 2g
    */
 
-  public InternalOakMap(
+  InternalOakMap(
           K minKey,
           Serializer<K> keySerializer,
           Serializer<V> valueSerializer,
@@ -91,11 +91,11 @@ public class InternalOakMap<K, V> implements AutoCloseable {
   /**
    * @return current off heap memory usage in bytes
    */
-  public long memorySize() {
+  long memorySize() {
     return memoryManager.pool.allocated();
   }
 
-  public int entries() { return size.get(); }
+  int entries() { return size.get(); }
 
   /*-------------- Methods --------------*/
 
@@ -293,7 +293,7 @@ public class InternalOakMap<K, V> implements AutoCloseable {
 
   /*-------------- OakMap Methods --------------*/
 
-  public void put(K key, V value) {
+  void put(K key, V value) {
     if (key == null || value == null) {
       throw new NullPointerException();
     }
@@ -365,7 +365,7 @@ public class InternalOakMap<K, V> implements AutoCloseable {
     checkRebalance(c);
   }
 
-  public boolean putIfAbsent(K key, V value) {
+  boolean putIfAbsent(K key, V value) {
     if (key == null || value == null) {
       throw new NullPointerException();
     }
@@ -439,7 +439,7 @@ public class InternalOakMap<K, V> implements AutoCloseable {
     return ret;
   }
 
-  public void putIfAbsentComputeIfPresent(K key, V value, Consumer<ByteBuffer> computer) {
+  void putIfAbsentComputeIfPresent(K key, V value, Consumer<ByteBuffer> computer) {
     if (key == null || value == null || computer == null) {
       throw new NullPointerException();
     }
@@ -526,7 +526,7 @@ public class InternalOakMap<K, V> implements AutoCloseable {
     checkRebalance(c);
   }
 
-  public void remove(K key) {
+  void remove(K key) {
     if (key == null) {
       throw new NullPointerException();
     }
@@ -598,7 +598,7 @@ public class InternalOakMap<K, V> implements AutoCloseable {
     }
   }
 
-  public OakRBuffer get(K key) {
+  OakRBuffer get(K key) {
     if (key == null) {
       throw new NullPointerException();
     }
@@ -611,7 +611,7 @@ public class InternalOakMap<K, V> implements AutoCloseable {
     return new OakRValueBufferImpl(lookUp.handle);
   }
 
-  public <T> T getValueTransformation(K key, Function<ByteBuffer,T> transformer) {
+  <T> T getValueTransformation(K key, Function<ByteBuffer,T> transformer) {
     if (key == null || transformer == null) {
       throw new NullPointerException();
     }
@@ -628,7 +628,7 @@ public class InternalOakMap<K, V> implements AutoCloseable {
     return transformation;
   }
 
-  public <T> T getKeyTransformation(K key, Function<ByteBuffer,T> transformer) {
+  <T> T getKeyTransformation(K key, Function<ByteBuffer,T> transformer) {
     if (key == null || transformer == null) {
       throw new NullPointerException();
     }
@@ -642,7 +642,7 @@ public class InternalOakMap<K, V> implements AutoCloseable {
     return transformer.apply(serializedKey);
   }
 
-  public OakRBuffer getKey(K key) {
+  OakRBuffer getKey(K key) {
     if (key == null) {
       throw new NullPointerException();
     }
@@ -656,13 +656,13 @@ public class InternalOakMap<K, V> implements AutoCloseable {
     return new OakRKeyBufferImpl(serializedKey);
   }
 
-  public OakRBuffer getMinKey() {
+  OakRBuffer getMinKey() {
     Chunk<K, V> c = skiplist.firstEntry().getValue();
     ByteBuffer serializedMinKey = c.readMinKey();
     return new OakRKeyBufferImpl(serializedMinKey);
   }
 
-  public <T> T getMinKeyTransformation(Function<ByteBuffer,T> transformer) {
+  <T> T getMinKeyTransformation(Function<ByteBuffer,T> transformer) {
     if (transformer == null) {
       throw new NullPointerException();
     }
@@ -673,7 +673,7 @@ public class InternalOakMap<K, V> implements AutoCloseable {
     return transformer.apply(serializedMinKey);
   }
 
-  public OakRBuffer getMaxKey() {
+  OakRBuffer getMaxKey() {
     Chunk<K, V> c = skiplist.lastEntry().getValue();
     Chunk<K, V> next = c.next.getReference();
     // since skiplist isn't updated atomically in split/compaction, the max key might belong in the next chunk
@@ -687,7 +687,7 @@ public class InternalOakMap<K, V> implements AutoCloseable {
     return new OakRKeyBufferImpl(serializedMaxKey);
   }
 
-  public <T> T getMaxKeyTransformation(Function<ByteBuffer,T> transformer) {
+  <T> T getMaxKeyTransformation(Function<ByteBuffer,T> transformer) {
     if (transformer == null) {
       throw new NullPointerException();
     }
@@ -704,7 +704,7 @@ public class InternalOakMap<K, V> implements AutoCloseable {
     return transformer.apply(serializedMaxKey);
   }
 
-  public boolean computeIfPresent(K key, Consumer<OakWBuffer> computer) {
+  boolean computeIfPresent(K key, Consumer<OakWBuffer> computer) {
     if (key == null || computer == null) {
       throw new NullPointerException();
     }
@@ -959,7 +959,7 @@ public class InternalOakMap<K, V> implements AutoCloseable {
 
   class ValueIterator extends Iter<OakRBuffer> {
 
-    public ValueIterator(K lo, boolean loInclusive, K hi, boolean hiInclusive, boolean isDescending) {
+    ValueIterator(K lo, boolean loInclusive, K hi, boolean hiInclusive, boolean isDescending) {
       super(lo, loInclusive, hi, hiInclusive, isDescending);
     }
 
@@ -978,7 +978,7 @@ public class InternalOakMap<K, V> implements AutoCloseable {
 
     Function<ByteBuffer, T> transformer;
 
-    public ValueTransformIterator(K lo, boolean loInclusive, K hi, boolean hiInclusive, boolean isDescending,
+    ValueTransformIterator(K lo, boolean loInclusive, K hi, boolean hiInclusive, boolean isDescending,
                                   Function<ByteBuffer, T> transformer) {
       super(lo, loInclusive, hi, hiInclusive, isDescending);
       this.transformer = transformer;
@@ -999,7 +999,7 @@ public class InternalOakMap<K, V> implements AutoCloseable {
 
   class EntryIterator extends Iter<Map.Entry<OakRBuffer, OakRBuffer>> {
 
-    public EntryIterator(K lo, boolean loInclusive, K hi, boolean hiInclusive, boolean isDescending) {
+    EntryIterator(K lo, boolean loInclusive, K hi, boolean hiInclusive, boolean isDescending) {
       super(lo, loInclusive, hi, hiInclusive, isDescending);
     }
 
@@ -1022,7 +1022,7 @@ public class InternalOakMap<K, V> implements AutoCloseable {
 
     Function<Map.Entry<ByteBuffer, ByteBuffer>, T> transformer;
 
-    public EntryTransformIterator(K lo, boolean loInclusive, K hi, boolean hiInclusive, boolean isDescending,
+    EntryTransformIterator(K lo, boolean loInclusive, K hi, boolean hiInclusive, boolean isDescending,
                                   Function<Map.Entry<ByteBuffer, ByteBuffer>, T> transformer) {
       super(lo, loInclusive, hi, hiInclusive, isDescending);
       this.transformer = transformer;
@@ -1057,7 +1057,7 @@ public class InternalOakMap<K, V> implements AutoCloseable {
 
   class KeyIterator extends Iter<OakRBuffer> {
 
-    public KeyIterator(K lo, boolean loInclusive, K hi, boolean hiInclusive, boolean isDescending) {
+    KeyIterator(K lo, boolean loInclusive, K hi, boolean hiInclusive, boolean isDescending) {
       super(lo, loInclusive, hi, hiInclusive, isDescending);
     }
 
@@ -1076,7 +1076,7 @@ public class InternalOakMap<K, V> implements AutoCloseable {
 
     Function<ByteBuffer, T> transformer;
 
-    public KeyTransformIterator(K lo, boolean loInclusive, K hi, boolean hiInclusive, boolean isDescending,
+    KeyTransformIterator(K lo, boolean loInclusive, K hi, boolean hiInclusive, boolean isDescending,
                                 Function<ByteBuffer, T> transformer) {
       super(lo, loInclusive, hi, hiInclusive, isDescending);
       this.transformer = transformer;
@@ -1095,27 +1095,27 @@ public class InternalOakMap<K, V> implements AutoCloseable {
 
   // Factory methods for iterators
 
-  public CloseableIterator<OakRBuffer> valuesBufferViewIterator(K lo, boolean loInclusive, K hi, boolean hiInclusive, boolean isDescending) {
+  CloseableIterator<OakRBuffer> valuesBufferViewIterator(K lo, boolean loInclusive, K hi, boolean hiInclusive, boolean isDescending) {
     return new ValueIterator(lo, loInclusive, hi, hiInclusive, isDescending);
   }
 
-  public CloseableIterator<Map.Entry<OakRBuffer, OakRBuffer>> entriesBufferViewIterator(K lo, boolean loInclusive, K hi, boolean hiInclusive, boolean isDescending) {
+  CloseableIterator<Map.Entry<OakRBuffer, OakRBuffer>> entriesBufferViewIterator(K lo, boolean loInclusive, K hi, boolean hiInclusive, boolean isDescending) {
     return new EntryIterator(lo, loInclusive, hi, hiInclusive, isDescending);
   }
 
-  public CloseableIterator<OakRBuffer> keysBufferViewIterator(K lo, boolean loInclusive, K hi, boolean hiInclusive, boolean isDescending) {
+  CloseableIterator<OakRBuffer> keysBufferViewIterator(K lo, boolean loInclusive, K hi, boolean hiInclusive, boolean isDescending) {
     return new KeyIterator(lo, loInclusive, hi, hiInclusive, isDescending);
   }
 
-  public <T> CloseableIterator<T> valuesTransformIterator(K lo, boolean loInclusive, K hi, boolean hiInclusive, boolean isDescending, Function<ByteBuffer, T> transformer) {
+  <T> CloseableIterator<T> valuesTransformIterator(K lo, boolean loInclusive, K hi, boolean hiInclusive, boolean isDescending, Function<ByteBuffer, T> transformer) {
     return new ValueTransformIterator(lo, loInclusive, hi, hiInclusive, isDescending, transformer);
   }
 
-  public <T> CloseableIterator<T> entriesTransformIterator(K lo, boolean loInclusive, K hi, boolean hiInclusive, boolean isDescending, Function<Map.Entry<ByteBuffer, ByteBuffer>, T> transformer) {
+  <T> CloseableIterator<T> entriesTransformIterator(K lo, boolean loInclusive, K hi, boolean hiInclusive, boolean isDescending, Function<Map.Entry<ByteBuffer, ByteBuffer>, T> transformer) {
     return new EntryTransformIterator(lo, loInclusive, hi, hiInclusive, isDescending, transformer);
   }
 
-  public <T> CloseableIterator<T> keysTransformIterator(K lo, boolean loInclusive, K hi, boolean hiInclusive, boolean isDescending, Function<ByteBuffer, T> transformer) {
+  <T> CloseableIterator<T> keysTransformIterator(K lo, boolean loInclusive, K hi, boolean hiInclusive, boolean isDescending, Function<ByteBuffer, T> transformer) {
     return new KeyTransformIterator(lo, loInclusive, hi, hiInclusive, isDescending, transformer);
   }
 

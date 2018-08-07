@@ -51,14 +51,14 @@ public class OakTransformView<K, T> {
     };
   }
 
-  T get(K key) {
+  public T get(K key) {
     if (key == null)
       throw new NullPointerException();
     if (!externalOakMap.inBounds(key))
       throw new IllegalArgumentException();
 
     externalOakMap.memoryManager.startThread();
-    T transformation = (T) internalOakMap.getValueTransformation(key, transformer);
+    T transformation = (T) internalOakMap.getValueTransformation(key, valuesTransformer);
     externalOakMap.memoryManager.stopThread();
     return transformation;
   }
@@ -67,7 +67,7 @@ public class OakTransformView<K, T> {
    * Returns a {@link CloseableIterator} of a transformation of values contained in this map
    * in ascending order of the corresponding keys.
    */
-  CloseableIterator<T> valuesIterator() {
+  public CloseableIterator<T> valuesIterator() {
     return internalOakMap.valuesTransformIterator(
             fromKey, externalOakMap.getFromInclusive(),
             toKey, externalOakMap.getToInclusive(),
@@ -77,7 +77,7 @@ public class OakTransformView<K, T> {
   /**
    * Returns a {@link CloseableIterator} of a transformation of the mappings contained in this map in ascending key order.
    */
-  CloseableIterator<T> entriesIterator() {
+  public CloseableIterator<T> entriesIterator() {
     return internalOakMap.entriesTransformIterator(
             fromKey, externalOakMap.getFromInclusive(),
             toKey, externalOakMap.getToInclusive(),
@@ -87,7 +87,7 @@ public class OakTransformView<K, T> {
   /**
    * Returns a {@link CloseableIterator} of a transformation of the keys contained in this map in ascending order.
    */
-  CloseableIterator<T> keysIterator() {
+  public CloseableIterator<T> keysIterator() {
     return internalOakMap.keysTransformIterator(
             fromKey, externalOakMap.getFromInclusive(),
             toKey, externalOakMap.getToInclusive(),
