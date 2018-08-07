@@ -20,7 +20,7 @@ It is faster and scales better with additional CPU cores than the popular Java C
 - [Builder](#builder)
 - [API](#api)
 - [Usage](#usage)
-- [Oak Transform View](#transform)
+- [Transformations](#transformations)
 - [Contribute](#contribute)
 - [License](#license)
 
@@ -150,7 +150,7 @@ An OakRBuffer can represent either a key or a value. The OakRBuffer's user can u
 	- `CloseableIterator<K> keysIterator()`
 	
 	However, these direct methods return keys and/or values as Objects by applying deseriliazation (copy). This is costly,  and we strongly advice to use OakBufferView or OakTransformView to operate directly on the internal data representation.
-3. For further understanding of data retrieval via OakTransformView, please refer to the [Oak Transform Views](#transform) section.
+3. For further understanding of data retrieval via OakTransformView, please refer to the [Transformations](#transformations) section.
 
 ### Notes on data ingestion
 1. Data can be ingested and updated via the following five methods:
@@ -242,7 +242,7 @@ try (CloseableIterator<Integer>  iter = sub.valuesIterator()) {
 }
 ```
 
-## Transform View
+## Transformations
 
 In addition to the OakBufferView explained above, Oak provides the OakTransformView, which allows manipulating ByteBuffers instead of OakRBuffers. This view might be useful for directly retrieving modified (transformed) data from the OakMap. Transform view is created via `OakTransformView createTransformView(Function<Map.Entry<ByteBuffer, ByteBuffer>, T> transformer)`.
 It requires a transform function `Function<Map.Entry<ByteBuffer, ByteBuffer>, T> transformer` that transforms key-value pairs given as **read-only** ByteBuffers into arbitrary `T` objects. The first ByteBuffer parameter (of the Entry) is the key and the second is the value. The API of OakTransformView is the same as that of OakBufferView, except that the return value type is `T`; namely:
