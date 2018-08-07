@@ -27,17 +27,17 @@ It is faster and scales better with additional CPU cores than the popular Java C
 ## Background
 
 ### Design Points
-- Oak index is built on contiguous chunks of memory; this speeds up searches through the index due to access locality. Read more about [Oak design](https://git.ouroath.com/anastas/oak/wiki/Design).
-- Oak works off-heap, thus the keys and the values are copied and stored in a self-managed, off-heap byte arrays.
+- Oak consists of an on-heap index to off-heap keys and values. Oak's index is structured as a list of contiguous chunks of memory; this speeds up searches through the index due to access locality and cache-friendliness. Read more about [Oak design](https://git.ouroath.com/anastas/oak/wiki/Design).
+- Oak's keys and the values are copied and stored in self-managed off-heap byte arrays.
 
 ### Design Requirements
-To efficiently manage its content Oak requires that the user defines two auxiliary tools: a Serializer and a Comparator; both are passed during construction.
-1. *Serializer:* The keys and the values are requested to provide a (1)serializer, (2)deserializer, and (3)serialized size calculator. All three are parts of [Serializer](#serializer).
-	- For better performance, Oak allocates the space for a key/value and uses the given serializer to write the key/value directly to the allocated space. Oak requests key/value size calculator to know the amount of space to be allocated. Both the keys and the values are variable sized.
-2. *Comparator:* In order to compare the internally kept, serialized keys with the deserialized key given for the search, Oak requires a special comparator. The comparator should be able to compare between keys in their serialized and deserialized (object) variants.
+In order to efficiently manage its content, Oak requires that the user define two auxiliary tools: a Serializer and a Comparator; both are passed during construction.
+1. *Serializer:* Both keys and values need to provide a (1) serializer, (2) deserializer, and (3) serialized size calculator. All three are parts of [Serializer](#serializer).
+	- For boosting performance, Oak allocates space for a given key/value and then uses the given serializer to write the key/value directly to the allocated space. Oak uses the appropriate size calculator to deduce the amount of space to be allocated. Note that both keys and the values are variable-sized.
+2. *Comparator:* In order to compare the internally-kept serialized keys with the deserialized key provided by the API, Oak requires a (key) comparator. The comparator compares two keys, each of which may be provided either as a deserialized object or as a serialized one, determining whether they are equal, and if not, which is bigger.
 
 ## Install
-Oak is a library to be used in your code. After downloading Oak, compile it using `mvn install package` to compile and install. Then update your project's pom.xml file dependencies, like:
+Oak is a library. After downloading Oak, compile it using `mvn install package` to compile and install. Then update your project's pom.xml file dependencies, as follows:
 ```
   <dependency>
       <groupId>oak</groupId>
@@ -49,14 +49,14 @@ Finally, import the relevant classes and use Oak according to the description be
 
 ## Builder
 
-In order to build Oak the user should first create the builder, after that the Oak construction is easy:.
+In order to build Oak the user should first create the builder, and then use it to construct Oak:.
 ```java
-OakMapBuilder<K,V> builder = ... \\ create a builder with the following details
+OakMapBuilder<K,V> builder = ... \\ create a builder; details provided below
 OakMap<K,V> oak = builder.build();
 ```
 
-Oak requires multiple parameters to be defined for Oak's builder, those parameters will be explained below.
-When constructing off-heap Oak, the memory capacity (per Oak instance) needs to be specified. Oak will allocate the off-heap memory with the requested capacity at construction (and later manage this memory).
+Oak requires multiple parameters to be defined for the builder, as shall be explained below.
+When constructing off-heap Oak, the memory capacity (per Oak instance) needs to be specified. Oak allocates the off-heap memory with the requested capacity at construction time, and later manages this memory.
 
 ### Serializer
 As explained above, OakMap<K,V> is given key 'K' and value 'V', which are requested to come with a serializer, deserializer and size calculator. Oak user is requested to implement the following interface that can be found in the Oak project.
@@ -86,11 +86,11 @@ public class OakValueSerializerImplementation implements Serializer<V>
 ```
 
 ### Minimal Key
-Oak requires a key that can represent a negative infinity according to the user-defined comparision among the keys. The requested minimal key is a key of type 'K' considered by the given comparators smaller then any other key (serialized or in the object mode). Minimal key is requested to be passed for the builder creation.
+Oak requires a minimal key that can represent negative infinity according in the user-defined comparision among the keys. The requested minimal key is of type 'K', and is considered by the given comparator to be smaller than every other key (serialized or not). The minimal key is passed as a parameter during builder creation.
 
 ### Comparator
-After a Key-Value pair is inserted into Oak, it is kept in a serialized (buffered) state. However, Oak gets input key as an object, serialization of which is delayed until proved as needed.
-Thus, while searching through the map, Oak might compare between keys in their Object and Serialized modes. Oak provides the following interface for a special comparator:
+After a Key-Value pair is inserted into Oak, it is kept in a serialized (buffered) state. However, Oak's API gets the input key as an object, the serialization of which is deferred until it proves to be required.
+Thus, while searching through the map, Oak might compare between keys in their Object and Serialized modes. Oak provides the following interface for such a comparator:
 ```java
 public interface OakComparator<K> {
 
@@ -110,7 +110,7 @@ public class OakKeyComparatorImplementation implements OakComparator<K>
 ```
 
 ### Builder
-Below please find an example how to create OakMapBuilder and OakMap. For more comprehensive code example please refer to [Usage](#usage) section.
+We provide an example how to create OakMapBuilder and OakMap. For a more comprehensive code example please refer to the [Usage](#usage) section.
 
 ```java
 OakMapBuilder<K,V> builder = new OakMapBuilder()
@@ -126,16 +126,16 @@ OakMap<K,V> oak = builder.build();
 ## API
 
 ### OakMap Methods
-You are welcome to take a look on the Oak's [full API](https://git.ouroath.com/anastas/oak/wiki/Full-API)
-Oak supports similar to ConcurrentNavigableMap API, unusual API methods and special cases are going to be further discussed below.
+You are welcome to take a look on the Oak's [full API](https://git.ouroath.com/anastas/oak/wiki/Full-API). 
+Oak's API is similar to the ConcurrentNavigableMap API; some non-standard API methods and special cases are discussed below.
 
 ### OakBuffers
-Oak provides two types of memory buffers: *OakRBuffer* (read-only) and *OakWBuffer* (read and write). Those buffers support API identical to **read-only** Java ByteBuffers for OakRBuffer and writable Java ByteBuffer for OakWBuffer.
+Oak provides two types of memory buffers: *OakRBuffer* (read-only) and *OakWBuffer* (read and write). These buffers support the standard Java API for read-only Java ByteBuffers and writable Java ByteBuffers, respectively.
 
-Oak buffers allow the user a direct access to the underlying serialized key-value pairs, without caring for concurrent accesses and memory management. Oak buffers help to avoid the unnecessary copies and deserialization of the underlying mappings.
-However, since the value updates happen in-place and all accesses share the same underlying memory, reader may evidence different values or even value deletion associated with the same key. This is normal behavior for concurrent map that doesn't use a copies of the objects.
+Oak buffers allow the user direct access to the underlying serialized key-value pairs, without needing to worry about  concurrent accesses and memory management. This access reduces unnecessary copies and deserialization of the underlying mappings.
+Note, however, that since Oak's get method avoids copying the value and instead returns access to the same underlying memory buffer that compute operations update in-place, the reader may encounter different values -- and even value deletions -- when accessing the buffer returned from get multiple times. This is of course normal behavior for a concurrent map that avoids copying.
 
-OakRBuffer can represent either key or value. OakRBuffer's user can use the same interface as *read-only* ByteBuffer, like `int getInt(int index)`, `char getChar(int index)`, `limit()`, etc. Notice that ConcurrentModificationException can be thrown as a a result of any OakRBuffer method in case the mapping was concurrently deleted.
+An OakRBuffer can represent either a key or a value. The OakRBuffer's user can use the standard interface of a *read-only* ByteBuffer, for example, `int getInt(int index)`, `char getChar(int index)`, `limit()`, etc. Notice that ConcurrentModificationException can be thrown as a result of any OakRBuffer method in case the mapping is concurrently deleted.
 
 ### Notes for data retrieval
 1. For better performance of data retrieval, Oak supplies OakBufferView of the OakMap. The OakBufferView provides the following four methods for data retrieval, the output is presented as OakRBuffer, namely:
