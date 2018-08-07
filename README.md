@@ -244,8 +244,8 @@ try (CloseableIterator<Integer>  iter = sub.valuesIterator()) {
 
 ## Transform View
 
-In addition to OakBufferView explained above, Oak supplies OakTransformView, allowing manipulating on ByteBuffers instead on OakRBuffer. It might be preferable for those who prefer to directly retrieve the modified (transformed) data from OakMap. Transform view can be create via `OakTransformView createTransformView(Function<Map.Entry<ByteBuffer, ByteBuffer>, T> transformer)`.
-It requires a transform function `Function<Map.Entry<ByteBuffer, ByteBuffer>, T> transformer` that may transform key-value pairs given as **read-only** ByteBuffers into any `T` object. The first ByteBuffer parameter (of the Entry) is the key and the second is the value. OakTransformView API is the same as of OakBufferView, but `T` object is the return value, namely:
+In addition to the OakBufferView explained above, Oak provides the OakTransformView, which allows manipulating ByteBuffers instead of OakRBuffers. This view might be useful for directly retrieving modified (transformed) data from the OakMap. Transform view is created via `OakTransformView createTransformView(Function<Map.Entry<ByteBuffer, ByteBuffer>, T> transformer)`.
+It requires a transform function `Function<Map.Entry<ByteBuffer, ByteBuffer>, T> transformer` that transforms key-value pairs given as **read-only** ByteBuffers into arbitrary `T` objects. The first ByteBuffer parameter (of the Entry) is the key and the second is the value. The API of OakTransformView is the same as that of OakBufferView, except that the return value type is `T`; namely:
 	- `T get(K key)`,
 	- `CloseableIterator<T> valuesIterator()`,
 	- `CloseableIterator<Map.Entry<T, T>> entriesIterator()`,
@@ -271,7 +271,7 @@ try (CloseableIterator<Integer> iter = oakView.entriesIterator()) {
 
 ## Contribute
 
-Please refer to [the contributing.md file](Contributing.md) for information about how to get involved. We welcome issues, questions, and pull requests. Pull Requests are welcome
+Please refer to [the contributing.md file](Contributing.md) for information about how to get involved. We welcome issues, questions, and pull requests.  
 
 
 ## License
