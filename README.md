@@ -32,7 +32,7 @@ It's faster and scales better with additional CPU cores than popular Java's Conc
 
 ### Design Requirements
 To efficiently manage its content Oak requires that the user defines two auxiliary tools: a Serializer and a Comparator; both are passed during construction.
-1. *Serializer:* The keys and the values are requested to provide a (1)serializer, (2)deserializer, and (3)serialized size calculator. All three are parts of [Serializer](### Key/Value Serializer).
+1. *Serializer:* The keys and the values are requested to provide a (1)serializer, (2)deserializer, and (3)serialized size calculator. All three are parts of [Serializer](#Key/Value Serializer).
 	- For better performance, Oak allocates the space for a key/value and uses the given serializer to write the key/value directly to the allocated space. Oak requests key/value size calculator to know the amount of space to be allocated. Both the keys and the values are variable sized.
 2. *Comparator:* In order to compare the internally kept, serialized keys with the deserialized key given for the search, Oak requires a special comparator. The comparator should be able to compare between keys in their serialized and deserialized (object) variants.
 
