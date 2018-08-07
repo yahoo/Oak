@@ -152,18 +152,18 @@ OakRBuffer can represent either key or value. OakRBuffer's user can use the same
 4. For further understanding of the data retrieval via OakTransformView, please refer to [Oak Views](#views) section.
 
 ### Notes for data ingestion
-1. The data can be ingested and updated via the following four methods:
- 	- `void put(K key, V value)`,
- 	- `boolean putIfAbsent(K key, V value)`,
- 	- `void remove(K key)`,
- 	- `boolean computeIfPresent(K key, Consumer<OakWBuffer> computer)`,
- 	- `void putIfAbsentComputeIfPresent(K key, V value, Consumer<ByteBuffer> computer)`
-2. In contrast to ConcurrentNavigableMap API `void put(K key, V value)` doesn't return the value previously associated with the key, if key existed. Similarly `void remove(K key)` doesn't remove boolean explaining whether key was really deleted, if key existed.
-3. `boolean computeIfPresent(K key, Consumer<OakWBuffer> computer)` gets the user-defined computer function. The computer is invoked in case the key exists. The computer is provided with OakWBuffer representing the serialized value associated with the key. The computer effect is atomic, meaning either all updates are sean to the concurrent readers or none.
-4. In contrast to Java's ConcurrentSkipListMap, Oak provides an efficient and **atomic** implementation of the ConcurrentNavigableMap.compute(key, updateFunction) API; zero-copy update in-place.
-	- Specifically, Oak allows user to find an old value associated with the key and to update it in place to updateFunction(old value). While Java's ConcurrentSkipListMap atomically swaps the pointer to the new value object creating another copy. This allows the Oak users to focus on business logic without dealing with the hard problems data layout and concurrency control presents.
-5. Further on, Oak supports an atomic putIfAbsentComputeIfPresent(key, buildFunction, updateFunction) interface (not part of ConcurrentNavigableMap).
-	- This provides the ability to look for a key, and if the key doesn't exist, the new key-->buildFunction(place to update) mapping is added, otherwise the key’s value is updated with update(old value). This interface works concurrently with other updates and requires only one search traversal.
+1. The data can be ingested and updated via the following five methods:
+ 	- `void put(K key, V value)`
+ 	- `boolean putIfAbsent(K key, V value)`
+ 	- `void remove(K key)`
+ 	- `boolean computeIfPresent(K key, Consumer<OakWBuffer> computer)`
+ 	- `void putIfAbsentComputeIfPresent(K key, V value, Consumer<OakWBuffer> computer)`
+2. In contrast to ConcurrentNavigableMap API `void put(K key, V value)` doesn't return the value previously associated with the key, if key existed. Similarly `void remove(K key)` doesn't return boolean explaining whether key was really deleted, if key existed.
+3. `boolean computeIfPresent(K key, Consumer<OakWBuffer> computer)` gets the user-defined computer function. The computer is invoked in case the key exists.
+The computer is provided with OakWBuffer representing the serialized value associated with the key. The computer effect is atomic, meaning either all updates are sean to the concurrent readers or none.
+The compute functionality gives the Oak user an efficient zero-copy update in place, which allows the Oak users to focus on business logic without dealing with the hard problems data layout and concurrency control presents.
+5. Further on, Oak supports an atomic `void putIfAbsentComputeIfPresent(K key, V value, Consumer<OakWBuffer> computer)` interface (not part of ConcurrentNavigableMap).
+	- This provides the ability to look for a key, and if the key doesn't exist, the new key-->serializeValue(place to update) mapping is added, otherwise the key’s value is updated with computer(old value). This interface works concurrently with other updates and requires only one search traversal.
 
 ## Usage
 
