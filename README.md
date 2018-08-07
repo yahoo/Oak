@@ -20,7 +20,7 @@ It is faster and scales better with additional CPU cores than the popular Java C
 - [Builder](#builder)
 - [API](#api)
 - [Usage](#usage)
-- [Oak Transform View](#Oak Transform View)
+- [Oak Transform View](#transform View)
 - [Contribute](#contribute)
 - [License](#license)
 
@@ -241,7 +241,7 @@ try (CloseableIterator<Integer>  iter = sub.valuesIterator()) {
 }
 ```
 
-## Oak Transform View
+## Transform View
 
 In addition to OakBufferView explained above, Oak supplies OakTransformView, allowing manipulating on ByteBuffers instead on OakRBuffer. It might be preferable for those who prefer to directly retrieve the modified (transformed) data from OakMap. Transform view can be create via `OakTransformView createTransformView(Function<Map.Entry<ByteBuffer, ByteBuffer>, T> transformer)`.
 It requires a transform function `Function<Map.Entry<ByteBuffer, ByteBuffer>, T> transformer` that may transform key-value pairs given as **read-only** ByteBuffers into any `T` object. The first ByteBuffer parameter (of the Entry) is the key and the second is the value. OakTransformView API is the same as of OakBufferView, but `T` object is the return value, namely:
