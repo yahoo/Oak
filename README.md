@@ -7,11 +7,11 @@ Oak is optimized for big keys and values, in particular for incremental maintena
 It's faster and scales better with additional CPU cores than popular Java's ConcurrentNavigableMap [ConcurrentSkipListMap](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/ConcurrentSkipListMap.html).
 
 ## Why Oak?
-1. Oak provides great performance, has fine synchronization, and thus scales well with numbers of threads, [some performance evaluation](https://git.ouroath.com/anastas/oak/wiki/Performance).
+1. Oak provides great performance, has fine synchronization, and thus scales well with numbers of threads. [Performance evaluation](https://git.ouroath.com/anastas/oak/wiki/Performance).
 2. Oak takes all the keys and the data off-heap, thus allows working with huge heap (RAM) above 50G, without JVM GC overheads.
 	- To support off-heap, Oak has embedded, efficient, epoch-based memory management that mostly eliminates JVM GC overheads.
 4. Oak provides rich **atomic** API. For example, in the current Java ConcurrentSkipListMap implementation, compute() is not guaranteed to be atomic. Oak’s update operations (such as put and compute) take user-provided lambda functions for easy integration in a range of use cases.
-5. Descending Scans: Oak is expediting descending scans without an additional complexity. In our experiments, Oak’s descending scans are 4.8x faster than ConcurrentSkipListMap’s. Bottom line, in Oak, the scans in both directions are similarly fast, [some performance evaluation](https://git.ouroath.com/anastas/oak/wiki/Performance).
+5. Descending Scans: Oak is expediting descending scans without an additional complexity. In our experiments, Oak’s descending scans are 4.8x faster than ConcurrentSkipListMap’s. Bottom line, in Oak, the scans in both directions are similarly fast. [Performance evaluation](https://git.ouroath.com/anastas/oak/wiki/Performance).
 
 ## Table of Contents
 
@@ -25,13 +25,15 @@ It's faster and scales better with additional CPU cores than popular Java's Conc
 - [License](#license)
 
 ## Background
+
+### Design Points
 - Oak index is built on contiguous chunks of memory; this speeds up searches through the index due to access locality. Read more about [Oak design](https://git.ouroath.com/anastas/oak/wiki/Design).
 - Oak works off-heap, thus the keys and the values are copied and stored in a self-managed, off-heap byte arrays.
 
-### Oak Design Requests
+### Design Requirements
 To efficiently manage its content Oak requires that the user defines two auxiliary tools: a Serializer and a Comparator; both are passed during construction.
-1. *Serializer:* Oak's input keys and the values are going to be serialized and written (copied) to buffers. Therefore, for the keys and the values it is requested to provide a serializer, deserializer, and serialized size calculator. [example] (### Key/Value Serializer)
-For better performance, Oak allocates the space for a key/value and uses the given serializer to write the key/value directly to the allocated space. Oak requests key/value size calculator to know the amount of space to be allocated. Both the keys and the values are variable sized.
+1. *Serializer:* The keys and the values are requested to provide a (1)serializer, (2)deserializer, and (3)serialized size calculator. All three are parts of [Serializer](### Key/Value Serializer).
+	- For better performance, Oak allocates the space for a key/value and uses the given serializer to write the key/value directly to the allocated space. Oak requests key/value size calculator to know the amount of space to be allocated. Both the keys and the values are variable sized.
 2. *Comparator:* In order to compare the internally kept, serialized keys with the deserialized key given for the search, Oak requires a special comparator. The comparator should be able to compare between keys in their serialized and deserialized (object) variants.
 
 ## Install
