@@ -167,74 +167,7 @@ The compute functionality gives the Oak user an efficient zero-copy update in pl
 
 ## Usage
 
-### Integer to Integer build example
-
-```java
-    KeySerializer<Integer> keySerializer = new KeySerializer<Integer>() {
-
-      @Override
-      public void serialize(Integer key, ByteBuffer targetBuffer) {
-        targetBuffer.putInt(targetBuffer.position(), key);
-      }
-
-      @Override
-      public Integer deserialize(ByteBuffer serializedKey) {
-        return serializedKey.getInt(serializedKey.position());
-      }
-
-			@Override
-      public int calculateSize(Integer object) {
-        return Integer.BYTES;
-      }
-    };
-
-    ValueSerializer<Integer, Integer> valueSerializer = new ValueSerializer<Integer, Integer>() {
-      @Override
-      public void serialize(Integer key, Integer value, ByteBuffer targetBuffer) {
-        targetBuffer.putInt(targetBuffer.position(), value);
-      }
-
-      @Override
-      public Integer deserialize(ByteBuffer serializedKey, ByteBuffer serializedValue) {
-        return serializedValue.getInt(serializedValue.position());
-      }
-
-      @Override
-      public int calculateSize(Integer object) {
-        return Integer.BYTES;
-      }
-    };
-
-    OakComparator<Integer> keysComparator = new OakComparator<Integer>() {
-
-      @Override
-      public int compareKeys(Integer int1, Integer int2) {
-        return intsCompare(int1, int2);
-      }
-
-      @Override
-      public int compareSerializedKeys(ByteBuffer buff1, ByteBuffer buff2) {
-        int int1 = buff1.getInt(buff1.position());
-        int int2 = buff2.getInt(buff2.position());
-        return intsCompare(int1, int2);
-      }
-
-      @Override
-      public int compareSerializedKeyAndKey(ByteBuffer buff1, Integer int2) {
-        int int1 = buff1.getInt(buff1.position());
-        return intsCompare(int1, int2);
-      }
-     };
-
-     OakMapBuilder<Integer, Integer> builder = new OakMapBuilder<Integer, Integer>()
-                 .setKeySerializer(keySerializer)
-                 .setValueSerializer(valueSerializer)
-                 .setMinKey(new Integer(Integer.MIN_VALUE))
-                 .setKeysComparator(keysComparator)
-                 .setMemoryCapacity(1048576); // 1MB in bytes
-
-     OakMap<Integer,Integer> oak = (OakMap<Integer, Integer>) builder.build();
-```
+Integer to Integer build example can be seen in [Code Examples](https://git.ouroath.com/anastas/oak/wiki/Code-Examples).
 
 ### Code Examples
 
@@ -254,7 +187,7 @@ boolean res = oak.putIfAbsent(Integer(11),Integer(110));
 oak.remove(Integer(11));
 ```
 
-#### Get OakRBuffer
+##### Get OakRBuffer
 ```java
 OakBufferView oakView = oak.createBufferView();
 OakRBuffer buffer = oakView.get(Integer(10));
