@@ -9,6 +9,7 @@ package oak;
 import javafx.util.Pair;
 
 import java.nio.ByteBuffer;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.logging.Logger;
 
 public class KeysManagerOffHeapImpl<K> extends KeysManager<K> {
@@ -16,18 +17,19 @@ public class KeysManagerOffHeapImpl<K> extends KeysManager<K> {
     ByteBuffer keys;
     int i;
     OakMemoryManager memoryManager;
-    private final KeySerializer<K> keySerializer;
-    private final SizeCalculator<K> keySizeCalculator;
+    private final Serializer<K> keySerializer;
+    AtomicBoolean released;
     Logger log = Logger.getLogger(KeysManagerOffHeapImpl.class.getName());
 
-    KeysManagerOffHeapImpl(int bytes, OakMemoryManager memoryManager,
-                           KeySerializer<K> keySerializer, SizeCalculator<K> keySizeCalculator) {
+    KeysManagerOffHeapImpl(int bytes,
+                           OakMemoryManager memoryManager,
+                           Serializer<K> keySerializer) {
         Pair<Integer, ByteBuffer> pair = memoryManager.allocate(bytes);
         i = pair.getKey();
         keys = pair.getValue();
         this.memoryManager = memoryManager;
         this.keySerializer = keySerializer;
-        this.keySizeCalculator = keySizeCalculator;
+        this.released = new AtomicBoolean(false);
     }
 
     @Override
@@ -49,7 +51,9 @@ public class KeysManagerOffHeapImpl<K> extends KeysManager<K> {
 
     @Override
     void release() {
-        memoryManager.release(i, keys);
+        if (released.compareAndSet(false, true)) {
+            memoryManager.release(i, keys);
+        }
     }
 
     @Override

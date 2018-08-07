@@ -13,7 +13,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Consumer;
 
-abstract class Handle<K, V> extends WritableOakBuffer {
+abstract class Handle<V> implements OakWBuffer {
 
     final ReentrantReadWriteLock.ReadLock readLock;
     final ReentrantReadWriteLock.WriteLock writeLock;
@@ -38,10 +38,10 @@ abstract class Handle<K, V> extends WritableOakBuffer {
 
     abstract boolean remove(OakMemoryManager memoryManager);
 
-    abstract void put(V newVal, ValueSerializer<K, V> serializer, SizeCalculator<V> sizeCalculator, OakMemoryManager memoryManager);
+    abstract void put(V newVal, Serializer<V> serializer, OakMemoryManager memoryManager);
 
     // returns false in case handle was found deleted and compute didn't take place, true otherwise
-    boolean compute(Consumer<ByteBuffer> computer, OakMemoryManager memoryManager) {
+    boolean compute(Consumer<OakWBuffer> computer, OakMemoryManager memoryManager) {
         writeLock.lock();
         if (isDeleted()) {
             writeLock.unlock();
@@ -49,51 +49,52 @@ abstract class Handle<K, V> extends WritableOakBuffer {
         }
         // TODO: invalidate oak buffer after accept
         try {
-            computer.accept(this.value);
+            OakWBufferImpl oakWBufferImpl = new OakWBufferImpl(this, memoryManager);
+            computer.accept(oakWBufferImpl);
         } finally {
-            value.rewind(); // TODO rewind?
+            this.value.rewind(); // TODO rewind?
             writeLock.unlock();
         }
         return true;
     }
 
     @Override
-    public WritableOakBuffer position(int newPosition) {
+    public OakWBuffer position(int newPosition) {
         assert writeLock.isHeldByCurrentThread();
         value.position(newPosition);
         return this;
     }
 
     @Override
-    public WritableOakBuffer mark() {
+    public OakWBuffer mark() {
         assert writeLock.isHeldByCurrentThread();
         value.mark();
         return this;
     }
 
     @Override
-    public WritableOakBuffer reset() {
+    public OakWBuffer reset() {
         assert writeLock.isHeldByCurrentThread();
         value.reset();
         return this;
     }
 
     @Override
-    public WritableOakBuffer clear() {
+    public OakWBuffer clear() {
         assert writeLock.isHeldByCurrentThread();
         value.clear();
         return this;
     }
 
     @Override
-    public WritableOakBuffer flip() {
+    public OakWBuffer flip() {
         assert writeLock.isHeldByCurrentThread();
         value.flip();
         return this;
     }
 
     @Override
-    public WritableOakBuffer rewind() {
+    public OakWBuffer rewind() {
         assert writeLock.isHeldByCurrentThread();
         value.rewind();
         return this;
@@ -116,7 +117,7 @@ abstract class Handle<K, V> extends WritableOakBuffer {
     }
 
     @Override
-    public WritableOakBuffer put(byte b) {
+    public OakWBuffer put(byte b) {
         assert writeLock.isHeldByCurrentThread();
         value.put(b);
         return this;
@@ -243,22 +244,29 @@ abstract class Handle<K, V> extends WritableOakBuffer {
     }
 
     @Override
-    public WritableOakBuffer put(int index, byte b) {
+    public OakWBuffer put(int index, byte b) {
         assert writeLock.isHeldByCurrentThread();
         value.put(index, b);
         return this;
     }
 
     @Override
-    public WritableOakBuffer get(byte[] dst, int offset, int length) {
+    public OakWBuffer get(byte[] dst, int offset, int length) {
         value.get(dst, offset, length);
         return this;
     }
 
     @Override
-    public WritableOakBuffer put(byte[] src, int offset, int length) {
+    public OakWBuffer put(byte[] src, int offset, int length) {
         assert writeLock.isHeldByCurrentThread();
         value.put(src, offset, length);
+        return this;
+    }
+
+    @Override
+    public OakWBuffer put(byte[] src) {
+        assert writeLock.isHeldByCurrentThread();
+        value.put(src);
         return this;
     }
 
@@ -283,7 +291,7 @@ abstract class Handle<K, V> extends WritableOakBuffer {
     }
 
     @Override
-    public WritableOakBuffer order(ByteOrder bo) {
+    public OakWBuffer order(ByteOrder bo) {
         value.order(bo);
         return this;
     }
@@ -294,7 +302,7 @@ abstract class Handle<K, V> extends WritableOakBuffer {
     }
 
     @Override
-    public WritableOakBuffer putChar(char value) {
+    public OakWBuffer putChar(char value) {
         assert writeLock.isHeldByCurrentThread();
         this.value.putChar(value);
         return this;
@@ -321,7 +329,7 @@ abstract class Handle<K, V> extends WritableOakBuffer {
     }
 
     @Override
-    public WritableOakBuffer putChar(int index, char value) {
+    public OakWBuffer putChar(int index, char value) {
         assert writeLock.isHeldByCurrentThread();
         this.value.putChar(index, value);
         return this;
@@ -333,7 +341,7 @@ abstract class Handle<K, V> extends WritableOakBuffer {
     }
 
     @Override
-    public WritableOakBuffer putShort(short value) {
+    public OakWBuffer putShort(short value) {
         assert writeLock.isHeldByCurrentThread();
         this.value.putShort(value);
         return this;
@@ -360,7 +368,7 @@ abstract class Handle<K, V> extends WritableOakBuffer {
     }
 
     @Override
-    public WritableOakBuffer putShort(int index, short value) {
+    public OakWBuffer putShort(int index, short value) {
         assert writeLock.isHeldByCurrentThread();
         this.value.putShort(index, value);
         return this;
@@ -372,7 +380,7 @@ abstract class Handle<K, V> extends WritableOakBuffer {
     }
 
     @Override
-    public WritableOakBuffer putInt(int value) {
+    public OakWBuffer putInt(int value) {
         assert writeLock.isHeldByCurrentThread();
         this.value.putInt(value);
         return this;
@@ -399,7 +407,7 @@ abstract class Handle<K, V> extends WritableOakBuffer {
     }
 
     @Override
-    public WritableOakBuffer putInt(int index, int value) {
+    public OakWBuffer putInt(int index, int value) {
         assert writeLock.isHeldByCurrentThread();
         this.value.putInt(index, value);
         return this;
@@ -411,7 +419,7 @@ abstract class Handle<K, V> extends WritableOakBuffer {
     }
 
     @Override
-    public WritableOakBuffer putLong(long value) {
+    public OakWBuffer putLong(long value) {
         assert writeLock.isHeldByCurrentThread();
         this.value.putLong(value);
         return this;
@@ -438,7 +446,7 @@ abstract class Handle<K, V> extends WritableOakBuffer {
     }
 
     @Override
-    public WritableOakBuffer putLong(int index, long value) {
+    public OakWBuffer putLong(int index, long value) {
         assert writeLock.isHeldByCurrentThread();
         this.value.putLong(index, value);
         return this;
@@ -450,7 +458,7 @@ abstract class Handle<K, V> extends WritableOakBuffer {
     }
 
     @Override
-    public WritableOakBuffer putFloat(float value) {
+    public OakWBuffer putFloat(float value) {
         assert writeLock.isHeldByCurrentThread();
         this.value.putFloat(value);
         return this;
@@ -477,7 +485,7 @@ abstract class Handle<K, V> extends WritableOakBuffer {
     }
 
     @Override
-    public WritableOakBuffer putFloat(int index, float value) {
+    public OakWBuffer putFloat(int index, float value) {
         assert writeLock.isHeldByCurrentThread();
         this.value.putFloat(index, value);
         return this;
@@ -489,7 +497,7 @@ abstract class Handle<K, V> extends WritableOakBuffer {
     }
 
     @Override
-    public WritableOakBuffer putDouble(double value) {
+    public OakWBuffer putDouble(double value) {
         assert writeLock.isHeldByCurrentThread();
         this.value.putDouble(value);
         return this;
@@ -516,10 +524,9 @@ abstract class Handle<K, V> extends WritableOakBuffer {
     }
 
     @Override
-    public WritableOakBuffer putDouble(int index, double value) {
+    public OakWBuffer putDouble(int index, double value) {
         assert writeLock.isHeldByCurrentThread();
         this.value.putDouble(index, value);
         return this;
     }
-
 }

@@ -19,7 +19,7 @@ import static org.junit.Assert.assertEquals;
 
 public class MultiThreadRangeTest {
 
-    private OakMapOffHeapImpl<Integer, Integer> oak;
+    private OakMap<Integer, Integer> oak;
     private final int NUM_THREADS = 1;
     private ArrayList<Thread> threads;
     private CountDownLatch latch;
@@ -31,7 +31,7 @@ public class MultiThreadRangeTest {
         OakMapBuilder builder = OakMapBuilder.getDefaultBuilder()
                 .setChunkMaxItems(maxItemsPerChunk)
                 .setChunkBytesPerItem(maxBytesPerChunkItem);
-        oak = (OakMapOffHeapImpl<Integer, Integer>) builder.build();
+        oak = (OakMap<Integer, Integer>) builder.build();
         latch = new CountDownLatch(1);
         threads = new ArrayList<>(NUM_THREADS);
     }
@@ -53,9 +53,7 @@ public class MultiThreadRangeTest {
 
             Random r = new Random();
 
-            ByteBuffer from = ByteBuffer.allocate(4);
-            from.putInt(r.nextInt(10 * maxItemsPerChunk));
-            from.flip();
+            Integer from = new Integer(10 * maxItemsPerChunk);
             Iterator valIter = oak.tailMap(from, true).valuesIterator();
             int i = 0;
             while (valIter.hasNext() && i < 100) {

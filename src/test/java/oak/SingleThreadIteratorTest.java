@@ -21,7 +21,7 @@ import static org.junit.Assert.assertFalse;
 
 public class SingleThreadIteratorTest {
 
-    private OakMapOffHeapImpl<Integer, Integer> oak;
+    private OakMap<Integer, Integer> oak;
     int maxItemsPerChunk = 2048;
     int maxBytesPerChunkItem = 100;
 
@@ -30,7 +30,7 @@ public class SingleThreadIteratorTest {
         OakMapBuilder builder = OakMapBuilder.getDefaultBuilder()
                 .setChunkMaxItems(maxItemsPerChunk)
                 .setChunkBytesPerItem(maxBytesPerChunkItem);
-        oak = (OakMapOffHeapImpl<Integer, Integer>) builder.build();
+        oak = (OakMap<Integer, Integer>) builder.build();
     }
 
     @Rule
@@ -185,7 +185,7 @@ public class SingleThreadIteratorTest {
         }
         assertEquals(0, i.intValue());
         OakMap map = oak.descendingMap();
-        iter = map.descendingMap().valuesIterator();
+        iter = oak.valuesIterator();
         i = 0;
         while (iter.hasNext()) {
             assertEquals(i, iter.next());

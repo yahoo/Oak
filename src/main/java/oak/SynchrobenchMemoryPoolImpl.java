@@ -46,7 +46,7 @@ class SynchrobenchMemoryPoolImpl implements MemoryPool {
     @Override
     public Pair<Integer, ByteBuffer> allocate(int capacity) {
         if (capacity == Integer.BYTES) {
-            int idx = OakMapOffHeapImpl.getThreadIndex();
+            int idx = OakMapOldOffHeapImpl.getThreadIndex();
             LinkedList<Pair<Integer, ByteBuffer>> myList = freeIntArray.get(idx);
             if (myList.size() > 0) {
                 Pair<Integer, ByteBuffer> pair = myList.removeFirst();
@@ -57,7 +57,7 @@ class SynchrobenchMemoryPoolImpl implements MemoryPool {
             }
         }
         if (capacity == maxKeyBytes) {
-            int idx = OakMapOffHeapImpl.getThreadIndex();
+            int idx = OakMapOldOffHeapImpl.getThreadIndex();
             LinkedList<Pair<Integer, ByteBuffer>> myList = freeKeysArray.get(idx);
             if (myList.size() > 0) {
                 Pair<Integer, ByteBuffer> pair = myList.removeFirst();
@@ -82,7 +82,7 @@ class SynchrobenchMemoryPoolImpl implements MemoryPool {
     @Override
     public void free(int i, ByteBuffer bb) {
         // TODO freelist
-        int idx = OakMapOffHeapImpl.getThreadIndex();
+        int idx = OakMapOldOffHeapImpl.getThreadIndex();
         if (bb.remaining() == Integer.BYTES) {
             LinkedList<Pair<Integer, ByteBuffer>> myList = freeIntArray.get(idx);
             myList.add(new Pair<>(i, bb));

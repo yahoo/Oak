@@ -16,7 +16,7 @@ public class FillTest {
 
     private static int NUM_THREADS;
 
-    static OakMapOffHeapImpl<Integer, Integer> oak;
+    static OakMap<Integer, Integer> oak;
     static ConcurrentSkipListMap<ByteBuffer, ByteBuffer> skiplist;
     private static final long K = 1024;
 
@@ -30,16 +30,38 @@ public class FillTest {
     static private ArrayList<Thread> threads = new ArrayList<>(NUM_THREADS);
     static private CountDownLatch latch = new CountDownLatch(1);
 
-    public static class FillTestKeySizeCalculator implements SizeCalculator<Integer> {
+    public static class FillTestKeySerializer implements Serializer<Integer> {
 
-        public int calculateSize(Integer object) {
+        @Override
+        public void serialize(Integer key, ByteBuffer targetBuffer) {
+            targetBuffer.putInt(targetBuffer.position(), key);
+        }
+
+        @Override
+        public Integer deserialize(ByteBuffer serializedKey) {
+            return serializedKey.getInt(serializedKey.position());
+        }
+
+        @Override
+        public int calculateSize(Integer key) {
             return keySize;
         }
     }
 
-    public static class FillTestValueSizeCalculator implements SizeCalculator<Integer> {
+    public static class FillTestValueSerializer implements Serializer<Integer> {
 
-        public int calculateSize(Integer object) {
+        @Override
+        public void serialize(Integer value, ByteBuffer targetBuffer) {
+            targetBuffer.putInt(targetBuffer.position(), value);
+        }
+
+        @Override
+        public Integer deserialize(ByteBuffer serializedValue) {
+            return serializedValue.getInt(serializedValue.position());
+        }
+
+        @Override
+        public int calculateSize(Integer value) {
             return valSize;
         }
     }
@@ -64,7 +86,7 @@ public class FillTest {
             Integer myKey;
             Integer myVal;
 
-            int id = OakMapOffHeapImpl.getThreadIndex();
+            int id = OakMapOldOffHeapImpl.getThreadIndex();
             int amount = (int) Math.round(numOfEntries * 0.5) / NUM_THREADS;
             int start = id * amount + (int) Math.round(numOfEntries * 0.5);
             int end = (id + 1) * amount + (int) Math.round(numOfEntries * 0.5);
@@ -107,10 +129,10 @@ public class FillTest {
                 .getDefaultBuilder()
                 .setChunkMaxItems(2048)
                 .setChunkBytesPerItem(100)
-                .setKeySizeCalculator(new FillTestKeySizeCalculator())
-                .setValueSizeCalculator(new FillTestValueSizeCalculator());
+                .setKeySerializer(new FillTestKeySerializer())
+                .setValueSerializer(new FillTestValueSerializer());
 
-        oak = (OakMapOffHeapImpl<Integer, Integer>) builder.build();
+        oak = (OakMap<Integer, Integer>) builder.build();
 
         NUM_THREADS = Integer.parseInt(args[1]);
 

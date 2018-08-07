@@ -22,7 +22,7 @@ import static org.junit.Assert.assertFalse;
 
 public class SingleThreadTest {
 
-    private OakMapOffHeapImpl<Integer, Integer> oak;
+    private OakMap<Integer, Integer> oak;
     int maxItemsPerChunk = 2048;
     int maxBytesPerChunkItem = Integer.BYTES;
 
@@ -31,35 +31,19 @@ public class SingleThreadTest {
         OakMapBuilder builder = OakMapBuilder.getDefaultBuilder()
                 .setChunkMaxItems(maxItemsPerChunk)
                 .setChunkBytesPerItem(maxBytesPerChunkItem);
-        oak = (OakMapOffHeapImpl<Integer, Integer>) builder.build();
-    }
-
-    private int countNumOfChunks() {
-        Chunk<Integer, Integer> c = oak.skiplist.firstEntry().getValue();
-        int counter = 1;
-        Chunk<Integer, Integer> next = c.next.getReference();
-        assertFalse(c.next.isMarked());
-        while (next != null) {
-            assertFalse(next.next.isMarked());
-            counter++;
-            next = next.next.getReference();
-        }
-        return counter;
+        oak = (OakMap<Integer, Integer>) builder.build();
     }
 
     @Test
     public void testPutAndGet() {
-        assertEquals(1, countNumOfChunks());
         for (Integer i = 0; i < 2 * maxItemsPerChunk; i++) {
             oak.put(i, i);
         }
-        assertEquals(4, countNumOfChunks());
         for (Integer i = 0; i < 2 * maxItemsPerChunk; i++) {
             Integer value = oak.get(i);
             assertTrue(value != null);
             TestCase.assertEquals(i, value);
         }
-        assertEquals(4, countNumOfChunks());
         Integer value = oak.get(10);
         assertTrue(value != null);
         TestCase.assertEquals((Integer) 10, value);
@@ -97,12 +81,10 @@ public class SingleThreadTest {
         for (Integer i = 0; i < 2 * maxItemsPerChunk; i++) {
             oak.remove(i);
         }
-        assertEquals(1, countNumOfChunks());
         for (Integer i = 0; i < 2 * maxItemsPerChunk; i++) {
             Integer value = oak.get(i);
             assertTrue(value == null);
         }
-        assertEquals(1, countNumOfChunks());
     }
 
     @Test
@@ -115,7 +97,6 @@ public class SingleThreadTest {
         for (Integer i = 0; i < 4 * maxItemsPerChunk; i++) {
             oak.putIfAbsent(i, i);
         }
-        assertEquals(8, countNumOfChunks());
         for (Integer i = 0; i < 4 * maxItemsPerChunk; i++) {
             value = oak.get(i);
             assertTrue(value != null);
@@ -131,8 +112,6 @@ public class SingleThreadTest {
             value = oak.get(i);
             assertTrue(value == null);
         }
-        Assert.assertTrue(countNumOfChunks() < 8);
-        int countNow = countNumOfChunks();
         for (Integer i = maxItemsPerChunk; i < 3 * maxItemsPerChunk; i++) {
             value = oak.get(i);
             assertTrue(value == null);
@@ -166,7 +145,6 @@ public class SingleThreadTest {
             value = oak.get(i);
             assertTrue(value == null);
         }
-        Assert.assertTrue(countNumOfChunks() < countNow);
         for (int i = 0; i < 4 * maxItemsPerChunk; i++) {
             oak.put(i, i);
         }
@@ -175,7 +153,6 @@ public class SingleThreadTest {
             assertTrue(value != null);
             TestCase.assertEquals(i, value);
         }
-        assertEquals(8, countNumOfChunks());
     }
 
     @Rule
@@ -184,11 +161,11 @@ public class SingleThreadTest {
     @Test
     public void testComputeIf() {
         Integer value;
-        Consumer<ByteBuffer> computer = new Consumer<ByteBuffer>() {
+        Consumer<OakWBuffer> computer = new Consumer<OakWBuffer>() {
             @Override
-            public void accept(ByteBuffer byteBuffer) {
-                if (byteBuffer.getInt() == 0)
-                    byteBuffer.putInt(0, 1);
+            public void accept(OakWBuffer oakWBuffer) {
+                if (oakWBuffer.getInt(0) == 0)
+                    oakWBuffer.putInt(0, 1);
             }
         };
         Integer key = 0;
@@ -222,11 +199,11 @@ public class SingleThreadTest {
     @Test
     public void testCompute() {
         Integer value;
-        Consumer<ByteBuffer> computer = new Consumer<ByteBuffer>() {
+        Consumer<OakWBuffer> computer = new Consumer<OakWBuffer>() {
             @Override
-            public void accept(ByteBuffer byteBuffer) {
-                if (byteBuffer.getInt() == 0)
-                    byteBuffer.putInt(0, 1);
+            public void accept(OakWBuffer oakWBuffer) {
+                if (oakWBuffer.getInt(0) == 0)
+                    oakWBuffer.putInt(0, 1);
             }
         };
         Integer key = 0;

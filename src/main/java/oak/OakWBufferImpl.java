@@ -10,48 +10,48 @@ import java.nio.BufferOverflowException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 
-public class WritableOakBufferImpl extends WritableOakBuffer {
+public class OakWBufferImpl implements OakWBuffer {
 
     private Handle handle;
     private OakMemoryManager memoryManager;
 
-    WritableOakBufferImpl(Handle handle, OakMemoryManager memoryManager) {
+    OakWBufferImpl(Handle handle, OakMemoryManager memoryManager) {
         this.handle = handle;
         this.memoryManager = memoryManager;
     }
 
     @Override
-    public WritableOakBuffer position(int newPosition) {
+    public OakWBuffer position(int newPosition) {
         handle.position(newPosition);
         return this;
     }
 
     @Override
-    public WritableOakBuffer mark() {
+    public OakWBuffer mark() {
         handle.mark();
         return this;
     }
 
     @Override
-    public WritableOakBuffer reset() {
+    public OakWBuffer reset() {
         handle.reset();
         return this;
     }
 
     @Override
-    public WritableOakBuffer clear() {
+    public OakWBuffer clear() {
         handle.clear();
         return this;
     }
 
     @Override
-    public WritableOakBuffer flip() {
+    public OakWBuffer flip() {
         handle.flip();
         return this;
     }
 
     @Override
-    public WritableOakBuffer rewind() {
+    public OakWBuffer rewind() {
         handle.rewind();
         return this;
     }
@@ -62,7 +62,7 @@ public class WritableOakBufferImpl extends WritableOakBuffer {
     }
 
     @Override
-    public WritableOakBuffer put(byte b) {
+    public OakWBuffer put(byte b) {
         while (true) {
             try {
                 handle.put(b);
@@ -109,19 +109,19 @@ public class WritableOakBufferImpl extends WritableOakBuffer {
     }
 
     @Override
-    public WritableOakBuffer put(int index, byte b) {
+    public OakWBuffer put(int index, byte b) {
         handle.put(index, b);
         return this;
     }
 
     @Override
-    public WritableOakBuffer get(byte[] dst, int offset, int length) {
+    public OakWBuffer get(byte[] dst, int offset, int length) {
         handle.get(dst, offset, length);
         return this;
     }
 
     @Override
-    public WritableOakBuffer put(byte[] src, int offset, int length) {
+    public OakWBuffer put(byte[] src, int offset, int length) {
         while (true) {
             try {
                 handle.put(src, offset, length);
@@ -135,12 +135,17 @@ public class WritableOakBufferImpl extends WritableOakBuffer {
     }
 
     @Override
+    public OakWBuffer put(byte[] src) {
+        return put(src, 0, src.length);
+    }
+
+    @Override
     public ByteOrder order() {
         return handle.order();
     }
 
     @Override
-    public WritableOakBuffer order(ByteOrder bo) {
+    public OakWBuffer order(ByteOrder bo) {
         handle.order();
         return this;
     }
@@ -151,7 +156,7 @@ public class WritableOakBufferImpl extends WritableOakBuffer {
     }
 
     @Override
-    public WritableOakBuffer putChar(char value) {
+    public OakWBuffer putChar(char value) {
         handle.putChar(value);
         return this;
     }
@@ -162,7 +167,7 @@ public class WritableOakBufferImpl extends WritableOakBuffer {
     }
 
     @Override
-    public WritableOakBuffer putChar(int index, char value) {
+    public OakWBuffer putChar(int index, char value) {
         while (true) {
             try {
                 handle.putChar(index, value);
@@ -181,7 +186,7 @@ public class WritableOakBufferImpl extends WritableOakBuffer {
     }
 
     @Override
-    public WritableOakBuffer putShort(short value) {
+    public OakWBuffer putShort(short value) {
         handle.putShort(value);
         return this;
     }
@@ -192,7 +197,7 @@ public class WritableOakBufferImpl extends WritableOakBuffer {
     }
 
     @Override
-    public WritableOakBuffer putShort(int index, short value) {
+    public OakWBuffer putShort(int index, short value) {
         while (true) {
             try {
                 handle.putShort(index, value);
@@ -211,7 +216,7 @@ public class WritableOakBufferImpl extends WritableOakBuffer {
     }
 
     @Override
-    public WritableOakBuffer putInt(int value) {
+    public OakWBuffer putInt(int value) {
         while (true) {
             try {
                 handle.putInt(value);
@@ -230,7 +235,7 @@ public class WritableOakBufferImpl extends WritableOakBuffer {
     }
 
     @Override
-    public WritableOakBuffer putInt(int index, int value) {
+    public OakWBuffer putInt(int index, int value) {
         handle.putInt(index, value);
         return this;
     }
@@ -241,7 +246,7 @@ public class WritableOakBufferImpl extends WritableOakBuffer {
     }
 
     @Override
-    public WritableOakBuffer putLong(long value) {
+    public OakWBuffer putLong(long value) {
         while (true) {
             try {
                 handle.putLong(value);
@@ -260,7 +265,7 @@ public class WritableOakBufferImpl extends WritableOakBuffer {
     }
 
     @Override
-    public WritableOakBuffer putLong(int index, long value) {
+    public OakWBuffer putLong(int index, long value) {
         handle.putLong(index, value);
         return this;
     }
@@ -271,7 +276,7 @@ public class WritableOakBufferImpl extends WritableOakBuffer {
     }
 
     @Override
-    public WritableOakBuffer putFloat(float value) {
+    public OakWBuffer putFloat(float value) {
         while (true) {
             try {
                 handle.putFloat(value);
@@ -290,7 +295,7 @@ public class WritableOakBufferImpl extends WritableOakBuffer {
     }
 
     @Override
-    public WritableOakBuffer putFloat(int index, float value) {
+    public OakWBuffer putFloat(int index, float value) {
         handle.putFloat(index, value);
         return this;
     }
@@ -301,7 +306,7 @@ public class WritableOakBufferImpl extends WritableOakBuffer {
     }
 
     @Override
-    public WritableOakBuffer putDouble(double value) {
+    public OakWBuffer putDouble(double value) {
         while (true) {
             try {
                 handle.putDouble(value);
@@ -320,7 +325,7 @@ public class WritableOakBufferImpl extends WritableOakBuffer {
     }
 
     @Override
-    public WritableOakBuffer putDouble(int index, double value) {
+    public OakWBuffer putDouble(int index, double value) {
         handle.putDouble(index, value);
         return this;
     }

@@ -16,43 +16,36 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.logging.Logger;
 
-public class OakMapOffHeapImpl<K, V> implements OakMap<K, V>, AutoCloseable {
+public class OakMapOldOffHeapImpl<K, V> implements OakMapOld<K, V>, AutoCloseable {
 
     /*-------------- Members --------------*/
 
-    Logger log = Logger.getLogger(OakMapOffHeapImpl.class.getName());
+    Logger log = Logger.getLogger(OakMapOldOffHeapImpl.class.getName());
     final ConcurrentSkipListMap<Object, Chunk<K, V>> skiplist;    // skiplist of chunks for fast navigation
     private final AtomicReference<Chunk<K, V>> head;
     private final ByteBuffer minKey;
     private final Comparator comparator;
     final OakMemoryManager memoryManager;
     private final HandleFactory handleFactory;
-    private final ValueFactory valueFactory;
     private AtomicInteger size;
-    private KeySerializer<K> keySerializer;
-    private SizeCalculator<K> keySizeCalculator;
-    private ValueSerializer<K, V> valueSerializer;
-    private SizeCalculator<V> valueSizeCalculator;
+    private Serializer<K> keySerializer;
+    private Serializer<V> valueSerializer;
 
     /**
      * Lazily initialized descending key set
      */
-    private OakMap descendingMap;
+    private OakMapOld descendingMap;
 
     /*-------------- Constructors --------------*/
 
     /**
      * init with capacity = 2g
      */
-    public OakMapOffHeapImpl(
+    public OakMapOldOffHeapImpl(
             K minKey,
-            KeySerializer<K> keySerializer,
-            SizeCalculator<K> keySizeCalculator,
-            ValueSerializer<K, V> valueSerializer,
-            SizeCalculator<V> valueSizeCalculator,
-            OakComparator<K, K> keysComparator,
-            OakComparator<ByteBuffer, ByteBuffer> serializationsComparator,
-            OakComparator<ByteBuffer, K> serializationAndKeyComparator,
+            Serializer<K> keySerializer,
+            Serializer<V> valueSerializer,
+            OakComparator<K> comparator,
             MemoryPool memoryPool,
             int chunkMaxItems,
             int chunkBytesPerItem) {
@@ -61,42 +54,39 @@ public class OakMapOffHeapImpl<K, V> implements OakMap<K, V>, AutoCloseable {
         this.memoryManager = new OakMemoryManager(memoryPool);
 
         this.keySerializer = keySerializer;
-        this.keySizeCalculator = keySizeCalculator;
         this.valueSerializer = valueSerializer;
-        this.valueSizeCalculator = valueSizeCalculator;
 
         this.comparator = new Comparator() {
             @Override
             public int compare(Object o1, Object o2) {
                 if (o1 instanceof ByteBuffer) {
                     if (o2 instanceof ByteBuffer) {
-                        return serializationsComparator.compare((ByteBuffer) o1, (ByteBuffer) o2);
+                        return comparator.compareSerializedKeys((ByteBuffer) o1, (ByteBuffer) o2);
                     } else {
-                        return serializationAndKeyComparator.compare((ByteBuffer) o1, (K) o2);
+                        return comparator.compareSerializedKeyAndKey((ByteBuffer) o1, (K) o2);
                     }
                 } else {
                     if (o2 instanceof ByteBuffer) {
-                        return (-1) * serializationAndKeyComparator.compare((ByteBuffer) o2, (K) o1);
+                        return (-1) * comparator.compareSerializedKeyAndKey((ByteBuffer) o2, (K) o1);
                     } else {
-                        return keysComparator.compare((K) o1, (K) o2);
+                        return comparator.compareKeys((K) o1, (K) o2);
                     }
                 }
             }
         };
 
-        this.minKey = ByteBuffer.allocate(this.keySizeCalculator.calculateSize(minKey));
+        this.minKey = ByteBuffer.allocate(this.keySerializer.calculateSize(minKey));
         this.minKey.position(0);
         this.keySerializer.serialize(minKey, this.minKey);
 
         this.skiplist = new ConcurrentSkipListMap<>(this.comparator);
-        Chunk<K, V> head = new Chunk<K, V>(this.minKey, null, comparator, memoryManager, chunkMaxItems,
-                chunkBytesPerItem, this.size, keySerializer, keySizeCalculator, valueSerializer, valueSizeCalculator);
+        Chunk<K, V> head = new Chunk<K, V>(this.minKey, null, this.comparator, memoryManager, chunkMaxItems,
+                chunkBytesPerItem, this.size, keySerializer, valueSerializer);
         this.skiplist.put(head.minKey, head);    // add first chunk (head) into skiplist
         this.head = new AtomicReference<>(head);
 
         this.descendingMap = null;
         this.handleFactory = new HandleFactory(true);
-        this.valueFactory = new ValueFactory(true);
     }
 
 
@@ -152,7 +142,7 @@ public class OakMapOffHeapImpl<K, V> implements OakMap<K, V>, AutoCloseable {
             return null;
         }
         Rebalancer rebalancer = new Rebalancer(c, comparator, true, memoryManager, handleFactory,
-                keySerializer, keySizeCalculator, valueSerializer, valueSizeCalculator);
+                keySerializer, valueSerializer);
 
         rebalancer = rebalancer.engageChunks(); // maybe we encountered a different rebalancer
 
@@ -322,7 +312,7 @@ public class OakMapOffHeapImpl<K, V> implements OakMap<K, V>, AutoCloseable {
         return result.success;
     }
 
-    /*-------------- oak.OakMap Methods --------------*/
+    /*-------------- oak.OakMapOld Methods --------------*/
 
     @Override
     public void put(K key, V value) {
@@ -335,7 +325,7 @@ public class OakMapOffHeapImpl<K, V> implements OakMap<K, V>, AutoCloseable {
         Chunk<K, V> c = findChunk(key); // find chunk matching key
         Chunk.LookUp lookUp = c.lookUp(key);
         if (lookUp != null && lookUp.handle != null) {
-            lookUp.handle.put(value, valueSerializer, valueSizeCalculator, memoryManager);
+            lookUp.handle.put(value, valueSerializer, memoryManager);
             memoryManager.stopThread();
             return;
         }
@@ -691,7 +681,7 @@ public class OakMapOffHeapImpl<K, V> implements OakMap<K, V>, AutoCloseable {
         V value;
         try {
             ByteBuffer serializedValue = lookUp.handle.getImmutableByteBuffer();
-            value = valueSerializer.deserialize(serializedKey, serializedValue);
+            value = valueSerializer.deserialize(serializedValue);
         } finally {
             lookUp.handle.readLock.unlock();
             memoryManager.stopThread();
@@ -770,30 +760,30 @@ public class OakMapOffHeapImpl<K, V> implements OakMap<K, V>, AutoCloseable {
     }
 
     @Override
-    public OakMap subMap(Object fromKey, boolean fromInclusive, Object toKey, boolean toInclusive) {
+    public OakMapOld subMap(Object fromKey, boolean fromInclusive, Object toKey, boolean toInclusive) {
         if (fromKey == null || toKey == null)
             throw new NullPointerException();
-        return new SubOakMap(this, fromKey, fromInclusive, toKey, toInclusive, false);
+        return new SubOakMapOld(this, fromKey, fromInclusive, toKey, toInclusive, false);
     }
 
     @Override
-    public OakMap headMap(Object toKey, boolean inclusive) {
+    public OakMapOld headMap(Object toKey, boolean inclusive) {
         if (toKey == null)
             throw new NullPointerException();
-        return new SubOakMap(this, null, false, toKey, inclusive, false);
+        return new SubOakMapOld(this, null, false, toKey, inclusive, false);
     }
 
     @Override
-    public OakMap tailMap(Object fromKey, boolean inclusive) {
+    public OakMapOld tailMap(Object fromKey, boolean inclusive) {
         if (fromKey == null)
             throw new NullPointerException();
-        return new SubOakMap(this, fromKey, inclusive, null, false, false);
+        return new SubOakMapOld(this, fromKey, inclusive, null, false, false);
     }
 
     @Override
-    public OakMap descendingMap() {
-        OakMap dm = descendingMap;
-        return (dm != null) ? dm : (descendingMap = new SubOakMap
+    public OakMapOld descendingMap() {
+        OakMapOld dm = descendingMap;
+        return (dm != null) ? dm : (descendingMap = new SubOakMapOld
                 (this, null, false, null, false, true));
     }
 
@@ -913,7 +903,7 @@ public class OakMapOffHeapImpl<K, V> implements OakMap<K, V>, AutoCloseable {
             ByteBuffer serializedKey = getKey(n, c);
             serializedKey = serializedKey.slice(); // TODO can I get rid of this?
             handle.readLock.lock();
-            V value = valueSerializer.deserialize(serializedKey, handle.getImmutableByteBuffer());
+            V value = valueSerializer.deserialize(handle.getImmutableByteBuffer());
             handle.readLock.unlock();
 
             return value;
@@ -933,7 +923,7 @@ public class OakMapOffHeapImpl<K, V> implements OakMap<K, V>, AutoCloseable {
             serializedKey = serializedKey.slice(); // TODO can I get rid of this?
             K key = keySerializer.deserialize(serializedKey);
             handle.readLock.lock();
-            V value = valueSerializer.deserialize(serializedKey, handle.getImmutableByteBuffer());
+            V value = valueSerializer.deserialize(handle.getImmutableByteBuffer());
             handle.readLock.unlock();
             return new AbstractMap.SimpleImmutableEntry<K, V>(key, value);
         }
@@ -1051,11 +1041,11 @@ public class OakMapOffHeapImpl<K, V> implements OakMap<K, V>, AutoCloseable {
 
     /* ---------------- Sub Map -------------- */
 
-    public class SubOakMap<K, V> implements OakMap<K, V> {
+    public class SubOakMapOld<K, V> implements OakMapOld<K, V> {
         /**
          * underlying map
          */
-        private final OakMapOffHeapImpl oak;
+        private final OakMapOldOffHeapImpl oak;
         /**
          * lower bound key, or null if from start
          */
@@ -1080,10 +1070,10 @@ public class OakMapOffHeapImpl<K, V> implements OakMap<K, V>, AutoCloseable {
         /**
          * Creates a new submap, initializing all fields.
          */
-        public SubOakMap(OakMapOffHeapImpl oak,
-                         K fromKey, boolean fromInclusive,
-                         K toKey, boolean toInclusive,
-                  boolean isDescending) {
+        public SubOakMapOld(OakMapOldOffHeapImpl oak,
+                            K fromKey, boolean fromInclusive,
+                            K toKey, boolean toInclusive,
+                            boolean isDescending) {
             if (fromKey != null && toKey != null &&
                     oak.comparator.compare(fromKey, toKey) > 0)
                 throw new IllegalArgumentException("inconsistent range");
@@ -1130,8 +1120,8 @@ public class OakMapOffHeapImpl<K, V> implements OakMap<K, V>, AutoCloseable {
          * Utility to create submaps, where given bounds override
          * unbounded(null) ones and/or are checked against bounded ones.
          */
-        OakMapOffHeapImpl.SubOakMap newSubOakMap(K fromKey, boolean fromInclusive,
-                                                 K toKey, boolean toInclusive) {
+        SubOakMapOld newSubOakMap(K fromKey, boolean fromInclusive,
+                                  K toKey, boolean toInclusive) {
             if (isDescending) { // flip senses
                 // TODO look into this
                 K tk = fromKey;
@@ -1161,11 +1151,11 @@ public class OakMapOffHeapImpl<K, V> implements OakMap<K, V>, AutoCloseable {
                         throw new IllegalArgumentException("key out of range");
                 }
             }
-            return new OakMapOffHeapImpl.SubOakMap(oak, fromKey, fromInclusive,
+            return new SubOakMapOld(oak, fromKey, fromInclusive,
                     toKey, toInclusive, isDescending);
         }
 
-        /*-------------- oak.OakMap Methods --------------*/
+        /*-------------- oak.OakMapOld Methods --------------*/
 
         @Override
         public void put(K key, V value) {
@@ -1207,29 +1197,29 @@ public class OakMapOffHeapImpl<K, V> implements OakMap<K, V>, AutoCloseable {
         }
 
         @Override
-        public OakMap subMap(K fromKey, boolean fromInclusive, K toKey, boolean toInclusive) {
+        public OakMapOld subMap(K fromKey, boolean fromInclusive, K toKey, boolean toInclusive) {
             if (fromKey == null || toKey == null)
                 throw new NullPointerException();
             return newSubOakMap(fromKey, fromInclusive, toKey, toInclusive);
         }
 
         @Override
-        public OakMap headMap(K toKey, boolean inclusive) {
+        public OakMapOld headMap(K toKey, boolean inclusive) {
             if (toKey == null)
                 throw new NullPointerException();
             return newSubOakMap(null, false, toKey, inclusive);
         }
 
         @Override
-        public OakMap tailMap(K fromKey, boolean inclusive) {
+        public OakMapOld tailMap(K fromKey, boolean inclusive) {
             if (fromKey == null)
                 throw new NullPointerException();
             return newSubOakMap(fromKey, inclusive, null, false);
         }
 
         @Override
-        public OakMap descendingMap() {
-            return new SubOakMap(oak, lo, loInclusive,
+        public OakMapOld descendingMap() {
+            return new SubOakMapOld(oak, lo, loInclusive,
                     hi, hiInclusive, !isDescending);
         }
 
@@ -1443,7 +1433,7 @@ public class OakMapOffHeapImpl<K, V> implements OakMap<K, V>, AutoCloseable {
                 ByteBuffer serializedKey = getKey(n, c);
                 serializedKey = serializedKey.slice(); // TODO can I get rid of this?
                 handle.readLock.lock();
-                V value = (V) oak.valueSerializer.deserialize(serializedKey, handle.getImmutableByteBuffer());
+                V value = (V) oak.valueSerializer.deserialize(handle.getImmutableByteBuffer());
                 handle.readLock.unlock();
                 return value;
             }
@@ -1466,7 +1456,7 @@ public class OakMapOffHeapImpl<K, V> implements OakMap<K, V>, AutoCloseable {
                 serializedKey = serializedKey.slice(); // TODO can I get rid of this?
                 K key = (K) keySerializer.deserialize(serializedKey);
                 handle.readLock.lock();
-                V value = (V) oak.valueSerializer.deserialize(serializedKey, handle.getImmutableByteBuffer());
+                V value = (V) oak.valueSerializer.deserialize(handle.getImmutableByteBuffer());
                 handle.readLock.unlock();
                 return new AbstractMap.SimpleImmutableEntry<K, V>(key, value);
             }

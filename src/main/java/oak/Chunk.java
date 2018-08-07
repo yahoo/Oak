@@ -44,7 +44,6 @@ public class Chunk<K, V> {
     private static final double SORTED_REBALANCE_RATIO = 1.6;
     private static final double MAX_ENTRIES_FACTOR = 2;
     private static final double MAX_IDLE_ENTRIES_FACTOR = 5;
-    private static final double MAX_ITEMS_FACTOR = 2;
     private static final double MAX_BYTES_FACTOR = 1.25;
 
     // when chunk is frozen, all of the elements in pending puts array will be this OpData
@@ -82,10 +81,8 @@ public class Chunk<K, V> {
     private final int maxKeyBytes;
     AtomicInteger externalSize; // for updating oak's size
     // for writing the keys into the bytebuffers
-    private final KeySerializer<K> keySerializer;
-    private final SizeCalculator<K> keySizeCalculator;
-    private final ValueSerializer<K, V> valueSerializer;
-    private final SizeCalculator<V> valueSizeCalculator;
+    private final Serializer<K> keySerializer;
+    private final Serializer<V> valueSerializer;
 
     /*-------------- Constructors --------------*/
 
@@ -106,12 +103,15 @@ public class Chunk<K, V> {
      * @param minKey  minimal key to be placed in chunk
      * @param creator the chunk that is responsible for this chunk creation
      */
-    Chunk(ByteBuffer minKey, Chunk creator, Comparator<Object> comparator,
+    Chunk(ByteBuffer minKey,
+          Chunk creator,
+          Comparator<Object> comparator,
           OakMemoryManager memoryManager,
-          int maxItems, int bytesPerItem, AtomicInteger externalSize,
-          KeySerializer<K> keySerializer, SizeCalculator<K> keySizeCalculator,
-          ValueSerializer<K, V> valueSerializer, SizeCalculator<V> valueSizeCalculator
-            ) {
+          int maxItems,
+          int bytesPerItem,
+          AtomicInteger externalSize,
+          Serializer<K> keySerializer,
+          Serializer<V> valueSerializer) {
         this.memoryManager = memoryManager;
         this.maxItems = maxItems;
         this.maxKeyBytes = maxItems * bytesPerItem;
@@ -119,7 +119,7 @@ public class Chunk<K, V> {
         this.entryIndex = new AtomicInteger(FIRST_ITEM);
         this.handles = new Handle[maxItems + FIRST_ITEM];
         this.handleIndex = new AtomicInteger(FIRST_ITEM);
-        this.keysManager = new KeysManagerOffHeapImpl(this.maxKeyBytes, memoryManager, keySerializer, keySizeCalculator);
+        this.keysManager = new KeysManagerOffHeapImpl(this.maxKeyBytes, memoryManager, keySerializer);
         this.keyIndex = new AtomicInteger(FIRST_ITEM);
         this.sortedCount = 0;
         this.minKey = minKey;
@@ -137,9 +137,7 @@ public class Chunk<K, V> {
         this.externalSize = externalSize;
 
         this.keySerializer = keySerializer;
-        this.keySizeCalculator = keySizeCalculator;
         this.valueSerializer = valueSerializer;
-        this.valueSizeCalculator = valueSizeCalculator;
     }
 
     enum State {
@@ -211,7 +209,7 @@ public class Chunk<K, V> {
         int ki = get(entryIndex, OFFSET_KEY_INDEX);
         int length = get(entryIndex, OFFSET_KEY_LENGTH);
 
-        int idx = OakMapOffHeapImpl.getThreadIndex();
+        int idx = OakMapOldOffHeapImpl.getThreadIndex();
         if (byteBufferPerThread[idx] == null) {
             byteBufferPerThread[idx] = keysManager.getKeys().asReadOnlyBuffer();
         }
@@ -358,7 +356,7 @@ public class Chunk<K, V> {
      **/
     boolean publish(OpData opData) {
 
-        int idx = OakMapOffHeapImpl.getThreadIndex();
+        int idx = OakMapOldOffHeapImpl.getThreadIndex();
         // publish into thread array
         return casPendingArray(idx, null, opData);
     }
@@ -368,7 +366,7 @@ public class Chunk<K, V> {
      * if CAS didn't succeed then this means that a rebalancer did this already
      **/
     void unpublish(OpData oldOpData) {
-        int idx = OakMapOffHeapImpl.getThreadIndex();
+        int idx = OakMapOldOffHeapImpl.getThreadIndex();
         casPendingArray(idx, oldOpData, null); // publish into thread array
     }
 
@@ -392,7 +390,7 @@ public class Chunk<K, V> {
             return -1;
         }
 
-        int length = keySizeCalculator.calculateSize(key);
+        int length = keySerializer.calculateSize(key);
         int ki = keyIndex.getAndAdd(length);
         if (ki + length >= keysManager.length()) {
             return -1;
@@ -461,11 +459,11 @@ public class Chunk<K, V> {
         assert memoryManager != null;
         ByteBuffer byteBuffer;
         int i = 0;
-        Pair<Integer, ByteBuffer> pair = memoryManager.allocate(valueSizeCalculator.calculateSize(value));
+        Pair<Integer, ByteBuffer> pair = memoryManager.allocate(valueSerializer.calculateSize(value));
         i = pair.getKey();
         assert i == 0;
         byteBuffer = pair.getValue();
-        valueSerializer.serialize(null, value, byteBuffer);
+        valueSerializer.serialize(value, byteBuffer);
         handles[hi].setValue(byteBuffer, i);
     }
 

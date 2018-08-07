@@ -6,7 +6,14 @@
 
 package oak;
 
-public interface OakComparator<T, G> {
 
-  int compare(T t, G g);
+import java.nio.ByteBuffer;
+
+public interface OakComparator<K> {
+
+  int compareKeys(K key1, K key2);
+
+  int compareSerializedKeys(ByteBuffer serializedKey1, ByteBuffer serializedKey2);
+
+  int compareSerializedKeyAndKey(ByteBuffer serializedKey, K key);
 }

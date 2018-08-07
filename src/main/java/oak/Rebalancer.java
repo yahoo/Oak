@@ -45,16 +45,18 @@ class Rebalancer<K, V> {
     private final boolean offHeap;
     private final OakMemoryManager memoryManager;
     private final HandleFactory handleFactory;
-    private final KeySerializer<K> keySerializer;
-    private final SizeCalculator<K> keySizeCalculator;
-    private final ValueSerializer<K, V> valueSerializer;
-    private final SizeCalculator<V> valueSizeCalculator;
+    private final Serializer<K> keySerializer;
+    private final Serializer<V> valueSerializer;
 
     /*-------------- Constructors --------------*/
 
-    Rebalancer(Chunk chunk, Comparator<Object> comparator, boolean offHeap, OakMemoryManager memoryManager,
-               HandleFactory handleFactory, KeySerializer<K> keySerializer, SizeCalculator<K> keySizeCalculator,
-               ValueSerializer<K, V> valueSerializer, SizeCalculator<V> valueSizeCalculator) {
+    Rebalancer(Chunk chunk,
+               Comparator<Object> comparator,
+               boolean offHeap,
+               OakMemoryManager memoryManager,
+               HandleFactory handleFactory,
+               Serializer<K> keySerializer,
+               Serializer<V> valueSerializer) {
         this.rebalanceSize = 2;
         this.maxAfterMergePart = 0.7;
         this.lowThreshold = 0.5;
@@ -77,9 +79,7 @@ class Rebalancer<K, V> {
         bytesInRange = first.keyIndex.get();
         this.handleFactory = handleFactory;
         this.keySerializer = keySerializer;
-        this.keySizeCalculator = keySizeCalculator;
         this.valueSerializer = valueSerializer;
-        this.valueSizeCalculator = valueSizeCalculator;
     }
 
     static class RebalanceResult {
@@ -164,7 +164,7 @@ class Rebalancer<K, V> {
         Chunk currFrozen = firstFrozen;
         Chunk currNewChunk = new Chunk<K, V>(firstFrozen.minKey, firstFrozen, firstFrozen.comparator, memoryManager,
                 currFrozen.getMaxItems(), currFrozen.getBytesPerItem(), currFrozen.externalSize,
-                keySerializer, keySizeCalculator, valueSerializer, valueSizeCalculator);
+                keySerializer, valueSerializer);
 
         int ei = firstFrozen.getFirstItemEntryIndex();
 
@@ -203,7 +203,7 @@ class Rebalancer<K, V> {
                     newMinKey.rewind();
                     Chunk c = new Chunk<K, V>(newMinKey, firstFrozen, currFrozen.comparator, memoryManager,
                             currFrozen.getMaxItems(), currFrozen.getBytesPerItem(), currFrozen.externalSize,
-                            keySerializer, keySizeCalculator, valueSerializer, valueSizeCalculator);
+                            keySerializer, valueSerializer);
                     currNewChunk.next.set(c, false);
                     newChunks.add(currNewChunk);
                     currNewChunk = c;
@@ -312,7 +312,7 @@ class Rebalancer<K, V> {
             if(operation == Operation.PUT_IF_ABSENT) {
                 return false;
             } else if(operation == Operation.PUT) {
-                lookUp.handle.put(value, valueSerializer, valueSizeCalculator, memoryManager);
+                lookUp.handle.put(value, valueSerializer, memoryManager);
                 return false;
             } else if (operation == Operation.COMPUTE) {
                 lookUp.handle.compute(computer, memoryManager);
