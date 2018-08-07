@@ -161,7 +161,7 @@ public class OakMap<K, V> {
    * @return {@code true} if there was no mapping for the key
    * @throws NullPointerException if the specified key or value is null
    */
-  boolean putIfAbsent(K key, V value) {
+  public boolean putIfAbsent(K key, V value) {
     if (key == null || value == null)
       throw new NullPointerException();
     if (!inBounds(key))
@@ -179,7 +179,7 @@ public class OakMap<K, V> {
    * @param key key whose mapping is to be removed from the map
    * @throws NullPointerException if the specified key is null
    */
-  void remove(K key) {
+  public void remove(K key) {
     if (key == null)
       throw new NullPointerException();
     if (!inBounds(key))
@@ -199,7 +199,7 @@ public class OakMap<K, V> {
    * {@code null} if this map contains no mapping for the key
    * @throws NullPointerException if the specified key is null
    */
-  V get(K key) {
+  public V get(K key) {
     if (key == null)
       throw new NullPointerException();
     if (!inBounds(key))
@@ -218,7 +218,7 @@ public class OakMap<K, V> {
    * @return the minimal key in the map,
    * or {@code null} if this map contains no keys.
    */
-  K getMinKey() {
+  public K getMinKey() {
     if (this.fromKey != null || this.toKey != null) {
       throw new UnsupportedOperationException();
     }
@@ -236,7 +236,7 @@ public class OakMap<K, V> {
    * @return the maximal key in the map,
    * or {@code null} if this map contains no keys.
    */
-  K getMaxKey() {
+  public K getMaxKey() {
     if (this.fromKey != null || this.toKey != null) {
       throw new UnsupportedOperationException();
     }
@@ -255,7 +255,7 @@ public class OakMap<K, V> {
    * @return {@code false} if there was no mapping for the key
    * @throws NullPointerException if the specified key or the function is null
    */
-  boolean computeIfPresent(K key, Consumer<OakWBuffer> computer) {
+  public boolean computeIfPresent(K key, Consumer<OakWBuffer> computer) {
     if (key == null || computer == null)
       throw new NullPointerException();
     if (!inBounds(key))
@@ -276,7 +276,7 @@ public class OakMap<K, V> {
    * @param value       value to be associated with the specified key
    * @param computer    for computing the new value when the key is present
    */
-  void putIfAbsentComputeIfPresent(K key, V value, Consumer<OakWBuffer> computer) {
+  public void putIfAbsentComputeIfPresent(K key, V value, Consumer<OakWBuffer> computer) {
     if (key == null || value == null || computer == null)
       throw new NullPointerException();
     if (!inBounds(key))
@@ -289,7 +289,7 @@ public class OakMap<K, V> {
 
   /*-------------- SubMap --------------*/
   // package visibility to be used by the views
-  boolean inBounds(K key) {
+  public boolean inBounds(K key) {
     int res;
     if (fromKey != null) {
       res = comparator.compare(key, fromKey);
@@ -333,7 +333,7 @@ public class OakMap<K, V> {
    *                                  range, and {@code fromKey} or {@code toKey} lies
    *                                  outside the bounds of the range
    */
-  OakMap<K, V> subMap(K fromKey, boolean fromInclusive, K toKey, boolean toInclusive) {
+  public OakMap<K, V> subMap(K fromKey, boolean fromInclusive, K toKey, boolean toInclusive) {
 
     if (this.comparator.compare(fromKey, toKey) > 0) {
       throw new IllegalArgumentException();
@@ -363,7 +363,7 @@ public class OakMap<K, V> {
    *                                  restricted range, and {@code toKey} lies outside the
    *                                  bounds of the range
    */
-  OakMap headMap(K toKey, boolean inclusive) {
+  public OakMap headMap(K toKey, boolean inclusive) {
     if (this.fromKey != null && this.comparator.compare(this.fromKey, toKey) > 0) {
       throw new IllegalArgumentException();
     }
@@ -393,7 +393,7 @@ public class OakMap<K, V> {
    *                                  restricted range, and {@code fromKey} lies outside the
    *                                  bounds of the range
    */
-  OakMap tailMap(K fromKey, boolean inclusive) {
+  public OakMap tailMap(K fromKey, boolean inclusive) {
     if (this.toKey != null && this.comparator.compare(fromKey, this.toKey) > 0) {
       throw new IllegalArgumentException();
     }
