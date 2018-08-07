@@ -1,17 +1,17 @@
 # Oak
 > Oak (Off-heap Allocated Keys) is a scalable, concurrent, in-memory Key Value (KV) map.
 
-Oak is a concurrent Key-Value Map that may keep all keys and values off-heap enabling working with bigger heap sizes comparing to JVM managed heap.
-Oak implements API similar to the industry standard Java8 ConcurrentNavigableMap API. It provides strong (atomic) semantics for read, write, read-modify-write, and (non-atomic) range query (scan) operations, both forward and backward.
-Oak is optimized for big keys and values, in particular for incremental maintenance of objects (update in-place).
-It's faster and scales better with additional CPU cores than popular Java's ConcurrentNavigableMap [ConcurrentSkipListMap](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/ConcurrentSkipListMap.html).
+Oak is a concurrent Key-Value Map that may keep all keys and values off-heap. This enables working with bigger heap sizes than JVM's managed heap.
+Oak implements an API similar to the industry standard Java8 ConcurrentNavigableMap API. It provides strong (atomic) semantics for read, write, and read-modify-write, as well as (non-atomic) range query (scan) operations, both forward and backward.
+Oak is optimized for big keys and values, in particular, for incremental maintenance of objects (update in-place).
+It is faster and scales better with additional CPU cores than the popular Java ConcurrentNavigableMap [ConcurrentSkipListMap](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/ConcurrentSkipListMap.html).
 
 ## Why Oak?
-1. Oak provides great performance, has fine synchronization, and thus scales well with numbers of threads. [Performance evaluation](https://git.ouroath.com/anastas/oak/wiki/Performance).
-2. Oak takes all the keys and the data off-heap, thus allows working with huge heap (RAM) above 50G, without JVM GC overheads.
+1. Oak provides great performance: it employs fine-grain synchronization, and thus scales well with numbers of threads; it also achieves cache-friendliness by avoiding memory fragmentation. [Performance evaluation](https://git.ouroath.com/anastas/oak/wiki/Performance).
+2. Oak takes keys and the data off-heap, and thus allows working with a huge heap (RAM) -- even more than 50G -- without JVM GC overheads.
 	- To support off-heap, Oak has embedded, efficient, epoch-based memory management that mostly eliminates JVM GC overheads.
-4. Oak provides rich **atomic** API. For example, in the current Java ConcurrentSkipListMap implementation, compute() is not guaranteed to be atomic. Oak’s update operations (such as put and compute) take user-provided lambda functions for easy integration in a range of use cases.
-5. Descending Scans: Oak is expediting descending scans without an additional complexity. In our experiments, Oak’s descending scans are 4.8x faster than ConcurrentSkipListMap’s. Bottom line, in Oak, the scans in both directions are similarly fast. [Performance evaluation](https://git.ouroath.com/anastas/oak/wiki/Performance).
+4. Oak provides a rich API for **atomic** accesses to data. For example, Oak supports atomic compute() -- in place computations on existing keys -- whereas the current Java ConcurrentSkipListMap implementation does not guarantee the atomicity of compute(). Oak’s update operations (such as put and compute) take user-provided lambda functions for easy integration in diverse use cases.
+5. Descending Scans: Oak expedites descending scans without additional complexity. In our experiments, Oak’s descending scans are 4.8x faster than ConcurrentSkipListMap’s, and perform similarly to their ascending counterparts. [Performance evaluation](https://git.ouroath.com/anastas/oak/wiki/Performance).
 
 ## Table of Contents
 
