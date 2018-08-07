@@ -253,6 +253,11 @@ It requires a transform function `Function<Map.Entry<ByteBuffer, ByteBuffer>, T>
 	- `CloseableIterator<Map.Entry<T, T>> entriesIterator()`
 	- `CloseableIterator<T> keysIterator()`
 
+	- `OakRBuffer get(K key)`
+	- `CloseableIterator<OakRBuffer> valuesIterator()`
+	- `CloseableIterator<Map.Entry<OakRBuffer, OakRBuffer>> entriesIterator()`
+	- `CloseableIterator<OakRBuffer> keysIterator()`
+
 ### Code example
 
 ```java
