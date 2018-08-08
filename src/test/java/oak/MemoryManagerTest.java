@@ -248,7 +248,7 @@ public class MemoryManagerTest {
         assertEquals(1, memoryManager.getValue(memoryManager.timeStamps[1].get()));
         assertFalse(memoryManager.isIdle(memoryManager.timeStamps[1].get()));
         memoryManager.startThread();
-        assertEquals(1, memoryManager.getValue(memoryManager.timeStamps[1].get()));
+        assertEquals(2, memoryManager.getValue(memoryManager.timeStamps[1].get()));
         assertFalse(memoryManager.isIdle(memoryManager.timeStamps[1].get()));
         Pair<Integer, ByteBuffer> pair = memoryManager.allocate(4);
         assertEquals(0, (int) pair.getKey());
@@ -258,10 +258,10 @@ public class MemoryManagerTest {
         assertEquals(4, pool.allocated());
         memoryManager.release(0, bb);
         memoryManager.stopThread();
-        assertEquals(1, memoryManager.getValue(memoryManager.timeStamps[1].get()));
+        assertEquals(2, memoryManager.getValue(memoryManager.timeStamps[1].get()));
         assertFalse(memoryManager.isIdle(memoryManager.timeStamps[1].get()));
         memoryManager.stopThread();
-        assertEquals(1, memoryManager.getValue(memoryManager.timeStamps[1].get()));
+        assertEquals(2, memoryManager.getValue(memoryManager.timeStamps[1].get()));
         assertTrue(memoryManager.isIdle(memoryManager.timeStamps[1].get()));
 
         memoryManager.startThread();
@@ -328,49 +328,50 @@ public class MemoryManagerTest {
         assertEquals(5, memoryManager.getValue(memoryManager.timeStamps[1].get()));
         assertFalse(memoryManager.isIdle(memoryManager.timeStamps[1].get()));
         memoryManager.startThread();
-        assertEquals(5, memoryManager.getValue(memoryManager.timeStamps[1].get()));
+        assertEquals(6, memoryManager.getValue(memoryManager.timeStamps[1].get()));
         assertFalse(memoryManager.isIdle(memoryManager.timeStamps[1].get()));
         oak.get(key);
         assertFalse(memoryManager.isIdle(memoryManager.timeStamps[1].get()));
-        assertEquals(5, memoryManager.getValue(memoryManager.timeStamps[1].get()));
+        assertEquals(7, memoryManager.getValue(memoryManager.timeStamps[1].get()));
         memoryManager.stopThread();
         memoryManager.stopThread();
-        assertEquals(5, memoryManager.getValue(memoryManager.timeStamps[1].get()));
+        assertEquals(7, memoryManager.getValue(memoryManager.timeStamps[1].get()));
         assertTrue(memoryManager.isIdle(memoryManager.timeStamps[1].get()));
 
 
         oak.put(key, key);
+        assertEquals(8, memoryManager.getValue(memoryManager.timeStamps[1].get()));
         memoryManager.startThread();
-        assertEquals(7, memoryManager.getValue(memoryManager.timeStamps[1].get()));
+        assertEquals(9, memoryManager.getValue(memoryManager.timeStamps[1].get()));
         assertFalse(memoryManager.isIdle(memoryManager.timeStamps[1].get()));
         memoryManager.startThread();
-        assertEquals(7, memoryManager.getValue(memoryManager.timeStamps[1].get()));
+        assertEquals(10, memoryManager.getValue(memoryManager.timeStamps[1].get()));
         assertFalse(memoryManager.isIdle(memoryManager.timeStamps[1].get()));
         oak.put(key, key);
         assertFalse(memoryManager.isIdle(memoryManager.timeStamps[1].get()));
-        assertEquals(7, memoryManager.getValue(memoryManager.timeStamps[1].get()));
+        assertEquals(11, memoryManager.getValue(memoryManager.timeStamps[1].get()));
         memoryManager.stopThread();
         memoryManager.stopThread();
-        assertEquals(7, memoryManager.getValue(memoryManager.timeStamps[1].get()));
+        assertEquals(11, memoryManager.getValue(memoryManager.timeStamps[1].get()));
         assertTrue(memoryManager.isIdle(memoryManager.timeStamps[1].get()));
 
 
         for (int i = 0; i < 2 * maxItemsPerChunk; i++) {
             oak.put(i, i);
         }
-        assertEquals(7 + 2 * maxItemsPerChunk, memoryManager.getValue(memoryManager.timeStamps[1].get()));
+        assertEquals(11 + 2 * maxItemsPerChunk, memoryManager.getValue(memoryManager.timeStamps[1].get()));
         assertTrue(memoryManager.isIdle(memoryManager.timeStamps[1].get()));
 
         memoryManager.startThread();
-        assertEquals(8 + 2 * maxItemsPerChunk, memoryManager.getValue(memoryManager.timeStamps[1].get()));
+        assertEquals(12 + 2 * maxItemsPerChunk, memoryManager.getValue(memoryManager.timeStamps[1].get()));
         assertFalse(memoryManager.isIdle(memoryManager.timeStamps[1].get()));
         for (int i = 0; i < 2 * maxItemsPerChunk; i++) {
             oak.put(i, i);
         }
-        assertEquals(8 + 2 * maxItemsPerChunk, memoryManager.getValue(memoryManager.timeStamps[1].get()));
+        assertEquals(12 + 4 * maxItemsPerChunk, memoryManager.getValue(memoryManager.timeStamps[1].get()));
         assertFalse(memoryManager.isIdle(memoryManager.timeStamps[1].get()));
         memoryManager.stopThread();
-        assertEquals(8 + 2 * maxItemsPerChunk, memoryManager.getValue(memoryManager.timeStamps[1].get()));
+        assertEquals(12 + 4 * maxItemsPerChunk, memoryManager.getValue(memoryManager.timeStamps[1].get()));
         assertTrue(memoryManager.isIdle(memoryManager.timeStamps[1].get()));
 
         for (Integer i = 0; i < 2 * maxItemsPerChunk; i++) {
@@ -380,7 +381,7 @@ public class MemoryManagerTest {
         }
 
         try (CloseableIterator iter = oak.entriesIterator()) {
-            assertEquals(9 + 4 * maxItemsPerChunk, memoryManager.getValue(memoryManager.timeStamps[1].get()));
+            assertEquals(13 + 6 * maxItemsPerChunk, memoryManager.getValue(memoryManager.timeStamps[1].get()));
             assertFalse(memoryManager.isIdle(memoryManager.timeStamps[1].get()));
             Integer i = 0;
             while (iter.hasNext()) {
@@ -394,7 +395,7 @@ public class MemoryManagerTest {
         }
 
         try (CloseableIterator iter = oak.valuesIterator()) {
-            assertEquals(10 + 4 * maxItemsPerChunk - 1, memoryManager.getValue(memoryManager.timeStamps[1].get()));
+            assertEquals(14 + 8 * maxItemsPerChunk, memoryManager.getValue(memoryManager.timeStamps[1].get()));
             assertFalse(memoryManager.isIdle(memoryManager.timeStamps[1].get()));
             int i = 0;
             while (iter.hasNext()) {
@@ -403,16 +404,15 @@ public class MemoryManagerTest {
             }
             oak.get(0);
             assertEquals(2 * maxItemsPerChunk, i);
-            assertEquals(10 + 4 * maxItemsPerChunk - 1, memoryManager.getValue(memoryManager.timeStamps[1].get()));
+            assertEquals(15 + 10 * maxItemsPerChunk, memoryManager.getValue(memoryManager.timeStamps[1].get()));
             assertFalse(memoryManager.isIdle(memoryManager.timeStamps[1].get()));
             try (CloseableIterator<Integer> ignored = oak.descendingMap().valuesIterator()) {
                 assertFalse(memoryManager.isIdle(memoryManager.timeStamps[1].get()));
             }
             assertFalse(memoryManager.isIdle(memoryManager.timeStamps[1].get()));
         }
-        assertEquals(10 + 4 * maxItemsPerChunk - 1, memoryManager.getValue(memoryManager.timeStamps[1].get()));
-        //assertTrue(memoryManager.isIdle(memoryManager.timeStamps[1].get()));
-
+        assertEquals(16 + 10 * maxItemsPerChunk, memoryManager.getValue(memoryManager.timeStamps[1].get()));
+        assertTrue(memoryManager.isIdle(memoryManager.timeStamps[1].get()));
 
     }
 

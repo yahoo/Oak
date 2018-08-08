@@ -967,6 +967,7 @@ class InternalOakMap<K, V> implements AutoCloseable {
       memoryManager.startThread();
       Handle handle = nextHandle;
       advance();
+      memoryManager.stopThread();
       if (handle == null)
         return null;
 
@@ -988,11 +989,14 @@ class InternalOakMap<K, V> implements AutoCloseable {
       memoryManager.startThread();
       Handle handle = nextHandle;
       advance();
-      if (handle == null)
+      if (handle == null) {
+        memoryManager.stopThread();
         return null;
+      }
       handle.readLock.lock();
       T transformation = transformer.apply(handle.getImmutableByteBuffer());
       handle.readLock.unlock();
+      memoryManager.stopThread();
       return transformation;
     }
   }
@@ -1009,10 +1013,13 @@ class InternalOakMap<K, V> implements AutoCloseable {
       Chunk c = nextChunk;
       Handle handle = nextHandle;
       advance();
-      if (handle == null)
+      if (handle == null) {
+        memoryManager.stopThread();
         return null;
+      }
       ByteBuffer serializedKey = getKey(n, c);
       serializedKey = serializedKey.slice(); // TODO can I get rid of this?
+      memoryManager.stopThread();
       return new AbstractMap.SimpleImmutableEntry<OakRBuffer, OakRBuffer>
               (new OakRKeyBufferImpl(serializedKey), new OakRValueBufferImpl(handle));
     }
@@ -1034,23 +1041,28 @@ class InternalOakMap<K, V> implements AutoCloseable {
       Chunk c = nextChunk;
       Handle handle = nextHandle;
       advance();
-      if (handle == null)
+      if (handle == null) {
+        memoryManager.stopThread();
         return null;
+      }
       ByteBuffer serializedKey = getKey(n, c);
       serializedKey = serializedKey.slice(); // TODO can I get rid of this?
       handle.readLock.lock();
       if (handle.isDeleted()) {
         handle.readLock.unlock();
+        memoryManager.stopThread();
         return null;
       }
       ByteBuffer serializedValue = handle.getImmutableByteBuffer();
       Map.Entry<ByteBuffer, ByteBuffer> entry = new AbstractMap.SimpleEntry<ByteBuffer, ByteBuffer>(serializedKey, serializedValue);
       if (serializedKey == null || serializedValue == null || entry == null || transformer == null) {
         handle.readLock.unlock();
+        memoryManager.stopThread();
         return null;
       }
       T transformation = transformer.apply(entry);
       handle.readLock.unlock();
+      memoryManager.stopThread();
       return transformation;
     }
   }
@@ -1068,6 +1080,7 @@ class InternalOakMap<K, V> implements AutoCloseable {
       advance();
       ByteBuffer serializedKey = getKey(n, c);
       serializedKey = serializedKey.slice(); // TODO can I get rid of this?
+      memoryManager.stopThread();
       return new OakRKeyBufferImpl(serializedKey);
     }
   }
@@ -1089,6 +1102,7 @@ class InternalOakMap<K, V> implements AutoCloseable {
       advance();
       ByteBuffer serializedKey = getKey(n, c);
       serializedKey = serializedKey.slice(); // TODO can I get rid of this?
+      memoryManager.stopThread();
       return transformer.apply(serializedKey);
     }
   }

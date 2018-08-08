@@ -468,4 +468,9 @@ public class OakMap<K, V> {
   boolean getToInclusive() {
     return toInclusive;
   }
+
+  // For internal tests only
+  void assertIfNotIdle() {
+    memoryManager.assertIfNotIdle();
+  }
 }

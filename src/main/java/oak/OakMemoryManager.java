@@ -7,6 +7,7 @@
 package oak;
 
 import javafx.util.Pair;
+import org.junit.Assert;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
@@ -122,18 +123,24 @@ class OakMemoryManager { // TODO interface allocate, release
         int idx = InternalOakMap.getThreadIndex();
         AtomicLong timeStamp = timeStamps[idx];
         long l = timeStamp.get();
-        long b = l;
+        long v = getValue(l);
 
         if (!isIdle(l)) {
-            // if already not idle, busy bit is set, don't increase timestamp
+            // if already not idle, busy bit is set, increase just internal counter, not global max
+            l += 1;
             l += BUSY_BIT; // just increment in one busy bit, that serves as a counter
             timeStamp.set(l);
             assert !isIdle(timeStamp.get()); // the thread should continue to be marked as busy
             return;
         }
 
-        long max = this.max.incrementAndGet();
-        l &= IDLE_MASK;
+        // if our local counter v overgrown the global max, return the global max to be maximum
+        // so the number is always growing
+        long global_max = this.max.get();
+        long diff = (v > global_max) ? v - global_max + 1 : 1;
+        long max = this.max.addAndGet(diff);
+
+        l &= IDLE_MASK; // zero the local counter
         l += max;
         l += BUSY_BIT; // set to not idle
         timeStamp.set(l);
@@ -149,4 +156,10 @@ class OakMemoryManager { // TODO interface allocate, release
         timeStamp.set(l);
     }
 
+    void assertIfNotIdle() {
+        int idx = InternalOakMap.getThreadIndex();
+        AtomicLong timeStamp = timeStamps[idx];
+        long l = timeStamp.get();
+        assert isIdle(l);
+    }
 }
