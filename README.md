@@ -271,12 +271,14 @@ Function<Map.Entry<ByteBuffer, ByteBuffer>, Integer> func = (e) -> {
     } else return 0;
 };
 
-OakTransformView oakView = oak.createTransformView(func);
+try (OakTransformView oakView = oak.createTransformView(func)) {
 
-try (CloseableIterator<Integer> iter = oakView.entriesIterator()) {
-    while (iter.hasNext()) {
-        Integer i = iter.next();
-    }
+	try (CloseableIterator<Integer> iter = oakView.entriesIterator()) {
+  	  while (iter.hasNext()) {
+    	    Integer i = iter.next();
+    	}
+	}
+
 }
 ```
 
