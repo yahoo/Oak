@@ -8,6 +8,7 @@ package oak;
 
 import java.nio.ByteBuffer;
 import java.util.Comparator;
+import java.util.ConcurrentModificationException;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -20,7 +21,7 @@ import java.util.logging.Logger;
 import java.util.NoSuchElementException;
 import java.util.AbstractMap;
 
-class InternalOakMap<K, V> implements AutoCloseable {
+class InternalOakMap<K, V> {
 
   /*-------------- Members --------------*/
 
@@ -35,6 +36,10 @@ class InternalOakMap<K, V> implements AutoCloseable {
   private Serializer<K> keySerializer;
   private Serializer<V> valueSerializer;
 
+  // The reference count is used to count the upper objects wrapping this internal map:
+  // OakMaps (including subMaps and Views) when all of the above are closed,
+  // his map can be closed and memory released.
+  private AtomicInteger referenceCount = new AtomicInteger(1);
     /*-------------- Constructors --------------*/
 
   /**
@@ -81,9 +86,30 @@ class InternalOakMap<K, V> implements AutoCloseable {
   /**
    * cleans off heap memory
    */
-  @Override
-  public void close() {
-    memoryManager.pool.clean();
+  void close() {
+    int res = referenceCount.decrementAndGet();
+    // once reference count is zeroed, the map meant to be deleted and should not be used.
+    // reference count will never grow again
+    if (res == 0) {
+      memoryManager.pool.clean();
+    }
+  }
+
+  // yet another object started to refer to this internal map
+  void open() {
+    while(true) {
+      int res = referenceCount.get();
+      // once reference count is zeroed, the map meant to be deleted and should not be used.
+      // reference count should never grow again and the referral is not allowed
+      if (res == 0) {
+        throw new ConcurrentModificationException();
+      }
+      // although it is costly CAS is used here on purpose so we never increase
+      // zeroed reference count
+      if (referenceCount.compareAndSet(res, res + 1)) {
+        break;
+      }
+    }
   }
 
   /*-------------- size --------------*/

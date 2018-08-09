@@ -201,7 +201,6 @@ public class OakMap<K, V> implements AutoCloseable {
    * @throws NullPointerException if the specified key is null
    */
   public V get(K key) {
-    verifyNotNull(key);
     if (key == null)
       throw new NullPointerException();
     if (!inBounds(key))
@@ -340,6 +339,7 @@ public class OakMap<K, V> implements AutoCloseable {
     if (this.comparator.compare(fromKey, toKey) > 0) {
       throw new IllegalArgumentException();
     }
+    internalOakMap.open();
     return new OakMap<K, V>(this.internalOakMap, this.memoryManager, this.keyDeserializeTransformer,
             this.valueDeserializeTransformer, this.entryDeserializeTransformer, this.comparator, fromKey, fromInclusive, toKey, toInclusive, this.isDescending);
   }
@@ -369,7 +369,7 @@ public class OakMap<K, V> implements AutoCloseable {
     if (this.fromKey != null && this.comparator.compare(this.fromKey, toKey) > 0) {
       throw new IllegalArgumentException();
     }
-
+    internalOakMap.open();
     return new OakMap<K, V>(this.internalOakMap, this.memoryManager, this.keyDeserializeTransformer,
             this.valueDeserializeTransformer, this.entryDeserializeTransformer, this.comparator, this.fromKey, this.fromInclusive, toKey, inclusive, this.isDescending);
   }
@@ -399,7 +399,7 @@ public class OakMap<K, V> implements AutoCloseable {
     if (this.toKey != null && this.comparator.compare(fromKey, this.toKey) > 0) {
       throw new IllegalArgumentException();
     }
-
+    internalOakMap.open();
     return new OakMap<K, V>(this.internalOakMap, this.memoryManager, this.keyDeserializeTransformer,
             this.valueDeserializeTransformer, this.entryDeserializeTransformer, this.comparator, fromKey, inclusive, this.toKey, this.toInclusive, this.isDescending);
   }
@@ -417,6 +417,7 @@ public class OakMap<K, V> implements AutoCloseable {
    * @return a reverse order view of this map
    */
   public OakMap descendingMap() {
+    internalOakMap.open();
     return new OakMap<K, V>(this.internalOakMap, this.memoryManager, this.keyDeserializeTransformer,
             this.valueDeserializeTransformer, this.entryDeserializeTransformer, this.comparator, this.fromKey, this.fromInclusive, this.toKey, this.toInclusive, true);
   }
@@ -515,6 +516,6 @@ public class OakMap<K, V> implements AutoCloseable {
    * @throws Exception if this resource cannot be closed
    */
   @Override public void close() throws Exception {
-
+    internalOakMap.close();
   }
 }

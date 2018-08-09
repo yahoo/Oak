@@ -151,6 +151,7 @@ An OakRBuffer can represent either a key or a value. The OakRBuffer's user can u
 	
 	However, these direct methods return keys and/or values as Objects by applying deseriliazation (copy). This is costly,  and we strongly advice to use OakBufferView or OakTransformView to operate directly on the internal data representation.
 3. For further understanding of data retrieval via OakTransformView, please refer to the [Transformations](#transformations) section.
+4. Note that Oak's iterators are `CloseableIterator` (extend AutoCloseable) so it is possible to reuse the memory previously referred by iterator. Be sure to use it within try-statement or call its close() method explicitly when iterator is no longer in use.
 
 ### Notes on data ingestion
 1. Data can be ingested and updated via the following five methods:
@@ -165,6 +166,13 @@ The computer is provided with OakWBuffer, representing the serialized value asso
 The compute functionality offers the Oak user an efficient zero-copy update-in-place, which allows Oak users to focus on business logic without dealing with the hard problems that data layout and concurrency control present.
 5. Oak additionally supports an atomic `void putIfAbsentComputeIfPresent(K key, V value, Consumer<OakWBuffer> computer)` interface, (which is not part of ConcurrentNavigableMap).
 This API looks for a key. If the key does not exist, it adds a new Serialized key --> Serialized value mapping. Otherwise, the value associated with the key is updated with computer(old value). This interface works concurrently with other updates and requires only one search traversal.
+
+## Memory Management
+As explained above, when constructing off-heap Oak, the memory capacity (per Oak instance) needs to be specified. Oak allocates the off-heap memory with the requested capacity at construction time, and later manages this memory.
+This memory (the entire given capacity) needs to be released later, thus OakMap implements AutoClosable. Be sure to use it within try-statement or better invoke OakMap's close() method when OakMap is no longer in use.
+
+Please pay attention that multiple views can be defined to the same underlying memory of OakMap. That is when other sub-maps and views (OakBufferView/OakTransformView) are created. Do not worry, the true memory release will happen only when last of those views is closed.
+However, note that each sub-map is in particular an OakMap and thus AutoCloseable and needs to be closed (explicitly or implicitly). Similarly, OakBufferView and OakTransformView are AutoCloseable objects and need to be closed. Again, close() can be invoked on different objects referring to the same underlying memory, but the final release will happen only once.
 
 ## Usage
 
