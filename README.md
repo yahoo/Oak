@@ -284,7 +284,7 @@ try (OakTransformView oakView = oak.createTransformView(func)) {
 
 ## Contribute
 
-Please refer to [the contributing.md file](Contributing.md) for information about how to get involved. We welcome issues, questions, and pull requests.  
+Please refer to the [contributing file](./CONTRIBUTING.md) for information about how to get involved. We welcome issues, questions, and pull requests.  
 
 
 ## License
