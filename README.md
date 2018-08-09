@@ -7,11 +7,11 @@ Oak is optimized for big keys and values, in particular, for incremental mainten
 It is faster and scales better with additional CPU cores than the popular Java ConcurrentNavigableMap [ConcurrentSkipListMap](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/ConcurrentSkipListMap.html).
 
 ## Why Oak?
-1. Oak provides great performance: it employs fine-grain synchronization, and thus scales well with numbers of threads; it also achieves cache-friendliness by avoiding memory fragmentation. [Performance evaluation](https://git.ouroath.com/anastas/oak/wiki/Performance).
+1. Oak provides great performance: it employs fine-grain synchronization, and thus scales well with numbers of threads; it also achieves cache-friendliness by avoiding memory fragmentation. [Performance evaluation](https://github.com/yahoo/Oak/wiki/Performance).
 2. Oak takes keys and the data off-heap, and thus allows working with a huge heap (RAM) -- even more than 50G -- without JVM GC overheads.
 	- To support off-heap, Oak has embedded, efficient, epoch-based memory management that mostly eliminates JVM GC overheads.
 4. Oak provides a rich API for **atomic** accesses to data. For example, Oak supports atomic compute() -- in place computations on existing keys -- whereas the current Java ConcurrentSkipListMap implementation does not guarantee the atomicity of compute(). Oak’s update operations (such as put and compute) take user-provided lambda functions for easy integration in diverse use cases.
-5. Descending Scans: Oak expedites descending scans without additional complexity. In our experiments, Oak’s descending scans are 4.8x faster than ConcurrentSkipListMap’s, and perform similarly to their ascending counterparts. [Performance evaluation](https://git.ouroath.com/anastas/oak/wiki/Performance).
+5. Descending Scans: Oak expedites descending scans without additional complexity. In our experiments, Oak’s descending scans are 4.8x faster than ConcurrentSkipListMap’s, and perform similarly to their ascending counterparts. [Performance evaluation](https://github.com/yahoo/Oak/wiki/Performance).
 
 ## Table of Contents
 
@@ -27,7 +27,7 @@ It is faster and scales better with additional CPU cores than the popular Java C
 ## Background
 
 ### Design Points
-- Oak consists of an on-heap index to off-heap keys and values. Oak's index is structured as a list of contiguous chunks of memory; this speeds up searches through the index due to access locality and cache-friendliness. Read more about [Oak design](https://git.ouroath.com/anastas/oak/wiki/Design).
+- Oak consists of an on-heap index to off-heap keys and values. Oak's index is structured as a list of contiguous chunks of memory; this speeds up searches through the index due to access locality and cache-friendliness. Read more about [Oak design](https://github.com/yahoo/Oak/wiki/Design).
 - Oak's keys and the values are copied and stored in self-managed off-heap byte arrays.
 
 ### Design Requirements
@@ -126,7 +126,7 @@ OakMap<K,V> oak = builder.build();
 ## API
 
 ### OakMap Methods
-You are welcome to take a look on the Oak's [full API](https://git.ouroath.com/anastas/oak/wiki/Full-API). 
+You are welcome to take a look on the Oak's [full API](https://github.com/yahoo/Oak/wiki/Full-API). 
 Oak's API is similar to the ConcurrentNavigableMap API; some non-standard API methods and special cases are discussed below.
 
 ### OakBuffers
@@ -176,7 +176,7 @@ However, note that each sub-map is in particular an OakMap and thus AutoCloseabl
 
 ## Usage
 
-An Integer to Integer build example can be seen in [Code Examples](https://git.ouroath.com/anastas/oak/wiki/Code-Examples). Here we illustrate individual operations.
+An Integer to Integer build example can be seen in [Code Examples](https://github.com/yahoo/Oak/wiki/Code-Examples). Here we illustrate individual operations.
 
 ### Code Examples
 
