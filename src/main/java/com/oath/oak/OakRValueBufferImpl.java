@@ -1,0 +1,157 @@
+/**
+ * Copyright 2018 Oath Inc.
+ * Licensed under the terms of the Apache 2.0 license.
+ * Please see LICENSE file in the project root for terms.
+ */
+
+package com.oath.oak;
+
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
+import java.util.ConcurrentModificationException;
+import java.util.function.Function;
+
+public class OakRValueBufferImpl implements OakRBuffer {
+
+    private Handle handle;
+
+    OakRValueBufferImpl(Handle handle) {
+        this.handle = handle;
+    }
+
+    @Override
+    public int capacity() {
+        start();
+        int capacity = handle.capacity();
+        end();
+        return capacity;
+    }
+
+    @Override
+    public int position() {
+        start();
+        int position = handle.position();
+        end();
+        return position;
+    }
+
+    @Override
+    public int limit() {
+        start();
+        int limit = handle.limit();
+        end();
+        return limit;
+    }
+
+    @Override
+    public int remaining() {
+        start();
+        int remaining = handle.remaining();
+        end();
+        return remaining;
+    }
+
+    @Override
+    public boolean hasRemaining() {
+        start();
+        boolean hasRemaining = handle.hasRemaining();
+        end();
+        return hasRemaining;
+    }
+
+    @Override
+    public byte get(int index) {
+        start();
+        byte b = handle.get(index);
+        end();
+        return b;
+    }
+
+    @Override
+    public ByteOrder order() {
+        ByteOrder order;
+        start();
+        order = handle.order();
+        end();
+        return order;
+    }
+
+    @Override
+    public char getChar(int index) {
+        char c;
+        start();
+        c = handle.getChar(index);
+        end();
+        return c;
+    }
+
+    @Override
+    public short getShort(int index) {
+        short s;
+        start();
+        s = handle.getShort(index);
+        end();
+        return s;
+    }
+
+    @Override
+    public int getInt(int index) {
+        int i;
+        start();
+        i = handle.getInt(index);
+        end();
+        return i;
+    }
+
+    @Override
+    public long getLong(int index) {
+        long l;
+        start();
+        l = handle.getLong(index);
+        end();
+        return l;
+    }
+
+    @Override
+    public float getFloat(int index) {
+        float f;
+        start();
+        f = handle.getFloat(index);
+        end();
+        return f;
+    }
+
+    @Override
+    public double getDouble(int index) {
+        double d;
+        start();
+        d = handle.getDouble(index);
+        end();
+        return d;
+    }
+
+    @Override
+    public <T> T transform(Function<ByteBuffer, T> transformer) {
+        if (transformer == null) {
+            throw new NullPointerException();
+        }
+
+        start();
+        T transformation = transformer.apply(handle.getImmutableByteBuffer());
+        end();
+        return transformation;
+    }
+
+    private void start() {
+        handle.readLock.lock();
+        if (handle.isDeleted()) {
+            handle.readLock.unlock();
+            throw new ConcurrentModificationException();
+        }
+    }
+
+    private void end() {
+        handle.readLock.unlock();
+    }
+
+}
