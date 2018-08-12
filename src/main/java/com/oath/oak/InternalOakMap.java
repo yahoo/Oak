@@ -1044,7 +1044,7 @@ class InternalOakMap<K, V> {
         return null;
       }
       ByteBuffer serializedKey = getKey(n, c);
-      serializedKey = serializedKey.slice(); // TODO can I get rid of this?
+      //serializedKey = serializedKey.slice(); // TODO can I get rid of this?
       memoryManager.stopThread();
       return new AbstractMap.SimpleImmutableEntry<OakRBuffer, OakRBuffer>
               (new OakRKeyBufferImpl(serializedKey), new OakRValueBufferImpl(handle));
@@ -1072,7 +1072,7 @@ class InternalOakMap<K, V> {
         return null;
       }
       ByteBuffer serializedKey = getKey(n, c);
-      serializedKey = serializedKey.slice(); // TODO can I get rid of this?
+      //serializedKey = serializedKey.slice(); // TODO can I get rid of this?
       handle.readLock.lock();
       if (handle.isDeleted()) {
         handle.readLock.unlock();

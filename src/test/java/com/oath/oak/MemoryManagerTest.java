@@ -128,7 +128,7 @@ public class MemoryManagerTest {
                 .setChunkBytesPerItem(maxBytesPerChunkItem)
                 .setValueSerializer(new CheckOakCapacityValueSerializer());
         OakMap oak = (OakMap<Integer, Integer>) builder.build();
-        MemoryPool pool = oak.memoryManager.pool;
+        MemoryPool pool = oak.getMemoryManager().pool;
 
 
         assertEquals(maxItemsPerChunk * maxBytesPerChunkItem, pool.allocated());
@@ -293,7 +293,7 @@ public class MemoryManagerTest {
                 .setChunkMaxItems(maxItemsPerChunk)
                 .setChunkBytesPerItem(maxBytesPerChunkItem);
         OakMap<Integer, Integer> oak = (OakMap<Integer, Integer>) builder.build();
-        OakMemoryManager memoryManager = oak.memoryManager;
+        OakMemoryManager memoryManager = oak.getMemoryManager();
 
         assertEquals(0, memoryManager.getValue(memoryManager.timeStamps[1].get()));
         assertTrue(memoryManager.isIdle(memoryManager.timeStamps[1].get()));
@@ -446,7 +446,7 @@ public class MemoryManagerTest {
                 .setChunkMaxItems(maxItemsPerChunk)
                 .setChunkBytesPerItem(maxBytesPerChunkItem);
         OakMap oak = (OakMap<Integer, Integer>) builder.build();
-        OakMemoryManager memoryManager = oak.memoryManager;
+        OakMemoryManager memoryManager = oak.getMemoryManager();
 
         assertEquals(0, memoryManager.releasedArray.get(1).size());
 

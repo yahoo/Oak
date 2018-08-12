@@ -14,14 +14,17 @@ import java.util.Map;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
+/**
+ * A concurrent map implementation which supports off-heap memory.
+ */
 public class OakMap<K, V> implements AutoCloseable {
 
   private InternalOakMap internalOakMap;
-  final OakMemoryManager memoryManager;
+  private final OakMemoryManager memoryManager;
   private Function<ByteBuffer, K> keyDeserializeTransformer;
   private Function<ByteBuffer, V> valueDeserializeTransformer;
   private Function<Map.Entry<ByteBuffer, ByteBuffer>, Map.Entry<K, V>> entryDeserializeTransformer;
-  public final Comparator comparator;
+  final Comparator comparator;
 
   // SubOakMap fields
   private K fromKey;
@@ -30,7 +33,7 @@ public class OakMap<K, V> implements AutoCloseable {
   private boolean toInclusive;
   private boolean isDescending;
 
-  public OakMap(K minKey,
+  OakMap(K minKey,
                 Serializer<K> keySerializer,
                 Serializer<V> valueSerializer,
                 OakComparator<K> oakComparator,
@@ -460,6 +463,8 @@ public class OakMap<K, V> implements AutoCloseable {
   }
 
   /* ---------------- Package visibility getters for the views methods -------------- */
+  OakMemoryManager getMemoryManager() { return memoryManager; }
+
   boolean getIsDescending(){
     return isDescending;
   }

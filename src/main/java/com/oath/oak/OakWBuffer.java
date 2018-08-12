@@ -8,6 +8,9 @@ package com.oath.oak;
 
 import java.nio.*;
 
+/**
+ * A similar to ByteBuffer interface that allows internal Oak data access for read and write
+ */
 public interface OakWBuffer {
 
     /**

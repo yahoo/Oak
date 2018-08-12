@@ -8,6 +8,9 @@ package com.oath.oak;
 
 import java.nio.ByteBuffer;
 
+/**
+ * An interface to be supported by keys and values provided for Oak's mapping
+ */
 public interface Serializer<T> {
 
   // serializes the object

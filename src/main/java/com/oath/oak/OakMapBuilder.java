@@ -44,7 +44,7 @@ public class OakMapBuilder<K,V> {
     this.chunkMaxItems = Chunk.MAX_ITEMS_DEFAULT;
     this.chunkBytesPerItem = Chunk.BYTES_PER_ITEM_DEFAULT;
     this.memoryCapacity = MAX_MEM_CAPACITY;
-    this.memoryPool = null;new SimpleNoFreeMemoryPoolImpl(Integer.MAX_VALUE);
+    this.memoryPool = null;
   }
 
   public OakMapBuilder setKeySerializer(Serializer<K> keySerializer) {

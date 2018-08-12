@@ -10,6 +10,9 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.function.Function;
 
+/**
+ * A similar to read-only ByteBuffer interface that allows internal Oak data read access
+ */
 public interface OakRBuffer {
 
     /**

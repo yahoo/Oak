@@ -78,7 +78,7 @@ public class HeapUsageTest {
         System.out.println("\nBefore filling up oak");
         System.out.println("heap size: " + heapSize / M + "MB" + ", heap max size: " + heapMaxSize / M + "MB" + ", heap free size: " + heapFreeSize / M + "MB");
         System.out.println("heap used: " + (heapSize - heapFreeSize) / M + "MB");
-        System.out.println("off heap used: " + oak.memoryManager.pool.allocated() / M + "MB");
+        System.out.println("off heap used: " + oak.getMemoryManager().pool.allocated() / M + "MB");
 
 
         for (int i = 0; i < numOfEntries; i++) {
@@ -87,7 +87,7 @@ public class HeapUsageTest {
             oak.put(key, val);
         }
         System.out.println("\nAfter filling up oak");
-        System.out.println("off heap used: " + oak.memoryManager.pool.allocated() / M + "MB");
+        System.out.println("off heap used: " + oak.getMemoryManager().pool.allocated() / M + "MB");
 
         System.gc();
 
@@ -116,7 +116,7 @@ public class HeapUsageTest {
             }
         }
         System.out.println("\nCheck again");
-        System.out.println("off heap used: " + oak.memoryManager.pool.allocated() / M + "MB");
+        System.out.println("off heap used: " + oak.getMemoryManager().pool.allocated() / M + "MB");
         System.out.println("off heap allocated: " + Integer.MAX_VALUE / M + "MB");
         System.gc();
         heapSize = Runtime.getRuntime().totalMemory(); // Get current size of heap in bytes
@@ -124,7 +124,7 @@ public class HeapUsageTest {
         heapFreeSize = Runtime.getRuntime().freeMemory();
         System.out.println("heap size: " + heapSize / M + "MB" + ", heap max size: " + heapMaxSize / M + "MB" + ", heap free size: " + heapFreeSize / M + "MB");
         System.out.println("heap used: " + (heapSize - heapFreeSize) / M + "MB");
-        float percent = (100 * (heapSize - heapFreeSize)) / oak.memoryManager.pool.allocated();
+        float percent = (100 * (heapSize - heapFreeSize)) / oak.getMemoryManager().pool.allocated();
         System.out.println("\non/off heap used: " + String.format("%.0f%%", percent));
 
     }
