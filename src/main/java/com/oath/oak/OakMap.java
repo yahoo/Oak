@@ -142,17 +142,17 @@ public class OakMap<K, V> implements AutoCloseable {
    *
    * @param key   key with which the specified value is to be associated
    * @param value value to be associated with the specified key
-   * @throws NullPointerException if the specified key is null
+   * @throws IllegalArgumentException if the specified key is null
    */
   public void put(K key, V value) {
     if (key == null || value == null)
-      throw new NullPointerException();
-    if (!inBounds(key))
       throw new IllegalArgumentException();
+    if (!inBounds(key))
+      throw new IllegalArgumentException("The key is out of map bounds");
 
-    memoryManager.startThread();
+    memoryManager.attachThread();
     internalOakMap.put(key, value);
-    memoryManager.stopThread();
+    memoryManager.detachThread();
   }
 
   /**
@@ -163,17 +163,17 @@ public class OakMap<K, V> implements AutoCloseable {
    * @param key   key with which the specified value is to be associated
    * @param value value to be associated with the specified key
    * @return {@code true} if there was no mapping for the key
-   * @throws NullPointerException if the specified key or value is null
+   * @throws IllegalArgumentException if the specified key or value is null
    */
   public boolean putIfAbsent(K key, V value) {
     if (key == null || value == null)
-      throw new NullPointerException();
-    if (!inBounds(key))
       throw new IllegalArgumentException();
+    if (!inBounds(key))
+      throw new IllegalArgumentException("The key is out of map bounds");
 
-    memoryManager.startThread();
+    memoryManager.attachThread();
     boolean result = internalOakMap.putIfAbsent(key, value);
-    memoryManager.stopThread();
+    memoryManager.detachThread();
     return result;
   }
 
@@ -181,17 +181,17 @@ public class OakMap<K, V> implements AutoCloseable {
    * Removes the mapping for a key from this map if it is present.
    *
    * @param key key whose mapping is to be removed from the map
-   * @throws NullPointerException if the specified key is null
+   * @throws IllegalArgumentException if the specified key is null
    */
   public void remove(K key) {
     if (key == null)
-      throw new NullPointerException();
-    if (!inBounds(key))
       throw new IllegalArgumentException();
+    if (!inBounds(key))
+      throw new IllegalArgumentException("The key is out of map bounds");
 
-    memoryManager.startThread();
+    memoryManager.attachThread();
     internalOakMap.remove(key);
-    memoryManager.stopThread();
+    memoryManager.detachThread();
   }
 
   /**
@@ -201,17 +201,17 @@ public class OakMap<K, V> implements AutoCloseable {
    * @param key the key whose associated value is to be returned
    * @return the value associated with that key, or
    * {@code null} if this map contains no mapping for the key
-   * @throws NullPointerException if the specified key is null
+   * @throws IllegalArgumentException if the specified key is null
    */
   public V get(K key) {
     if (key == null)
-      throw new NullPointerException();
-    if (!inBounds(key))
       throw new IllegalArgumentException();
+    if (!inBounds(key))
+      throw new IllegalArgumentException("The key is out of map bounds");
 
-    memoryManager.startThread();
+    memoryManager.attachThread();
     V value = (V) internalOakMap.getValueTransformation(key, valueDeserializeTransformer);
-    memoryManager.stopThread();
+    memoryManager.detachThread();
     return value;
   }
 
@@ -227,9 +227,9 @@ public class OakMap<K, V> implements AutoCloseable {
       throw new UnsupportedOperationException();
     }
 
-    memoryManager.startThread();
+    memoryManager.attachThread();
     K minKey = (K) internalOakMap.getMinKeyTransformation(keyDeserializeTransformer);
-    memoryManager.stopThread();
+    memoryManager.detachThread();
     return minKey;
   }
 
@@ -245,9 +245,9 @@ public class OakMap<K, V> implements AutoCloseable {
       throw new UnsupportedOperationException();
     }
 
-    memoryManager.startThread();
+    memoryManager.attachThread();
     K maxKey = (K) internalOakMap.getMaxKeyTransformation(keyDeserializeTransformer);
-    memoryManager.stopThread();
+    memoryManager.detachThread();
     return maxKey;
   }
 
@@ -257,17 +257,17 @@ public class OakMap<K, V> implements AutoCloseable {
    * @param key      key with which the calculation is to be associated
    * @param computer for computing the new value
    * @return {@code false} if there was no mapping for the key
-   * @throws NullPointerException if the specified key or the function is null
+   * @throws IllegalArgumentException if the specified key or the function is null
    */
   public boolean computeIfPresent(K key, Consumer<OakWBuffer> computer) {
     if (key == null || computer == null)
-      throw new NullPointerException();
-    if (!inBounds(key))
       throw new IllegalArgumentException();
+    if (!inBounds(key))
+      throw new IllegalArgumentException("The key is out of map bounds");
 
-    memoryManager.startThread();
+    memoryManager.attachThread();
     boolean result = internalOakMap.computeIfPresent(key, computer);
-    memoryManager.stopThread();
+    memoryManager.detachThread();
     return result;
   }
 
@@ -282,13 +282,13 @@ public class OakMap<K, V> implements AutoCloseable {
    */
   public void putIfAbsentComputeIfPresent(K key, V value, Consumer<OakWBuffer> computer) {
     if (key == null || value == null || computer == null)
-      throw new NullPointerException();
-    if (!inBounds(key))
       throw new IllegalArgumentException();
+    if (!inBounds(key))
+      throw new IllegalArgumentException("The key is out of map bounds");
 
-    memoryManager.startThread();
+    memoryManager.attachThread();
     internalOakMap.putIfAbsentComputeIfPresent(key, value, computer);
-    memoryManager.stopThread();
+    memoryManager.detachThread();
   }
 
   /*-------------- SubMap --------------*/

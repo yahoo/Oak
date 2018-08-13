@@ -8,19 +8,19 @@ package com.oath.oak;
 
 import java.nio.ByteBuffer;
 
-public abstract class KeysManager<K> {
+interface KeysManager<K> {
 
-    abstract int length();
+    int length();
 
-    abstract void writeKey(K key, int ki);
+    void writeKey(K key, int ki);
 
-    abstract ByteBuffer getKeys();
+    ByteBuffer getKeys();
 
     // Shuold be thread-safe
-    abstract void release();
+    void release();
 
-    abstract void copyKeys(KeysManager srcKeysManager, int srcIndex, int index, int lengthToCopy);
+    void copyKeys(KeysManager srcKeysManager, int srcIndex, int index, int lengthToCopy);
 
-    abstract int getPosition();
+    int getPosition();
 
 }

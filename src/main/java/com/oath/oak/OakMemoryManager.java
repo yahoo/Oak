@@ -118,7 +118,7 @@ class OakMemoryManager { // TODO interface allocate, release
         return timeStamp & (~IDLE_MASK);
     }
 
-    void startThread() {
+    void attachThread() {
         int idx = InternalOakMap.getThreadIndex();
         AtomicLong timeStamp = timeStamps[idx];
         long l = timeStamp.get();
@@ -146,7 +146,7 @@ class OakMemoryManager { // TODO interface allocate, release
         assert !isIdle(timeStamp.get());
     }
 
-    void stopThread() {
+    void detachThread() {
         int idx = InternalOakMap.getThreadIndex();
         AtomicLong timeStamp = timeStamps[idx];
         long l = timeStamp.get();

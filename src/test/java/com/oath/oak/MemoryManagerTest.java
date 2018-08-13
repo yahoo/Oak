@@ -244,10 +244,10 @@ public class MemoryManagerTest {
 
         assertEquals(0, memoryManager.getValue(memoryManager.timeStamps[1].get()));
         assertTrue(memoryManager.isIdle(memoryManager.timeStamps[1].get()));
-        memoryManager.startThread();
+        memoryManager.attachThread();
         assertEquals(1, memoryManager.getValue(memoryManager.timeStamps[1].get()));
         assertFalse(memoryManager.isIdle(memoryManager.timeStamps[1].get()));
-        memoryManager.startThread();
+        memoryManager.attachThread();
         assertEquals(2, memoryManager.getValue(memoryManager.timeStamps[1].get()));
         assertFalse(memoryManager.isIdle(memoryManager.timeStamps[1].get()));
         Pair<Integer, ByteBuffer> pair = memoryManager.allocate(4);
@@ -257,31 +257,31 @@ public class MemoryManagerTest {
         assertEquals(4, bb.remaining());
         assertEquals(4, pool.allocated());
         memoryManager.release(0, bb);
-        memoryManager.stopThread();
+        memoryManager.detachThread();
         assertEquals(2, memoryManager.getValue(memoryManager.timeStamps[1].get()));
         assertFalse(memoryManager.isIdle(memoryManager.timeStamps[1].get()));
-        memoryManager.stopThread();
+        memoryManager.detachThread();
         assertEquals(2, memoryManager.getValue(memoryManager.timeStamps[1].get()));
         assertTrue(memoryManager.isIdle(memoryManager.timeStamps[1].get()));
 
-        memoryManager.startThread();
-        memoryManager.startThread();
-        memoryManager.startThread();
-        memoryManager.stopThread();
-        memoryManager.stopThread();
-        memoryManager.stopThread();
+        memoryManager.attachThread();
+        memoryManager.attachThread();
+        memoryManager.attachThread();
+        memoryManager.detachThread();
+        memoryManager.detachThread();
+        memoryManager.detachThread();
 
-        memoryManager.startThread();
+        memoryManager.attachThread();
         memoryManager.release(0, ByteBuffer.allocateDirect(4));
-        memoryManager.stopThread();
+        memoryManager.detachThread();
 
         for(int i = 3 ; i < OakMemoryManager.RELEASES; i++){
             memoryManager.release(0, ByteBuffer.allocateDirect(4));
         }
         assertEquals(OakMemoryManager.RELEASES-1, memoryManager.releasedArray.get(1).size());
-        memoryManager.startThread();
+        memoryManager.attachThread();
         memoryManager.release(0, ByteBuffer.allocateDirect(4));
-        memoryManager.stopThread();
+        memoryManager.detachThread();
         assertEquals(false, memoryManager.releasedArray.get(1).isEmpty());
 
     }
@@ -297,10 +297,10 @@ public class MemoryManagerTest {
 
         assertEquals(0, memoryManager.getValue(memoryManager.timeStamps[1].get()));
         assertTrue(memoryManager.isIdle(memoryManager.timeStamps[1].get()));
-        memoryManager.startThread();
+        memoryManager.attachThread();
         assertEquals(1, memoryManager.getValue(memoryManager.timeStamps[1].get()));
         assertFalse(memoryManager.isIdle(memoryManager.timeStamps[1].get()));
-        memoryManager.stopThread();
+        memoryManager.detachThread();
         assertEquals(1, memoryManager.getValue(memoryManager.timeStamps[1].get()));
         assertTrue(memoryManager.isIdle(memoryManager.timeStamps[1].get()));
 
@@ -317,41 +317,41 @@ public class MemoryManagerTest {
         assertEquals(3, memoryManager.getValue(memoryManager.timeStamps[1].get()));
         assertTrue(memoryManager.isIdle(memoryManager.timeStamps[1].get()));
 
-        memoryManager.startThread();
+        memoryManager.attachThread();
         assertFalse(memoryManager.isIdle(memoryManager.timeStamps[1].get()));
-        memoryManager.stopThread();
+        memoryManager.detachThread();
         assertEquals(4, memoryManager.getValue(memoryManager.timeStamps[1].get()));
         assertTrue(memoryManager.isIdle(memoryManager.timeStamps[1].get()));
 
 
-        memoryManager.startThread();
+        memoryManager.attachThread();
         assertEquals(5, memoryManager.getValue(memoryManager.timeStamps[1].get()));
         assertFalse(memoryManager.isIdle(memoryManager.timeStamps[1].get()));
-        memoryManager.startThread();
+        memoryManager.attachThread();
         assertEquals(6, memoryManager.getValue(memoryManager.timeStamps[1].get()));
         assertFalse(memoryManager.isIdle(memoryManager.timeStamps[1].get()));
         oak.get(key);
         assertFalse(memoryManager.isIdle(memoryManager.timeStamps[1].get()));
         assertEquals(7, memoryManager.getValue(memoryManager.timeStamps[1].get()));
-        memoryManager.stopThread();
-        memoryManager.stopThread();
+        memoryManager.detachThread();
+        memoryManager.detachThread();
         assertEquals(7, memoryManager.getValue(memoryManager.timeStamps[1].get()));
         assertTrue(memoryManager.isIdle(memoryManager.timeStamps[1].get()));
 
 
         oak.put(key, key);
         assertEquals(8, memoryManager.getValue(memoryManager.timeStamps[1].get()));
-        memoryManager.startThread();
+        memoryManager.attachThread();
         assertEquals(9, memoryManager.getValue(memoryManager.timeStamps[1].get()));
         assertFalse(memoryManager.isIdle(memoryManager.timeStamps[1].get()));
-        memoryManager.startThread();
+        memoryManager.attachThread();
         assertEquals(10, memoryManager.getValue(memoryManager.timeStamps[1].get()));
         assertFalse(memoryManager.isIdle(memoryManager.timeStamps[1].get()));
         oak.put(key, key);
         assertFalse(memoryManager.isIdle(memoryManager.timeStamps[1].get()));
         assertEquals(11, memoryManager.getValue(memoryManager.timeStamps[1].get()));
-        memoryManager.stopThread();
-        memoryManager.stopThread();
+        memoryManager.detachThread();
+        memoryManager.detachThread();
         assertEquals(11, memoryManager.getValue(memoryManager.timeStamps[1].get()));
         assertTrue(memoryManager.isIdle(memoryManager.timeStamps[1].get()));
 
@@ -362,7 +362,7 @@ public class MemoryManagerTest {
         assertEquals(11 + 2 * maxItemsPerChunk, memoryManager.getValue(memoryManager.timeStamps[1].get()));
         assertTrue(memoryManager.isIdle(memoryManager.timeStamps[1].get()));
 
-        memoryManager.startThread();
+        memoryManager.attachThread();
         assertEquals(12 + 2 * maxItemsPerChunk, memoryManager.getValue(memoryManager.timeStamps[1].get()));
         assertFalse(memoryManager.isIdle(memoryManager.timeStamps[1].get()));
         for (int i = 0; i < 2 * maxItemsPerChunk; i++) {
@@ -370,7 +370,7 @@ public class MemoryManagerTest {
         }
         assertEquals(12 + 4 * maxItemsPerChunk, memoryManager.getValue(memoryManager.timeStamps[1].get()));
         assertFalse(memoryManager.isIdle(memoryManager.timeStamps[1].get()));
-        memoryManager.stopThread();
+        memoryManager.detachThread();
         assertEquals(12 + 4 * maxItemsPerChunk, memoryManager.getValue(memoryManager.timeStamps[1].get()));
         assertTrue(memoryManager.isIdle(memoryManager.timeStamps[1].get()));
 

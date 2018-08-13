@@ -12,7 +12,7 @@ import java.nio.ByteBuffer;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.logging.Logger;
 
-public class KeysManagerOffHeapImpl<K> extends KeysManager<K> {
+class KeysManagerOffHeapImpl<K> implements KeysManager<K> {
 
     ByteBuffer keys;
     int i;
@@ -32,32 +32,27 @@ public class KeysManagerOffHeapImpl<K> extends KeysManager<K> {
         this.released = new AtomicBoolean(false);
     }
 
-    @Override
-    int length() {
+    public int length() {
         return keys.remaining();
     }
 
-    @Override
-    void writeKey(K key, int ki) {
+    public void writeKey(K key, int ki) {
         ByteBuffer byteBuffer = keys.duplicate();
         byteBuffer.position(keys.position() + ki);
         keySerializer.serialize(key, byteBuffer);
     }
 
-    @Override
-    ByteBuffer getKeys() {
+    public ByteBuffer getKeys() {
         return keys;
     }
 
-    @Override
-    void release() {
+    public void release() {
         if (released.compareAndSet(false, true)) {
             memoryManager.release(i, keys);
         }
     }
 
-    @Override
-    void copyKeys(KeysManager srcKeysManager, int srcIndex, int index, int lengthToCopy) {
+    public void copyKeys(KeysManager srcKeysManager, int srcIndex, int index, int lengthToCopy) {
         ByteBuffer srcKeys = srcKeysManager.getKeys();
         int srcKeyPos = srcKeys.position();
         int myPos = keys.position();
@@ -69,8 +64,7 @@ public class KeysManagerOffHeapImpl<K> extends KeysManager<K> {
         }
     }
 
-    @Override
-    int getPosition() {
+    public int getPosition() {
         return keys.position();
     }
 }

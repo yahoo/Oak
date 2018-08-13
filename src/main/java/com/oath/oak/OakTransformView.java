@@ -59,9 +59,9 @@ public class OakTransformView<K, T> implements AutoCloseable{
     if (!externalOakMap.inBounds(key))
       throw new IllegalArgumentException();
 
-    externalOakMap.getMemoryManager().startThread();
+    externalOakMap.getMemoryManager().attachThread();
     T transformation = (T) internalOakMap.getValueTransformation(key, valuesTransformer);
-    externalOakMap.getMemoryManager().stopThread();
+    externalOakMap.getMemoryManager().detachThread();
     return transformation;
   }
 
