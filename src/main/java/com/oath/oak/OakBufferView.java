@@ -35,11 +35,12 @@ public class OakBufferView<K> implements AutoCloseable{
       throw new NullPointerException();
     if (!externalOakMap.inBounds(key))
       throw new IllegalArgumentException();
-
-    externalOakMap.getMemoryManager().attachThread();
-    OakRBuffer value = internalOakMap.get(key);
-    externalOakMap.getMemoryManager().detachThread();
-    return value;
+    try {
+      externalOakMap.getMemoryManager().attachThread();
+      return internalOakMap.get(key);
+    } finally {
+      externalOakMap.getMemoryManager().detachThread();
+    }
   }
 
   /**

@@ -82,23 +82,4 @@ public class OakRKeyBufferImpl implements OakRBuffer {
   public double getDouble(int index) {
     return byteBuffer.getChar(index);
   }
-
-  /**
-   *
-   * Returns null when the chunk is a released one and the key cannot be read
-   * @throws NullPointerException if the transformer is null;
-   */
-  @Override
-  public <T> T transform(Function<ByteBuffer, T> transformer) {
-    if (transformer == null) {
-      throw new NullPointerException();
-    }
-
-    return transformer.apply(byteBuffer);
-  }
-
-  private void startThread() {
-
-  }
-
 }

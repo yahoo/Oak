@@ -785,6 +785,10 @@ class InternalOakMap<K, V> {
       this.hi = hi;
       this.hiInclusive = hiInclusive;
       this.isDescending = isDescending;
+      // Upon iterator construction we attach the thread to the memory manager. With each next()
+      // we use another nested attach-detach invocation to allow releasing the memory where
+      // iterator already traversed. Finally to mark the thread idle we need the detach to be
+      // invoked from the close of this closeable iterator.
       memoryManager.attachThread();
       next = Chunk.NONE;
       nextHandle = null;
@@ -816,6 +820,18 @@ class InternalOakMap<K, V> {
     public final boolean hasNext() {
       return next != Chunk.NONE;
     }
+
+    public T next() {
+      try {
+        memoryManager.attachThread();
+        return internalNext();
+      } finally {
+        memoryManager.detachThread();
+      }
+    }
+
+    // the actual next()
+    abstract T internalNext();
 
     /**
      * Advances next to higher entry.
@@ -975,11 +991,10 @@ class InternalOakMap<K, V> {
       super(lo, loInclusive, hi, hiInclusive, isDescending);
     }
 
-    public OakRBuffer next() {
-      memoryManager.attachThread();
+    @Override
+    public OakRBuffer internalNext() {
       Handle handle = nextHandle;
       advance();
-      memoryManager.detachThread();
       if (handle == null)
         return null;
 
@@ -997,18 +1012,15 @@ class InternalOakMap<K, V> {
       this.transformer = transformer;
     }
 
-    public T next() {
-      memoryManager.attachThread();
+    public T internalNext() {
       Handle handle = nextHandle;
       advance();
       if (handle == null) {
-        memoryManager.detachThread();
         return null;
       }
       handle.readLock.lock();
       T transformation = transformer.apply(handle.getImmutableByteBuffer());
       handle.readLock.unlock();
-      memoryManager.detachThread();
       return transformation;
     }
   }
@@ -1019,19 +1031,16 @@ class InternalOakMap<K, V> {
       super(lo, loInclusive, hi, hiInclusive, isDescending);
     }
 
-    public Map.Entry<OakRBuffer, OakRBuffer> next() {
-      memoryManager.attachThread();
+    public Map.Entry<OakRBuffer, OakRBuffer> internalNext() {
       int n = next;
       Chunk c = nextChunk;
       Handle handle = nextHandle;
       advance();
       if (handle == null) {
-        memoryManager.detachThread();
         return null;
       }
       ByteBuffer serializedKey = getKey(n, c);
       //serializedKey = serializedKey.slice(); // TODO can I get rid of this?
-      memoryManager.detachThread();
       return new AbstractMap.SimpleImmutableEntry<OakRBuffer, OakRBuffer>
               (new OakRKeyBufferImpl(serializedKey), new OakRValueBufferImpl(handle));
     }
@@ -1047,14 +1056,12 @@ class InternalOakMap<K, V> {
       this.transformer = transformer;
     }
 
-    public T next() {
-      memoryManager.attachThread();
+    public T internalNext() {
       int n = next;
       Chunk c = nextChunk;
       Handle handle = nextHandle;
       advance();
       if (handle == null) {
-        memoryManager.detachThread();
         return null;
       }
       ByteBuffer serializedKey = getKey(n, c);
@@ -1062,19 +1069,16 @@ class InternalOakMap<K, V> {
       handle.readLock.lock();
       if (handle.isDeleted()) {
         handle.readLock.unlock();
-        memoryManager.detachThread();
         return null;
       }
       ByteBuffer serializedValue = handle.getImmutableByteBuffer();
       Map.Entry<ByteBuffer, ByteBuffer> entry = new AbstractMap.SimpleEntry<ByteBuffer, ByteBuffer>(serializedKey, serializedValue);
       if (serializedKey == null || serializedValue == null || entry == null || transformer == null) {
         handle.readLock.unlock();
-        memoryManager.detachThread();
         return null;
       }
       T transformation = transformer.apply(entry);
       handle.readLock.unlock();
-      memoryManager.detachThread();
       return transformation;
     }
   }
@@ -1085,14 +1089,13 @@ class InternalOakMap<K, V> {
       super(lo, loInclusive, hi, hiInclusive, isDescending);
     }
 
-    public OakRBuffer next() {
-      memoryManager.attachThread();
+    @Override
+    public OakRBuffer internalNext() {
       int n = next;
       Chunk c = nextChunk;
       advance();
       ByteBuffer serializedKey = getKey(n, c);
       serializedKey = serializedKey.slice(); // TODO can I get rid of this?
-      memoryManager.detachThread();
       return new OakRKeyBufferImpl(serializedKey);
     }
   }
@@ -1107,14 +1110,12 @@ class InternalOakMap<K, V> {
       this.transformer = transformer;
     }
 
-    public T next() {
-      memoryManager.attachThread();
+    public T internalNext() {
       int n = next;
       Chunk c = nextChunk;
       advance();
       ByteBuffer serializedKey = getKey(n, c);
       serializedKey = serializedKey.slice(); // TODO can I get rid of this?
-      memoryManager.detachThread();
       return transformer.apply(serializedKey);
     }
   }

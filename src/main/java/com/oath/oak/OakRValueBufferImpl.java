@@ -130,7 +130,13 @@ public class OakRValueBufferImpl implements OakRBuffer {
         return d;
     }
 
-    @Override
+    /**
+     * Returns a transformation of ByteBuffer content.
+     *
+     * @param transformer the function that executes the transformation
+     * @return a transformation of the ByteBuffer content
+     * @throws NullPointerException if the transformer is null
+     */
     public <T> T transform(Function<ByteBuffer, T> transformer) {
         if (transformer == null) {
             throw new NullPointerException();
