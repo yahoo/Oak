@@ -51,7 +51,7 @@ public class Chunk<K, V> {
         new OpData(Operation.NO_OP, 0, 0, 0, null);
 
     // defaults
-    public static int BYTES_PER_ITEM_DEFAULT = 64;
+    public static int BYTES_PER_ITEM_DEFAULT = 256;
     public static int MAX_ITEMS_DEFAULT = 256;
 
     /*-------------- Members --------------*/
@@ -793,7 +793,7 @@ public class Chunk<K, V> {
         keyIndex.set(sortedKeyIndex);
         handleIndex.set(sortedHandleIndex);
         sortedCount = sortedEntryIndex / FIELDS;
-
+        statistics.updateInitialSortedCount(sortedCount);
         return ei; // if NONE then we finished copying old chunk, else we reached max in new chunk
     }
 
@@ -1109,12 +1109,20 @@ public class Chunk<K, V> {
      */
     protected class Statistics {
         private AtomicInteger addedCount = new AtomicInteger(0);
+        private int initialSortedCount = 0;
+
+        /**
+         * Initial sorted count here is immutable after chunk re-balance
+         */
+        void updateInitialSortedCount(int sortedCount) {
+            this.initialSortedCount = sortedCount;
+        }
 
         /**
          * @return number of items chunk will contain after compaction.
          */
         int getCompactedCount() {
-            return sortedCount + getAddedCount();
+            return initialSortedCount + getAddedCount();
         }
 
         /**
