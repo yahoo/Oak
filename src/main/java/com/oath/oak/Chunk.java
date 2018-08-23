@@ -51,7 +51,7 @@ public class Chunk<K, V> {
         new OpData(Operation.NO_OP, 0, 0, 0, null);
 
     // defaults
-    public static int BYTES_PER_ITEM_DEFAULT = 64;
+    public static int BYTES_PER_ITEM_DEFAULT = 256;
     public static int MAX_ITEMS_DEFAULT = 256;
 
     /*-------------- Members --------------*/
@@ -76,7 +76,7 @@ public class Chunk<K, V> {
     private final AtomicInteger handleIndex;    // points to next free index of entry array
     private final Statistics statistics;
     // # of sorted items at entry-array's beginning (resulting from split)
-    private int sortedCount;
+    private AtomicInteger sortedCount;
     private final int maxItems;
     private final int maxKeyBytes;
     AtomicInteger externalSize; // for updating oak's size
@@ -121,7 +121,7 @@ public class Chunk<K, V> {
         this.handleIndex = new AtomicInteger(FIRST_ITEM);
         this.keysManager = new KeysManagerOffHeapImpl(this.maxKeyBytes, memoryManager, keySerializer);
         this.keyIndex = new AtomicInteger(FIRST_ITEM);
-        this.sortedCount = 0;
+        this.sortedCount = new AtomicInteger(0);
         this.minKey = minKey;
         this.creator = new AtomicReference<>(creator);
         if (creator == null)
@@ -324,6 +324,7 @@ public class Chunk<K, V> {
      * if key is found, its previous entry is returned!
      */
     private int binaryFind(K key) {
+        int sortedCount = this.sortedCount.get();
         // if there are no sorted keys, or the first item is already larger than key -
         // return the head node for a regular linear search
         if ((sortedCount == 0) || compare(readKey(FIRST_ITEM), key) >= 0)
@@ -442,7 +443,25 @@ public class Chunk<K, V> {
             set(ei, OFFSET_NEXT, curr); // no need for CAS since put is not even published yet
             if (cas) {
                 if (casEntriesArray(prev, OFFSET_NEXT, curr, ei)) {
-                    return ei;
+                  // Here is the single place where we do enter a new entry to the chunk, meaning
+                  // there is none else simultaneously inserting the same key
+                  // (we were the first to insert this key).
+                  // If the new entry's index is exactly after the sorted count and
+                  // the entry's key is greater or equal then to the previous (sorted count)
+                  // index key. Then increase the sorted count.
+                  int sortedCount = this.sortedCount.get();
+                  if (sortedCount > 0) {
+                    if (ei == ((sortedCount + 1) * FIELDS + 1)) {
+                      // the new entry's index is exactly after the sorted count
+                      if (compare(
+                          readKey((sortedCount - 1) * FIELDS + FIRST_ITEM), key) <= 0) {
+                        // compare with sorted count key, if inserting the "if-statement",
+                        // the sorted count key is less or equal to the key just inserted
+                          this.sortedCount.compareAndSet(sortedCount,(sortedCount+1));
+                      }
+                    }
+                  }
+                  return ei;
                 }
                 // CAS didn't succeed, try again
             } else {
@@ -600,6 +619,7 @@ public class Chunk<K, V> {
 
     final int getLastItemEntryIndex() {
         // find the last sorted entry
+        int sortedCount = this.sortedCount.get();
         int entryIndex = sortedCount == 0 ? HEAD_NODE : (sortedCount - 1) * (FIELDS) + 1;
         int nextEntryIndex = get(entryIndex, OFFSET_NEXT);
         while (nextEntryIndex != Chunk.NONE) {
@@ -683,7 +703,7 @@ public class Chunk<K, V> {
             set(HEAD_NODE, OFFSET_NEXT, FIRST_ITEM);
         }
 
-        int sortedSize = srcChunk.sortedCount * FIELDS + 1;
+        int sortedSize = srcChunk.sortedCount.get() * FIELDS + 1;
         int entryIndexStart = ei;
         int entryIndexEnd = entryIndexStart - 1;
         int eiPrev = NONE;
@@ -775,8 +795,8 @@ public class Chunk<K, V> {
         entryIndex.set(sortedEntryIndex);
         keyIndex.set(sortedKeyIndex);
         handleIndex.set(sortedHandleIndex);
-        sortedCount = sortedEntryIndex / FIELDS;
-
+        sortedCount.set(sortedEntryIndex / FIELDS);
+        statistics.updateInitialSortedCount(sortedCount.get());
         return ei; // if NONE then we finished copying old chunk, else we reached max in new chunk
     }
 
@@ -817,7 +837,7 @@ public class Chunk<K, V> {
         int numOfEntries = entryIndex.get() / FIELDS;
         int numOfItems = statistics.getCompactedCount();
         int usedBytes = keyIndex.get();
-
+        int sortedCount = this.sortedCount.get();
         // Reasons for executing a rebalance:
         // 1. There are no sorted keys and the total number of entries is above a certain threshold.
         // 2. There are sorted keys, but the total number of unsorted keys is too big.
@@ -924,7 +944,8 @@ public class Chunk<K, V> {
         DescendingIter() {
             from = null;
             stack = new IntStack(entries.length / FIELDS);
-            anchor = sortedCount == 0 ? HEAD_NODE : (sortedCount - 1) * (FIELDS) + 1; // this is the last sorted entry
+            int sortedCnt = sortedCount.get();
+            anchor = sortedCnt == 0 ? HEAD_NODE : (sortedCnt - 1) * (FIELDS) + 1; // this is the last sorted entry
             stack.push(anchor);
             initNext();
         }
@@ -1092,12 +1113,20 @@ public class Chunk<K, V> {
      */
     protected class Statistics {
         private AtomicInteger addedCount = new AtomicInteger(0);
+        private int initialSortedCount = 0;
+
+        /**
+         * Initial sorted count here is immutable after chunk re-balance
+         */
+        void updateInitialSortedCount(int sortedCount) {
+            this.initialSortedCount = sortedCount;
+        }
 
         /**
          * @return number of items chunk will contain after compaction.
          */
         int getCompactedCount() {
-            return sortedCount + getAddedCount();
+            return initialSortedCount + getAddedCount();
         }
 
         /**
