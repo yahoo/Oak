@@ -26,7 +26,7 @@ public class MemoryManagerTest {
     Logger log = Logger.getLogger(MemoryManagerTest.class.getName());
     private SynchrobenchMemoryPoolImpl pool;
     private OakMemoryManager memoryManager;
-    int maxItemsPerChunk = 2048;
+    int maxItemsPerChunk = 1024;
     int maxBytesPerChunkItem = 100;
 
     public static class CheckOakCapacityValueSerializer implements Serializer<Integer> {
@@ -43,7 +43,7 @@ public class MemoryManagerTest {
 
         @Override
         public int calculateSize(Integer value) {
-            return Integer.MAX_VALUE/20;
+            return Integer.MAX_VALUE/40;
         }
     }
 
@@ -158,6 +158,8 @@ public class MemoryManagerTest {
             oak.put(key, val);
             oak.remove(key);
         }
+
+        oak.close();
     }
 
     @Test
@@ -435,7 +437,7 @@ public class MemoryManagerTest {
             assertTrue(value != null);
             assertEquals(i, value);
         }
-
+        oak.close();
     }
 
     @Test
@@ -491,7 +493,7 @@ public class MemoryManagerTest {
         }
 
         assertEquals(now, memoryManager.releasedArray.get(1).size());
-
+        oak.close();
     }
 
     @Test
@@ -523,7 +525,7 @@ public class MemoryManagerTest {
         value = oak.get(key);
         assertTrue(value != null);
         assertEquals((Integer) 1, value);
-
+        oak.close();
     }
 
 

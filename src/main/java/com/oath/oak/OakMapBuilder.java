@@ -17,7 +17,7 @@ import java.nio.ByteBuffer;
  */
 public class OakMapBuilder<K,V> {
 
-  private int MAX_MEM_CAPACITY = Integer.MAX_VALUE;
+  private int MAX_MEM_CAPACITY = Integer.MAX_VALUE/2; // about 2GB per Oak
 
   private Serializer<K> keySerializer;
   private Serializer<V> valueSerializer;
