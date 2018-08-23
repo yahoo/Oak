@@ -7,6 +7,7 @@
 package com.oath.oak;
 
 import junit.framework.TestCase;
+import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -47,6 +48,11 @@ public class OffHeapOakTest {
                 return;
             }
         };
+    }
+
+    @After
+    public void finish() throws Exception{
+        oak.close();
     }
 
     @Test

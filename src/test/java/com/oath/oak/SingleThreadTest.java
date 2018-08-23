@@ -10,6 +10,7 @@ import junit.framework.TestCase;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
+import org.junit.After;
 import org.junit.rules.ExpectedException;
 
 import java.util.function.Consumer;
@@ -30,6 +31,11 @@ public class SingleThreadTest {
                 .setChunkMaxItems(maxItemsPerChunk)
                 .setChunkBytesPerItem(maxBytesPerChunkItem);
         oak = (OakMap<Integer, Integer>) builder.build();
+    }
+
+    @After
+    public void finish() throws Exception{
+            oak.close();
     }
 
     @Test

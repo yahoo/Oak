@@ -6,6 +6,7 @@
 
 package com.oath.oak;
 
+import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -31,6 +32,11 @@ public class SingleThreadIteratorTest {
                 .setChunkMaxItems(maxItemsPerChunk)
                 .setChunkBytesPerItem(maxBytesPerChunkItem);
         oak = (OakMap<Integer, Integer>) builder.build();
+    }
+
+    @After
+    public void finish() throws Exception{
+        oak.close();
     }
 
     @Rule

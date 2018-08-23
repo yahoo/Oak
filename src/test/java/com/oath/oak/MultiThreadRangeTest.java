@@ -6,6 +6,7 @@
 
 package com.oath.oak;
 
+import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -33,6 +34,11 @@ public class MultiThreadRangeTest {
         oak = (OakMap<Integer, Integer>) builder.build();
         latch = new CountDownLatch(1);
         threads = new ArrayList<>(NUM_THREADS);
+    }
+
+    @After
+    public void finish() throws Exception{
+        oak.close();
     }
 
     class RunThreads implements Runnable {

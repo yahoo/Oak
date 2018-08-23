@@ -6,6 +6,7 @@
 
 package com.oath.oak;
 
+import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -52,6 +53,11 @@ public class MultiThreadComputeTest {
                 return;
             }
         };
+    }
+
+    @After
+    public void finish() throws Exception{
+        oak.close();
     }
 
     class RunThreads implements Runnable {

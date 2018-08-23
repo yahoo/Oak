@@ -227,6 +227,6 @@ public class ComputeTest {
 
         long elapsedTime = stopTime - startTime;
         System.out.println(elapsedTime);
-
+        oak.close();
     }
 }
