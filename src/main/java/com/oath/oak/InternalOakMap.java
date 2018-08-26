@@ -33,8 +33,8 @@ class InternalOakMap<K, V> {
   final OakMemoryManager memoryManager;
   private final HandleFactory handleFactory;
   private AtomicInteger size;
-  private Serializer<K> keySerializer;
-  private Serializer<V> valueSerializer;
+  private OakSerializer<K> keySerializer;
+  private OakSerializer<V> valueSerializer;
 
   // The reference count is used to count the upper objects wrapping this internal map:
   // OakMaps (including subMaps and Views) when all of the above are closed,
@@ -48,8 +48,8 @@ class InternalOakMap<K, V> {
 
   InternalOakMap(
           K minKey,
-          Serializer<K> keySerializer,
-          Serializer<V> valueSerializer,
+          OakSerializer<K> keySerializer,
+          OakSerializer<V> valueSerializer,
           Comparator comparator,
           OakMemoryManager memoryManager,
           int chunkMaxItems,
@@ -741,7 +741,7 @@ class InternalOakMap<K, V> {
   /**
    * Base of iterator classes:
    */
-  abstract class Iter<T> implements CloseableIterator<T> {
+  abstract class Iter<T> implements OakCloseableIterator<T> {
 
     protected final K lo;
     /**
@@ -1122,27 +1122,27 @@ class InternalOakMap<K, V> {
 
   // Factory methods for iterators
 
-  CloseableIterator<OakRBuffer> valuesBufferViewIterator(K lo, boolean loInclusive, K hi, boolean hiInclusive, boolean isDescending) {
+  OakCloseableIterator<OakRBuffer> valuesBufferViewIterator(K lo, boolean loInclusive, K hi, boolean hiInclusive, boolean isDescending) {
     return new ValueIterator(lo, loInclusive, hi, hiInclusive, isDescending);
   }
 
-  CloseableIterator<Map.Entry<OakRBuffer, OakRBuffer>> entriesBufferViewIterator(K lo, boolean loInclusive, K hi, boolean hiInclusive, boolean isDescending) {
+  OakCloseableIterator<Map.Entry<OakRBuffer, OakRBuffer>> entriesBufferViewIterator(K lo, boolean loInclusive, K hi, boolean hiInclusive, boolean isDescending) {
     return new EntryIterator(lo, loInclusive, hi, hiInclusive, isDescending);
   }
 
-  CloseableIterator<OakRBuffer> keysBufferViewIterator(K lo, boolean loInclusive, K hi, boolean hiInclusive, boolean isDescending) {
+  OakCloseableIterator<OakRBuffer> keysBufferViewIterator(K lo, boolean loInclusive, K hi, boolean hiInclusive, boolean isDescending) {
     return new KeyIterator(lo, loInclusive, hi, hiInclusive, isDescending);
   }
 
-  <T> CloseableIterator<T> valuesTransformIterator(K lo, boolean loInclusive, K hi, boolean hiInclusive, boolean isDescending, Function<ByteBuffer, T> transformer) {
+  <T> OakCloseableIterator<T> valuesTransformIterator(K lo, boolean loInclusive, K hi, boolean hiInclusive, boolean isDescending, Function<ByteBuffer, T> transformer) {
     return new ValueTransformIterator(lo, loInclusive, hi, hiInclusive, isDescending, transformer);
   }
 
-  <T> CloseableIterator<T> entriesTransformIterator(K lo, boolean loInclusive, K hi, boolean hiInclusive, boolean isDescending, Function<Map.Entry<ByteBuffer, ByteBuffer>, T> transformer) {
+  <T> OakCloseableIterator<T> entriesTransformIterator(K lo, boolean loInclusive, K hi, boolean hiInclusive, boolean isDescending, Function<Map.Entry<ByteBuffer, ByteBuffer>, T> transformer) {
     return new EntryTransformIterator(lo, loInclusive, hi, hiInclusive, isDescending, transformer);
   }
 
-  <T> CloseableIterator<T> keysTransformIterator(K lo, boolean loInclusive, K hi, boolean hiInclusive, boolean isDescending, Function<ByteBuffer, T> transformer) {
+  <T> OakCloseableIterator<T> keysTransformIterator(K lo, boolean loInclusive, K hi, boolean hiInclusive, boolean isDescending, Function<ByteBuffer, T> transformer) {
     return new KeyTransformIterator(lo, loInclusive, hi, hiInclusive, isDescending, transformer);
   }
 

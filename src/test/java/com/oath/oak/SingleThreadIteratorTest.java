@@ -55,8 +55,8 @@ public class SingleThreadIteratorTest {
             assertEquals(i, value);
         }
         oak.assertIfNotIdle();
-        CloseableIterator<Integer> valIter = oak.valuesIterator();
-        CloseableIterator<Map.Entry<Integer, Integer>> entryIter = oak.entriesIterator();
+        OakCloseableIterator<Integer> valIter = oak.valuesIterator();
+        OakCloseableIterator<Map.Entry<Integer, Integer>> entryIter = oak.entriesIterator();
         i = 0;
         while (valIter.hasNext()) {
             assertEquals(i, valIter.next());
@@ -126,7 +126,7 @@ public class SingleThreadIteratorTest {
     @Test
     public void testGetRange() {
         OakMap sub = oak.subMap(0, true, 3 * maxItemsPerChunk, false);
-        CloseableIterator<Integer> iter = sub.valuesIterator();
+        OakCloseableIterator<Integer> iter = sub.valuesIterator();
         assertFalse(iter.hasNext());
 
         for (int i = 0; i < 12 * maxItemsPerChunk; i++) {

@@ -38,7 +38,7 @@ abstract class Handle<V> implements OakWBuffer {
 
     abstract boolean remove(OakMemoryManager memoryManager);
 
-    abstract void put(V newVal, Serializer<V> serializer, OakMemoryManager memoryManager);
+    abstract void put(V newVal, OakSerializer<V> serializer, OakMemoryManager memoryManager);
 
     // returns false in case handle was found deleted and compute didn't take place, true otherwise
     boolean compute(Consumer<OakWBuffer> computer, OakMemoryManager memoryManager) {

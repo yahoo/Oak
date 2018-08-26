@@ -44,8 +44,8 @@ public class OakMap<K, V> implements AutoCloseable {
 
   // internal constructor, to create OakMap use OakMapBuilder
   OakMap(K minKey,
-                Serializer<K> keySerializer,
-                Serializer<V> valueSerializer,
+                OakSerializer<K> keySerializer,
+                OakSerializer<V> valueSerializer,
                 OakComparator<K> oakComparator,
                 MemoryPool memoryPool,
                 int chunkMaxItems,
@@ -448,24 +448,24 @@ public class OakMap<K, V> implements AutoCloseable {
   }
 
   /**
-   * Returns a {@link CloseableIterator} of the values contained in this map
+   * Returns a {@link OakCloseableIterator} of the values contained in this map
    * in ascending order of the corresponding keys.
    */
-  public CloseableIterator<V> valuesIterator() {
+  public OakCloseableIterator<V> valuesIterator() {
     return internalOakMap.valuesTransformIterator(fromKey, fromInclusive, toKey, toInclusive, isDescending, valueDeserializeTransformer);
   }
 
   /**
-   * Returns a {@link CloseableIterator} of the mappings contained in this map in ascending key order.
+   * Returns a {@link OakCloseableIterator} of the mappings contained in this map in ascending key order.
    */
-  public CloseableIterator<Map.Entry<K, V>> entriesIterator() {
+  public OakCloseableIterator<Map.Entry<K, V>> entriesIterator() {
     return internalOakMap.entriesTransformIterator(fromKey, fromInclusive, toKey, toInclusive, isDescending, entryDeserializeTransformer);
   }
 
   /**
-   * Returns a {@link CloseableIterator} of the keys contained in this map in ascending order.
+   * Returns a {@link OakCloseableIterator} of the keys contained in this map in ascending order.
    */
-  public CloseableIterator<K> keysIterator() {
+  public OakCloseableIterator<K> keysIterator() {
     return internalOakMap.keysTransformIterator(fromKey, fromInclusive, toKey, toInclusive, isDescending, keyDeserializeTransformer);
   }
 

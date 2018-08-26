@@ -45,8 +45,8 @@ class Rebalancer<K, V> {
     private final boolean offHeap;
     private final OakMemoryManager memoryManager;
     private final HandleFactory handleFactory;
-    private final Serializer<K> keySerializer;
-    private final Serializer<V> valueSerializer;
+    private final OakSerializer<K> keySerializer;
+    private final OakSerializer<V> valueSerializer;
 
     /*-------------- Constructors --------------*/
 
@@ -55,8 +55,8 @@ class Rebalancer<K, V> {
                boolean offHeap,
                OakMemoryManager memoryManager,
                HandleFactory handleFactory,
-               Serializer<K> keySerializer,
-               Serializer<V> valueSerializer) {
+               OakSerializer<K> keySerializer,
+               OakSerializer<V> valueSerializer) {
         this.rebalanceSize = 2;
         this.maxAfterMergePart = 0.7;
         this.lowThreshold = 0.5;

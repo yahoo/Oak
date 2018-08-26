@@ -29,7 +29,7 @@ public class ComputeTest {
     static private ArrayList<Thread> threads = new ArrayList<>(NUM_THREADS);
     static private CountDownLatch latch = new CountDownLatch(1);
 
-    public static class ComputeTestKeySerializer implements Serializer<ByteBuffer> {
+    public static class ComputeTestKeySerializer implements OakSerializer<ByteBuffer> {
 
         @Override
         public void serialize(ByteBuffer obj, ByteBuffer targetBuffer) {
@@ -55,7 +55,7 @@ public class ComputeTest {
         }
     }
 
-    public static class ComputeTestValueSerializer implements Serializer<ByteBuffer> {
+    public static class ComputeTestValueSerializer implements OakSerializer<ByteBuffer> {
 
         @Override
         public void serialize(ByteBuffer value, ByteBuffer targetBuffer) {

@@ -31,10 +31,10 @@ It is faster and scales better with additional CPU cores than the popular Java C
 - OakMap's keys and the values are copied and stored in self-managed off-heap byte arrays.
 
 ### Design Requirements
-In order to efficiently manage its content, OakMap requires that the user define two auxiliary tools: a Serializer and a Comparator; both are passed during construction.
-1. *Serializer:* Both keys and values need to provide a (1) serializer, (2) deserializer, and (3) serialized size calculator. All three are parts of [Serializer](#serializer).
+In order to efficiently manage its content, OakMap requires that the user define two auxiliary tools: an OakSerializer and an OakComparator; both are passed during construction.
+1. *OakSerializer:* Both keys and values need to provide a (1) serializer, (2) deserializer, and (3) serialized size calculator. All three are parts of [OakSerializer](#oakserializer).
 	- For boosting performance, OakMap allocates space for a given key/value and then uses the given serializer to write the key/value directly to the allocated space. OakMap uses the appropriate size calculator to deduce the amount of space to be allocated. Note that both keys and the values are variable-sized.
-2. *Comparator:* In order to compare the internally-kept serialized keys with the deserialized key provided by the API, OakMap requires a (key) comparator. The comparator compares two keys, each of which may be provided either as a deserialized object or as a serialized one, determining whether they are equal, and if not, which is bigger.
+2. *OakComparator:* In order to compare the internally-kept serialized keys with the deserialized key provided by the API, OakMap requires a (key) comparator. The comparator compares two keys, each of which may be provided either as a deserialized object or as a serialized one, determining whether they are equal, and if not, which is bigger.
 
 ## Install
 OakMap is a library. After downloading Oak, compile it using `mvn install package` to compile and install. Then update your project's pom.xml file dependencies, as follows:
@@ -58,11 +58,11 @@ OakMap<K,V> oak = builder.build();
 OakMap requires multiple parameters to be defined for the builder, as shall be explained below.
 When constructing off-heap OakMap, the memory capacity (per OakMap instance) needs to be specified. OakMap allocates the off-heap memory with the requested capacity at construction time, and later manages this memory.
 
-### Serializer
+### OakSerializer
 As explained above, OakMap<K,V> is given key 'K' and value 'V', which are requested to come with a serializer, deserializer and size calculator. OakMap user is requested to implement the following interface that can be found in the Oak project.
 
 ```java
-public interface Serializer<T> {
+public interface OakSerializer<T> {
 
   // serializes the object
   void serialize(T source, ByteBuffer targetBuffer);
@@ -78,10 +78,10 @@ public interface Serializer<T> {
 This is how to create those classes in your code:
 
 ```java
-public class OakKeySerializerImplementation implements Serializer<K>
+public class OakKeySerializerImplementation implements OakSerializer<K>
 {...}
 
-public class OakValueSerializerImplementation implements Serializer<V>
+public class OakValueSerializerImplementation implements OakSerializer<V>
 {...}
 ```
 
@@ -140,18 +140,18 @@ An OakRBuffer can represent either a key or a value. The OakRBuffer's user can u
 ### Notes on data retrieval
 1. For better performance of data retrieval, OakMap supplies an OakBufferView of the OakMap. The OakBufferView provides the following four methods for data retrieval, whose result is presented as an OakRBuffer:
 	- `OakRBuffer get(K key)`
-	- `CloseableIterator<OakRBuffer> valuesIterator()`
-	- `CloseableIterator<Map.Entry<OakRBuffer, OakRBuffer>> entriesIterator()`
-	- `CloseableIterator<OakRBuffer> keysIterator()`
+	- `OakCloseableIterator<OakRBuffer> valuesIterator()`
+	- `OakCloseableIterator<Map.Entry<OakRBuffer, OakRBuffer>> entriesIterator()`
+	- `OakCloseableIterator<OakRBuffer> keysIterator()`
 2. Without the OakBufferView, OakMap's data can be directly retrieved via the following four methods:
 	- `V get(K key)`
-	- `CloseableIterator<V> valuesIterator()`
-	- `CloseableIterator<Map.Entry<K, V>> entriesIterator()`
-	- `CloseableIterator<K> keysIterator()`
+	- `OakCloseableIterator<V> valuesIterator()`
+	- `OakCloseableIterator<Map.Entry<K, V>> entriesIterator()`
+	- `OakCloseableIterator<K> keysIterator()`
 	
 	However, these direct methods return keys and/or values as Objects by applying deseriliazation (copy). This is costly,  and we strongly advice to use OakBufferView or OakTransformView to operate directly on the internal data representation.
 3. For further understanding of data retrieval via OakTransformView, please refer to the [Transformations](#transformations) section.
-4. Note that OakMap's iterators are `CloseableIterator` (extend AutoCloseable) so it is possible to reuse the memory previously referred by iterator. Be sure to use it within try-statement or call its close() method explicitly when iterator is no longer in use.
+4. Note that OakMap's iterators are `OakCloseableIterator` (extend AutoCloseable) so it is possible to reuse the memory previously referred by iterator. Be sure to use it within try-statement or call its close() method explicitly when iterator is no longer in use.
 
 ### Notes on data ingestion
 1. Data can be ingested and updated via the following five methods:
@@ -208,11 +208,32 @@ if(buffer != null) {
 }
 ```
 
-#### Compute
+##### Scan&Copy with OakRBuffer
+```java
+Integer targetBuffer[] = new Integer[oak.entries()]; // might not be correct with multiple threads
+OakBufferView oakView = oak.createBufferView();
+try (OakCloseableIterator<Integer>  iter = oakView.valuesIterator()) {
+		int i = 0;
+		while (iter.hasNext()) {
+            targetBuffer[i++] = iter.next();
+    }
+}
+```
+
+##### Compute
 ```java
 Consumer<OakWBuffer> func = buf -> {
-    if (buf.getInt(0) == 1) {
-        buf.putInt(1);
+    Integer cnt = buf.getInt(0); // read integer from position 0
+    buf.putInt(0, (cnt+1));			 // accumulate counter, position back to 0
+};
+oak.computeIfPresent((Integer)10, func);
+```
+
+##### Conditional Compute
+```java
+Consumer<OakWBuffer> func = buf -> {
+    if (buf.getInt(0) == 0) {	// check integer at position 0
+        buf.putInt(1);				// position in the buffer is promoted
         buf.putInt(1);
     }
 };
@@ -221,7 +242,7 @@ oak.computeIfPresent((Integer)10, func);
 
 ##### Simple Iterator
 ```java
-try (CloseableIterator<Integer> iterator = oak.keysIterator()) {
+try (OakCloseableIterator<Integer> iterator = oak.keysIterator()) {
     while (iter.hasNext()) {
         Integer i = iter.next();
     }
@@ -230,7 +251,7 @@ try (CloseableIterator<Integer> iterator = oak.keysIterator()) {
 
 ##### Simple Descending Iterator
 ```java
-try (CloseableIterator<Integer, Integer> iter = oak.descendingMap().entriesIterator()) {
+try (OakCloseableIterator<Integer, Integer> iter = oak.descendingMap().entriesIterator()) {
     while (iter.hasNext()) {
         Map.Entry<Integer, Integer> e = iter.next();
     }
@@ -243,7 +264,7 @@ Integer from = (Integer)4;
 Integer to = (Integer)6;
 
 OakMap sub = oak.subMap(from, false, to, true);
-try (CloseableIterator<Integer>  iter = sub.valuesIterator()) {
+try (OakCloseableIterator<Integer>  iter = sub.valuesIterator()) {
     while (iter.hasNext()) {
         Integer i = iter.next();
     }
@@ -252,15 +273,15 @@ try (CloseableIterator<Integer>  iter = sub.valuesIterator()) {
 
 ## Transformations
 
-In addition to the OakBufferView explained above, OakMap provides the OakTransformView, which allows manipulating ByteBuffers instead of OakRBuffers. This view might be useful for directly retrieving modified (transformed) data from the OakMap.
+In addition to the OakBufferView explained above, OakMap provides the OakTransformView, which allows manipulating ByteBuffers instead of OakRBuffers. This abstraction is for backward compatibility with applications that are already based on the use of ByteBuffers. The OakTransformView might be useful for directly retrieving modified (transformed) data from the OakMap.
 
 Transform view is created via `OakTransformView createTransformView(Function<Map.Entry<ByteBuffer, ByteBuffer>, T> transformer)`.
 It requires a transform function `Function<Map.Entry<ByteBuffer, ByteBuffer>, T> transformer` that transforms key-value pairs given as **read-only** ByteBuffers into arbitrary `T` objects. The first ByteBuffer parameter (of the Entry) is the key and the second is the value. The API of OakTransformView is the same as that of OakBufferView, except that the return value type is `T`; namely:
 
 	- T get(K key)
-	- CloseableIterator<T> valuesIterator()
-	- CloseableIterator<Map.Entry<T, T>> entriesIterator()
-	- CloseableIterator<T> keysIterator()
+	- OakCloseableIterator<T> valuesIterator()
+	- OakCloseableIterator<Map.Entry<T, T>> entriesIterator()
+	- OakCloseableIterator<T> keysIterator()
 
 ### Code example
 
@@ -273,7 +294,7 @@ Function<Map.Entry<ByteBuffer, ByteBuffer>, Integer> func = (e) -> {
 
 try (OakTransformView oakView = oak.createTransformView(func)) {
 
-	try (CloseableIterator<Integer> iter = oakView.entriesIterator()) {
+	try (OakCloseableIterator<Integer> iter = oakView.entriesIterator()) {
   	  while (iter.hasNext()) {
     	    Integer i = iter.next();
     	}

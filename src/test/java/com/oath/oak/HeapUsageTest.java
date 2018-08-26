@@ -15,7 +15,7 @@ public class HeapUsageTest {
     private static int keySize = 10;
     private static int valSize = (int) Math.round(5 * K);
 
-    public static class FillTestKeySerializer implements Serializer<Integer> {
+    public static class FillTestKeySerializer implements OakSerializer<Integer> {
 
         @Override
         public void serialize(Integer key, ByteBuffer targetBuffer) {
@@ -33,7 +33,7 @@ public class HeapUsageTest {
         }
     }
 
-    public static class FillTestValueSerializer implements Serializer<Integer> {
+    public static class FillTestValueSerializer implements OakSerializer<Integer> {
 
         @Override
         public void serialize(Integer value, ByteBuffer targetBuffer) {

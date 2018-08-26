@@ -29,7 +29,7 @@ public class MemoryManagerTest {
     int maxItemsPerChunk = 1024;
     int maxBytesPerChunkItem = 100;
 
-    public static class CheckOakCapacityValueSerializer implements Serializer<Integer> {
+    public static class CheckOakCapacityValueSerializer implements OakSerializer<Integer> {
 
         @Override
         public void serialize(Integer value, ByteBuffer targetBuffer) {
@@ -382,7 +382,7 @@ public class MemoryManagerTest {
             assertEquals(i, value);
         }
 
-        try (CloseableIterator iter = oak.entriesIterator()) {
+        try (OakCloseableIterator iter = oak.entriesIterator()) {
             assertEquals(13 + 6 * maxItemsPerChunk, memoryManager.getValue(memoryManager.timeStamps[1].get()));
             assertFalse(memoryManager.isIdle(memoryManager.timeStamps[1].get()));
             Integer i = 0;
@@ -396,7 +396,7 @@ public class MemoryManagerTest {
             assertEquals(twiceMaxItemsPerChunk, i);
         }
 
-        try (CloseableIterator iter = oak.valuesIterator()) {
+        try (OakCloseableIterator iter = oak.valuesIterator()) {
             assertEquals(14 + 8 * maxItemsPerChunk, memoryManager.getValue(memoryManager.timeStamps[1].get()));
             assertFalse(memoryManager.isIdle(memoryManager.timeStamps[1].get()));
             int i = 0;
@@ -408,7 +408,7 @@ public class MemoryManagerTest {
             assertEquals(2 * maxItemsPerChunk, i);
             assertEquals(15 + 10 * maxItemsPerChunk, memoryManager.getValue(memoryManager.timeStamps[1].get()));
             assertFalse(memoryManager.isIdle(memoryManager.timeStamps[1].get()));
-            try (CloseableIterator<Integer> ignored = oak.descendingMap().valuesIterator()) {
+            try (OakCloseableIterator<Integer> ignored = oak.descendingMap().valuesIterator()) {
                 assertFalse(memoryManager.isIdle(memoryManager.timeStamps[1].get()));
             }
             assertFalse(memoryManager.isIdle(memoryManager.timeStamps[1].get()));

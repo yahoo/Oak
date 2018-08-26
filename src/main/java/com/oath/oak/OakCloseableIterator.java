@@ -11,7 +11,7 @@ import java.util.Iterator;
 /**
  * A concurrent map iterator interface that needs to be closed by the end of usage.
  */
-public interface CloseableIterator<T> extends Iterator<T>, AutoCloseable {
+public interface OakCloseableIterator<T> extends Iterator<T>, AutoCloseable {
     @Override
     void close();
 }

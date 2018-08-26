@@ -19,8 +19,8 @@ public class OakMapBuilder<K,V> {
 
   private int MAX_MEM_CAPACITY = Integer.MAX_VALUE/2; // about 2GB per Oak
 
-  private Serializer<K> keySerializer;
-  private Serializer<V> valueSerializer;
+  private OakSerializer<K> keySerializer;
+  private OakSerializer<V> valueSerializer;
 
   private K minKey;
 
@@ -47,12 +47,12 @@ public class OakMapBuilder<K,V> {
     this.memoryPool = null;
   }
 
-  public OakMapBuilder setKeySerializer(Serializer<K> keySerializer) {
+  public OakMapBuilder setKeySerializer(OakSerializer<K> keySerializer) {
     this.keySerializer = keySerializer;
     return this;
   }
 
-  public OakMapBuilder setValueSerializer(Serializer<V> valueSerializer) {
+  public OakMapBuilder setValueSerializer(OakSerializer<V> valueSerializer) {
     this.valueSerializer = valueSerializer;
     return this;
   }
@@ -112,7 +112,7 @@ public class OakMapBuilder<K,V> {
 
   public static OakMapBuilder<Integer, Integer> getDefaultBuilder() {
 
-    Serializer<Integer> serializer = new Serializer<Integer>() {
+    OakSerializer<Integer> serializer = new OakSerializer<Integer>() {
 
       @Override
       public void serialize(Integer obj, ByteBuffer targetBuffer) {

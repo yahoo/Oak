@@ -53,7 +53,7 @@ class HandleOffHeapImpl<V> extends Handle<V> {
     }
 
     @Override
-    void put(V newVal, Serializer<V> serializer, OakMemoryManager memoryManager) {
+    void put(V newVal, OakSerializer<V> serializer, OakMemoryManager memoryManager) {
         writeLock.lock();
         if (isDeleted()) {
             writeLock.unlock();

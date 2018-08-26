@@ -17,13 +17,13 @@ class KeysManagerOffHeapImpl<K> implements KeysManager<K> {
     ByteBuffer keys;
     int i;
     OakMemoryManager memoryManager;
-    private final Serializer<K> keySerializer;
+    private final OakSerializer<K> keySerializer;
     AtomicBoolean released;
     Logger log = Logger.getLogger(KeysManagerOffHeapImpl.class.getName());
 
     KeysManagerOffHeapImpl(int bytes,
                            OakMemoryManager memoryManager,
-                           Serializer<K> keySerializer) {
+                           OakSerializer<K> keySerializer) {
         Pair<Integer, ByteBuffer> pair = memoryManager.allocate(bytes);
         i = pair.getKey();
         keys = pair.getValue();

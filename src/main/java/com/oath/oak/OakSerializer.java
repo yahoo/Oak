@@ -11,7 +11,7 @@ import java.nio.ByteBuffer;
 /**
  * An interface to be supported by keys and values provided for Oak's mapping
  */
-public interface Serializer<T> {
+public interface OakSerializer<T> {
 
   // serializes the object
   void serialize(T object, ByteBuffer targetBuffer);

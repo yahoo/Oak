@@ -81,8 +81,8 @@ public class Chunk<K, V> {
     private final int maxKeyBytes;
     AtomicInteger externalSize; // for updating oak's size
     // for writing the keys into the bytebuffers
-    private final Serializer<K> keySerializer;
-    private final Serializer<V> valueSerializer;
+    private final OakSerializer<K> keySerializer;
+    private final OakSerializer<V> valueSerializer;
 
     /*-------------- Constructors --------------*/
 
@@ -110,8 +110,8 @@ public class Chunk<K, V> {
           int maxItems,
           int bytesPerItem,
           AtomicInteger externalSize,
-          Serializer<K> keySerializer,
-          Serializer<V> valueSerializer) {
+          OakSerializer<K> keySerializer,
+          OakSerializer<V> valueSerializer) {
         this.memoryManager = memoryManager;
         this.maxItems = maxItems;
         this.maxKeyBytes = maxItems * bytesPerItem;
