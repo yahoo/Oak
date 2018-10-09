@@ -4,7 +4,7 @@
 
     <groupId>com.yahoo.oak</groupId>
     <artifactId>oak</artifactId>
-    <version>y</version>
+    <version>1.1-SNAPSHOT</version>
 
     <name>Oak: Off-heap Allocated Keys</name>
     <description>A scalable, concurrent, in-memory Key Value (KV) map.
@@ -86,7 +86,7 @@
     <scm>
         <developerConnection>scm:git:ssh://git@github.com/yahoo/Oak.git</developerConnection>
         <url>https://github.com/yahoo/Oak.git</url>
-        <tag>oak-y</tag>
+        <tag>HEAD</tag>
     </scm>
 
     <distributionManagement>
