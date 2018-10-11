@@ -1,24 +1,241 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<project xmlns="http://maven.apache.org/POM/4.0.0"
-         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
-    <groupId>oak</groupId>
+    <groupId>com.yahoo.oak</groupId>
     <artifactId>oak</artifactId>
-    <version>1.0-SNAPSHOT</version>
+    <version>0.1.4-SNAPSHOT</version>
+
+    <name>Oak: Off-heap Allocated Keys</name>
+    <description>A scalable, concurrent, in-memory Key Value (KV) map.
+        Oak implements a concurrent Key-Value map that can keep all keys and values off-heap.
+        This enables working with bigger heap sizes than JVM's managed heap.
+        OakMap implements an API similar to the industry standard Java8 ConcurrentNavigableMap API.
+        It provides strong (atomic) semantics for read, write, and read-modify-write, as well as (non-atomic) range query (scan) operations, both forward and backward.
+        OakMap is optimized for big keys and values, in particular, for incremental maintenance of objects (update in-place).
+        It is faster and scales better with additional CPU cores than the popular Java ConcurrentNavigableMap ConcurrentSkipListMap</description>
+    <url>https://github.com/yahoo/Oak</url>
+
+    <organization>
+        <name>Yahoo Inc.</name>
+        <url>https://github.com/yahoo</url>
+    </organization>
+
+    <licenses>
+        <license>
+            <name>The Apache License, Version 2.0</name>
+            <url>http://www.apache.org/licenses/LICENSE-2.0.txt</url>
+        </license>
+    </licenses>
+
+    <issueManagement>
+        <system>GitHub</system>
+        <url>https://github.com/yahoo/Oak/issues</url>
+    </issueManagement>
+
+    <developers>
+        <developer>
+            <name>Anastasia Braginsky</name>
+            <email>sanastas@oath.com</email>
+            <organization>Yahoo Inc.</organization>
+            <organizationUrl>https://github.com/yahoo</organizationUrl>
+            <timezone>UTC+02:00</timezone>
+        </developer>
+        <developer>
+            <name>Hagar Meir</name>
+            <email>meirhagar@gmail.com</email>
+            <timezone>UTC+02:00</timezone>
+        </developer>
+        <developer>
+            <name>Dmitry Basin</name>
+            <email>dbasin@oath.com</email>
+            <organization>Yahoo Inc.</organization>
+            <organizationUrl>https://github.com/yahoo</organizationUrl>
+            <timezone>UTC+02:00</timezone>
+        </developer>
+        <developer>
+            <name>Gali Sheffi</name>
+            <email>gsheffi@oath.com</email>
+            <organization>Yahoo Inc.</organization>
+            <organizationUrl>https://github.com/yahoo</organizationUrl>
+            <timezone>UTC+02:00</timezone>
+        </developer>
+        <developer>
+            <name>Eshcar Hillel</name>
+            <email>eshcar@oath.com</email>
+            <organization>Yahoo Inc.</organization>
+            <organizationUrl>https://github.com/yahoo</organizationUrl>
+            <timezone>UTC+02:00</timezone>
+        </developer>
+        <developer>
+            <name>Edward Bortnikov</name>
+            <email>ebortnik@oath.com</email>
+            <organization>Yahoo Inc.</organization>
+            <organizationUrl>https://github.com/yahoo</organizationUrl>
+            <timezone>UTC+02:00</timezone>
+        </developer>
+        <developer>
+            <name>Eran Meir</name>
+            <email>eran.meir@oath.com</email>
+            <organization>Yahoo Inc.</organization>
+            <organizationUrl>https://github.com/yahoo</organizationUrl>
+            <timezone>UTC+02:00</timezone>
+        </developer>
+    </developers>
+
+    <scm>
+        <developerConnection>scm:git:ssh://git@github.com/yahoo/Oak.git</developerConnection>
+        <url>https://github.com/yahoo/Oak.git</url>
+        <tag>oak-0.1.1</tag>
+    </scm>
+
+    <distributionManagement>
+        <snapshotRepository>
+            <id>ossrh</id>
+            <url>https://oss.sonatype.org/content/repositories/snapshots</url>
+        </snapshotRepository>
+        <repository>
+            <id>ossrh</id>
+            <url>https://oss.sonatype.org/service/local/staging/deploy/maven2/</url>
+        </repository>
+    </distributionManagement>
+
+    <properties>
+        <java.version>1.8</java.version>
+
+        <!-- Maven Plugin Versioning -->
+        <maven-clean-plugin.version>2.5</maven-clean-plugin.version>
+        <maven-compiler-plugin.version>3.8.0</maven-compiler-plugin.version>
+        <nexus-staging-maven-plugin.version>1.6.7</nexus-staging-maven-plugin.version>
+        <maven-release-plugin.version>2.5.3</maven-release-plugin.version>
+        <maven-source-plugin.version>2.2.1</maven-source-plugin.version>
+        <maven-javadoc-plugin.version>3.0.1</maven-javadoc-plugin.version>
+        <maven-gpg-plugin.version>1.5</maven-gpg-plugin.version>
+    </properties>
+
     <build>
         <plugins>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-clean-plugin</artifactId>
+                <version>${maven-clean-plugin.version}</version>
+            </plugin>
+
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
+                <version>${maven-compiler-plugin.version}</version>
                 <configuration>
-                    <source>1.8</source>
-                    <target>1.8</target>
+                    <source>${java.version}</source>
+                    <target>${java.version}</target>
                 </configuration>
             </plugin>
+
+            <plugin>
+                <groupId>org.sonatype.plugins</groupId>
+                <artifactId>nexus-staging-maven-plugin</artifactId>
+                <version>${nexus-staging-maven-plugin.version}</version>
+                <extensions>true</extensions>
+                <configuration>
+                    <serverId>ossrh</serverId>
+                    <nexusUrl>https://oss.sonatype.org/</nexusUrl>
+                    <autoReleaseAfterClose>false</autoReleaseAfterClose>
+                </configuration>
+            </plugin>
+
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-release-plugin</artifactId>
+                <version>${maven-release-plugin.version}</version>
+                <configuration>
+                    <autoVersionSubmodules>true</autoVersionSubmodules>
+                    <useReleaseProfile>false</useReleaseProfile>
+                    <releaseProfiles>release</releaseProfiles>
+                    <goals>deploy nexus-staging:release</goals>
+                </configuration>
+            </plugin>
+
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-javadoc-plugin</artifactId>
+                <version>${maven-javadoc-plugin.version}</version>
+                <configuration>
+                    <!-- TODO Fix Javadoc and set this to true -->
+                    <failOnError>false</failOnError>
+                </configuration>
+                <executions>
+                    <execution>
+                        <id>attach-javadocs</id>
+                        <goals>
+                            <goal>jar</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+
         </plugins>
     </build>
+
+    <profiles>
+        <profile>
+            <id>release</id>
+
+            <build>
+                <plugins>
+
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-gpg-plugin</artifactId>
+                        <version>${maven-gpg-plugin.version}</version>
+                        <executions>
+                            <execution>
+                                <id>sign-artifacts</id>
+                                <phase>verify</phase>
+                                <goals>
+                                    <goal>sign</goal>
+                                </goals>
+                            </execution>
+                        </executions>
+                    </plugin>
+
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-source-plugin</artifactId>
+                        <version>${maven-source-plugin.version}</version>
+                        <executions>
+                            <execution>
+                                <id>attach-sources</id>
+                                <goals>
+                                    <goal>jar-no-fork</goal>
+                                </goals>
+                            </execution>
+                        </executions>
+                    </plugin>
+
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-javadoc-plugin</artifactId>
+                        <version>${maven-javadoc-plugin.version}</version>
+                        <configuration>
+                            <!-- TODO Fix Javadoc and set this to true -->
+                            <failOnError>false</failOnError>
+                        </configuration>
+                        <executions>
+                            <execution>
+                                <id>attach-javadocs</id>
+                                <goals>
+                                    <goal>jar</goal>
+                                </goals>
+                            </execution>
+                        </executions>
+                    </plugin>
+
+                </plugins>
+            </build>
+
+        </profile>
+    </profiles>
+
     <dependencies>
         <dependency>
             <groupId>junit</groupId>
@@ -26,6 +243,5 @@
             <version>RELEASE</version>
         </dependency>
     </dependencies>
-
 
 </project>
