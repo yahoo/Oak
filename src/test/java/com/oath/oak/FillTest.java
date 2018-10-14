@@ -6,6 +6,8 @@
 
 package com.oath.oak;
 
+import org.junit.Test;
+
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Random;
@@ -123,7 +125,8 @@ public class FillTest {
         }
     }
 
-    public static void main(String[] args) throws InterruptedException {
+    @Test
+    public void testMain() throws InterruptedException {
 
         OakMapBuilder builder = OakMapBuilder
                 .getDefaultBuilder()
@@ -134,9 +137,8 @@ public class FillTest {
 
         oak = (OakMap<Integer, Integer>) builder.build();
 
-        NUM_THREADS = Integer.parseInt(args[1]);
-
-        numOfEntries = Integer.parseInt(args[2]);
+        NUM_THREADS = 16;
+        numOfEntries = 100;
 
         key = 0;
         val = 0;

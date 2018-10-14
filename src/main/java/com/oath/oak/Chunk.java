@@ -6,7 +6,6 @@
 
 package com.oath.oak;
 
-import javafx.util.Pair;
 import sun.misc.Unsafe;
 
 import java.lang.reflect.Constructor;
@@ -19,6 +18,7 @@ import java.util.concurrent.atomic.AtomicMarkableReference;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 import java.util.function.Consumer;
+import java.util.logging.Logger;
 
 public class Chunk<K, V> {
 
@@ -55,9 +55,9 @@ public class Chunk<K, V> {
     public static int MAX_ITEMS_DEFAULT = 256;
 
     /*-------------- Members --------------*/
-
+    Logger log = Logger.getLogger(InternalOakMap.class.getName());
     private static final Unsafe unsafe;
-    private final OakMemoryManager memoryManager;
+    private final MemoryManager memoryManager;
     ByteBuffer minKey;       // minimal key that can be put in this chunk
     AtomicMarkableReference<Chunk> next;
     Comparator<Object> comparator;
@@ -106,7 +106,7 @@ public class Chunk<K, V> {
     Chunk(ByteBuffer minKey,
           Chunk creator,
           Comparator<Object> comparator,
-          OakMemoryManager memoryManager,
+          MemoryManager memoryManager,
           int maxItems,
           int bytesPerItem,
           AtomicInteger externalSize,
@@ -119,7 +119,7 @@ public class Chunk<K, V> {
         this.entryIndex = new AtomicInteger(FIRST_ITEM);
         this.handles = new Handle[maxItems + FIRST_ITEM];
         this.handleIndex = new AtomicInteger(FIRST_ITEM);
-        this.keysManager = new KeysManagerOffHeapImpl(this.maxKeyBytes, memoryManager, keySerializer);
+        this.keysManager = new KeysManager(this.maxKeyBytes, memoryManager, keySerializer);
         this.keyIndex = new AtomicInteger(FIRST_ITEM);
         this.sortedCount = new AtomicInteger(0);
         this.minKey = minKey;
@@ -217,6 +217,7 @@ public class Chunk<K, V> {
         int pos = keysManager.getPosition();
         bbThread.limit(pos + ki + length);
         bbThread.position(pos + ki);
+        bbThread = bbThread.slice();
         return bbThread;
     }
 
@@ -375,13 +376,13 @@ public class Chunk<K, V> {
      * allocate value handle
      *
      * @return if chunk is full return -1, otherwise return new handle index
-     **/
-    int allocateHandle(HandleFactory handleFactory) {
+     */
+    int allocateHandle() {
         int hi = handleIndex.getAndIncrement();
         if (hi + 1 > handles.length) {
             return -1;
         }
-        handles[hi] = handleFactory.createHandle();
+        handles[hi] = new Handle(null);
         return hi;
     }
 
@@ -476,14 +477,11 @@ public class Chunk<K, V> {
      **/
     void writeValue(int hi, V value) {
         assert memoryManager != null;
-        ByteBuffer byteBuffer;
-        int i = 0;
-        Pair<Integer, ByteBuffer> pair = memoryManager.allocate(valueSerializer.calculateSize(value));
-        i = pair.getKey();
-        assert i == 0;
-        byteBuffer = pair.getValue();
+        assert hi >= 0 ;
+        ByteBuffer byteBuffer = memoryManager.allocate(valueSerializer.calculateSize(value));
+        // just allocated bytebuffer is ensured to have position 0
         valueSerializer.serialize(value, byteBuffer);
-        handles[hi].setValue(byteBuffer, i);
+        handles[hi].setValue(byteBuffer);
     }
 
     public int getMaxItems() { return maxItems; }

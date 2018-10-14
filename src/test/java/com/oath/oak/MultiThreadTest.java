@@ -39,7 +39,7 @@ public class MultiThreadTest {
         oak = (OakMap<Integer, Integer>) builder.build();
         latch = new CountDownLatch(1);
         threads = new ArrayList<>(NUM_THREADS);
-
+        ((OakNativeMemoryAllocator)oak.getMemoryManager().memoryAllocator).stopMemoryReuse();
     }
 
     @After

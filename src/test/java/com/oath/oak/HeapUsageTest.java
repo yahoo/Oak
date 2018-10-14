@@ -6,6 +6,8 @@
 
 package com.oath.oak;
 
+import org.junit.Test;
+
 import java.nio.ByteBuffer;
 
 public class HeapUsageTest {
@@ -51,7 +53,8 @@ public class HeapUsageTest {
         }
     }
 
-    public static void main(String[] args) throws InterruptedException {
+    @Test
+    public void testMain() throws InterruptedException {
 
         OakMapBuilder builder = OakMapBuilder
                 .getDefaultBuilder()
@@ -59,7 +62,9 @@ public class HeapUsageTest {
                 .setChunkBytesPerItem(100)
                 .setKeySerializer(new FillTestKeySerializer())
                 .setValueSerializer(new FillTestValueSerializer());
-
+        // this number can be changed to test larger sizes however JVM memory limit need to be changed
+        // otherwise this will hit "java.lang.OutOfMemoryError: Direct buffer memory" exception
+        // currently tested up to 2GB
         int numOfEntries = 360000;
 
         System.out.println("key size: " + keySize + "B" + ", value size: " + ((double) valSize) / K + "KB");
@@ -78,7 +83,7 @@ public class HeapUsageTest {
             System.out.println(
                 "heap size: " + heapSize / M + "MB" + ", heap max size: " + heapMaxSize / M + "MB" + ", heap free size: " + heapFreeSize / M + "MB");
             System.out.println("heap used: " + (heapSize - heapFreeSize) / M + "MB");
-            System.out.println("off heap used: " + oak.getMemoryManager().pool.allocated() / M + "MB");
+            System.out.println("off heap used: " + oak.getMemoryManager().allocated() / M + "MB");
 
             for (int i = 0; i < numOfEntries; i++) {
                 key = i;
@@ -86,7 +91,7 @@ public class HeapUsageTest {
                 oak.put(key, val);
             }
             System.out.println("\nAfter filling up oak");
-            System.out.println("off heap used: " + oak.getMemoryManager().pool.allocated() / M + "MB");
+            System.out.println("off heap used: " + oak.getMemoryManager().allocated() / M + "MB");
 
             System.gc();
 
@@ -116,7 +121,7 @@ public class HeapUsageTest {
                 }
             }
             System.out.println("\nCheck again");
-            System.out.println("off heap used: " + oak.getMemoryManager().pool.allocated() / M + "MB");
+            System.out.println("off heap used: " + oak.getMemoryManager().allocated() / M + "MB");
             System.out.println("off heap allocated: " + Integer.MAX_VALUE / M + "MB");
             System.gc();
             heapSize = Runtime.getRuntime().totalMemory(); // Get current size of heap in bytes
@@ -125,7 +130,7 @@ public class HeapUsageTest {
             System.out.println(
                 "heap size: " + heapSize / M + "MB" + ", heap max size: " + heapMaxSize / M + "MB" + ", heap free size: " + heapFreeSize / M + "MB");
             System.out.println("heap used: " + (heapSize - heapFreeSize) / M + "MB");
-            float percent = (100 * (heapSize - heapFreeSize)) / oak.getMemoryManager().pool.allocated();
+            float percent = (100 * (heapSize - heapFreeSize)) / oak.getMemoryManager().allocated();
             System.out.println("\non/off heap used: " + String.format("%.0f%%", percent));
         }
     }

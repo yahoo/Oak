@@ -37,7 +37,7 @@ public class MultiThreadComputeTest {
         oak = (OakMap<Integer, Integer>) builder.build();
         latch = new CountDownLatch(1);
         threads = new ArrayList<>(NUM_THREADS);
-
+        ((OakNativeMemoryAllocator)oak.getMemoryManager().memoryAllocator).stopMemoryReuse();
         computer = new Consumer<OakWBuffer>() {
             @Override
             public void accept(OakWBuffer oakWBuffer) {

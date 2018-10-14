@@ -30,8 +30,7 @@ class InternalOakMap<K, V> {
   private final AtomicReference<Chunk<K, V>> head;
   private final ByteBuffer minKey;
   final Comparator comparator;
-  final OakMemoryManager memoryManager;
-  private final HandleFactory handleFactory;
+  final MemoryManager memoryManager;
   private AtomicInteger size;
   private OakSerializer<K> keySerializer;
   private OakSerializer<V> valueSerializer;
@@ -51,7 +50,7 @@ class InternalOakMap<K, V> {
           OakSerializer<K> keySerializer,
           OakSerializer<V> valueSerializer,
           Comparator comparator,
-          OakMemoryManager memoryManager,
+          MemoryManager memoryManager,
           int chunkMaxItems,
           int chunkBytesPerItem) {
 
@@ -72,8 +71,6 @@ class InternalOakMap<K, V> {
             chunkBytesPerItem, this.size, keySerializer, valueSerializer);
     this.skiplist.put(head.minKey, head);    // add first chunk (head) into skiplist
     this.head = new AtomicReference<>(head);
-
-    this.handleFactory = new HandleFactory(true);
   }
 
   static int getThreadIndex() {
@@ -91,7 +88,7 @@ class InternalOakMap<K, V> {
     // once reference count is zeroed, the map meant to be deleted and should not be used.
     // reference count will never grow again
     if (res == 0) {
-      memoryManager.pool.clean();
+      memoryManager.close();
     }
   }
 
@@ -118,7 +115,7 @@ class InternalOakMap<K, V> {
    * @return current off heap memory usage in bytes
    */
   long memorySize() {
-    return memoryManager.pool.allocated();
+    return memoryManager.allocated();
   }
 
   int entries() { return size.get(); }
@@ -147,8 +144,7 @@ class InternalOakMap<K, V> {
       assert op == Operation.NO_OP;
       return null;
     }
-    Rebalancer rebalancer = new Rebalancer(c, comparator, true, memoryManager, handleFactory,
-            keySerializer, valueSerializer);
+    Rebalancer rebalancer = new Rebalancer(c, comparator, true, memoryManager, keySerializer, valueSerializer);
 
     rebalancer = rebalancer.engageChunks(); // maybe we encountered a different rebalancer
 
@@ -378,7 +374,7 @@ class InternalOakMap<K, V> {
       }
     }
 
-    int hi = c.allocateHandle(handleFactory);
+    int hi = c.allocateHandle();
     if (hi == -1) {
       rebalancePut(c, key, value);
       return;
@@ -447,7 +443,7 @@ class InternalOakMap<K, V> {
       }
     }
 
-    int hi = c.allocateHandle(handleFactory);
+    int hi = c.allocateHandle();
     if (hi == -1) {
       return rebalancePutIfAbsent(c, key, value);
     }
@@ -527,7 +523,7 @@ class InternalOakMap<K, V> {
       }
     }
 
-    int hi = c.allocateHandle(handleFactory);
+    int hi = c.allocateHandle();
     if (hi == -1) {
       rebalanceCompute(c, key, value, computer);
       return;
@@ -551,7 +547,7 @@ class InternalOakMap<K, V> {
       throw new NullPointerException();
     }
 
-    boolean logical = true;
+    boolean logical = true; // when logical is false, means we have marked the handle as deleted
     Handle prev = null;
 
     while (true) {
@@ -566,16 +562,18 @@ class InternalOakMap<K, V> {
       }
 
       if (lookUp == null || lookUp.handle == null) {
-        return;
+        return; // there is no such key
       }
 
       if (logical) {
         if (!lookUp.handle.remove(memoryManager)) {
+          // we didn't succeed to remove the handle was marked as deleted already
           return;
         }
+        // we have marked this handle as deleted
       }
 
-      // if chunk is frozen or infant, we can't add to it
+      // if chunk is frozen or infant, we can't update it (remove deleted key, set handle index to -1)
       // we need to help rebalancer first, then proceed
       Chunk.State state = c.state();
       if (state == Chunk.State.INFANT) {
@@ -789,7 +787,7 @@ class InternalOakMap<K, V> {
       // we use another nested attach-detach invocation to allow releasing the memory where
       // iterator already traversed. Finally to mark the thread idle we need the detach to be
       // invoked from the close of this closeable iterator.
-      memoryManager.attachThread();
+      memoryManager.startOperation();
       next = Chunk.NONE;
       nextHandle = null;
       initChunk();
@@ -798,7 +796,7 @@ class InternalOakMap<K, V> {
 
     @Override
     public void close() {
-      memoryManager.detachThread();
+      memoryManager.stopOperation();
     }
 
     boolean tooLow(Object key) {
@@ -823,10 +821,10 @@ class InternalOakMap<K, V> {
 
     public T next() {
       try {
-        memoryManager.attachThread();
+        memoryManager.startOperation();
         return internalNext();
       } finally {
-        memoryManager.detachThread();
+        memoryManager.stopOperation();
       }
     }
 

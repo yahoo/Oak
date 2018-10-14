@@ -13,25 +13,28 @@ import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.concurrent.atomic.AtomicLong;
 
-class OakMemoryManager { // TODO interface allocate, release
+class MemoryManager {
 
-    final MemoryPool pool;
+    final OakMemoryAllocator memoryAllocator;
     final AtomicLong[] timeStamps;
-    final ArrayList<LinkedList<Triplet>> releasedArray;
+    final ArrayList<LinkedList<Pair<Long,ByteBuffer>>> releasedArray;
     final AtomicLong max;
 
     // Pay attention, this busy bit is used as a counter for nested calls of start thread method.
-    // It can be increased only 2^23 (8,388,608) times. This is needed for iterators that reappear
-    // in the data structure and assume the chunks on their way are not coing to be de-allocated.
+    // It can be increased only 2^23 (8,388,608) times, before overflowing.
+    // This is needed for iterators that reappear
+    // in the data structure and assume the chunks on their way are not going to be de-allocated.
     // In case iterator should cover more than this number of items, the code should be adopted.
     // The stop thread method (in turn) decreases the busy bit count and should achieve zero when
     // thread is really idle.
     private static final long BUSY_BIT = 1L << 48;
     private static final long IDLE_MASK = 0xFFFF000000000000L; // last byte
-    static final int RELEASES = 100;
+    private static final int RELEASES_DEFAULT = 100; // TODO: make it configurable
 
-    OakMemoryManager(MemoryPool pool) {
-        this.pool = pool;
+    private int releases; // to be able to change it for testing
+
+    MemoryManager(long capacity, OakMemoryAllocator ma) {
+        this.memoryAllocator = (ma == null) ? new OakNativeMemoryAllocator(capacity) : ma;
         this.timeStamps = new AtomicLong[Chunk.MAX_THREADS];
         for (int i = 0; i < Chunk.MAX_THREADS; i++) {
             this.timeStamps[i] = new AtomicLong(0);
@@ -40,72 +43,66 @@ class OakMemoryManager { // TODO interface allocate, release
         for (int i = 0; i < Chunk.MAX_THREADS; i++) {
             releasedArray.add(i, new LinkedList<>());
         }
-        max = new AtomicLong();
+        max = new AtomicLong(0);
+        releases = RELEASES_DEFAULT;
     }
 
-    Pair<Integer, ByteBuffer> allocate(int capacity) {
-        return pool.allocate(capacity);
+    ByteBuffer allocate(int size) {
+        return memoryAllocator.allocate(size);
     }
 
-    static class Triplet {
-
-        long max;
-        int i;
-        ByteBuffer bb;
-
-        Triplet(long max, int i, ByteBuffer bb) {
-            this.max = max;
-            this.i = i;
-            this.bb = bb;
-        }
-
+    void close() {
+        memoryAllocator.close();
     }
 
     private boolean assertDoubleRelease(ByteBuffer bb) {
         for (int i = 0; i < Chunk.MAX_THREADS; i++) {
-            LinkedList<Triplet> list = releasedArray.get(i);
-            for (Triplet t : list
+            LinkedList<Pair<Long,ByteBuffer>> list = releasedArray.get(i);
+            for (Pair<Long,ByteBuffer> p : list
                     ) {
-                if (t.bb == bb)
+                if (p.getValue() == bb)
                     return true;
             }
         }
         return false;
     }
 
-    void release(int i, ByteBuffer bb) {
+    void release(ByteBuffer bb) {
 //        assert !assertDoubleRelease(bb);
         int idx = InternalOakMap.getThreadIndex();
-        LinkedList<Triplet> myList = releasedArray.get(idx);
-        myList.addFirst(new Triplet(this.max.get(), i, bb));
-//        myList.addFirst(new Triplet(-1, i, bb));
+        LinkedList<Pair<Long,ByteBuffer>> myList = releasedArray.get(idx);
+        myList.addFirst(new Pair<Long,ByteBuffer>(this.max.incrementAndGet(), bb));
         checkRelease(idx, myList);
     }
 
-    private void checkRelease(int idx, LinkedList<Triplet> myList) {
-        if (myList.size() >= RELEASES) {
+    private void checkRelease(int idx, LinkedList<Pair<Long,ByteBuffer>> myList) {
+        if (myList.size() >= releases) {
             forceRelease(myList);
         }
     }
 
 
-    void forceRelease(LinkedList<Triplet> myList) {
+    private void forceRelease(LinkedList<Pair<Long,ByteBuffer>> myList) {
         long min = Long.MAX_VALUE;
         for (int j = 0; j < Chunk.MAX_THREADS; j++) {
             long timeStamp = timeStamps[j].get();
             if (!isIdle(timeStamp)) {
+                // find minimal timestam among the working threads
                 min = Math.min(min, getValue(timeStamp));
             }
         }
-        for (int i = 0; i < myList.size(); i++) {
-            Triplet triplet = myList.get(i);
-//            if (triplet.max == -1) {
-//                continue;
-//            }
-            if (triplet.max < min) {
-                myList.remove(triplet);
-                pool.free(triplet.i, triplet.bb);
+        // collect and remove in two steps to avoid concurrent modification exception
+        LinkedList<Pair<Long,ByteBuffer>> toBeRemovedList = new LinkedList<>();
+        for (Pair<Long,ByteBuffer> pair : myList ) {
+            // pair's key is the "old max", meaning the timestamp when the ByteBuffer was released
+            // (disconnected from the data structure)
+            if (pair.getKey() /* max */ < min) {
+                toBeRemovedList.add(pair);
             }
+        }
+        myList.removeAll(toBeRemovedList);
+        for (Pair<Long,ByteBuffer> pair : toBeRemovedList ) {
+            memoryAllocator.free(pair.getValue() /* pair's value is the byte buffer */);
         }
     }
 
@@ -118,7 +115,7 @@ class OakMemoryManager { // TODO interface allocate, release
         return timeStamp & (~IDLE_MASK);
     }
 
-    void attachThread() {
+    void startOperation() {
         int idx = InternalOakMap.getThreadIndex();
         AtomicLong timeStamp = timeStamps[idx];
         long l = timeStamp.get();
@@ -134,19 +131,19 @@ class OakMemoryManager { // TODO interface allocate, release
         }
 
         // if our local counter v overgrown the global max, return the global max to be maximum
-        // so the number is always growing
+        // so the number (per thread) is always growing
         long global_max = this.max.get();
         long diff = (v > global_max) ? v - global_max + 1 : 1;
         long max = this.max.addAndGet(diff);
 
         l &= IDLE_MASK; // zero the local counter
-        l += max;
-        l += BUSY_BIT; // set to not idle
+        l += max;       // set it to be current maximum
+        l += BUSY_BIT;  // set to not idle
         timeStamp.set(l);
         assert !isIdle(timeStamp.get());
     }
 
-    void detachThread() {
+    void stopOperation() {
         int idx = InternalOakMap.getThreadIndex();
         AtomicLong timeStamp = timeStamps[idx];
         long l = timeStamp.get();
@@ -161,4 +158,15 @@ class OakMemoryManager { // TODO interface allocate, release
         long l = timeStamp.get();
         assert isIdle(l);
     }
+
+    // how many memory is allocated for this OakMap
+    long allocated() { return memoryAllocator.allocated(); }
+
+    // used only for testing
+    OakMemoryAllocator getMemoryAllocator() {
+        return memoryAllocator;
+    }
+
+    // used only for testing
+    void setGCtrigger(int i) { releases = i; }
 }

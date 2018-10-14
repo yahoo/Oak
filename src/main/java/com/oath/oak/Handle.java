@@ -13,7 +13,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Consumer;
 
-abstract class Handle<V> implements OakWBuffer {
+class Handle<V> implements OakWBuffer {
 
     final ReentrantReadWriteLock.ReadLock readLock;
     final ReentrantReadWriteLock.WriteLock writeLock;
@@ -28,20 +28,61 @@ abstract class Handle<V> implements OakWBuffer {
         this.deleted = new AtomicBoolean(false);
     }
 
-    abstract void increaseValueCapacity(OakMemoryManager memoryManager);
+    void increaseValueCapacity(MemoryManager memoryManager) {
+        assert writeLock.isHeldByCurrentThread();
+        ByteBuffer newValue = memoryManager.allocate(value.capacity() * 2);
+        for (int j = 0; j < value.limit(); j++) {
+            newValue.put(j, value.get(j));
+        }
+        newValue.position(value.position());
+        memoryManager.release(this.value);
+        value = newValue;
+    }
 
-    abstract void setValue(ByteBuffer value, int i);
+    void setValue(ByteBuffer value) {
+        writeLock.lock();
+        value.rewind();
+        this.value = value;
+        writeLock.unlock();
+    }
 
     boolean isDeleted() {
         return deleted.get();
     }
 
-    abstract boolean remove(OakMemoryManager memoryManager);
+    boolean remove(MemoryManager memoryManager) {
+        writeLock.lock();
+        if (isDeleted()) {
+            writeLock.unlock();
+            return false;
+        }
+        deleted.set(true);
+        writeLock.unlock();
+        memoryManager.release(value);
+        return true;
+    }
 
-    abstract void put(V newVal, OakSerializer<V> serializer, OakMemoryManager memoryManager);
+    void put(V newVal, OakSerializer<V> serializer, MemoryManager memoryManager) {
+        writeLock.lock();
+        if (isDeleted()) {
+            writeLock.unlock();
+            return;
+        }
+        int capacity = serializer.calculateSize(newVal);
+        if (this.value.capacity() < capacity) { // can not reuse the existing space
+            memoryManager.release(this.value);
+            this.value = memoryManager.allocate(capacity);
+        } else {
+            this.value.clear(); // zero the position
+        }
+        serializer.serialize(newVal, this.value);
+        value.rewind();
+        assert value.position() == 0;
+        writeLock.unlock();
+    }
 
     // returns false in case handle was found deleted and compute didn't take place, true otherwise
-    boolean compute(Consumer<OakWBuffer> computer, OakMemoryManager memoryManager) {
+    boolean compute(Consumer<OakWBuffer> computer, MemoryManager memoryManager) {
         writeLock.lock();
         if (isDeleted()) {
             writeLock.unlock();
@@ -55,6 +96,7 @@ abstract class Handle<V> implements OakWBuffer {
             this.value.rewind(); // TODO rewind?
             writeLock.unlock();
         }
+        assert value.position() == 0;
         return true;
     }
 
@@ -108,11 +150,18 @@ abstract class Handle<V> implements OakWBuffer {
 
     public ByteBuffer getImmutableByteBuffer() {
         //TODO: check that the read lock is held by the current thread
+        ByteBuffer readOnlyBB = value.asReadOnlyBuffer();
+        // the new read only BB object capacity, limit, position, and mark values
+        // will be identical to those of the value buffer (shared with others).
+        // for thread-safeness the returned BB need to be rewind
+        readOnlyBB.rewind();
         return value.asReadOnlyBuffer();
     }
 
     @Override
+    // increments the position and thus should be used only in write mode
     public byte get() {
+        assert writeLock.isHeldByCurrentThread();
         return value.get();
     }
 
@@ -251,7 +300,9 @@ abstract class Handle<V> implements OakWBuffer {
     }
 
     @Override
+    // increments the position and thus should be used only in write mode
     public OakWBuffer get(byte[] dst, int offset, int length) {
+        assert writeLock.isHeldByCurrentThread();
         value.get(dst, offset, length);
         return this;
     }

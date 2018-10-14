@@ -7,20 +7,68 @@
 package com.oath.oak;
 
 import java.nio.ByteBuffer;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.logging.Logger;
 
-interface KeysManager<K> {
+class KeysManager<K> {
 
-    int length();
+    ByteBuffer keys;
+    int i;
+    MemoryManager memoryManager;
+    private final OakSerializer<K> keySerializer;
+    AtomicBoolean released;
+    Logger log = Logger.getLogger(KeysManager.class.getName());
 
-    void writeKey(K key, int ki);
+    KeysManager(int bytes,
+                           MemoryManager memoryManager,
+                           OakSerializer<K> keySerializer) {
+        keys = memoryManager.allocate(bytes);
+        assert keys.position() == 0;
+        this.memoryManager = memoryManager;
+        this.keySerializer = keySerializer;
+        this.released = new AtomicBoolean(false);
+    }
 
-    ByteBuffer getKeys();
+    public int length() {
+        return keys.remaining();
+    }
 
-    // Shuold be thread-safe
-    void release();
+    public void writeKey(K key, int ki) {
+        assert keys.position() == 0;
+        ByteBuffer byteBuffer = keys.duplicate();
+        byteBuffer.position(ki);
+        byteBuffer.limit(ki + keySerializer.calculateSize(key));
+        byteBuffer = byteBuffer.slice();
+        assert byteBuffer.position() == 0;
+        // byteBuffer is set so it protects us from the overwrites of the serializer
+        keySerializer.serialize(key, byteBuffer);
+    }
 
-    void copyKeys(KeysManager srcKeysManager, int srcIndex, int index, int lengthToCopy);
+    public ByteBuffer getKeys() {
+        assert keys.position() == 0;
+        return keys.duplicate();
+    }
 
-    int getPosition();
+    public void release() {
+        if (released.compareAndSet(false, true)) {
+            memoryManager.release(keys);
+        }
+    }
 
+    public void copyKeys(KeysManager srcKeysManager, int srcIndex, int index, int lengthToCopy) {
+        ByteBuffer srcKeys = srcKeysManager.getKeys();
+        int srcKeyPos = srcKeys.position();
+        int myPos = keys.position();
+        for (int j = 0; j < lengthToCopy; j++) {
+            if (myPos + index + j >= keys.limit()) {
+                log.info("can't put in buffer..");
+            }
+            keys.put(myPos + index + j, srcKeys.get(srcKeyPos + srcIndex + j));
+        }
+    }
+
+    public int getPosition() {
+        assert keys.position() == 0;
+        return keys.position();
+    }
 }

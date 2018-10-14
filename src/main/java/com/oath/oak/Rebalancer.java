@@ -43,20 +43,14 @@ class Rebalancer<K, V> {
     private int bytesInRange;
     private final Comparator<Object> comparator;
     private final boolean offHeap;
-    private final OakMemoryManager memoryManager;
-    private final HandleFactory handleFactory;
+    private final MemoryManager memoryManager;
     private final OakSerializer<K> keySerializer;
     private final OakSerializer<V> valueSerializer;
 
     /*-------------- Constructors --------------*/
 
-    Rebalancer(Chunk chunk,
-               Comparator<Object> comparator,
-               boolean offHeap,
-               OakMemoryManager memoryManager,
-               HandleFactory handleFactory,
-               OakSerializer<K> keySerializer,
-               OakSerializer<V> valueSerializer) {
+    Rebalancer(Chunk chunk, Comparator<Object> comparator, boolean offHeap, MemoryManager memoryManager,
+        OakSerializer<K> keySerializer, OakSerializer<V> valueSerializer) {
         this.rebalanceSize = 2;
         this.maxAfterMergePart = 0.7;
         this.lowThreshold = 0.5;
@@ -77,7 +71,6 @@ class Rebalancer<K, V> {
         chunksInRange = 1;
         itemsInRange = first.getStatistics().getCompactedCount();
         bytesInRange = first.keyIndex.get();
-        this.handleFactory = handleFactory;
         this.keySerializer = keySerializer;
         this.valueSerializer = valueSerializer;
     }
@@ -335,7 +328,7 @@ class Rebalancer<K, V> {
 
         int hi = -1;
         if (operation != Operation.REMOVE) {
-            hi = c.allocateHandle(handleFactory);
+            hi = c.allocateHandle();
             assert hi > 0; // chunk can't be full
 
             c.writeValue(hi, value); // write value in place

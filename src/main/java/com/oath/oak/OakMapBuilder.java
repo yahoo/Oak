@@ -17,7 +17,7 @@ import java.nio.ByteBuffer;
  */
 public class OakMapBuilder<K,V> {
 
-  private int MAX_MEM_CAPACITY = Integer.MAX_VALUE/2; // about 2GB per Oak
+  private int MAX_MEM_CAPACITY = Integer.MAX_VALUE; // 2GB per Oak by default
 
   private OakSerializer<K> keySerializer;
   private OakSerializer<V> valueSerializer;
@@ -30,8 +30,8 @@ public class OakMapBuilder<K,V> {
   // Off-heap fields
   private int chunkMaxItems;
   private int chunkBytesPerItem;
-  private MemoryPool memoryPool;
   private int memoryCapacity;
+  private OakMemoryAllocator memoryAllocator;
 
   public OakMapBuilder() {
     this.keySerializer = null;
@@ -44,7 +44,7 @@ public class OakMapBuilder<K,V> {
     this.chunkMaxItems = Chunk.MAX_ITEMS_DEFAULT;
     this.chunkBytesPerItem = Chunk.BYTES_PER_ITEM_DEFAULT;
     this.memoryCapacity = MAX_MEM_CAPACITY;
-    this.memoryPool = null;
+    this.memoryAllocator = null;
   }
 
   public OakMapBuilder setKeySerializer(OakSerializer<K> keySerializer) {
@@ -72,11 +72,6 @@ public class OakMapBuilder<K,V> {
     return this;
   }
 
-  public OakMapBuilder setMemoryPool(MemoryPool memoryPool) {
-    this.memoryPool = memoryPool;
-    return this;
-  }
-
   public OakMapBuilder setMemoryCapacity(int memoryCapacity) {
     this.memoryCapacity = memoryCapacity;
     return this;
@@ -87,19 +82,23 @@ public class OakMapBuilder<K,V> {
     return this;
   }
 
+  public OakMapBuilder setMemoryAllocator(OakMemoryAllocator ma) {
+    this.memoryAllocator = ma;
+    return this;
+  }
+
   public OakMap build() {
 
-    if (memoryPool == null)
-      memoryPool = new SimpleNoFreeMemoryPoolImpl(memoryCapacity);
+    MemoryManager memoryManager = (memoryAllocator == null) ?
+      new MemoryManager(memoryCapacity, null) :
+        new MemoryManager(memoryCapacity, memoryAllocator);
 
     return new OakMap(
             minKey,
             keySerializer,
             valueSerializer,
-            comparator,
-            memoryPool,
-            chunkMaxItems,
-            chunkBytesPerItem);
+            comparator, chunkMaxItems,
+            chunkBytesPerItem, memoryManager);
   }
 
   private static int intsCompare(int int1, int int2) {
@@ -112,7 +111,7 @@ public class OakMapBuilder<K,V> {
 
   public static OakMapBuilder<Integer, Integer> getDefaultBuilder() {
 
-    OakSerializer<Integer> serializer = new OakSerializer<Integer>() {
+    OakSerializer<Integer> serializerK = new OakSerializer<Integer>() {
 
       @Override
       public void serialize(Integer obj, ByteBuffer targetBuffer) {
@@ -121,6 +120,25 @@ public class OakMapBuilder<K,V> {
 
       @Override
       public Integer deserialize(ByteBuffer serializedObj) {
+        return serializedObj.getInt(serializedObj.position());
+      }
+
+      @Override
+      public int calculateSize(Integer key) { return Integer.BYTES; }
+
+    };
+
+    OakSerializer<Integer> serializerV = new OakSerializer<Integer>() {
+
+      @Override
+      public void serialize(Integer obj, ByteBuffer targetBuffer) {
+        assert targetBuffer.position() == 0;
+        targetBuffer.putInt(targetBuffer.position(), obj);
+      }
+
+      @Override
+      public Integer deserialize(ByteBuffer serializedObj) {
+        assert serializedObj.position() == 0;
         return serializedObj.getInt(serializedObj.position());
       }
 
@@ -151,8 +169,8 @@ public class OakMapBuilder<K,V> {
     };
 
     return new OakMapBuilder<Integer, Integer>()
-            .setKeySerializer(serializer)
-            .setValueSerializer(serializer)
+            .setKeySerializer(serializerK)
+            .setValueSerializer(serializerV)
             .setMinKey(new Integer(Integer.MIN_VALUE))
             .setComparator(comparator);
   }

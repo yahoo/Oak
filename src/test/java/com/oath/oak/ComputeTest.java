@@ -6,6 +6,8 @@
 
 package com.oath.oak;
 
+import org.junit.Test;
+
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Random;
@@ -66,7 +68,7 @@ public class ComputeTest {
 
         @Override
         public ByteBuffer deserialize(ByteBuffer serializedValue) {
-            ByteBuffer value = ByteBuffer.allocate(valSize);
+            ByteBuffer value = ByteBuffer.allocate(valSize * Integer.BYTES);
             value.position(0);
             for (int i = 0; i < valSize; i++) {
                 value.putInt(Integer.BYTES * i, serializedValue.getInt(Integer.BYTES * i));
@@ -158,7 +160,8 @@ public class ComputeTest {
         }
     }
 
-    public static void main(String[] args) throws InterruptedException {
+    @Test
+    public void testMain() throws InterruptedException {
 
         ByteBuffer minKey = ByteBuffer.allocate(keySize * Integer.BYTES);
         minKey.position(0);
@@ -177,8 +180,8 @@ public class ComputeTest {
 
         oak = (OakMap<ByteBuffer, ByteBuffer>) builder.build();
 
-        NUM_THREADS = Integer.parseInt(args[1]);
-        numOfEntries = Integer.parseInt(args[2]);
+        NUM_THREADS = 16;
+        numOfEntries = 100;
 
 
         key.putInt(0, 0);
