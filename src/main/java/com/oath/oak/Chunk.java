@@ -451,7 +451,7 @@ public class Chunk<K, V> {
                   // index key. Then increase the sorted count.
                   int sortedCount = this.sortedCount.get();
                   if (sortedCount > 0) {
-                    if (ei == ((sortedCount + 1) * FIELDS + 1)) {
+                    if (ei == (sortedCount * FIELDS + 1)) {
                       // the new entry's index is exactly after the sorted count
                       if (compare(
                           readKey((sortedCount - 1) * FIELDS + FIRST_ITEM), key) <= 0) {
@@ -686,7 +686,8 @@ public class Chunk<K, V> {
      */
     final int copyPart(Chunk srcChunk, int ei, int maxCapacity, int maxBytes) {
 
-        assert ei != HEAD_NODE;
+        if (ei == HEAD_NODE)
+            return NONE;
 
         // use local variables and just set the atomic variables once at the end
         int sortedEntryIndex = entryIndex.get();
@@ -696,7 +697,7 @@ public class Chunk<K, V> {
 
         int maxIdx = maxCapacity * FIELDS + 1;
         if (sortedEntryIndex >= maxIdx || sortedKeyIndex >= maxBytes) return ei;
-        assert ei < entries.length - FIELDS;
+        assert ei <= entries.length - FIELDS;
         if (sortedEntryIndex != FIRST_ITEM) {
             set(sortedEntryIndex - FIELDS, OFFSET_NEXT, sortedEntryIndex);
         } else {

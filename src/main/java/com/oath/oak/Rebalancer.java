@@ -234,7 +234,7 @@ class Rebalancer<K, V> {
             counter += c.getStatistics().getCompactedCount();
             bytesSum += c.keyIndex.get();
         }
-        return counter < maxCount;
+        return counter < maxCount && bytesSum < maxBytes;
     }
 
     private void completeCopy(Chunk dest, int ei, List<Chunk> srcChunks) {
