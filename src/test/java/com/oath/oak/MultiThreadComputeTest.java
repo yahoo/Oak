@@ -175,7 +175,6 @@ public class MultiThreadComputeTest {
         }
         for (Integer i = 2 * maxItemsPerChunk; i < 3 * maxItemsPerChunk; i++) {
             Integer value = oak.get(i);
-            assertTrue(value != null);
             assertEquals(i, value);
         }
         for (Integer i = 3 * maxItemsPerChunk; i < 4 * maxItemsPerChunk; i++) {
@@ -185,7 +184,6 @@ public class MultiThreadComputeTest {
 
         for (Integer i = 4 * maxItemsPerChunk; i < 6 * maxItemsPerChunk; i++) {
             Integer value = oak.get(i);
-            assertTrue(value != null);
             assertEquals(i, value);
         }
 

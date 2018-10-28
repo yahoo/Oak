@@ -6,9 +6,12 @@
 
 package com.oath.oak;
 
+import javafx.util.Pair;
+
 import java.nio.ByteBuffer;
+import java.util.Comparator;
 import java.util.concurrent.ConcurrentLinkedQueue;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.atomic.AtomicLong;
 
 class OakNativeMemoryAllocator implements OakMemoryAllocator{
@@ -16,8 +19,8 @@ class OakNativeMemoryAllocator implements OakMemoryAllocator{
     // blocks allocated solely to this Allocator
     private ConcurrentLinkedQueue<Block> blocks = new ConcurrentLinkedQueue<Block>();
     // free list of ByteBuffers which can be reused
-    private ConcurrentLinkedQueue<ByteBuffer> freeList =
-        new ConcurrentLinkedQueue();
+    private ConcurrentSkipListSet<Pair<Integer,ByteBuffer>> freeList =
+        new ConcurrentSkipListSet<>(Comparator.comparing(Pair::getKey));
     private Block currentBlock;
 
     // this boolean doesn't allow memory to be reused, by default set to false
@@ -49,15 +52,17 @@ class OakNativeMemoryAllocator implements OakMemoryAllocator{
     // Otherwise new block is allocated within Oak memory bounds. Thread safe.
     @Override
     public ByteBuffer allocate(int size) {
+
         if (!stopMemoryReuse && !freeList.isEmpty()) {
-            for (ByteBuffer bb : freeList) {
-                if (bb.capacity() >= size) {
-                    freeList.remove(bb);
+            for (Pair<Integer, ByteBuffer> kv : freeList) {
+                ByteBuffer bb = kv.getValue();
+                if (bb.capacity() >= size && freeList.remove(kv)) {
                     assert bb.position() == 0;
                     return bb;
                 }
             }
         }
+
         ByteBuffer bb = null;
         // freeList is empty or there is no suitable slice
         while (bb == null) {
@@ -97,7 +102,7 @@ class OakNativeMemoryAllocator implements OakMemoryAllocator{
         byte[] zeroes = new byte[bb.remaining()];
         bb.put(zeroes);
         bb.rewind(); // put the position back to zero
-        freeList.add(bb);
+        freeList.add(new Pair<Integer, ByteBuffer>(System.identityHashCode(bb),bb));
     }
 
     // Releases all memory allocated for this Oak (should be used as part of the Oak destruction)

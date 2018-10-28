@@ -14,6 +14,9 @@ import java.util.Random;
 import java.util.concurrent.CountDownLatch;
 import java.util.function.Consumer;
 
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
+
 public class ComputeTest {
 
     private static int NUM_THREADS;
@@ -25,8 +28,7 @@ public class ComputeTest {
     private static int valSize = (int) Math.round(5 * K);
     private static int numOfEntries;
 
-    static ByteBuffer key = ByteBuffer.allocate(keySize * Integer.BYTES);
-    private static ByteBuffer val = ByteBuffer.allocate(valSize * Integer.BYTES);
+
 
     static private ArrayList<Thread> threads = new ArrayList<>(NUM_THREADS);
     static private CountDownLatch latch = new CountDownLatch(1);
@@ -184,14 +186,13 @@ public class ComputeTest {
         numOfEntries = 100;
 
 
-        key.putInt(0, 0);
-        val.putInt(0, 0);
-
         for (int i = 0; i < NUM_THREADS; i++) {
             threads.add(new Thread(new RunThreads(latch)));
         }
 
-        for (int i = 0; i < (int) Math.round(numOfEntries * 0.5); i++) {
+        for (Integer i = 0; i < (int) Math.round(numOfEntries * 0.5); i++) {
+            ByteBuffer key = ByteBuffer.allocate(keySize * Integer.BYTES);
+            ByteBuffer val = ByteBuffer.allocate(valSize * Integer.BYTES);
             key.putInt(0, i);
             val.putInt(0, i);
             oak.putIfAbsent(key, val);
@@ -201,35 +202,24 @@ public class ComputeTest {
             threads.get(i).start();
         }
 
-        long startTime = System.currentTimeMillis();
-
         latch.countDown();
 
         for (int i = 0; i < NUM_THREADS; i++) {
             threads.get(i).join();
         }
 
-        long stopTime = System.currentTimeMillis();
-
         for (int i = 0; i < numOfEntries; i++) {
+            ByteBuffer key = ByteBuffer.allocate(keySize * Integer.BYTES);
             key.putInt(0, i);
             ByteBuffer val = oak.get(key);
             if (val == null) {
                 continue;
             }
-            if (val.getInt(0) != i) {
-                System.out.println("buffer.getInt(0) != i i==" + i);
-                return;
-            }
+            assertEquals(i, val.getInt(0));
             int forty = val.getInt((keySize - 1) * Integer.BYTES);
-            if (forty != i && forty != 0) {
-                System.out.println(val.getInt((keySize - 1) * Integer.BYTES));
-                return;
-            }
+            assertTrue(forty == i || forty ==0);
         }
 
-        long elapsedTime = stopTime - startTime;
-        System.out.println(elapsedTime);
         oak.close();
     }
 }

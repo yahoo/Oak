@@ -14,20 +14,20 @@ import java.util.Random;
 import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.CountDownLatch;
 
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotEquals;
+
 public class FillTest {
 
-    private static int NUM_THREADS;
+    private static final int NUM_THREADS = 1;
 
     static OakMap<Integer, Integer> oak;
     static ConcurrentSkipListMap<ByteBuffer, ByteBuffer> skiplist;
     private static final long K = 1024;
 
-    private static int keySize = 10;
-    private static int valSize = (int) Math.round(5 * K);
-    private static int numOfEntries;
-
-    static Integer key;
-    private static Integer val;
+    private static final int KEY_SIZE = 10;
+    private static final int VALUE_SIZE = Math.round(5 * K);
+    private static final int NUM_OF_ENTRIES = 100;
 
     static private ArrayList<Thread> threads = new ArrayList<>(NUM_THREADS);
     static private CountDownLatch latch = new CountDownLatch(1);
@@ -46,7 +46,7 @@ public class FillTest {
 
         @Override
         public int calculateSize(Integer key) {
-            return keySize;
+            return KEY_SIZE;
         }
     }
 
@@ -64,7 +64,7 @@ public class FillTest {
 
         @Override
         public int calculateSize(Integer value) {
-            return valSize;
+            return VALUE_SIZE;
         }
     }
 
@@ -85,13 +85,10 @@ public class FillTest {
 
             Random r = new Random();
 
-            Integer myKey;
-            Integer myVal;
-
             int id = InternalOakMap.getThreadIndex();
-            int amount = (int) Math.round(numOfEntries * 0.5) / NUM_THREADS;
-            int start = id * amount + (int) Math.round(numOfEntries * 0.5);
-            int end = (id + 1) * amount + (int) Math.round(numOfEntries * 0.5);
+            int amount = (int) Math.round(NUM_OF_ENTRIES * 0.5) / NUM_THREADS;
+            int start = id * amount + (int) Math.round(NUM_OF_ENTRIES* 0.5);
+            int end = (id + 1) * amount + (int) Math.round(NUM_OF_ENTRIES * 0.5);
 
             int[] arr = new int[amount];
             for (int i = start, j = 0; i < end; i++,j++) {
@@ -103,23 +100,18 @@ public class FillTest {
             for (int i = 0; i < amount; i++) {
 
                 int nextIdx = r.nextInt(usedIdx + 1);
-                int next = arr[nextIdx];
+                Integer next = arr[nextIdx];
 
                 int tmp = arr[usedIdx];
                 arr[usedIdx] = next;
                 arr[nextIdx] = tmp;
                 usedIdx--;
 
-                myKey = next;
-                myVal = next;
-                oak.putIfAbsent(myKey, myVal);
+                oak.putIfAbsent(next, next);
             }
 
-            for (int i = end-1; i >= start; i--) {
-                myKey = i;
-                if(oak.get(myKey) == null){
-                    System.out.println("error");
-                }
+            for (Integer i = end-1; i >= start; i--) {
+                assertNotEquals(oak.get(i), null);
             }
 
         }
@@ -137,20 +129,14 @@ public class FillTest {
 
         oak = (OakMap<Integer, Integer>) builder.build();
 
-        NUM_THREADS = 16;
-        numOfEntries = 100;
 
-        key = 0;
-        val = 0;
 
         for (int i = 0; i < NUM_THREADS; i++) {
             threads.add(new Thread(new RunThreads(latch)));
         }
 
-        for (int i = 0; i < (int) Math.round(numOfEntries * 0.5); i++) {
-            key = i;
-            val = i;
-            oak.putIfAbsent(key, val);
+        for (int i = 0; i < (int) Math.round(NUM_OF_ENTRIES*0.5); i++) {
+            oak.putIfAbsent(i, i);
         }
 
         for (int i = 0; i < NUM_THREADS; i++) {
@@ -167,21 +153,13 @@ public class FillTest {
 
         long stopTime = System.currentTimeMillis();
 
-        for (Integer i = 0; i < numOfEntries; i++) {
-            key = i;
-            Integer val = oak.get(key);
-            if (val == null) {
-                System.out.println("buffer != null i==" + i);
-                return;
-            }
-            if (val != i) {
-                System.out.println("buffer.getInt(0) != i i==" + i);
-                return;
-            }
+        for (Integer i = 0; i < NUM_OF_ENTRIES/2; i++) {
+            Integer val = oak.get(i);
+            assertEquals(i,val);
         }
 
         long elapsedTime = stopTime - startTime;
-        System.out.println(elapsedTime);
+//        System.out.println(elapsedTime);
 
         oak.close();
 

@@ -216,7 +216,6 @@ public class OakMemoryManagerTest {
 
         key = 0; // should be written
         Integer value = (Integer) oak.get(key);
-        assertTrue(value != null);
         assertEquals((Integer) 1, value);
 
         // request one release so GC can be triggered

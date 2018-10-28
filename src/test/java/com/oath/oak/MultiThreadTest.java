@@ -73,7 +73,6 @@ public class MultiThreadTest {
             }
             for (Integer i = maxItemsPerChunk; i < 2 * maxItemsPerChunk; i++) {
                 value = oak.get(i);
-                assertTrue(value != null);
                 assertEquals(i, value);
             }
             for (Integer i = 0; i < (int) Math.round(0.5 * maxItemsPerChunk); i++) {
@@ -88,7 +87,6 @@ public class MultiThreadTest {
             }
             for (Integer i = maxItemsPerChunk; i < 2 * maxItemsPerChunk; i++) {
                 value = oak.get(i);
-                assertTrue(value != null);
                 assertEquals(i, value);
             }
             for (Integer i = (int) Math.round(0.5 * maxItemsPerChunk); i < maxItemsPerChunk; i++) {
@@ -96,7 +94,6 @@ public class MultiThreadTest {
             }
             for (Integer i = (int) Math.round(0.5 * maxItemsPerChunk); i < maxItemsPerChunk; i++) {
                 value = oak.get(i);
-                assertTrue(value != null);
                 assertEquals(i, value);
             }
             for (Integer i = 3 * maxItemsPerChunk; i < 4 * maxItemsPerChunk; i++) {
@@ -112,7 +109,6 @@ public class MultiThreadTest {
             Integer c = (int) Math.round(0.5 * maxItemsPerChunk);
             while (valIter.hasNext() && c < twiceMaxItemsPerChunk) {
                 value = oak.get(c);
-                assertTrue(value != null);
                 assertEquals(c, value);
                 assertEquals(c, valIter.next());
                 c++;
@@ -126,7 +122,6 @@ public class MultiThreadTest {
             c = (int) Math.round(0.5 * maxItemsPerChunk);
             while (valIter.hasNext()) {
                 value = oak.get(c);
-                assertTrue(value != null);
                 assertEquals(c, value);
                 assertEquals(c, valIter.next());
                 c++;
@@ -173,7 +168,6 @@ public class MultiThreadTest {
         }
         for (Integer i = (int) Math.round(0.5 * maxItemsPerChunk); i < 2 * maxItemsPerChunk; i++) {
             Integer value = oak.get(i);
-            assertTrue(value != null);
             assertEquals(i, value);
         }
         for (Integer i = 2 * maxItemsPerChunk; i < 4 * maxItemsPerChunk; i++) {
@@ -208,7 +202,6 @@ public class MultiThreadTest {
             for (i = 0; i < 6 * maxItemsPerChunk; i++) {
                 oak.putIfAbsent(i, i);
                 value = oak.get(i);
-                Assert.assertTrue(value != null);
                 assertEquals(i, value);
             }
 
@@ -216,7 +209,6 @@ public class MultiThreadTest {
             i = 0;
             while (iter.hasNext() && i < 2 * maxItemsPerChunk) {
                 value = iter.next();
-                Assert.assertTrue(value != null);
                 assertEquals(i, value);
                 i++;
             }

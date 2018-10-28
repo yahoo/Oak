@@ -15,9 +15,10 @@ import org.junit.rules.ExpectedException;
 
 import java.util.function.Consumer;
 
-import static junit.framework.TestCase.assertTrue;
+
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 
 public class SingleThreadTest {
 
@@ -45,16 +46,13 @@ public class SingleThreadTest {
         }
         for (Integer i = 0; i < 2 * maxItemsPerChunk; i++) {
             Integer value = oak.get(i);
-            assertTrue(value != null);
-            TestCase.assertEquals(i, value);
+            assertEquals(i, value);
         }
         Integer value = oak.get(10);
-        assertTrue(value != null);
-        TestCase.assertEquals((Integer) 10, value);
+        assertEquals((Integer) 10, value);
         oak.put(10, 11);
         value = oak.get(10);
-        assertTrue(value != null);
-        TestCase.assertEquals((Integer) 11, value);
+        assertEquals((Integer) 11, value);
     }
 
     @Test
@@ -67,16 +65,14 @@ public class SingleThreadTest {
         }
         for (Integer i = 0; i < 2 * maxItemsPerChunk; i++) {
             value = oak.get(i);
-            assertTrue(value != null);
-            TestCase.assertEquals(i, value);
+            assertEquals(i, value);
         }
         for (Integer i = 0; i < 2 * maxItemsPerChunk; i++) {
             assertFalse(oak.putIfAbsent(i, i + 1));
         }
         for (Integer i = 0; i < 2 * maxItemsPerChunk; i++) {
             value = oak.get(i);
-            assertTrue(value != null);
-            TestCase.assertEquals(i, value);
+            assertEquals(i, value);
         }
     }
 
@@ -103,8 +99,7 @@ public class SingleThreadTest {
         }
         for (Integer i = 0; i < 4 * maxItemsPerChunk; i++) {
             value = oak.get(i);
-            assertTrue(value != null);
-            TestCase.assertEquals(i, value);
+            assertEquals(i, value);
         }
         for (Integer i = 2 * maxItemsPerChunk; i < 3 * maxItemsPerChunk; i++) {
             oak.remove(i);
@@ -122,13 +117,12 @@ public class SingleThreadTest {
         }
         for (Integer i = 0; i < maxItemsPerChunk; i++) {
             value = oak.get(i);
-            assertTrue(value != null);
-            TestCase.assertEquals(i, value);
+            assertEquals(i, value);
         }
         for (Integer i = 3 * maxItemsPerChunk; i < 4 * maxItemsPerChunk; i++) {
             value = oak.get(i);
             assertTrue(value != null);
-            TestCase.assertEquals(i, value);
+            assertEquals(i, value);
         }
         for (Integer i = 0; i < maxItemsPerChunk; i++) {
             oak.remove(i);
@@ -139,8 +133,7 @@ public class SingleThreadTest {
         }
         for (Integer i = 3 * maxItemsPerChunk; i < 4 * maxItemsPerChunk; i++) {
             value = oak.get(i);
-            assertTrue(value != null);
-            TestCase.assertEquals(i, value);
+            assertEquals(i, value);
         }
         for (Integer i = 3 * maxItemsPerChunk; i < 4 * maxItemsPerChunk; i++) {
             oak.remove(i);
@@ -214,26 +207,21 @@ public class SingleThreadTest {
         assertFalse(oak.computeIfPresent(key, computer));
         oak.putIfAbsentComputeIfPresent(key, key, computer);
         value = oak.get(key);
-        assertTrue(value != null);
         assertEquals(key, value);
         oak.putIfAbsentComputeIfPresent(key, key, computer);
         value = oak.get(key);
-        assertTrue(value != null);
         assertEquals((Integer) 1, value);
         Integer two = 2;
         oak.put(key, two);
         value = oak.get(key);
-        assertTrue(value != null);
         assertEquals(two, value);
         assertTrue(oak.computeIfPresent(key, computer));
         assertEquals(two, value);
         oak.put(key, key);
         value = oak.get(key);
-        assertTrue(value != null);
         assertEquals(key, value);
         oak.putIfAbsentComputeIfPresent(key, key, computer);
         value = oak.get(key);
-        assertTrue(value != null);
         assertEquals((Integer) 1, value);
         oak.remove(key);
         assertFalse(oak.computeIfPresent(key, computer));
