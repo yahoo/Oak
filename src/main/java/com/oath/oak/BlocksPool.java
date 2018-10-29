@@ -17,7 +17,7 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 class BlocksPool {
 
     private static BlocksPool instance = null;
-    private ConcurrentLinkedQueue<Block> blocks = new ConcurrentLinkedQueue<Block>();
+    private final ConcurrentLinkedQueue<Block> blocks = new ConcurrentLinkedQueue<Block>();
 
     // TODO change BLOCK_SIZE and NUMBER_OF_BLOCKS to be pre-configurable, currently changeable for tests
     public final static int BLOCK_SIZE = 104857600; // currently 100MB, the one block size

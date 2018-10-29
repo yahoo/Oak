@@ -67,6 +67,7 @@ class Block {
         } catch (NoSuchFieldException e) {
             e.printStackTrace();
         }
+        assert cleanerField != null;
         cleanerField.setAccessible(true);
         Cleaner cleaner = null;
         try {
@@ -74,6 +75,7 @@ class Block {
         } catch (IllegalAccessException e) {
             e.printStackTrace();
         }
+        assert cleaner != null;
         cleaner.clean();
     }
 }

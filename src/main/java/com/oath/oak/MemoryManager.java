@@ -16,9 +16,9 @@ import java.util.concurrent.atomic.AtomicLong;
 class MemoryManager {
 
     final OakMemoryAllocator memoryAllocator;
-    final AtomicLong[] timeStamps;
+    private final AtomicLong[] timeStamps;
     final ArrayList<LinkedList<Pair<Long,ByteBuffer>>> releasedArray;
-    final AtomicLong max;
+    private final AtomicLong max;
 
     // Pay attention, this busy bit is used as a counter for nested calls of start thread method.
     // It can be increased only 2^23 (8,388,608) times, before overflowing.
@@ -107,11 +107,11 @@ class MemoryManager {
     }
 
     // the MSB (busy bit) is not set
-    boolean isIdle(long timeStamp) {
+    private boolean isIdle(long timeStamp) {
         return (timeStamp & IDLE_MASK) == 0L;
     }
 
-    long getValue(long timeStamp) {
+    private long getValue(long timeStamp) {
         return timeStamp & (~IDLE_MASK);
     }
 

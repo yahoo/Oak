@@ -36,7 +36,7 @@ class Rebalancer<K, V> {
     private final AtomicReference<List<Chunk>> newChunks = new AtomicReference<>(null);
     private final AtomicReference<List<Chunk>> engagedChunks = new AtomicReference<>(null);
     private final AtomicBoolean frozen = new AtomicBoolean(false);
-    private Chunk<K, V> first;
+    private final Chunk<K, V> first;
     private Chunk<K, V> last;
     private int chunksInRange;
     private int itemsInRange;
@@ -76,8 +76,8 @@ class Rebalancer<K, V> {
     }
 
     static class RebalanceResult {
-        boolean success;
-        boolean putIfAbsent;
+        final boolean success;
+        final boolean putIfAbsent;
 
         RebalanceResult(boolean success, boolean putIfAbsent) {
             this.success = success;
@@ -354,7 +354,6 @@ class Rebalancer<K, V> {
         assert compare(prev.minKey, key) <= 0;
 
         while (iter.hasNext()) {
-            prev = next;
             next = iter.next();
             if (compare(next.minKey, key) > 0) {
                 // if we went to far

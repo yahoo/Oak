@@ -12,12 +12,12 @@ import java.util.logging.Logger;
 
 class KeysManager<K> {
 
-    ByteBuffer keys;
+    private final ByteBuffer keys;
     int i;
-    MemoryManager memoryManager;
+    private MemoryManager memoryManager;
     private final OakSerializer<K> keySerializer;
-    AtomicBoolean released;
-    Logger log = Logger.getLogger(KeysManager.class.getName());
+    private AtomicBoolean released;
+    private final Logger log = Logger.getLogger(KeysManager.class.getName());
 
     KeysManager(int bytes,
                            MemoryManager memoryManager,

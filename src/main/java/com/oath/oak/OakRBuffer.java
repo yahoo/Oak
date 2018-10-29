@@ -6,9 +6,7 @@
 
 package com.oath.oak;
 
-import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
-import java.util.function.Function;
 
 /**
  * A similar to read-only ByteBuffer interface that allows internal Oak data read access
@@ -19,28 +17,28 @@ import java.util.function.Function;
  * On another hand OakRValueBufferImpl has reference to handle which has delete bit and has JVM GC
  * protection.
  */
-public interface OakRBuffer {
+interface OakRBuffer {
 
     /**
      * Returns this buffer's capacity.
      *
      * @return The capacity of this buffer
      */
-    public int capacity() throws NullPointerException;
+    int capacity() throws NullPointerException;
 
     /**
      * Returns this buffer's position.
      *
      * @return The position of this buffer
      */
-    public int position() throws NullPointerException;
+    int position() throws NullPointerException;
 
     /**
      * Returns this buffer's limit.
      *
      * @return The limit of this buffer
      */
-    public int limit() throws NullPointerException;
+    int limit() throws NullPointerException;
 
     /**
      * Returns the number of elements between the current position and the
@@ -48,7 +46,7 @@ public interface OakRBuffer {
      *
      * @return The number of elements remaining in this buffer
      */
-    public int remaining() throws NullPointerException;
+    int remaining() throws NullPointerException;
 
     /**
      * Tells whether there are any elements between the current position and
@@ -57,7 +55,7 @@ public interface OakRBuffer {
      * @return <tt>true</tt> if, and only if, there is at least one element
      * remaining in this buffer
      */
-    public boolean hasRemaining() throws NullPointerException;
+    boolean hasRemaining() throws NullPointerException;
 
     /**
      * Absolute <i>get</i> method.  Reads the byte at the given
@@ -68,7 +66,7 @@ public interface OakRBuffer {
      * @throws IndexOutOfBoundsException If <tt>index</tt> is negative
      *                                   or not smaller than the buffer's limit
      */
-    public byte get(int index) throws NullPointerException;
+    byte get(int index) throws NullPointerException;
 
     /**
      * Retrieves this buffer's byte order.
@@ -80,7 +78,7 @@ public interface OakRBuffer {
      *
      * @return This buffer's byte order
      */
-    public ByteOrder order() throws NullPointerException;
+    ByteOrder order() throws NullPointerException;
 
     /**
      * Absolute <i>get</i> method for reading a char value.
@@ -94,7 +92,7 @@ public interface OakRBuffer {
      *                                   or not smaller than the buffer's limit,
      *                                   minus one
      */
-    public char getChar(int index) throws NullPointerException;
+    char getChar(int index) throws NullPointerException;
 
     /**
      * Absolute <i>get</i> method for reading a short value.
@@ -108,7 +106,7 @@ public interface OakRBuffer {
      *                                   or not smaller than the buffer's limit,
      *                                   minus one
      */
-    public short getShort(int index) throws NullPointerException;
+    short getShort(int index) throws NullPointerException;
 
     /**
      * Absolute <i>get</i> method for reading an int value.
@@ -122,7 +120,7 @@ public interface OakRBuffer {
      *                                   or not smaller than the buffer's limit,
      *                                   minus three
      */
-    public int getInt(int index) throws NullPointerException;
+    int getInt(int index) throws NullPointerException;
 
     /**
      * Absolute <i>get</i> method for reading a long value.
@@ -136,7 +134,7 @@ public interface OakRBuffer {
      *                                   or not smaller than the buffer's limit,
      *                                   minus seven
      */
-    public long getLong(int index) throws NullPointerException;
+    long getLong(int index) throws NullPointerException;
 
     /**
      * Absolute <i>get</i> method for reading a float value.
@@ -150,7 +148,7 @@ public interface OakRBuffer {
      *                                   or not smaller than the buffer's limit,
      *                                   minus three
      */
-    public float getFloat(int index) throws NullPointerException;
+    float getFloat(int index) throws NullPointerException;
 
     /**
      * Absolute <i>get</i> method for reading a double value.
@@ -164,5 +162,5 @@ public interface OakRBuffer {
      *                                   or not smaller than the buffer's limit,
      *                                   minus seven
      */
-    public double getDouble(int index) throws NullPointerException;
+    double getDouble(int index) throws NullPointerException;
 }

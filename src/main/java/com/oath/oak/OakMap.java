@@ -19,7 +19,7 @@ import java.util.function.Function;
  */
 public class OakMap<K, V> implements AutoCloseable {
 
-  private InternalOakMap internalOakMap;
+  private final InternalOakMap internalOakMap;
   /*
   * Memory manager cares for allocation, de-allocation and reuse of the internally pre-allocated
   * memory. Each thread that is going to access a memory that can be released by memory must
@@ -30,17 +30,17 @@ public class OakMap<K, V> implements AutoCloseable {
   * this specific class is responsible to wrap the internal methods with attach-detach.
   * */
   private final MemoryManager memoryManager;
-  private Function<ByteBuffer, K> keyDeserializeTransformer;
-  private Function<ByteBuffer, V> valueDeserializeTransformer;
-  private Function<Map.Entry<ByteBuffer, ByteBuffer>, Map.Entry<K, V>> entryDeserializeTransformer;
-  final Comparator comparator;
+  private final Function<ByteBuffer, K> keyDeserializeTransformer;
+  private final Function<ByteBuffer, V> valueDeserializeTransformer;
+  private final Function<Map.Entry<ByteBuffer, ByteBuffer>, Map.Entry<K, V>> entryDeserializeTransformer;
+  private final Comparator comparator;
 
   // SubOakMap fields
-  private K fromKey;
-  private boolean fromInclusive;
-  private K toKey;
+  private final K fromKey;
+  private final boolean fromInclusive;
+  private final K toKey;
   private boolean toInclusive;
-  private boolean isDescending;
+  private final boolean isDescending;
 
   // internal constructor, to create OakMap use OakMapBuilder
   OakMap(K minKey, OakSerializer<K> keySerializer, OakSerializer<V> valueSerializer, OakComparator<K> oakComparator,
@@ -320,8 +320,7 @@ public class OakMap<K, V> implements AutoCloseable {
 
     if (toKey != null) {
       res = comparator.compare(key, toKey);
-      if (res > 0 || (res == 0 && !toInclusive))
-        return false;
+      return res <= 0 && (res != 0 || toInclusive);
     }
     return true;
   }

@@ -29,16 +29,16 @@ class InternalOakMap<K, V> {
   final ConcurrentSkipListMap<Object, Chunk<K, V>> skiplist;    // skiplist of chunks for fast navigation
   private final AtomicReference<Chunk<K, V>> head;
   private final ByteBuffer minKey;
-  final Comparator comparator;
-  final MemoryManager memoryManager;
-  private AtomicInteger size;
-  private OakSerializer<K> keySerializer;
-  private OakSerializer<V> valueSerializer;
+  private final Comparator comparator;
+  private final MemoryManager memoryManager;
+  private final AtomicInteger size;
+  private final OakSerializer<K> keySerializer;
+  private final OakSerializer<V> valueSerializer;
 
   // The reference count is used to count the upper objects wrapping this internal map:
   // OakMaps (including subMaps and Views) when all of the above are closed,
   // his map can be closed and memory released.
-  private AtomicInteger referenceCount = new AtomicInteger(1);
+  private final AtomicInteger referenceCount = new AtomicInteger(1);
     /*-------------- Constructors --------------*/
 
   /**
@@ -220,6 +220,7 @@ class InternalOakMap<K, V> {
       }
       // chunk is not in list (someone else already updated list), so we're done with this part
       if ((curr == null) || (prev == null)) {
+        //TODO Never reached
         break;
       }
 
@@ -355,7 +356,6 @@ class InternalOakMap<K, V> {
     int ei = -1;
     int prevHi = -1;
     if (lookUp != null) {
-      assert lookUp.handle == null;
       ei = lookUp.entryIndex;
       assert ei > 0;
       prevHi = lookUp.handleIndex;
@@ -741,23 +741,23 @@ class InternalOakMap<K, V> {
    */
   abstract class Iter<T> implements OakCloseableIterator<T> {
 
-    protected final K lo;
+    final K lo;
     /**
      * upper bound key, or null if to end
      */
-    protected final K hi;
+    final K hi;
     /**
      * inclusion flag for lo
      */
-    protected final boolean loInclusive;
+    final boolean loInclusive;
     /**
      * inclusion flag for hi
      */
-    protected final boolean hiInclusive;
+    final boolean hiInclusive;
     /**
      * direction
      */
-    protected final boolean isDescending;
+    final boolean isDescending;
 
     /**
      * the next node to return from next();
@@ -846,17 +846,17 @@ class InternalOakMap<K, V> {
     private void initChunk() {
       if (!isDescending) {
         if (lo != null)
-          nextChunk = (Chunk<K, V>) skiplist.floorEntry(lo).getValue();
+          nextChunk = skiplist.floorEntry(lo).getValue();
         else
-          nextChunk = (Chunk<K, V>) skiplist.floorEntry(minKey).getValue();
+          nextChunk = skiplist.floorEntry(minKey).getValue();
         if (nextChunk == null) {
           nextChunkIter = null;
         } else {
           nextChunkIter = lo != null ? nextChunk.ascendingIter(lo) : nextChunk.ascendingIter();
         }
       } else {
-        nextChunk = hi != null ? (Chunk<K, V>) skiplist.floorEntry(hi).getValue()
-                : (Chunk<K, V>) skiplist.lastEntry().getValue();
+        nextChunk = hi != null ? skiplist.floorEntry(hi).getValue()
+                : skiplist.lastEntry().getValue();
         if (nextChunk == null) {
           nextChunkIter = null;
         } else {
@@ -936,7 +936,7 @@ class InternalOakMap<K, V> {
         nextChunk = (Chunk) e.getValue();
         Chunk nextNext = nextChunk.next.getReference();
         if (nextNext == null) {
-          nextChunkIter = nextChunk.descendingIter((K) keySerializer.deserialize(serializedMinKey), false);
+          nextChunkIter = nextChunk.descendingIter(keySerializer.deserialize(serializedMinKey), false);
           continue;
         }
         ByteBuffer nextMinKey = nextNext.minKey;
@@ -948,7 +948,7 @@ class InternalOakMap<K, V> {
             nextMinKey = nextChunk.next.getReference().minKey;
           }
         }
-        nextChunkIter = nextChunk.descendingIter((K) keySerializer.deserialize(serializedMinKey), false); // TODO check correctness
+        nextChunkIter = nextChunk.descendingIter(keySerializer.deserialize(serializedMinKey), false); // TODO check correctness
       }
       return true;
     }
@@ -1002,7 +1002,7 @@ class InternalOakMap<K, V> {
 
   class ValueTransformIterator<T> extends Iter<T> {
 
-    Function<ByteBuffer, T> transformer;
+    final Function<ByteBuffer, T> transformer;
 
     ValueTransformIterator(K lo, boolean loInclusive, K hi, boolean hiInclusive, boolean isDescending,
                                   Function<ByteBuffer, T> transformer) {
@@ -1046,7 +1046,7 @@ class InternalOakMap<K, V> {
 
   class EntryTransformIterator<T> extends Iter<T> {
 
-    Function<Map.Entry<ByteBuffer, ByteBuffer>, T> transformer;
+    final Function<Map.Entry<ByteBuffer, ByteBuffer>, T> transformer;
 
     EntryTransformIterator(K lo, boolean loInclusive, K hi, boolean hiInclusive, boolean isDescending,
                                   Function<Map.Entry<ByteBuffer, ByteBuffer>, T> transformer) {
@@ -1100,7 +1100,7 @@ class InternalOakMap<K, V> {
 
   class KeyTransformIterator<T> extends Iter<T> {
 
-    Function<ByteBuffer, T> transformer;
+    final Function<ByteBuffer, T> transformer;
 
     KeyTransformIterator(K lo, boolean loInclusive, K hi, boolean hiInclusive, boolean isDescending,
                                 Function<ByteBuffer, T> transformer) {

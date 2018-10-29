@@ -16,9 +16,9 @@ import java.util.function.Consumer;
 class Handle<V> implements OakWBuffer {
 
     final ReentrantReadWriteLock.ReadLock readLock;
-    final ReentrantReadWriteLock.WriteLock writeLock;
-    ByteBuffer value;
-    final AtomicBoolean deleted;
+    private final ReentrantReadWriteLock.WriteLock writeLock;
+    private ByteBuffer value;
+    private final AtomicBoolean deleted;
 
     Handle(ByteBuffer value) {
         this.value = value;

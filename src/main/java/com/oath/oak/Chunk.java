@@ -37,7 +37,7 @@ public class Chunk<K, V> {
     private static final int OFFSET_KEY_LENGTH = 2;
     private static final int OFFSET_HANDLE_INDEX = 3;
 
-    static int MAX_THREADS = 32;
+    static final int MAX_THREADS = 32;
 
     // used for checking if rebalance is needed
     private static final double REBALANCE_PROB_PERC = 30;
@@ -51,8 +51,8 @@ public class Chunk<K, V> {
         new OpData(Operation.NO_OP, 0, 0, 0, null);
 
     // defaults
-    public static int BYTES_PER_ITEM_DEFAULT = 256;
-    public static int MAX_ITEMS_DEFAULT = 256;
+    public static final int BYTES_PER_ITEM_DEFAULT = 256;
+    public static final int MAX_ITEMS_DEFAULT = 256;
 
     /*-------------- Members --------------*/
     Logger log = Logger.getLogger(InternalOakMap.class.getName());
@@ -68,7 +68,7 @@ public class Chunk<K, V> {
     private final AtomicReference<State> state;
     private AtomicReference<Rebalancer> rebalancer;
     private final int[] entries;    // array is initialized to 0, i.e., NONE - this is important!
-    private final KeysManager keysManager;
+    private final KeysManager<K> keysManager;
     private final Handle[] handles;
     private AtomicReferenceArray<OpData> pendingOps;
     private final AtomicInteger entryIndex;    // points to next free index of entry array
@@ -119,7 +119,7 @@ public class Chunk<K, V> {
         this.entryIndex = new AtomicInteger(FIRST_ITEM);
         this.handles = new Handle[maxItems + FIRST_ITEM];
         this.handleIndex = new AtomicInteger(FIRST_ITEM);
-        this.keysManager = new KeysManager(this.maxKeyBytes, memoryManager, keySerializer);
+        this.keysManager = new KeysManager<>(this.maxKeyBytes, memoryManager, keySerializer);
         this.keyIndex = new AtomicInteger(FIRST_ITEM);
         this.sortedCount = new AtomicInteger(0);
         this.minKey = minKey;
@@ -148,11 +148,11 @@ public class Chunk<K, V> {
     }
 
     static class OpData {
-        Operation op;
-        int entryIndex;
-        int handleIndex;
+        final Operation op;
+        final int entryIndex;
+        final int handleIndex;
         int prevHandleIndex;
-        Consumer<ByteBuffer> computer;
+        final Consumer<ByteBuffer> computer;
 
         OpData(Operation op, int entryIndex, int handleIndex, int prevHandleIndex, Consumer<ByteBuffer> computer) {
             this.op = op;
@@ -249,7 +249,7 @@ public class Chunk<K, V> {
     /**
      * write key in place
      **/
-    private void writeKey(Object key, int ki) {
+    private void writeKey(K key, int ki) {
         keysManager.writeKey(key, ki);
     }
 
@@ -306,9 +306,9 @@ public class Chunk<K, V> {
 
     static class LookUp {
 
-        Handle handle;
-        int entryIndex;
-        int handleIndex;
+        final Handle handle;
+        final int entryIndex;
+        final int handleIndex;
 
         LookUp(Handle handle, int entryIndex, int handleIndex) {
             this.handle = handle;
@@ -615,7 +615,7 @@ public class Chunk<K, V> {
         return get(HEAD_NODE, OFFSET_NEXT);
     }
 
-    final int getLastItemEntryIndex() {
+    private int getLastItemEntryIndex() {
         // find the last sorted entry
         int sortedCount = this.sortedCount.get();
         int entryIndex = sortedCount == 0 ? HEAD_NODE : (sortedCount - 1) * (FIELDS) + 1;
@@ -936,8 +936,8 @@ public class Chunk<K, V> {
         private int next;
         private int anchor;
         private int prevAnchor;
-        private IntStack stack;
-        private K from;
+        private final IntStack stack;
+        private final K from;
         private boolean inclusive;
 
         DescendingIter() {
@@ -1069,7 +1069,7 @@ public class Chunk<K, V> {
 
     class IntStack {
 
-        private int stack[];
+        private final int[] stack;
         private int top;
 
         IntStack(int size) {
@@ -1110,8 +1110,8 @@ public class Chunk<K, V> {
     /**
      * This class contains information about chunk utilization.
      */
-    protected class Statistics {
-        private AtomicInteger addedCount = new AtomicInteger(0);
+    class Statistics {
+        private final AtomicInteger addedCount = new AtomicInteger(0);
         private int initialSortedCount = 0;
 
         /**

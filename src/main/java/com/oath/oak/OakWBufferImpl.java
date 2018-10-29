@@ -12,8 +12,8 @@ import java.nio.ByteOrder;
 
 public class OakWBufferImpl implements OakWBuffer {
 
-    private Handle handle;
-    private MemoryManager memoryManager;
+    private final Handle handle;
+    private final MemoryManager memoryManager;
 
     OakWBufferImpl(Handle handle, MemoryManager memoryManager) {
         this.handle = handle;

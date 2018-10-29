@@ -17,9 +17,9 @@ import java.util.concurrent.atomic.AtomicLong;
 class OakNativeMemoryAllocator implements OakMemoryAllocator{
 
     // blocks allocated solely to this Allocator
-    private ConcurrentLinkedQueue<Block> blocks = new ConcurrentLinkedQueue<Block>();
+    private final ConcurrentLinkedQueue<Block> blocks = new ConcurrentLinkedQueue<Block>();
     // free list of ByteBuffers which can be reused
-    private ConcurrentSkipListSet<Pair<Integer,ByteBuffer>> freeList =
+    private final ConcurrentSkipListSet<Pair<Integer,ByteBuffer>> freeList =
         new ConcurrentSkipListSet<>(Comparator.comparing(Pair::getKey));
     private Block currentBlock;
 
@@ -34,7 +34,7 @@ class OakNativeMemoryAllocator implements OakMemoryAllocator{
 
     // number of bytes allocated for this Oak among different Blocks
     // can be calculated, but kept for easy access
-    private AtomicLong allocated = new AtomicLong(0);
+    private final AtomicLong allocated = new AtomicLong(0);
 
     // constructor
     // input param: memory capacity given to this Oak
