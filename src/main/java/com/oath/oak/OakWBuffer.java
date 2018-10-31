@@ -18,21 +18,21 @@ public interface OakWBuffer {
      *
      * @return The capacity of this buffer
      */
-    public abstract int capacity() throws NullPointerException;
+    int capacity() throws NullPointerException;
 
     /**
      * Returns this buffer's position.
      *
      * @return The position of this buffer
      */
-    public abstract int position() throws NullPointerException;
+    int position() throws NullPointerException;
 
     /**
      * Returns this buffer's limit.
      *
      * @return The limit of this buffer
      */
-    public abstract int limit() throws NullPointerException;
+    int limit() throws NullPointerException;
 
     /**
      * Returns the number of elements between the current position and the
@@ -40,7 +40,7 @@ public interface OakWBuffer {
      *
      * @return The number of elements remaining in this buffer
      */
-    public abstract int remaining() throws NullPointerException;
+    int remaining() throws NullPointerException;
 
     /**
      * Tells whether there are any elements between the current position and
@@ -49,7 +49,7 @@ public interface OakWBuffer {
      * @return <tt>true</tt> if, and only if, there is at least one element
      * remaining in this buffer
      */
-    public abstract boolean hasRemaining() throws NullPointerException;
+    boolean hasRemaining() throws NullPointerException;
 
     /**
      * Sets this buffer's position.  If the mark is defined and larger than the
@@ -60,14 +60,14 @@ public interface OakWBuffer {
      * @return This buffer
      * @throws IllegalArgumentException If the preconditions on <tt>newPosition</tt> do not hold
      */
-    public abstract OakWBuffer position(int newPosition);
+    OakWBuffer position(int newPosition);
 
     /**
      * Sets this buffer's mark at its position.
      *
      * @return This buffer
      */
-    public abstract OakWBuffer mark();
+    OakWBuffer mark();
 
     /**
      * Resets this buffer's position to the previously-marked position.
@@ -78,7 +78,7 @@ public interface OakWBuffer {
      * @return This buffer
      * @throws InvalidMarkException If the mark has not been set
      */
-    public abstract OakWBuffer reset();
+    OakWBuffer reset();
 
     /**
      * Clears this buffer.  The position is set to zero, the limit is set to
@@ -97,7 +97,7 @@ public interface OakWBuffer {
      *
      * @return This buffer
      */
-    public abstract OakWBuffer clear();
+    OakWBuffer clear();
 
     /**
      * Flips this buffer.  The limit is set to the current position and then
@@ -120,7 +120,7 @@ public interface OakWBuffer {
      *
      * @return This buffer
      */
-    public abstract OakWBuffer flip();
+    OakWBuffer flip();
 
     /**
      * Rewinds this buffer.  The position is set to zero and the mark is
@@ -137,13 +137,13 @@ public interface OakWBuffer {
      *
      * @return This buffer
      */
-    public abstract OakWBuffer rewind();
+    OakWBuffer rewind();
 
     /**
      * Going to be deprecated!!!!!!!!!
      * @return the actual ByteBuffer
      */
-    public abstract ByteBuffer getByteBuffer();
+    ByteBuffer getByteBuffer();
 
     // -- Singleton get/put methods --
 
@@ -154,7 +154,7 @@ public interface OakWBuffer {
      * @return The byte at the buffer's current position
      * @throws BufferUnderflowException If the buffer's current position is not smaller than its limit
      */
-    public abstract byte get();
+    byte get();
 
     /**
      * Absolute <i>get</i> method.  Reads the byte at the given
@@ -165,7 +165,7 @@ public interface OakWBuffer {
      * @throws IndexOutOfBoundsException If <tt>index</tt> is negative
      *                                   or not smaller than the buffer's limit
      */
-    public abstract byte get(int index) throws NullPointerException;
+    byte get(int index) throws NullPointerException;
 
     /**
      * Relative bulk <i>get</i> method.
@@ -207,7 +207,7 @@ public interface OakWBuffer {
      * @throws IndexOutOfBoundsException If the preconditions on the <tt>offset</tt> and <tt>length</tt>
      *                                   parameters do not hold
      */
-    public abstract OakWBuffer get(byte[] dst, int offset, int length);
+    OakWBuffer get(byte[] dst, int offset, int length);
 
     /**
      * Relative <i>put</i> method&nbsp;&nbsp;<i>(optional operation)</i>.
@@ -220,7 +220,7 @@ public interface OakWBuffer {
      * @throws BufferOverflowException If this buffer's current position is not smaller than its limit
      * @throws ReadOnlyBufferException If this buffer is read-only
      */
-    public abstract OakWBuffer put(byte b);
+    OakWBuffer put(byte b);
 
     /**
      * Absolute <i>put</i> method&nbsp;&nbsp;<i>(optional operation)</i>.
@@ -235,7 +235,7 @@ public interface OakWBuffer {
      *                                   or not smaller than the buffer's limit
      * @throws ReadOnlyBufferException   If this buffer is read-only
      */
-    public abstract OakWBuffer put(int index, byte b);
+    OakWBuffer put(int index, byte b);
 
     // -- Bulk put operations --
 
@@ -272,7 +272,7 @@ public interface OakWBuffer {
      * @throws IllegalArgumentException If the source buffer is this buffer
      * @throws ReadOnlyBufferException  If this buffer is read-only
      */
-    public abstract OakWBuffer put(byte[] src, int offset, int length);
+    OakWBuffer put(byte[] src, int offset, int length);
 
     /**
      * Relative bulk <i>put</i> method&nbsp;&nbsp;<i>(optional operation)</i>.
@@ -290,7 +290,7 @@ public interface OakWBuffer {
      * @throws BufferOverflowException If there is insufficient space in this buffer
      * @throws ReadOnlyBufferException If this buffer is read-only
      */
-    public OakWBuffer put(byte[] src);
+    OakWBuffer put(byte[] src);
 
     /**
      * Retrieves this buffer's byte order.
@@ -302,7 +302,7 @@ public interface OakWBuffer {
      *
      * @return This buffer's byte order
      */
-    public abstract ByteOrder order() throws NullPointerException;
+    ByteOrder order() throws NullPointerException;
 
     /**
      * Modifies this buffer's byte order.
@@ -312,7 +312,7 @@ public interface OakWBuffer {
      *           or {@link ByteOrder#LITTLE_ENDIAN LITTLE_ENDIAN}
      * @return This buffer
      */
-    public abstract OakWBuffer order(ByteOrder bo);
+    OakWBuffer order(ByteOrder bo);
 
     /**
      * Relative <i>get</i> method for reading a char value.
@@ -325,7 +325,7 @@ public interface OakWBuffer {
      * @throws BufferUnderflowException If there are fewer than two bytes
      *                                  remaining in this buffer
      */
-    public abstract char getChar();
+    char getChar();
 
     /**
      * Absolute <i>get</i> method for reading a char value.
@@ -339,7 +339,7 @@ public interface OakWBuffer {
      *                                   or not smaller than the buffer's limit,
      *                                   minus one
      */
-    public abstract char getChar(int index) throws NullPointerException;
+    char getChar(int index) throws NullPointerException;
 
     /**
      * Relative <i>put</i> method for writing a char
@@ -355,7 +355,7 @@ public interface OakWBuffer {
      *                                 remaining in this buffer
      * @throws ReadOnlyBufferException If this buffer is read-only
      */
-    public abstract OakWBuffer putChar(char value);
+    OakWBuffer putChar(char value);
 
     /**
      * Absolute <i>put</i> method for writing a char
@@ -372,7 +372,7 @@ public interface OakWBuffer {
      *                                   minus one
      * @throws ReadOnlyBufferException   If this buffer is read-only
      */
-    public abstract OakWBuffer putChar(int index, char value);
+    OakWBuffer putChar(int index, char value);
 
     /**
      * Relative <i>get</i> method for reading a short value.
@@ -385,7 +385,7 @@ public interface OakWBuffer {
      * @throws BufferUnderflowException If there are fewer than two bytes
      *                                  remaining in this buffer
      */
-    public abstract short getShort();
+    short getShort();
 
     /**
      * Absolute <i>get</i> method for reading a short value.
@@ -399,7 +399,7 @@ public interface OakWBuffer {
      *                                   or not smaller than the buffer's limit,
      *                                   minus one
      */
-    public abstract short getShort(int index) throws NullPointerException;
+    short getShort(int index) throws NullPointerException;
 
     /**
      * Relative <i>put</i> method for writing a short
@@ -415,7 +415,7 @@ public interface OakWBuffer {
      *                                 remaining in this buffer
      * @throws ReadOnlyBufferException If this buffer is read-only
      */
-    public abstract OakWBuffer putShort(short value);
+    OakWBuffer putShort(short value);
 
     /**
      * Absolute <i>put</i> method for writing a short
@@ -432,7 +432,7 @@ public interface OakWBuffer {
      *                                   minus one
      * @throws ReadOnlyBufferException   If this buffer is read-only
      */
-    public abstract OakWBuffer putShort(int index, short value);
+    OakWBuffer putShort(int index, short value);
 
     /**
      * Relative <i>get</i> method for reading an int value.
@@ -445,7 +445,7 @@ public interface OakWBuffer {
      * @throws BufferUnderflowException If there are fewer than four bytes
      *                                  remaining in this buffer
      */
-    public abstract int getInt();
+    int getInt();
 
     /**
      * Absolute <i>get</i> method for reading an int value.
@@ -459,7 +459,7 @@ public interface OakWBuffer {
      *                                   or not smaller than the buffer's limit,
      *                                   minus three
      */
-    public abstract int getInt(int index) throws NullPointerException;
+    int getInt(int index) throws NullPointerException;
 
     /**
      * Relative <i>put</i> method for writing an int
@@ -475,7 +475,7 @@ public interface OakWBuffer {
      *                                 remaining in this buffer
      * @throws ReadOnlyBufferException If this buffer is read-only
      */
-    public abstract OakWBuffer putInt(int value);
+    OakWBuffer putInt(int value);
 
     /**
      * Absolute <i>put</i> method for writing an int
@@ -492,7 +492,7 @@ public interface OakWBuffer {
      *                                   minus three
      * @throws ReadOnlyBufferException   If this buffer is read-only
      */
-    public abstract OakWBuffer putInt(int index, int value);
+    OakWBuffer putInt(int index, int value);
 
     /**
      * Relative <i>get</i> method for reading a long value.
@@ -505,7 +505,7 @@ public interface OakWBuffer {
      * @throws BufferUnderflowException If there are fewer than eight bytes
      *                                  remaining in this buffer
      */
-    public abstract long getLong();
+    long getLong();
 
     /**
      * Absolute <i>get</i> method for reading a long value.
@@ -519,7 +519,7 @@ public interface OakWBuffer {
      *                                   or not smaller than the buffer's limit,
      *                                   minus seven
      */
-    public abstract long getLong(int index) throws NullPointerException;
+    long getLong(int index) throws NullPointerException;
 
     /**
      * Relative <i>put</i> method for writing a long
@@ -535,7 +535,7 @@ public interface OakWBuffer {
      *                                 remaining in this buffer
      * @throws ReadOnlyBufferException If this buffer is read-only
      */
-    public abstract OakWBuffer putLong(long value);
+    OakWBuffer putLong(long value);
 
     /**
      * Absolute <i>put</i> method for writing a long
@@ -552,7 +552,7 @@ public interface OakWBuffer {
      *                                   minus seven
      * @throws ReadOnlyBufferException   If this buffer is read-only
      */
-    public abstract OakWBuffer putLong(int index, long value);
+    OakWBuffer putLong(int index, long value);
 
     /**
      * Relative <i>get</i> method for reading a float value.
@@ -565,7 +565,7 @@ public interface OakWBuffer {
      * @throws BufferUnderflowException If there are fewer than four bytes
      *                                  remaining in this buffer
      */
-    public abstract float getFloat();
+    float getFloat();
 
     /**
      * Absolute <i>get</i> method for reading a float value.
@@ -579,7 +579,7 @@ public interface OakWBuffer {
      *                                   or not smaller than the buffer's limit,
      *                                   minus three
      */
-    public abstract float getFloat(int index) throws NullPointerException;
+    float getFloat(int index) throws NullPointerException;
 
     /**
      * Relative <i>put</i> method for writing a float
@@ -595,7 +595,7 @@ public interface OakWBuffer {
      *                                 remaining in this buffer
      * @throws ReadOnlyBufferException If this buffer is read-only
      */
-    public abstract OakWBuffer putFloat(float value);
+    OakWBuffer putFloat(float value);
 
     /**
      * Absolute <i>put</i> method for writing a float
@@ -612,7 +612,7 @@ public interface OakWBuffer {
      *                                   minus three
      * @throws ReadOnlyBufferException   If this buffer is read-only
      */
-    public abstract OakWBuffer putFloat(int index, float value);
+    OakWBuffer putFloat(int index, float value);
 
     /**
      * Relative <i>get</i> method for reading a double value.
@@ -625,7 +625,7 @@ public interface OakWBuffer {
      * @throws BufferUnderflowException If there are fewer than eight bytes
      *                                  remaining in this buffer
      */
-    public abstract double getDouble();
+    double getDouble();
 
     /**
      * Absolute <i>get</i> method for reading a double value.
@@ -639,7 +639,7 @@ public interface OakWBuffer {
      *                                   or not smaller than the buffer's limit,
      *                                   minus seven
      */
-    public abstract double getDouble(int index) throws NullPointerException;
+    double getDouble(int index) throws NullPointerException;
 
     /**
      * Relative <i>put</i> method for writing a double
@@ -655,7 +655,7 @@ public interface OakWBuffer {
      *                                 remaining in this buffer
      * @throws ReadOnlyBufferException If this buffer is read-only
      */
-    public abstract OakWBuffer putDouble(double value);
+    OakWBuffer putDouble(double value);
 
     /**
      * Absolute <i>put</i> method for writing a double
@@ -672,6 +672,6 @@ public interface OakWBuffer {
      *                                   minus seven
      * @throws ReadOnlyBufferException   If this buffer is read-only
      */
-    public abstract OakWBuffer putDouble(int index, double value);
+    OakWBuffer putDouble(int index, double value);
 
 }

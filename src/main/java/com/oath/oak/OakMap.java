@@ -19,37 +19,32 @@ import java.util.function.Function;
  */
 public class OakMap<K, V> implements AutoCloseable {
 
-  private InternalOakMap internalOakMap;
+  private final InternalOakMap internalOakMap;
   /*
   * Memory manager cares for allocation, de-allocation and reuse of the internally pre-allocated
   * memory. Each thread that is going to access a memory that can be released by memory must
-  * start with attachTread() and end with detachThread(). Those calls can be nested, but amount of
+  * start with startThread() and end with stopOperation(). Those calls can be nested, but amount of
   * attaches must be equal to detach.
   * Attach-Detach Policy:
   * For any externally used Oak class (OakMap, Iterator, OakBuffer- or OakTransform- View),
   * this specific class is responsible to wrap the internal methods with attach-detach.
   * */
-  private final OakMemoryManager memoryManager;
-  private Function<ByteBuffer, K> keyDeserializeTransformer;
-  private Function<ByteBuffer, V> valueDeserializeTransformer;
-  private Function<Map.Entry<ByteBuffer, ByteBuffer>, Map.Entry<K, V>> entryDeserializeTransformer;
-  final Comparator comparator;
+  private final MemoryManager memoryManager;
+  private final Function<ByteBuffer, K> keyDeserializeTransformer;
+  private final Function<ByteBuffer, V> valueDeserializeTransformer;
+  private final Function<Map.Entry<ByteBuffer, ByteBuffer>, Map.Entry<K, V>> entryDeserializeTransformer;
+  private final Comparator comparator;
 
   // SubOakMap fields
-  private K fromKey;
-  private boolean fromInclusive;
-  private K toKey;
+  private final K fromKey;
+  private final boolean fromInclusive;
+  private final K toKey;
   private boolean toInclusive;
-  private boolean isDescending;
+  private final boolean isDescending;
 
   // internal constructor, to create OakMap use OakMapBuilder
-  OakMap(K minKey,
-                OakSerializer<K> keySerializer,
-                OakSerializer<V> valueSerializer,
-                OakComparator<K> oakComparator,
-                MemoryPool memoryPool,
-                int chunkMaxItems,
-                int chunkBytesPerItem) {
+  OakMap(K minKey, OakSerializer<K> keySerializer, OakSerializer<V> valueSerializer, OakComparator<K> oakComparator,
+      int chunkMaxItems, int chunkBytesPerItem, MemoryManager mm) {
 
     this.comparator = new Comparator() {
       @Override
@@ -70,7 +65,7 @@ public class OakMap<K, V> implements AutoCloseable {
       }
     };
 
-    this.memoryManager = new OakMemoryManager(memoryPool);
+    this.memoryManager = mm;
     this.internalOakMap = new InternalOakMap(minKey, keySerializer, valueSerializer, this.comparator,
             this.memoryManager, chunkMaxItems, chunkBytesPerItem);
     this.fromKey = null;
@@ -99,7 +94,7 @@ public class OakMap<K, V> implements AutoCloseable {
   }
 
   // set constructor, mostly used for subMap
-  private OakMap(InternalOakMap internalOakMap, OakMemoryManager memoryManager,
+  private OakMap(InternalOakMap internalOakMap, MemoryManager memoryManager,
                  Function<ByteBuffer, K> keyDeserializeTransformer,
                  Function<ByteBuffer, V> valueDeserializeTransformer,
                  Function<Map.Entry<ByteBuffer, ByteBuffer>, Map.Entry<K, V>> entryDeserializeTransformer,
@@ -159,10 +154,10 @@ public class OakMap<K, V> implements AutoCloseable {
     if (!inBounds(key))
       throw new IllegalArgumentException("The key is out of map bounds");
     try {
-      memoryManager.attachThread();
+      memoryManager.startOperation();
       internalOakMap.put(key, value);
     } finally {
-      memoryManager.detachThread();
+      memoryManager.stopOperation();
     }
   }
 
@@ -182,10 +177,10 @@ public class OakMap<K, V> implements AutoCloseable {
     if (!inBounds(key))
       throw new IllegalArgumentException("The key is out of map bounds");
     try {
-      memoryManager.attachThread();
+      memoryManager.startOperation();
       return internalOakMap.putIfAbsent(key, value);
     } finally {
-      memoryManager.detachThread();
+      memoryManager.stopOperation();
     }
   }
 
@@ -201,10 +196,10 @@ public class OakMap<K, V> implements AutoCloseable {
     if (!inBounds(key))
       throw new IllegalArgumentException("The key is out of map bounds");
     try {
-      memoryManager.attachThread();
+      memoryManager.startOperation();
       internalOakMap.remove(key);
     } finally {
-      memoryManager.detachThread();
+      memoryManager.stopOperation();
     }
   }
 
@@ -223,10 +218,10 @@ public class OakMap<K, V> implements AutoCloseable {
     if (!inBounds(key))
       throw new IllegalArgumentException("The key is out of map bounds");
     try {
-      memoryManager.attachThread();
+      memoryManager.startOperation();
       return (V) internalOakMap.getValueTransformation(key, valueDeserializeTransformer);
     } finally {
-      memoryManager.detachThread();
+      memoryManager.stopOperation();
     }
   }
 
@@ -243,10 +238,10 @@ public class OakMap<K, V> implements AutoCloseable {
       throw new UnsupportedOperationException();
     }
     try {
-      memoryManager.attachThread();
+      memoryManager.startOperation();
       return (K) internalOakMap.getMinKeyTransformation(keyDeserializeTransformer);
     } finally {
-      memoryManager.detachThread();
+      memoryManager.stopOperation();
     }
   }
 
@@ -263,10 +258,10 @@ public class OakMap<K, V> implements AutoCloseable {
       throw new UnsupportedOperationException();
     }
     try {
-      memoryManager.attachThread();
+      memoryManager.startOperation();
       return (K) internalOakMap.getMaxKeyTransformation(keyDeserializeTransformer);
     } finally {
-      memoryManager.detachThread();
+      memoryManager.stopOperation();
     }
   }
 
@@ -284,10 +279,10 @@ public class OakMap<K, V> implements AutoCloseable {
     if (!inBounds(key))
       throw new IllegalArgumentException("The key is out of map bounds");
     try {
-      memoryManager.attachThread();
+      memoryManager.startOperation();
       return internalOakMap.computeIfPresent(key, computer);
     } finally {
-      memoryManager.detachThread();
+      memoryManager.stopOperation();
     }
   }
 
@@ -306,10 +301,10 @@ public class OakMap<K, V> implements AutoCloseable {
     if (!inBounds(key))
       throw new IllegalArgumentException("The key is out of map bounds");
     try {
-      memoryManager.attachThread();
+      memoryManager.startOperation();
       internalOakMap.putIfAbsentComputeIfPresent(key, value, computer);
     } finally {
-      memoryManager.detachThread();
+      memoryManager.stopOperation();
     }
   }
 
@@ -325,8 +320,7 @@ public class OakMap<K, V> implements AutoCloseable {
 
     if (toKey != null) {
       res = comparator.compare(key, toKey);
-      if (res > 0 || (res == 0 && !toInclusive))
-        return false;
+      return res <= 0 && (res != 0 || toInclusive);
     }
     return true;
   }
@@ -485,7 +479,7 @@ public class OakMap<K, V> implements AutoCloseable {
   }
 
   /* ---------------- Package visibility getters for the views methods -------------- */
-  OakMemoryManager getMemoryManager() { return memoryManager; }
+  MemoryManager getMemoryManager() { return memoryManager; }
 
   boolean getIsDescending(){
     return isDescending;

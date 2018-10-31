@@ -36,27 +36,21 @@ class Rebalancer<K, V> {
     private final AtomicReference<List<Chunk>> newChunks = new AtomicReference<>(null);
     private final AtomicReference<List<Chunk>> engagedChunks = new AtomicReference<>(null);
     private final AtomicBoolean frozen = new AtomicBoolean(false);
-    private Chunk<K, V> first;
+    private final Chunk<K, V> first;
     private Chunk<K, V> last;
     private int chunksInRange;
     private int itemsInRange;
     private int bytesInRange;
     private final Comparator<Object> comparator;
     private final boolean offHeap;
-    private final OakMemoryManager memoryManager;
-    private final HandleFactory handleFactory;
+    private final MemoryManager memoryManager;
     private final OakSerializer<K> keySerializer;
     private final OakSerializer<V> valueSerializer;
 
     /*-------------- Constructors --------------*/
 
-    Rebalancer(Chunk chunk,
-               Comparator<Object> comparator,
-               boolean offHeap,
-               OakMemoryManager memoryManager,
-               HandleFactory handleFactory,
-               OakSerializer<K> keySerializer,
-               OakSerializer<V> valueSerializer) {
+    Rebalancer(Chunk chunk, Comparator<Object> comparator, boolean offHeap, MemoryManager memoryManager,
+        OakSerializer<K> keySerializer, OakSerializer<V> valueSerializer) {
         this.rebalanceSize = 2;
         this.maxAfterMergePart = 0.7;
         this.lowThreshold = 0.5;
@@ -77,14 +71,13 @@ class Rebalancer<K, V> {
         chunksInRange = 1;
         itemsInRange = first.getStatistics().getCompactedCount();
         bytesInRange = first.keyIndex.get();
-        this.handleFactory = handleFactory;
         this.keySerializer = keySerializer;
         this.valueSerializer = valueSerializer;
     }
 
     static class RebalanceResult {
-        boolean success;
-        boolean putIfAbsent;
+        final boolean success;
+        final boolean putIfAbsent;
 
         RebalanceResult(boolean success, boolean putIfAbsent) {
             this.success = success;
@@ -335,7 +328,7 @@ class Rebalancer<K, V> {
 
         int hi = -1;
         if (operation != Operation.REMOVE) {
-            hi = c.allocateHandle(handleFactory);
+            hi = c.allocateHandle();
             assert hi > 0; // chunk can't be full
 
             c.writeValue(hi, value); // write value in place
@@ -361,7 +354,6 @@ class Rebalancer<K, V> {
         assert compare(prev.minKey, key) <= 0;
 
         while (iter.hasNext()) {
-            prev = next;
             next = iter.next();
             if (compare(next.minKey, key) > 0) {
                 // if we went to far

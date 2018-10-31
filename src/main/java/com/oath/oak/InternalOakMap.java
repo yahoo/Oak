@@ -29,17 +29,16 @@ class InternalOakMap<K, V> {
   final ConcurrentSkipListMap<Object, Chunk<K, V>> skiplist;    // skiplist of chunks for fast navigation
   private final AtomicReference<Chunk<K, V>> head;
   private final ByteBuffer minKey;
-  final Comparator comparator;
-  final OakMemoryManager memoryManager;
-  private final HandleFactory handleFactory;
-  private AtomicInteger size;
-  private OakSerializer<K> keySerializer;
-  private OakSerializer<V> valueSerializer;
+  private final Comparator comparator;
+  private final MemoryManager memoryManager;
+  private final AtomicInteger size;
+  private final OakSerializer<K> keySerializer;
+  private final OakSerializer<V> valueSerializer;
 
   // The reference count is used to count the upper objects wrapping this internal map:
   // OakMaps (including subMaps and Views) when all of the above are closed,
   // his map can be closed and memory released.
-  private AtomicInteger referenceCount = new AtomicInteger(1);
+  private final AtomicInteger referenceCount = new AtomicInteger(1);
     /*-------------- Constructors --------------*/
 
   /**
@@ -51,7 +50,7 @@ class InternalOakMap<K, V> {
           OakSerializer<K> keySerializer,
           OakSerializer<V> valueSerializer,
           Comparator comparator,
-          OakMemoryManager memoryManager,
+          MemoryManager memoryManager,
           int chunkMaxItems,
           int chunkBytesPerItem) {
 
@@ -72,8 +71,6 @@ class InternalOakMap<K, V> {
             chunkBytesPerItem, this.size, keySerializer, valueSerializer);
     this.skiplist.put(head.minKey, head);    // add first chunk (head) into skiplist
     this.head = new AtomicReference<>(head);
-
-    this.handleFactory = new HandleFactory(true);
   }
 
   static int getThreadIndex() {
@@ -91,7 +88,7 @@ class InternalOakMap<K, V> {
     // once reference count is zeroed, the map meant to be deleted and should not be used.
     // reference count will never grow again
     if (res == 0) {
-      memoryManager.pool.clean();
+      memoryManager.close();
     }
   }
 
@@ -118,7 +115,7 @@ class InternalOakMap<K, V> {
    * @return current off heap memory usage in bytes
    */
   long memorySize() {
-    return memoryManager.pool.allocated();
+    return memoryManager.allocated();
   }
 
   int entries() { return size.get(); }
@@ -147,8 +144,7 @@ class InternalOakMap<K, V> {
       assert op == Operation.NO_OP;
       return null;
     }
-    Rebalancer rebalancer = new Rebalancer(c, comparator, true, memoryManager, handleFactory,
-            keySerializer, valueSerializer);
+    Rebalancer rebalancer = new Rebalancer(c, comparator, true, memoryManager, keySerializer, valueSerializer);
 
     rebalancer = rebalancer.engageChunks(); // maybe we encountered a different rebalancer
 
@@ -224,6 +220,7 @@ class InternalOakMap<K, V> {
       }
       // chunk is not in list (someone else already updated list), so we're done with this part
       if ((curr == null) || (prev == null)) {
+        //TODO Never reached
         break;
       }
 
@@ -359,7 +356,6 @@ class InternalOakMap<K, V> {
     int ei = -1;
     int prevHi = -1;
     if (lookUp != null) {
-      assert lookUp.handle == null;
       ei = lookUp.entryIndex;
       assert ei > 0;
       prevHi = lookUp.handleIndex;
@@ -378,7 +374,7 @@ class InternalOakMap<K, V> {
       }
     }
 
-    int hi = c.allocateHandle(handleFactory);
+    int hi = c.allocateHandle();
     if (hi == -1) {
       rebalancePut(c, key, value);
       return;
@@ -447,7 +443,7 @@ class InternalOakMap<K, V> {
       }
     }
 
-    int hi = c.allocateHandle(handleFactory);
+    int hi = c.allocateHandle();
     if (hi == -1) {
       return rebalancePutIfAbsent(c, key, value);
     }
@@ -527,7 +523,7 @@ class InternalOakMap<K, V> {
       }
     }
 
-    int hi = c.allocateHandle(handleFactory);
+    int hi = c.allocateHandle();
     if (hi == -1) {
       rebalanceCompute(c, key, value, computer);
       return;
@@ -551,7 +547,7 @@ class InternalOakMap<K, V> {
       throw new NullPointerException();
     }
 
-    boolean logical = true;
+    boolean logical = true; // when logical is false, means we have marked the handle as deleted
     Handle prev = null;
 
     while (true) {
@@ -566,16 +562,18 @@ class InternalOakMap<K, V> {
       }
 
       if (lookUp == null || lookUp.handle == null) {
-        return;
+        return; // there is no such key
       }
 
       if (logical) {
         if (!lookUp.handle.remove(memoryManager)) {
+          // we didn't succeed to remove the handle was marked as deleted already
           return;
         }
+        // we have marked this handle as deleted
       }
 
-      // if chunk is frozen or infant, we can't add to it
+      // if chunk is frozen or infant, we can't update it (remove deleted key, set handle index to -1)
       // we need to help rebalancer first, then proceed
       Chunk.State state = c.state();
       if (state == Chunk.State.INFANT) {
@@ -743,23 +741,23 @@ class InternalOakMap<K, V> {
    */
   abstract class Iter<T> implements OakCloseableIterator<T> {
 
-    protected final K lo;
+    final K lo;
     /**
      * upper bound key, or null if to end
      */
-    protected final K hi;
+    final K hi;
     /**
      * inclusion flag for lo
      */
-    protected final boolean loInclusive;
+    final boolean loInclusive;
     /**
      * inclusion flag for hi
      */
-    protected final boolean hiInclusive;
+    final boolean hiInclusive;
     /**
      * direction
      */
-    protected final boolean isDescending;
+    final boolean isDescending;
 
     /**
      * the next node to return from next();
@@ -789,7 +787,7 @@ class InternalOakMap<K, V> {
       // we use another nested attach-detach invocation to allow releasing the memory where
       // iterator already traversed. Finally to mark the thread idle we need the detach to be
       // invoked from the close of this closeable iterator.
-      memoryManager.attachThread();
+      memoryManager.startOperation();
       next = Chunk.NONE;
       nextHandle = null;
       initChunk();
@@ -798,7 +796,7 @@ class InternalOakMap<K, V> {
 
     @Override
     public void close() {
-      memoryManager.detachThread();
+      memoryManager.stopOperation();
     }
 
     boolean tooLow(Object key) {
@@ -823,10 +821,10 @@ class InternalOakMap<K, V> {
 
     public T next() {
       try {
-        memoryManager.attachThread();
+        memoryManager.startOperation();
         return internalNext();
       } finally {
-        memoryManager.detachThread();
+        memoryManager.stopOperation();
       }
     }
 
@@ -848,17 +846,17 @@ class InternalOakMap<K, V> {
     private void initChunk() {
       if (!isDescending) {
         if (lo != null)
-          nextChunk = (Chunk<K, V>) skiplist.floorEntry(lo).getValue();
+          nextChunk = skiplist.floorEntry(lo).getValue();
         else
-          nextChunk = (Chunk<K, V>) skiplist.floorEntry(minKey).getValue();
+          nextChunk = skiplist.floorEntry(minKey).getValue();
         if (nextChunk == null) {
           nextChunkIter = null;
         } else {
           nextChunkIter = lo != null ? nextChunk.ascendingIter(lo) : nextChunk.ascendingIter();
         }
       } else {
-        nextChunk = hi != null ? (Chunk<K, V>) skiplist.floorEntry(hi).getValue()
-                : (Chunk<K, V>) skiplist.lastEntry().getValue();
+        nextChunk = hi != null ? skiplist.floorEntry(hi).getValue()
+                : skiplist.lastEntry().getValue();
         if (nextChunk == null) {
           nextChunkIter = null;
         } else {
@@ -938,7 +936,7 @@ class InternalOakMap<K, V> {
         nextChunk = (Chunk) e.getValue();
         Chunk nextNext = nextChunk.next.getReference();
         if (nextNext == null) {
-          nextChunkIter = nextChunk.descendingIter((K) keySerializer.deserialize(serializedMinKey), false);
+          nextChunkIter = nextChunk.descendingIter(keySerializer.deserialize(serializedMinKey), false);
           continue;
         }
         ByteBuffer nextMinKey = nextNext.minKey;
@@ -950,7 +948,7 @@ class InternalOakMap<K, V> {
             nextMinKey = nextChunk.next.getReference().minKey;
           }
         }
-        nextChunkIter = nextChunk.descendingIter((K) keySerializer.deserialize(serializedMinKey), false); // TODO check correctness
+        nextChunkIter = nextChunk.descendingIter(keySerializer.deserialize(serializedMinKey), false); // TODO check correctness
       }
       return true;
     }
@@ -1004,7 +1002,7 @@ class InternalOakMap<K, V> {
 
   class ValueTransformIterator<T> extends Iter<T> {
 
-    Function<ByteBuffer, T> transformer;
+    final Function<ByteBuffer, T> transformer;
 
     ValueTransformIterator(K lo, boolean loInclusive, K hi, boolean hiInclusive, boolean isDescending,
                                   Function<ByteBuffer, T> transformer) {
@@ -1048,7 +1046,7 @@ class InternalOakMap<K, V> {
 
   class EntryTransformIterator<T> extends Iter<T> {
 
-    Function<Map.Entry<ByteBuffer, ByteBuffer>, T> transformer;
+    final Function<Map.Entry<ByteBuffer, ByteBuffer>, T> transformer;
 
     EntryTransformIterator(K lo, boolean loInclusive, K hi, boolean hiInclusive, boolean isDescending,
                                   Function<Map.Entry<ByteBuffer, ByteBuffer>, T> transformer) {
@@ -1102,7 +1100,7 @@ class InternalOakMap<K, V> {
 
   class KeyTransformIterator<T> extends Iter<T> {
 
-    Function<ByteBuffer, T> transformer;
+    final Function<ByteBuffer, T> transformer;
 
     KeyTransformIterator(K lo, boolean loInclusive, K hi, boolean hiInclusive, boolean isDescending,
                                 Function<ByteBuffer, T> transformer) {

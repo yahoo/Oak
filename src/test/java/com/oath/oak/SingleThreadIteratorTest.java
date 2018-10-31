@@ -44,37 +44,34 @@ public class SingleThreadIteratorTest {
 
     @Test
     public void testIterator() {
-        Integer i;
         Integer value;
-        for (i = 0; i < 2 * maxItemsPerChunk; i++) {
+        for (Integer i = 0; i < 2 * maxItemsPerChunk; i++) {
             oak.put(i, i);
         }
-        for (i = 0; i < 2 * maxItemsPerChunk; i++) {
+        for (Integer i = 0; i < 2 * maxItemsPerChunk; i++) {
             value = oak.get(i);
-            assertTrue(value != null);
             assertEquals(i, value);
         }
         oak.assertIfNotIdle();
         OakCloseableIterator<Integer> valIter = oak.valuesIterator();
         OakCloseableIterator<Map.Entry<Integer, Integer>> entryIter = oak.entriesIterator();
-        i = 0;
+        Integer expectedVal = 0;
         while (valIter.hasNext()) {
-            assertEquals(i, valIter.next());
+            assertEquals(expectedVal, valIter.next());
             Map.Entry<Integer, Integer> e = entryIter.next();
-            assertEquals(i, e.getKey());
-            assertEquals(i, e.getValue());
-            i++;
+            assertEquals(expectedVal, e.getKey());
+            assertEquals(expectedVal, e.getValue());
+            expectedVal++;
         }
-        for (i = 0; i < maxItemsPerChunk; i++) {
+        for (Integer i = 0; i < maxItemsPerChunk; i++) {
             oak.remove(i);
         }
-        for (i = 0; i < maxItemsPerChunk; i++) {
+        for (Integer i = 0; i < maxItemsPerChunk; i++) {
             value = oak.get(i);
             assertTrue(value == null);
         }
-        for (i = maxItemsPerChunk; i < 2 * maxItemsPerChunk; i++) {
+        for (Integer i = maxItemsPerChunk; i < 2 * maxItemsPerChunk; i++) {
             value = oak.get(i);
-            assertTrue(value != null);
             assertEquals(i, value);
         }
         valIter.close();
@@ -82,45 +79,44 @@ public class SingleThreadIteratorTest {
         oak.assertIfNotIdle();
         valIter = oak.valuesIterator();
         entryIter = oak.entriesIterator();
-        i = maxItemsPerChunk;
+
+        expectedVal = maxItemsPerChunk;
         while (valIter.hasNext()) {
-            assertEquals(i, valIter.next());
+            assertEquals(expectedVal, valIter.next());
             Map.Entry<Integer, Integer> e = entryIter.next();
-            assertEquals(i, e.getValue());
-            i++;
+            assertEquals(expectedVal, e.getValue());
+            expectedVal++;
         }
-        for (i = maxItemsPerChunk; i < 2 * maxItemsPerChunk; i++) {
+        for (Integer i = maxItemsPerChunk; i < 2 * maxItemsPerChunk; i++) {
             oak.remove(i);
         }
-        for (i = maxItemsPerChunk; i < 2 * maxItemsPerChunk; i++) {
+        for (Integer i = maxItemsPerChunk; i < 2 * maxItemsPerChunk; i++) {
             value = oak.get(i);
             assertTrue(value == null);
         }
-        for (i = 0; i < 2 * maxItemsPerChunk; i++) {
+        for (Integer i = 0; i < 2 * maxItemsPerChunk; i++) {
             oak.put(i, i);
         }
         valIter.close();
         entryIter.close();
         oak.assertIfNotIdle();
-        for (i = 1; i < (2 * maxItemsPerChunk - 1); i++) {
+        for (Integer i = 1; i < (2 * maxItemsPerChunk - 1); i++) {
             oak.remove(i);
         }
 
-        i = 0;
-        value = oak.get(i);
-        assertTrue(value != null);
-        assertEquals(i, value);
+        expectedVal = 0;
+        value = oak.get(expectedVal);
+        assertEquals(expectedVal, value);
 
-        i = 2 * maxItemsPerChunk - 1;
-        value = oak.get(i);
-        assertTrue(value != null);
-        assertEquals(i, value);
+        expectedVal = 2 * maxItemsPerChunk - 1;
+        value = oak.get(expectedVal);
+        assertEquals(expectedVal, value);
 
         valIter = oak.valuesIterator();
         assertTrue(valIter.hasNext());
         assertEquals((Integer) 0, valIter.next());
         assertTrue(valIter.hasNext());
-        assertEquals(i, valIter.next());
+        assertEquals(expectedVal, valIter.next());
     }
 
     @Test

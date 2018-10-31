@@ -12,7 +12,7 @@ import java.util.function.Function;
 
 public class OakRKeyBufferImpl implements OakRBuffer {
 
-  private ByteBuffer byteBuffer;
+  private final ByteBuffer byteBuffer;
 
   OakRKeyBufferImpl(ByteBuffer byteBuffer) {
     this.byteBuffer = byteBuffer;
