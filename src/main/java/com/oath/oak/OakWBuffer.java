@@ -71,7 +71,6 @@ public interface OakWBuffer {
 
     /**
      * Resets this buffer's position to the previously-marked position.
-     * <p>
      * <p> Invoking this method neither changes nor discards the mark's
      * value. </p>
      *
@@ -83,14 +82,11 @@ public interface OakWBuffer {
     /**
      * Clears this buffer.  The position is set to zero, the limit is set to
      * the capacity, and the mark is discarded.
-     * <p>
      * <p> Invoke this method before using a sequence of channel-read or
      * <i>put</i> operations to fill this buffer.  For example:
-     * <p>
      * <blockquote><pre>
      * buf.clear();     // Prepare buffer for reading
      * in.read(buf);    // Read data</pre></blockquote>
-     * <p>
      * <p> This method does not actually erase the data in the buffer, but it
      * is named as if it did because it will most often be used in situations
      * in which that might as well be the case. </p>
@@ -103,17 +99,14 @@ public interface OakWBuffer {
      * Flips this buffer.  The limit is set to the current position and then
      * the position is set to zero.  If the mark is defined then it is
      * discarded.
-     * <p>
      * <p> After a sequence of channel-read or <i>put</i> operations, invoke
      * this method to prepare for a sequence of channel-write or relative
      * <i>get</i> operations.  For example:
-     * <p>
      * <blockquote><pre>
      * buf.put(magic);    // Prepend header
      * in.read(buf);      // Read data into rest of buffer
      * buf.flip();        // Flip buffer
      * out.write(buf);    // Write header + data to channel</pre></blockquote>
-     * <p>
      * <p> This method is often used in conjunction with the {@link
      * java.nio.ByteBuffer#compact compact} method when transferring data from
      * one place to another.  </p>
@@ -125,11 +118,9 @@ public interface OakWBuffer {
     /**
      * Rewinds this buffer.  The position is set to zero and the mark is
      * discarded.
-     * <p>
      * <p> Invoke this method before a sequence of channel-write or <i>get</i>
      * operations, assuming that the limit has already been set
      * appropriately.  For example:
-     * <p>
      * <blockquote><pre>
      * out.write(buf);    // Write remaining data
      * buf.rewind();      // Rewind buffer
@@ -169,23 +160,19 @@ public interface OakWBuffer {
 
     /**
      * Relative bulk <i>get</i> method.
-     * <p>
      * <p> This method transfers bytes from this buffer into the given
      * destination array.  If there are fewer bytes remaining in the
      * buffer than are required to satisfy the request, that is, if
      * <tt>length</tt>&nbsp;<tt>&gt;</tt>&nbsp;<tt>remaining()</tt>, then no
      * bytes are transferred and a {@link BufferUnderflowException} is
      * thrown.
-     * <p>
      * <p> Otherwise, this method copies <tt>length</tt> bytes from this
      * buffer into the given array, starting at the current position of this
      * buffer and at the given offset in the array.  The position of this
      * buffer is then incremented by <tt>length</tt>.
-     * <p>
      * <p> In other words, an invocation of this method of the form
      * <tt>src.get(dst,&nbsp;off,&nbsp;len)</tt> has exactly the same effect as
      * the loop
-     * <p>
      * <pre>{@code
      *     for (int i = off; i < off + len; i++)
      *         dst[i] = src.get():
@@ -211,7 +198,6 @@ public interface OakWBuffer {
 
     /**
      * Relative <i>put</i> method&nbsp;&nbsp;<i>(optional operation)</i>.
-     * <p>
      * <p> Writes the given byte into this buffer at the current
      * position, and then increments the position. </p>
      *
@@ -224,7 +210,6 @@ public interface OakWBuffer {
 
     /**
      * Absolute <i>put</i> method&nbsp;&nbsp;<i>(optional operation)</i>.
-     * <p>
      * <p> Writes the given byte into this buffer at the given
      * index. </p>
      *
@@ -241,22 +226,18 @@ public interface OakWBuffer {
 
     /**
      * Relative bulk <i>put</i> method&nbsp;&nbsp;<i>(optional operation)</i>.
-     * <p>
      * <p> This method transfers the bytes remaining in the given source
      * buffer into this buffer.  If there are more bytes remaining in the
      * source buffer than in this buffer, that is, if
      * <tt>src.remaining()</tt>&nbsp;<tt>&gt;</tt>&nbsp;<tt>remaining()</tt>,
      * then no bytes are transferred and a {@link
      * BufferOverflowException} is thrown.
-     * <p>
      * <p> Otherwise, this method copies
      * <i>n</i>&nbsp;=&nbsp;<tt>src.remaining()</tt> bytes from the given
      * buffer into this buffer, starting at each buffer's current position.
      * The positions of both buffers are then incremented by <i>n</i>.
-     * <p>
      * <p> In other words, an invocation of this method of the form
      * <tt>dst.put(src)</tt> has exactly the same effect as the loop
-     * <p>
      * <pre>
      *     while (src.hasRemaining())
      *         dst.put(src.get()); </pre>
@@ -276,12 +257,10 @@ public interface OakWBuffer {
 
     /**
      * Relative bulk <i>put</i> method&nbsp;&nbsp;<i>(optional operation)</i>.
-     * <p>
      * <p> This method transfers the entire content of the given source
      * byte array into this buffer.  An invocation of this method of the
      * form <tt>dst.put(a)</tt> behaves in exactly the same way as the
      * invocation
-     * <p>
      * <pre>
      *     dst.put(a, 0, a.length) </pre>
      *
@@ -294,7 +273,6 @@ public interface OakWBuffer {
 
     /**
      * Retrieves this buffer's byte order.
-     * <p>
      * <p> The byte order is used when reading or writing multibyte values, and
      * when creating buffers that are views of this byte buffer.  The order of
      * a newly-created byte buffer is always {@link ByteOrder#BIG_ENDIAN
@@ -316,7 +294,6 @@ public interface OakWBuffer {
 
     /**
      * Relative <i>get</i> method for reading a char value.
-     * <p>
      * <p> Reads the next two bytes at this buffer's current position,
      * composing them into a char value according to the current byte order,
      * and then increments the position by two.  </p>
@@ -329,7 +306,6 @@ public interface OakWBuffer {
 
     /**
      * Absolute <i>get</i> method for reading a char value.
-     * <p>
      * <p> Reads two bytes at the given index, composing them into a
      * char value according to the current byte order.  </p>
      *
@@ -344,7 +320,6 @@ public interface OakWBuffer {
     /**
      * Relative <i>put</i> method for writing a char
      * value&nbsp;&nbsp;<i>(optional operation)</i>.
-     * <p>
      * <p> Writes two bytes containing the given char value, in the
      * current byte order, into this buffer at the current position, and then
      * increments the position by two.  </p>
@@ -360,7 +335,6 @@ public interface OakWBuffer {
     /**
      * Absolute <i>put</i> method for writing a char
      * value&nbsp;&nbsp;<i>(optional operation)</i>.
-     * <p>
      * <p> Writes two bytes containing the given char value, in the
      * current byte order, into this buffer at the given index.  </p>
      *
@@ -376,7 +350,6 @@ public interface OakWBuffer {
 
     /**
      * Relative <i>get</i> method for reading a short value.
-     * <p>
      * <p> Reads the next two bytes at this buffer's current position,
      * composing them into a short value according to the current byte order,
      * and then increments the position by two.  </p>
@@ -389,7 +362,6 @@ public interface OakWBuffer {
 
     /**
      * Absolute <i>get</i> method for reading a short value.
-     * <p>
      * <p> Reads two bytes at the given index, composing them into a
      * short value according to the current byte order.  </p>
      *
@@ -404,7 +376,6 @@ public interface OakWBuffer {
     /**
      * Relative <i>put</i> method for writing a short
      * value&nbsp;&nbsp;<i>(optional operation)</i>.
-     * <p>
      * <p> Writes two bytes containing the given short value, in the
      * current byte order, into this buffer at the current position, and then
      * increments the position by two.  </p>
@@ -420,7 +391,6 @@ public interface OakWBuffer {
     /**
      * Absolute <i>put</i> method for writing a short
      * value&nbsp;&nbsp;<i>(optional operation)</i>.
-     * <p>
      * <p> Writes two bytes containing the given short value, in the
      * current byte order, into this buffer at the given index.  </p>
      *
@@ -436,7 +406,6 @@ public interface OakWBuffer {
 
     /**
      * Relative <i>get</i> method for reading an int value.
-     * <p>
      * <p> Reads the next four bytes at this buffer's current position,
      * composing them into an int value according to the current byte order,
      * and then increments the position by four.  </p>
@@ -449,7 +418,6 @@ public interface OakWBuffer {
 
     /**
      * Absolute <i>get</i> method for reading an int value.
-     * <p>
      * <p> Reads four bytes at the given index, composing them into a
      * int value according to the current byte order.  </p>
      *
@@ -464,7 +432,6 @@ public interface OakWBuffer {
     /**
      * Relative <i>put</i> method for writing an int
      * value&nbsp;&nbsp;<i>(optional operation)</i>.
-     * <p>
      * <p> Writes four bytes containing the given int value, in the
      * current byte order, into this buffer at the current position, and then
      * increments the position by four.  </p>
@@ -480,7 +447,6 @@ public interface OakWBuffer {
     /**
      * Absolute <i>put</i> method for writing an int
      * value&nbsp;&nbsp;<i>(optional operation)</i>.
-     * <p>
      * <p> Writes four bytes containing the given int value, in the
      * current byte order, into this buffer at the given index.  </p>
      *
@@ -496,7 +462,6 @@ public interface OakWBuffer {
 
     /**
      * Relative <i>get</i> method for reading a long value.
-     * <p>
      * <p> Reads the next eight bytes at this buffer's current position,
      * composing them into a long value according to the current byte order,
      * and then increments the position by eight.  </p>
@@ -509,7 +474,6 @@ public interface OakWBuffer {
 
     /**
      * Absolute <i>get</i> method for reading a long value.
-     * <p>
      * <p> Reads eight bytes at the given index, composing them into a
      * long value according to the current byte order.  </p>
      *
@@ -524,7 +488,6 @@ public interface OakWBuffer {
     /**
      * Relative <i>put</i> method for writing a long
      * value&nbsp;&nbsp;<i>(optional operation)</i>.
-     * <p>
      * <p> Writes eight bytes containing the given long value, in the
      * current byte order, into this buffer at the current position, and then
      * increments the position by eight.  </p>
@@ -540,7 +503,6 @@ public interface OakWBuffer {
     /**
      * Absolute <i>put</i> method for writing a long
      * value&nbsp;&nbsp;<i>(optional operation)</i>.
-     * <p>
      * <p> Writes eight bytes containing the given long value, in the
      * current byte order, into this buffer at the given index.  </p>
      *
@@ -556,7 +518,6 @@ public interface OakWBuffer {
 
     /**
      * Relative <i>get</i> method for reading a float value.
-     * <p>
      * <p> Reads the next four bytes at this buffer's current position,
      * composing them into a float value according to the current byte order,
      * and then increments the position by four.  </p>
@@ -569,7 +530,6 @@ public interface OakWBuffer {
 
     /**
      * Absolute <i>get</i> method for reading a float value.
-     * <p>
      * <p> Reads four bytes at the given index, composing them into a
      * float value according to the current byte order.  </p>
      *
@@ -584,7 +544,6 @@ public interface OakWBuffer {
     /**
      * Relative <i>put</i> method for writing a float
      * value&nbsp;&nbsp;<i>(optional operation)</i>.
-     * <p>
      * <p> Writes four bytes containing the given float value, in the
      * current byte order, into this buffer at the current position, and then
      * increments the position by four.  </p>
@@ -600,7 +559,6 @@ public interface OakWBuffer {
     /**
      * Absolute <i>put</i> method for writing a float
      * value&nbsp;&nbsp;<i>(optional operation)</i>.
-     * <p>
      * <p> Writes four bytes containing the given float value, in the
      * current byte order, into this buffer at the given index.  </p>
      *
@@ -616,7 +574,6 @@ public interface OakWBuffer {
 
     /**
      * Relative <i>get</i> method for reading a double value.
-     * <p>
      * <p> Reads the next eight bytes at this buffer's current position,
      * composing them into a double value according to the current byte order,
      * and then increments the position by eight.  </p>
@@ -629,7 +586,6 @@ public interface OakWBuffer {
 
     /**
      * Absolute <i>get</i> method for reading a double value.
-     * <p>
      * <p> Reads eight bytes at the given index, composing them into a
      * double value according to the current byte order.  </p>
      *
@@ -644,7 +600,6 @@ public interface OakWBuffer {
     /**
      * Relative <i>put</i> method for writing a double
      * value&nbsp;&nbsp;<i>(optional operation)</i>.
-     * <p>
      * <p> Writes eight bytes containing the given double value, in the
      * current byte order, into this buffer at the current position, and then
      * increments the position by eight.  </p>
@@ -660,7 +615,6 @@ public interface OakWBuffer {
     /**
      * Absolute <i>put</i> method for writing a double
      * value&nbsp;&nbsp;<i>(optional operation)</i>.
-     * <p>
      * <p> Writes eight bytes containing the given double value, in the
      * current byte order, into this buffer at the given index.  </p>
      *

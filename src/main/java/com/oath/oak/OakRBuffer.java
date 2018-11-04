@@ -17,7 +17,7 @@ import java.nio.ByteOrder;
  * On another hand OakRValueBufferImpl has reference to handle which has delete bit and has JVM GC
  * protection.
  */
-interface OakRBuffer {
+public interface OakRBuffer {
 
     /**
      * Returns this buffer's capacity.
@@ -70,7 +70,6 @@ interface OakRBuffer {
 
     /**
      * Retrieves this buffer's byte order.
-     * <p>
      * <p> The byte order is used when reading or writing multibyte values, and
      * when creating buffers that are views of this byte buffer.  The order of
      * a newly-created byte buffer is always {@link ByteOrder#BIG_ENDIAN
@@ -82,7 +81,6 @@ interface OakRBuffer {
 
     /**
      * Absolute <i>get</i> method for reading a char value.
-     * <p>
      * <p> Reads two bytes at the given index, composing them into a
      * char value according to the current byte order.  </p>
      *
@@ -96,7 +94,6 @@ interface OakRBuffer {
 
     /**
      * Absolute <i>get</i> method for reading a short value.
-     * <p>
      * <p> Reads two bytes at the given index, composing them into a
      * short value according to the current byte order.  </p>
      *
@@ -110,7 +107,6 @@ interface OakRBuffer {
 
     /**
      * Absolute <i>get</i> method for reading an int value.
-     * <p>
      * <p> Reads four bytes at the given index, composing them into a
      * int value according to the current byte order.  </p>
      *
@@ -124,7 +120,6 @@ interface OakRBuffer {
 
     /**
      * Absolute <i>get</i> method for reading a long value.
-     * <p>
      * <p> Reads eight bytes at the given index, composing them into a
      * long value according to the current byte order.  </p>
      *
@@ -138,7 +133,6 @@ interface OakRBuffer {
 
     /**
      * Absolute <i>get</i> method for reading a float value.
-     * <p>
      * <p> Reads four bytes at the given index, composing them into a
      * float value according to the current byte order.  </p>
      *
@@ -152,7 +146,6 @@ interface OakRBuffer {
 
     /**
      * Absolute <i>get</i> method for reading a double value.
-     * <p>
      * <p> Reads eight bytes at the given index, composing them into a
      * double value according to the current byte order.  </p>
      *

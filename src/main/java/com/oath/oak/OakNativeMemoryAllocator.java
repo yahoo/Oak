@@ -36,12 +36,26 @@ class OakNativeMemoryAllocator implements OakMemoryAllocator{
     // can be calculated, but kept for easy access
     private final AtomicLong allocated = new AtomicLong(0);
 
+    private final BlocksPool pool;
+
     // constructor
     // input param: memory capacity given to this Oak
     OakNativeMemoryAllocator(long capacity) {
+        this(capacity, null);
+    }
+
+    OakNativeMemoryAllocator(long capacity, BlocksPool pool) {
         // initially allocate one single block from pool
         // this may lazy initialize the pool and take time if this is the first call for the pool
-        Block b = BlocksPool.getInstance().getBlock();
+        if (pool == null) {
+            this.pool = new BlocksPool();
+            this.pool.registerAllocator();
+        } else {
+            this.pool = pool;
+            this.pool.registerAllocator();
+        }
+
+        Block b = this.pool.getBlock();
         this.blocks.add(b);
         this.currentBlock = b;
         this.capacity = capacity;
@@ -78,7 +92,7 @@ class OakNativeMemoryAllocator implements OakMemoryAllocator{
                 if ((blocks.size() + 1) * BlocksPool.BLOCK_SIZE > capacity) {
                     throw new OakOutOfMemoryException();
                 } else {
-                    Block b = BlocksPool.getInstance().getBlock();
+                    Block b = pool.getBlock();
                     this.blocks.add(b);
                     this.currentBlock = b;
                 }
@@ -110,8 +124,9 @@ class OakNativeMemoryAllocator implements OakMemoryAllocator{
     @Override
     public void close() {
         for (Block b : blocks) {
-            BlocksPool.getInstance().returnBlock(b);
+            pool.returnBlock(b);
         }
+        pool.close();
         // no need to do anything with the free list,
         // as all free list members were residing on one of the (already released) blocks
     }

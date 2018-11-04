@@ -39,18 +39,8 @@ public class OakTransformView<K, T> implements AutoCloseable{
     this.fromKey = fromKey;
     this.toKey = toKey;
     this.transformer = transformer;
-    this.valuesTransformer = new Function<ByteBuffer, T>() {
-      @Override
-      public T apply(ByteBuffer byteBuffer) {
-        return transformer.apply(new AbstractMap.SimpleImmutableEntry<ByteBuffer, ByteBuffer>(null, byteBuffer));
-      }
-    };
-    this.keysTransformer = new Function<ByteBuffer, T>() {
-      @Override
-      public T apply(ByteBuffer byteBuffer) {
-        return transformer.apply(new AbstractMap.SimpleImmutableEntry<ByteBuffer, ByteBuffer>(byteBuffer, null));
-      }
-    };
+    this.valuesTransformer = byteBuffer -> transformer.apply(new AbstractMap.SimpleImmutableEntry<ByteBuffer, ByteBuffer>(null, byteBuffer));
+    this.keysTransformer = byteBuffer -> transformer.apply(new AbstractMap.SimpleImmutableEntry<ByteBuffer, ByteBuffer>(byteBuffer, null));
   }
 
   public T get(K key) {
