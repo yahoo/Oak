@@ -336,12 +336,19 @@ public class OakMap<K, V> implements AutoCloseable {
      */
     public OakMap<K, V> subMap(K fromKey, boolean fromInclusive, K toKey, boolean toInclusive) {
 
+        return subMap(fromKey, fromInclusive, toKey, toInclusive, this.isDescending);
+    }
+
+
+    public OakMap<K, V> subMap(K fromKey, boolean fromInclusive, K toKey, boolean toInclusive, boolean descending) {
+
         if (this.comparator.compare(fromKey, toKey) > 0) {
             throw new IllegalArgumentException();
         }
         internalOakMap.open();
         return new OakMap<K, V>(this.internalOakMap, this.memoryManager, this.keyDeserializeTransformer,
-                this.valueDeserializeTransformer, this.entryDeserializeTransformer, this.comparator, fromKey, fromInclusive, toKey, toInclusive, this.isDescending);
+                this.valueDeserializeTransformer, this.entryDeserializeTransformer, this.comparator, fromKey,
+                fromInclusive, toKey, toInclusive, descending);
     }
 
     /**

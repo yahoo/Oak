@@ -125,7 +125,7 @@ public class OakTransformView<K, T> implements AutoCloseable{
    *
    * @throws Exception if this resource cannot be closed
    */
-  @Override public void close() throws Exception {
+  @Override public void close() {
     internalOakMap.close();
   }
 }

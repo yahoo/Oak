@@ -179,7 +179,7 @@
                 <version>2.8</version>
                 <configuration>
                     <argLine>
-                         -XX:MaxDirectMemorySize=2g
+                         -XX:MaxDirectMemorySize=4g
                     </argLine>
                 </configuration>
             </plugin>

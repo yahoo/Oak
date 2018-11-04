@@ -113,7 +113,7 @@ public class OakBufferView<K> implements AutoCloseable{
    * @throws Exception if this resource cannot be closed
    */
   @Override
-  public void close() throws Exception {
+  public void close() {
     internalOakMap.close();
   }
 }
