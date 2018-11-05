@@ -75,9 +75,6 @@ class InternalOakMap<K, V> {
 
     static int getThreadIndex() {
         // TODO use hash instead of modulo
-        if (Thread.currentThread().getId() > Chunk.MAX_THREADS) {
-            System.out.println(Thread.currentThread().getId());
-        }
         return (int) (Thread.currentThread().getId() % Chunk.MAX_THREADS);
     }
 
