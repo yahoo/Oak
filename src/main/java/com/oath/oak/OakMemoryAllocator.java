@@ -7,8 +7,6 @@
 package com.oath.oak;
 
 import java.nio.ByteBuffer;
-import java.util.concurrent.ConcurrentLinkedQueue;
-import java.util.concurrent.atomic.AtomicInteger;
 
 // this is the interface to be implemented to replace the OakNativeMemoryAllocator
 // this is about allocation of a new ByteBuffer (which need to be DirectByteBuffer
