@@ -7,7 +7,6 @@
 package com.oath.oak;
 
 import java.util.concurrent.ConcurrentLinkedQueue;
-import java.util.concurrent.atomic.AtomicInteger;
 
 /*
 * The singleton Pool to pre-allocate and reuse blocks of off-heap memory. The singleton has lazy
@@ -17,7 +16,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 * */
 class BlocksPool {
 
-//    private static BlocksPool instance = null;
+    private static BlocksPool instance = null;
     private final ConcurrentLinkedQueue<Block> blocks = new ConcurrentLinkedQueue<Block>();
 
     // TODO change BLOCK_SIZE and NUMBER_OF_BLOCKS to be pre-configurable, currently changeable for tests
@@ -26,14 +25,25 @@ class BlocksPool {
     // another such amount of memory will be allocated at once.
     public final static int NUMBER_OF_BLOCKS = 20;
 
-    private final AtomicInteger users;
-
     // not thread safe, private constructor; should be called only once
-    public BlocksPool() {
-        users = new AtomicInteger(0);
+    private BlocksPool() {
         prealloc(BLOCK_SIZE, NUMBER_OF_BLOCKS);
     }
 
+    /**
+     * Initializes the instance of BlocksPool if not yet initialized, otherwise returns
+     * the single instance of the singleton. Thread safe.
+     */
+    static BlocksPool getInstance() {
+        if (instance == null) {
+            synchronized (BlocksPool.class) { // can be easily changed to lock-free
+                if (instance == null) {
+                    instance = new BlocksPool();
+                }
+            }
+        }
+        return instance;
+    }
 
     /**
      * Returns a single Block from within the Pool, enlarges the Pool if needed
@@ -74,13 +84,13 @@ class BlocksPool {
         }
     }
 
-
     /**
-     * Should be called on each allocator close. Only last allocator will free all the blocks
+     * Should be called when the entire Pool is not used anymore. Releases the memory only of the
+     * blocks returned back to the pool.
+     * However this object is GCed when the entire process dies, but thus all the memory is released
+     * anyway...
      */
     void close() {
-        if (users.decrementAndGet() > 0)
-            return;
         while (!blocks.isEmpty()) {
             blocks.poll().clean();
         }
@@ -97,9 +107,4 @@ class BlocksPool {
     int numOfRemainingBlocks() {
         return blocks.size();
     }
-
-    public void registerAllocator() {
-        users.incrementAndGet();
-    }
-
 }

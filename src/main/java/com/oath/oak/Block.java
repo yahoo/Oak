@@ -52,6 +52,7 @@ class Block {
     // It sets the limit to the capacity and the position to zero, but didn't zeroes the memory
     void reset() {
         buffer.clear(); // reset the position
+        allocated.set(0);
     }
 
     // return how many bytes are actually allocated for this block only, thread safe

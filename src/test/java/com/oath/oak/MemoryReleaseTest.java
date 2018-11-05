@@ -1,7 +1,6 @@
 package com.oath.oak;
 
-import org.junit.After;
-import org.junit.Before;
+
 import org.junit.Test;
 
 import static org.junit.Assert.fail;
@@ -9,18 +8,9 @@ import static org.junit.Assert.fail;
 public class MemoryReleaseTest {
 
 
-    @Before
-    public void init() {
 
-    }
-
-    @After
-    public void finish() throws Exception{
-
-    }
-
-    @Test
-    public void testOakClose() {
+    @Test(timeout = 300_000)
+    public void testOakRelease() {
 
         OakMapBuilder builder = new OakMapBuilder()
                 .setChunkMaxItems(1024)
@@ -33,10 +23,10 @@ public class MemoryReleaseTest {
 
         int i = 0;
 
+        String val = String.format("-%08192d", i);
         try {
             for (i = 0; i > -1; ++i) {
                 String key = String.format("-%01024d", i);
-                String val = String.format("-%01024d", i);
                 oak.put(key, val);
             }
         } catch (OutOfMemoryError e) {
@@ -50,7 +40,6 @@ public class MemoryReleaseTest {
 
             for (int j = 0; j < i/2; ++j) {
                 String key = String.format("-%01024d", j);
-                String val = String.format("-%01024d", j);
                 oak.put(key, val);
             }
         } catch (OutOfMemoryError e) {
