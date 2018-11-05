@@ -85,7 +85,7 @@ public class FillTest {
 
             Random r = new Random();
 
-            int id = InternalOakMap.getThreadIndex();
+            int id = (int) Thread.currentThread().getId() % ThreadIndexCalculator.MAX_THREADS;
             int amount = (int) Math.round(NUM_OF_ENTRIES * 0.5) / NUM_THREADS;
             int start = id * amount + (int) Math.round(NUM_OF_ENTRIES* 0.5);
             int end = (id + 1) * amount + (int) Math.round(NUM_OF_ENTRIES * 0.5);

@@ -15,6 +15,7 @@ import java.util.logging.Logger;
 
 class Rebalancer<K, V> {
 
+
     Logger log = Logger.getLogger(Rebalancer.class.getName());
 
     /*-------------- Constants --------------*/
@@ -31,7 +32,7 @@ class Rebalancer<K, V> {
     private final int maxAfterMergeBytes;
 
     /*-------------- Members --------------*/
-
+    private final ThreadIndexCalculator threadIndexCalculator;
     private final AtomicReference<Chunk> nextToEngage;
     private final AtomicReference<List<Chunk>> newChunks = new AtomicReference<>(null);
     private final AtomicReference<List<Chunk>> engagedChunks = new AtomicReference<>(null);
@@ -50,7 +51,8 @@ class Rebalancer<K, V> {
     /*-------------- Constructors --------------*/
 
     Rebalancer(Chunk chunk, Comparator<Object> comparator, boolean offHeap, MemoryManager memoryManager,
-        OakSerializer<K> keySerializer, OakSerializer<V> valueSerializer) {
+               OakSerializer<K> keySerializer, OakSerializer<V> valueSerializer,
+               ThreadIndexCalculator threadIndexCalculator) {
         this.rebalanceSize = 2;
         this.maxAfterMergePart = 0.7;
         this.lowThreshold = 0.5;
@@ -73,6 +75,7 @@ class Rebalancer<K, V> {
         bytesInRange = first.keyIndex.get();
         this.keySerializer = keySerializer;
         this.valueSerializer = valueSerializer;
+        this.threadIndexCalculator = threadIndexCalculator;
     }
 
     static class RebalanceResult {
@@ -157,7 +160,7 @@ class Rebalancer<K, V> {
         Chunk currFrozen = firstFrozen;
         Chunk currNewChunk = new Chunk<K, V>(firstFrozen.minKey, firstFrozen, firstFrozen.comparator, memoryManager,
                 currFrozen.getMaxItems(), currFrozen.getBytesPerItem(), currFrozen.externalSize,
-                keySerializer, valueSerializer);
+                keySerializer, valueSerializer, threadIndexCalculator);
 
         int ei = firstFrozen.getFirstItemEntryIndex();
 
@@ -196,7 +199,7 @@ class Rebalancer<K, V> {
                     newMinKey.rewind();
                     Chunk c = new Chunk<K, V>(newMinKey, firstFrozen, currFrozen.comparator, memoryManager,
                             currFrozen.getMaxItems(), currFrozen.getBytesPerItem(), currFrozen.externalSize,
-                            keySerializer, valueSerializer);
+                            keySerializer, valueSerializer, threadIndexCalculator);
                     currNewChunk.next.set(c, false);
                     newChunks.add(currNewChunk);
                     currNewChunk = c;

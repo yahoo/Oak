@@ -34,7 +34,7 @@ class InternalOakMap<K, V> {
     private final AtomicInteger size;
     private final OakSerializer<K> keySerializer;
     private final OakSerializer<V> valueSerializer;
-
+    private final ThreadIndexCalculator threadIndexCalculator;
     // The reference count is used to count the upper objects wrapping this internal map:
     // OakMaps (including subMaps and Views) when all of the above are closed,
     // his map can be closed and memory released.
@@ -52,7 +52,8 @@ class InternalOakMap<K, V> {
             Comparator comparator,
             MemoryManager memoryManager,
             int chunkMaxItems,
-            int chunkBytesPerItem) {
+            int chunkBytesPerItem,
+            ThreadIndexCalculator threadIndexCalculator) {
 
         this.size = new AtomicInteger(0);
         this.memoryManager = memoryManager;
@@ -67,15 +68,12 @@ class InternalOakMap<K, V> {
         this.keySerializer.serialize(minKey, this.minKey);
 
         this.skiplist = new ConcurrentSkipListMap<>(this.comparator);
+
         Chunk<K, V> head = new Chunk<K, V>(this.minKey, null, this.comparator, memoryManager, chunkMaxItems,
-                chunkBytesPerItem, this.size, keySerializer, valueSerializer);
+                chunkBytesPerItem, this.size, keySerializer, valueSerializer, threadIndexCalculator);
         this.skiplist.put(head.minKey, head);    // add first chunk (head) into skiplist
         this.head = new AtomicReference<>(head);
-    }
-
-    static int getThreadIndex() {
-        // TODO use hash instead of modulo
-        return (int) (Thread.currentThread().getId() % Chunk.MAX_THREADS);
+        this.threadIndexCalculator = threadIndexCalculator;
     }
 
     /*-------------- Closable --------------*/
@@ -144,7 +142,8 @@ class InternalOakMap<K, V> {
             assert op == Operation.NO_OP;
             return null;
         }
-        Rebalancer rebalancer = new Rebalancer(c, comparator, true, memoryManager, keySerializer, valueSerializer);
+        Rebalancer rebalancer = new Rebalancer(c, comparator, true, memoryManager, keySerializer,
+                valueSerializer, threadIndexCalculator);
 
         rebalancer = rebalancer.engageChunks(); // maybe we encountered a different rebalancer
 

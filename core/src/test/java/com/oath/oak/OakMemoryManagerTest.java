@@ -64,7 +64,7 @@ public class OakMemoryManagerTest {
     public void checkCapacity() {
 
         memoryManager = new // one OakMap capacity about KB, 3 blocks
-            MemoryManager(BlocksPool.BLOCK_SIZE*3,null);
+            MemoryManager(BlocksPool.BLOCK_SIZE*3,null, ThreadIndexCalculator.newInstance());
 
         /* simple allocation */
         ByteBuffer bb = memoryManager.allocate(4);
@@ -243,7 +243,7 @@ public class OakMemoryManagerTest {
     public void checkRelease() {
 
         memoryManager = new // one OakMap capacity about KB, 3 blocks
-            MemoryManager(BlocksPool.BLOCK_SIZE*3,null);
+            MemoryManager(BlocksPool.BLOCK_SIZE*3,null, ThreadIndexCalculator.newInstance());
 
         memoryManager.setGCtrigger(10); // trigger release after releasing 10 byte buffers
 

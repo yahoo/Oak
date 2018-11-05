@@ -43,7 +43,7 @@ public class OakMap<K, V> implements AutoCloseable {
 
     // internal constructor, to create OakMap use OakMapBuilder
     OakMap(K minKey, OakSerializer<K> keySerializer, OakSerializer<V> valueSerializer, OakComparator<K> oakComparator,
-           int chunkMaxItems, int chunkBytesPerItem, MemoryManager mm) {
+           int chunkMaxItems, int chunkBytesPerItem, MemoryManager mm, ThreadIndexCalculator threadIndexCalculator) {
 
         this.comparator = (o1, o2) -> {
             if (o1 instanceof ByteBuffer) {
@@ -63,7 +63,7 @@ public class OakMap<K, V> implements AutoCloseable {
 
         this.memoryManager = mm;
         this.internalOakMap = new InternalOakMap(minKey, keySerializer, valueSerializer, this.comparator,
-                this.memoryManager, chunkMaxItems, chunkBytesPerItem);
+                this.memoryManager, chunkMaxItems, chunkBytesPerItem, threadIndexCalculator);
         this.fromKey = null;
         this.fromInclusive = false;
         this.toKey = null;

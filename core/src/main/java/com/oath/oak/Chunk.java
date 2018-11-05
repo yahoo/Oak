@@ -37,8 +37,6 @@ public class Chunk<K, V> {
     private static final int OFFSET_KEY_LENGTH = 2;
     private static final int OFFSET_HANDLE_INDEX = 3;
 
-    static final int MAX_THREADS = 32;
-
     // used for checking if rebalance is needed
     private static final double REBALANCE_PROB_PERC = 30;
     private static final double SORTED_REBALANCE_RATIO = 1.6;
@@ -53,6 +51,7 @@ public class Chunk<K, V> {
     // defaults
     public static final int BYTES_PER_ITEM_DEFAULT = 256;
     public static final int MAX_ITEMS_DEFAULT = 256;
+    private final ThreadIndexCalculator threadIndexCalculator;
 
     /*-------------- Members --------------*/
     Logger log = Logger.getLogger(InternalOakMap.class.getName());
@@ -99,9 +98,9 @@ public class Chunk<K, V> {
 
     /**
      * Create a new chunk
-     *
-     * @param minKey  minimal key to be placed in chunk
+     *  @param minKey  minimal key to be placed in chunk
      * @param creator the chunk that is responsible for this chunk creation
+     * @param threadIndexCalculator
      */
     Chunk(ByteBuffer minKey,
           Chunk creator,
@@ -111,7 +110,7 @@ public class Chunk<K, V> {
           int bytesPerItem,
           AtomicInteger externalSize,
           OakSerializer<K> keySerializer,
-          OakSerializer<V> valueSerializer) {
+          OakSerializer<V> valueSerializer, ThreadIndexCalculator threadIndexCalculator) {
         this.memoryManager = memoryManager;
         this.maxItems = maxItems;
         this.maxKeyBytes = maxItems * bytesPerItem;
@@ -129,15 +128,16 @@ public class Chunk<K, V> {
         else
             this.state = new AtomicReference<>(State.INFANT);
         this.next = new AtomicMarkableReference<>(null, false);
-        this.pendingOps = new AtomicReferenceArray<>(MAX_THREADS);
+        this.pendingOps = new AtomicReferenceArray<>(ThreadIndexCalculator.MAX_THREADS);
         this.rebalancer = new AtomicReference<>(null); // to be updated on rebalance
         this.statistics = new Statistics();
         this.comparator = comparator;
-        this.byteBufferPerThread = new ByteBuffer[MAX_THREADS]; // init to null
+        this.byteBufferPerThread = new ByteBuffer[ThreadIndexCalculator.MAX_THREADS]; // init to null
         this.externalSize = externalSize;
 
         this.keySerializer = keySerializer;
         this.valueSerializer = valueSerializer;
+        this.threadIndexCalculator = threadIndexCalculator;
     }
 
     enum State {
@@ -209,7 +209,7 @@ public class Chunk<K, V> {
         int ki = get(entryIndex, OFFSET_KEY_INDEX);
         int length = get(entryIndex, OFFSET_KEY_LENGTH);
 
-        int idx = InternalOakMap.getThreadIndex();
+        int idx = threadIndexCalculator.getIndex();
         if (byteBufferPerThread[idx] == null) {
             byteBufferPerThread[idx] = keysManager.getKeys().asReadOnlyBuffer();
         }
@@ -358,7 +358,7 @@ public class Chunk<K, V> {
      **/
     boolean publish(OpData opData) {
 
-        int idx = InternalOakMap.getThreadIndex();
+        int idx = threadIndexCalculator.getIndex();
         // publish into thread array
         return casPendingArray(idx, null, opData);
     }
@@ -368,7 +368,7 @@ public class Chunk<K, V> {
      * if CAS didn't succeed then this means that a rebalancer did this already
      **/
     void unpublish(OpData oldOpData) {
-        int idx = InternalOakMap.getThreadIndex();
+        int idx = threadIndexCalculator.getIndex();
         casPendingArray(idx, oldOpData, null); // publish into thread array
     }
 
@@ -634,7 +634,7 @@ public class Chunk<K, V> {
         setState(State.FROZEN); // prevent new puts to this chunk
 
         // go over pending of all threads
-        for (int i = 0; i < MAX_THREADS; ++i) {
+        for (int i = 0; i < ThreadIndexCalculator.MAX_THREADS; ++i) {
             OpData opData = pendingOps.get(i);
             if (opData == FROZEN_OP_DATA) {
                 // frozen already

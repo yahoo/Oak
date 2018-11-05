@@ -30,21 +30,23 @@ class MemoryManager {
     private static final long BUSY_BIT = 1L << 48;
     private static final long IDLE_MASK = 0xFFFF000000000000L; // last byte
     private static final int RELEASES_DEFAULT = 100; // TODO: make it configurable
+    private final ThreadIndexCalculator threadIndexCalculator;
 
     private int releases; // to be able to change it for testing
 
-    MemoryManager(long capacity, OakMemoryAllocator ma) {
+    MemoryManager(long capacity, OakMemoryAllocator ma, ThreadIndexCalculator threadIndexCalculator) {
         this.memoryAllocator = (ma == null) ? new OakNativeMemoryAllocator(capacity) : ma;
-        this.timeStamps = new AtomicLong[Chunk.MAX_THREADS];
-        for (int i = 0; i < Chunk.MAX_THREADS; i++) {
+        this.timeStamps = new AtomicLong[ThreadIndexCalculator.MAX_THREADS];
+        for (int i = 0; i < ThreadIndexCalculator.MAX_THREADS; i++) {
             this.timeStamps[i] = new AtomicLong(0);
         }
-        this.releasedArray = new ArrayList<>(Chunk.MAX_THREADS);
-        for (int i = 0; i < Chunk.MAX_THREADS; i++) {
+        this.releasedArray = new ArrayList<>(ThreadIndexCalculator.MAX_THREADS);
+        for (int i = 0; i < ThreadIndexCalculator.MAX_THREADS; i++) {
             releasedArray.add(i, new LinkedList<>());
         }
         max = new AtomicLong(0);
         releases = RELEASES_DEFAULT;
+        this.threadIndexCalculator = threadIndexCalculator;
     }
 
     ByteBuffer allocate(int size) {
@@ -56,7 +58,7 @@ class MemoryManager {
     }
 
     private boolean assertDoubleRelease(ByteBuffer bb) {
-        for (int i = 0; i < Chunk.MAX_THREADS; i++) {
+        for (int i = 0; i < ThreadIndexCalculator.MAX_THREADS; i++) {
             LinkedList<Pair<Long,ByteBuffer>> list = releasedArray.get(i);
             for (Pair<Long,ByteBuffer> p : list
                     ) {
@@ -69,7 +71,7 @@ class MemoryManager {
 
     void release(ByteBuffer bb) {
 //        assert !assertDoubleRelease(bb);
-        int idx = InternalOakMap.getThreadIndex();
+        int idx = threadIndexCalculator.getIndex();
         LinkedList<Pair<Long,ByteBuffer>> myList = releasedArray.get(idx);
         myList.addFirst(new Pair<Long,ByteBuffer>(this.max.incrementAndGet(), bb));
         checkRelease(idx, myList);
@@ -84,7 +86,7 @@ class MemoryManager {
 
     private void forceRelease(LinkedList<Pair<Long,ByteBuffer>> myList) {
         long min = Long.MAX_VALUE;
-        for (int j = 0; j < Chunk.MAX_THREADS; j++) {
+        for (int j = 0; j < ThreadIndexCalculator.MAX_THREADS; j++) {
             long timeStamp = timeStamps[j].get();
             if (!isIdle(timeStamp)) {
                 // find minimal timestam among the working threads
@@ -116,7 +118,7 @@ class MemoryManager {
     }
 
     void startOperation() {
-        int idx = InternalOakMap.getThreadIndex();
+        int idx = threadIndexCalculator.getIndex();
         AtomicLong timeStamp = timeStamps[idx];
         long l = timeStamp.get();
         long v = getValue(l);
@@ -144,7 +146,7 @@ class MemoryManager {
     }
 
     void stopOperation() {
-        int idx = InternalOakMap.getThreadIndex();
+        int idx = threadIndexCalculator.getIndex();
         AtomicLong timeStamp = timeStamps[idx];
         long l = timeStamp.get();
         assert !isIdle(l);
@@ -153,7 +155,7 @@ class MemoryManager {
     }
 
     void assertIfNotIdle() {
-        int idx = InternalOakMap.getThreadIndex();
+        int idx = threadIndexCalculator.getIndex();
         AtomicLong timeStamp = timeStamps[idx];
         long l = timeStamp.get();
         assert isIdle(l);

@@ -3,10 +3,16 @@
     <modelVersion>4.0.0</modelVersion>
 
     <groupId>com.yahoo.oak</groupId>
-    <artifactId>oak</artifactId>
+    <artifactId>root</artifactId>
+    <packaging>pom</packaging>
     <version>0.1.4-SNAPSHOT</version>
+    <modules>
+        <module>benchmarks</module>
+        <module>core</module>
+    </modules>
 
-    <name>Oak: Off-heap Allocated Keys</name>
+    <!--<name>Oak: Off-heap Allocated Keys</name>-->
+    <name>Oak root</name>
     <description>A scalable, concurrent, in-memory Key Value (KV) map.
         Oak implements a concurrent Key-Value map that can keep all keys and values off-heap.
         This enables working with bigger heap sizes than JVM's managed heap.
