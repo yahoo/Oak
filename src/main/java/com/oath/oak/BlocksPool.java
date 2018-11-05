@@ -26,9 +26,7 @@ class BlocksPool {
     public final static int NUMBER_OF_BLOCKS = 20;
 
     // not thread safe, private constructor; should be called only once
-    private BlocksPool(int blockSize, int numOfBlocks) {
-        assert blockSize > 0;
-        assert numOfBlocks <= Integer.MAX_VALUE;
+    private BlocksPool() {
         prealloc(BLOCK_SIZE, NUMBER_OF_BLOCKS);
     }
 
@@ -40,7 +38,7 @@ class BlocksPool {
         if (instance == null) {
             synchronized (BlocksPool.class) { // can be easily changed to lock-free
                 if (instance == null) {
-                    instance = new BlocksPool(BLOCK_SIZE, NUMBER_OF_BLOCKS);
+                    instance = new BlocksPool();
                 }
             }
         }
