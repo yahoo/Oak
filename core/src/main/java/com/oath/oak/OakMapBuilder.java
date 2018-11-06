@@ -47,47 +47,47 @@ public class OakMapBuilder<K,V> {
     this.memoryAllocator = null;
   }
 
-  public OakMapBuilder setKeySerializer(OakSerializer<K> keySerializer) {
+  public OakMapBuilder<K, V> setKeySerializer(OakSerializer<K> keySerializer) {
     this.keySerializer = keySerializer;
     return this;
   }
 
-  public OakMapBuilder setValueSerializer(OakSerializer<V> valueSerializer) {
+  public OakMapBuilder<K, V> setValueSerializer(OakSerializer<V> valueSerializer) {
     this.valueSerializer = valueSerializer;
     return this;
   }
 
-  public OakMapBuilder setMinKey(K minKey) {
+  public OakMapBuilder<K, V> setMinKey(K minKey) {
     this.minKey = minKey;
     return this;
   }
 
-  public OakMapBuilder setChunkMaxItems(int chunkMaxItems) {
+  public OakMapBuilder<K, V> setChunkMaxItems(int chunkMaxItems) {
     this.chunkMaxItems = chunkMaxItems;
     return this;
   }
 
-  public OakMapBuilder setChunkBytesPerItem(int chunkBytesPerItem) {
+  public OakMapBuilder<K, V> setChunkBytesPerItem(int chunkBytesPerItem) {
     this.chunkBytesPerItem = chunkBytesPerItem;
     return this;
   }
 
-  public OakMapBuilder setMemoryCapacity(int memoryCapacity) {
+  public OakMapBuilder<K, V> setMemoryCapacity(int memoryCapacity) {
     this.memoryCapacity = memoryCapacity;
     return this;
   }
 
-  public OakMapBuilder setComparator(OakComparator<K> comparator) {
+  public OakMapBuilder<K, V> setComparator(OakComparator<K> comparator) {
     this.comparator = comparator;
     return this;
   }
 
-  public OakMapBuilder setMemoryAllocator(OakMemoryAllocator ma) {
+  public OakMapBuilder<K, V> setMemoryAllocator(OakMemoryAllocator ma) {
     this.memoryAllocator = ma;
     return this;
   }
 
-  public OakMap build() {
+  public OakMap<K, V> build() {
     ThreadIndexCalculator threadIndexCalculator = ThreadIndexCalculator.newInstance();
     MemoryManager memoryManager = new MemoryManager(memoryCapacity, memoryAllocator,threadIndexCalculator);
 
@@ -100,11 +100,7 @@ public class OakMapBuilder<K,V> {
   }
 
   private static int intsCompare(int int1, int int2) {
-    if (int1 > int2)
-      return 1;
-    else if (int1 < int2)
-      return -1;
-    return 0;
+    return Integer.compare(int1, int2);
   }
 
   public static OakMapBuilder<Integer, Integer> getDefaultBuilder() {

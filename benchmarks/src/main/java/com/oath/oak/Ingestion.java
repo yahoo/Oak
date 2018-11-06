@@ -34,11 +34,12 @@ public class Ingestion {
     @State(Scope.Benchmark)
     public static class BenchmarkState {
 
-        private OakMap oakMap;
+        private OakMap<String, String> oakMap;
 
         @Setup(Level.Iteration)
         public void setup() {
-            OakMapBuilder builder = new OakMapBuilder()
+
+            OakMapBuilder<String, String> builder = new OakMapBuilder<String, String>()
                     .setKeySerializer(new StringSerializer())
                     .setValueSerializer(new StringSerializer())
                     .setComparator(new StringComparator())
@@ -76,7 +77,7 @@ public class Ingestion {
                 String key = String.format("%0$" + KEY_SIZE_BYTES/Character.BYTES +"s",
                         String.valueOf(i) + Thread.currentThread().getId());
 
-                String val = String.format("%0$-" + KEY_SIZE_BYTES/Character.BYTES +"s",
+                String val = String.format("%0$-" + VALUE_SIZE_BYTES/Character.BYTES +"s",
                         String.valueOf(i) + Thread.currentThread().getId());
 
                 rows.add(new Pair<>(key, val));
@@ -101,7 +102,7 @@ public class Ingestion {
     }
 
 
-    //java -jar -Xmx8g -XX:MaxDirectMemorySize=8g ./benchmarks/target/benchmarks.jar Ingestion -p numRows=100000
+    //java -jar -Xmx8g -XX:MaxDirectMemorySize=8g ./benchmarks/target/benchmarks.jar Ingestion -p numRows=100000 -prof stack
     public static void main(String[] args) throws RunnerException {
         Options opt = new OptionsBuilder()
                 .include(Ingestion.class.getSimpleName())
