@@ -59,13 +59,14 @@ public class MultiThreadRangeTest {
             Random r = new Random();
 
             Integer from = new Integer(10 * maxItemsPerChunk);
-            Iterator valIter = oak.tailMap(from, true).valuesIterator();
-            int i = 0;
-            while (valIter.hasNext() && i < 100) {
-                valIter.next();
-                i++;
+            try (OakMap<Integer, Integer> tailMap = oak.tailMap(from, true)) {
+                Iterator valIter = tailMap.valuesIterator();
+                int i = 0;
+                while (valIter.hasNext() && i < 100) {
+                    valIter.next();
+                    i++;
+                }
             }
-
         }
     }
 

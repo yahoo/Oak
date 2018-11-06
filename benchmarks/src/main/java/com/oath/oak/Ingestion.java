@@ -101,7 +101,7 @@ public class Ingestion {
     }
 
 
-    //java -jar -Xmx8g -XX:MaxDirectMemorySize=8g ./benchmarks/target/benchmarks.jar Ingestion -p numRows=1000000
+    //java -jar -Xmx8g -XX:MaxDirectMemorySize=8g ./benchmarks/target/benchmarks.jar Ingestion -p numRows=100000
     public static void main(String[] args) throws RunnerException {
         Options opt = new OptionsBuilder()
                 .include(Ingestion.class.getSimpleName())
