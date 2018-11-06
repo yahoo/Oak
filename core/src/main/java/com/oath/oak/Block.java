@@ -24,7 +24,6 @@ class Block {
         // Pay attention in allocateDirect the data is *zero'd out*
         // which has an overhead in clearing and you end up touching every page
         this.buffer = ByteBuffer.allocateDirect(this.capacity);
-        assert buffer.position() == 0;
     }
 
     // Block manages its linear allocation. Thread safe.

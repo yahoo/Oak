@@ -29,7 +29,7 @@ import java.util.concurrent.TimeUnit;
 public class Ingestion {
 
     static public final int KEY_SIZE_BYTES = 64;
-    static public final int VALUE_SIZE_BYTES = 4096;
+    static public final int VALUE_SIZE_BYTES = 64;
 
     @State(Scope.Benchmark)
     public static class BenchmarkState {
@@ -70,18 +70,15 @@ public class Ingestion {
 
         @Setup
         public void setup() {
+
             rows = new ArrayList<>(numRows);
             for(int i = 0; i< numRows; ++i) {
-                int keyPadding= KEY_SIZE_BYTES/Character.BYTES
-                        - String.valueOf(Thread.currentThread().getId()).length()
-                        - String.valueOf(i).length();
-                String key = String.format(Thread.currentThread().getId() + "%0" + keyPadding +"d", i);
+                String key = String.format("%0$" + KEY_SIZE_BYTES/Character.BYTES +"s",
+                        String.valueOf(i) + Thread.currentThread().getId());
 
-                int valuePadding= VALUE_SIZE_BYTES/Character.BYTES
-                        - String.valueOf(Thread.currentThread().getId()).length()
-                        - String.valueOf(i).length();
+                String val = String.format("%0$-" + KEY_SIZE_BYTES/Character.BYTES +"s",
+                        String.valueOf(i) + Thread.currentThread().getId());
 
-                String val = String.format("%0" + valuePadding + "d", i) + Thread.currentThread().getId();
                 rows.add(new Pair<>(key, val));
             }
         }
@@ -92,13 +89,9 @@ public class Ingestion {
     @Measurement(iterations = 10)
     @BenchmarkMode(Mode.AverageTime)
     @OutputTimeUnit(TimeUnit.MILLISECONDS)
-    @Fork(1)
+    @Fork(value = 1)
     @Threads(8)
     @Benchmark
-    /*
-     * Benchmark         (numRows)  Mode  Cnt    Score    Error  Units
-     * Ingestion.Ingest     100000  avgt   10  339.849 ± 17.712  ms/op
-     */
     public void Ingest(Blackhole blackhole,BenchmarkState state,ThreadState threadState) throws Exception {
         for (int i = 0; i < threadState.numRows; ++i) {
             Pair<String, String> pair = threadState.rows.get(i);
@@ -107,11 +100,13 @@ public class Ingestion {
         }
     }
 
+
+    //java -jar -Xmx8g -XX:MaxDirectMemorySize=8g ./benchmarks/target/benchmarks.jar Ingestion -p numRows=1000000
     public static void main(String[] args) throws RunnerException {
         Options opt = new OptionsBuilder()
                 .include(Ingestion.class.getSimpleName())
-                .threads(16)
-                .forks(1)
+                .forks(0)
+                .threads(1)
                 .build();
 
         new Runner(opt).run();
