@@ -13,16 +13,11 @@ import org.junit.Test;
 import org.junit.rules.ExpectedException;
 
 import java.nio.ByteBuffer;
-import java.util.logging.Logger;
-
-import static junit.framework.TestCase.assertFalse;
 import static junit.framework.TestCase.assertTrue;
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotEquals;
 
 public class OakMemoryManagerTest {
 
-    Logger log = Logger.getLogger(OakMemoryManagerTest.class.getName());
     private MemoryManager memoryManager;
     private static int maxItemsPerChunk = 1024;
     private static int maxBytesPerChunkItem = 100;
@@ -242,8 +237,10 @@ public class OakMemoryManagerTest {
     @Test
     public void checkRelease() {
 
+        ThreadIndexCalculator indexCalculator = ThreadIndexCalculator.newInstance();
+
         memoryManager = new // one OakMap capacity about KB, 3 blocks
-            MemoryManager(BlocksPool.BLOCK_SIZE*3,null, ThreadIndexCalculator.newInstance());
+            MemoryManager(BlocksPool.BLOCK_SIZE*3,null, indexCalculator);
 
         memoryManager.setGCtrigger(10); // trigger release after releasing 10 byte buffers
 
@@ -292,14 +289,14 @@ public class OakMemoryManagerTest {
         assertEquals(36, memoryManager.allocated());
         memoryManager.release(bb);
 
-        assertEquals(9, memoryManager.releasedArray.get(1).size());
+        assertEquals(9, memoryManager.releasedArray.get(indexCalculator.getIndex()).size());
 
         bb = memoryManager.allocate(4);
         assertEquals(4, bb.remaining());
         assertEquals(40, memoryManager.allocated());
         memoryManager.release(bb);
 
-        assertEquals(0, memoryManager.releasedArray.get(1).size());
+        assertEquals(0, memoryManager.releasedArray.get(indexCalculator.getIndex()).size());
 
         memoryManager.close();
     }

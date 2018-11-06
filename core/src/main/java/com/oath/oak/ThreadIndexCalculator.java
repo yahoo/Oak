@@ -23,7 +23,7 @@ public class ThreadIndexCalculator {
         if (index != null) {
             return index;
         }
-        int newIndex = nextFreeIndex.incrementAndGet();
+        int newIndex = nextFreeIndex.getAndIncrement();
         assert (newIndex < MAX_THREADS);
         map.put(tid, newIndex);
         return newIndex;

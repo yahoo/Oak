@@ -24,7 +24,7 @@ import static org.junit.Assert.assertFalse;
 public class MultiThreadTest {
 
     private OakMap<Integer, Integer> oak;
-    private final int NUM_THREADS = 20;
+    private final int NUM_THREADS = 31;
     private ArrayList<Thread> threads;
     private CountDownLatch latch;
     int maxItemsPerChunk = 2048;
