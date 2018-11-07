@@ -1,8 +1,13 @@
 package com.oath.oak;
 
 
+import com.sun.management.HotSpotDiagnosticMXBean;
+import com.sun.management.VMOption;
 import org.junit.Test;
 
+import java.lang.management.ManagementFactory;
+
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.fail;
 
 public class MemoryReleaseTest {
@@ -12,7 +17,9 @@ public class MemoryReleaseTest {
     @Test(timeout = 300_000)
     public void testOakRelease() {
 
-        OakMapBuilder builder = new OakMapBuilder()
+        String val = String.format("-%016000d", 0);
+
+        OakMapBuilder<String, String> builder = new OakMapBuilder<String, String>()
                 .setChunkMaxItems(1024)
                 .setChunkBytesPerItem(4096)
                 .setKeySerializer(new StringSerializer())
@@ -22,29 +29,18 @@ public class MemoryReleaseTest {
         OakMap<String, String> oak =  builder.build();
 
         int i = 0;
-
-        String val = String.format("-%08192d", i);
         try {
-            for (i = 0; i > -1; ++i) {
-                String key = String.format("-%01024d", i);
+            while (true) {
+                String key = String.format("-%01024d", i++);
                 oak.put(key, val);
             }
         } catch (OutOfMemoryError e) {
 
         }
-
         oak.close();
-        oak = builder.build();
-
-        try {
-
-            for (int j = 0; j < i/2; ++j) {
-                String key = String.format("-%01024d", j);
-                oak.put(key, val);
-            }
-        } catch (OutOfMemoryError e) {
-            fail("Buffers not free after oak close");
-        }
-        oak.close();
+        long a = Long.valueOf(ManagementFactory.getPlatformMXBean(HotSpotDiagnosticMXBean.class)
+                .getVMOption("MaxDirectMemorySize").getValue());
+        long blocks = a/BlocksPool.BLOCK_SIZE;
+        assertEquals(blocks, BlocksPool.getInstance().numOfRemainingBlocks());
     }
 }

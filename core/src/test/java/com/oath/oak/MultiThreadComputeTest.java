@@ -20,12 +20,12 @@ import static org.junit.Assert.assertEquals;
 public class MultiThreadComputeTest {
 
     private OakMap<Integer, Integer> oak;
-    private final int NUM_THREADS = 20;
+    private final int NUM_THREADS = 31;
     private ArrayList<Thread> threads;
     private CountDownLatch latch;
     Consumer<OakWBuffer> computer;
     Consumer<OakWBuffer> emptyComputer;
-    int maxItemsPerChunk = 2048;
+    int maxItemsPerChunk = 1024;
     int maxBytesPerChunkItem = 100;
 
     @Before
