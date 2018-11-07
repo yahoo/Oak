@@ -10,7 +10,7 @@ public class TestChunkSplit {
 
     @Test
     public void testSplitByCount() throws NoSuchFieldException, IllegalAccessException {
-        OakMapBuilder builder = new OakMapBuilder()
+        OakMapBuilder<String, String> builder = new OakMapBuilder<String, String>()
                 .setChunkMaxItems(10)
                 .setChunkBytesPerItem(1024)
                 .setKeySerializer(new StringSerializer())
@@ -37,7 +37,7 @@ public class TestChunkSplit {
 
     @Test
     public void testSplitBySize() throws NoSuchFieldException, IllegalAccessException {
-        OakMapBuilder builder = new OakMapBuilder()
+        OakMapBuilder<String, String> builder = new OakMapBuilder<String, String>()
                 .setChunkMaxItems(16)
                 .setChunkBytesPerItem(1024)
                 .setKeySerializer(new StringSerializer())

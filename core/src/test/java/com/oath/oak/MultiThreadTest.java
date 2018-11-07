@@ -217,14 +217,17 @@ public class MultiThreadTest {
                 i++;
             }
 
-            iter = oak.descendingMap().valuesIterator();
-            while (iter.hasNext()) {
-                value = iter.next();
-                if (value == null) {
-                    continue;
+            try(OakMap oakDesc = oak.descendingMap()) {
+                iter = oakDesc.valuesIterator();
+                while (iter.hasNext()) {
+                    value = iter.next();
+                    if (value == null) {
+                        continue;
+                    }
                 }
+                assertEquals(0, value.intValue());
             }
-            assertEquals(0, value.intValue());
+
 
             for (i = 2 * maxItemsPerChunk; i < 3 * maxItemsPerChunk; i++) {
                 oak.remove(i);
@@ -238,11 +241,13 @@ public class MultiThreadTest {
                 }
             }
             Assert.assertTrue(i > maxItemsPerChunk);
-            iter = oak.descendingMap().valuesIterator();
-            while (iter.hasNext()) {
-                i = iter.next();
-                if (i == null) {
-                    continue;
+            try(OakMap oakDesc = oak.descendingMap()) {
+                iter = oakDesc.valuesIterator();
+                while (iter.hasNext()) {
+                    i = iter.next();
+                    if (i == null) {
+                        continue;
+                    }
                 }
             }
 
@@ -272,14 +277,16 @@ public class MultiThreadTest {
                 }
             }
 
-            iter = oak.descendingMap().valuesIterator();
-            while (iter.hasNext()) {
-                i = iter.next();
-                if (i == null) {
-                    continue;
+            try(OakMap oakDesc = oak.descendingMap()) {
+                iter = oakDesc.valuesIterator();
+                while (iter.hasNext()) {
+                    i = iter.next();
+                    if (i == null) {
+                        continue;
+                    }
                 }
+                assertTrue(i <= 1);
             }
-            assertTrue(i <= 1);
 
             for (i = 0; i < 6 * maxItemsPerChunk; i++) {
                 oak.putIfAbsent(i, i);
