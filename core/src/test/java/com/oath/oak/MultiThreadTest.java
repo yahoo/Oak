@@ -117,28 +117,32 @@ public class MultiThreadTest {
 
             Integer from = 0;
             Integer to = twiceMaxItemsPerChunk;
-            OakMap sub = oak.subMap(from, true, to, false);
-            valIter = sub.valuesIterator();
-            c = (int) Math.round(0.5 * maxItemsPerChunk);
-            while (valIter.hasNext()) {
-                value = oak.get(c);
-                assertEquals(c, value);
-                assertEquals(c, valIter.next());
-                c++;
+            try (OakMap sub = oak.subMap(from, true, to, false)) {
+                valIter = sub.valuesIterator();
+                c = (int) Math.round(0.5 * maxItemsPerChunk);
+                while (valIter.hasNext()) {
+                    value = oak.get(c);
+                    assertEquals(c, value);
+                    assertEquals(c, valIter.next());
+                    c++;
+                }
+                assertEquals(twiceMaxItemsPerChunk, c);
             }
-            assertEquals(twiceMaxItemsPerChunk, c);
+
 
             from = 1;
             to = (int) Math.round(0.5 * maxItemsPerChunk);
-            sub = oak.subMap(from, true, to, false);
-            valIter = sub.valuesIterator();
-            assertFalse(valIter.hasNext());
-
+            try (OakMap sub = oak.subMap(from, true, to, false)) {
+                valIter = sub.valuesIterator();
+                assertFalse(valIter.hasNext());
+            }
             from = 4 * maxItemsPerChunk;
             to = 5 * maxItemsPerChunk;
-            sub = oak.subMap(from, true, to, false);
-            valIter = sub.valuesIterator();
-            assertFalse(valIter.hasNext());
+            try (OakMap sub = oak.subMap(from, true, to, false)) {
+                valIter = sub.valuesIterator();
+                assertFalse(valIter.hasNext());
+            }
+
 
             for (int i = (int) Math.round(0.5 * maxItemsPerChunk); i < maxItemsPerChunk; i++) {
                 ByteBuffer bb = ByteBuffer.allocate(4);
