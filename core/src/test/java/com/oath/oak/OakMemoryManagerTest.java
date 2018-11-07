@@ -108,6 +108,8 @@ public class OakMemoryManagerTest {
     @Test
     public void checkOakCapacity() {
 
+        int initialRemainingBlocks = BlocksPool.getInstance().numOfRemainingBlocks();
+
         OakMapBuilder builder = OakMapBuilder.getDefaultBuilder()
                 .setChunkMaxItems(maxItemsPerChunk)
                 .setChunkBytesPerItem(maxBytesPerChunkItem)
@@ -118,8 +120,8 @@ public class OakMemoryManagerTest {
 
         //check that before any allocation
         // (1) we have all the blocks in the pool except one which is in the allocator
-        assertEquals(BlocksPool.getInstance().numOfRemainingBlocks(),
-            BlocksPool.NUMBER_OF_BLOCKS-1);
+        assertEquals(initialRemainingBlocks - 1, BlocksPool.getInstance().numOfRemainingBlocks());
+
         // (2) check the one block in the allocator
         assertEquals(
             ((OakNativeMemoryAllocator)oak.getMemoryManager().getMemoryAllocator()).
@@ -136,8 +138,8 @@ public class OakMemoryManagerTest {
 
         //check that after a single allocation of a block size
         // (1) we have all the blocks in the pool except one which is in the allocator
-        assertEquals(BlocksPool.getInstance().numOfRemainingBlocks(),
-            BlocksPool.NUMBER_OF_BLOCKS-1);
+        assertEquals(initialRemainingBlocks - 1, BlocksPool.getInstance().numOfRemainingBlocks());
+
         // (2) check the one block in the allocator
         assertEquals(
             ((OakNativeMemoryAllocator)oak.getMemoryManager().getMemoryAllocator()).
@@ -157,8 +159,8 @@ public class OakMemoryManagerTest {
 
         //check that after a double allocation of a block size
         // (1) we have all the blocks in the pool except two which are in the allocator
-        assertEquals(BlocksPool.getInstance().numOfRemainingBlocks(),
-            BlocksPool.NUMBER_OF_BLOCKS-2);
+        assertEquals(initialRemainingBlocks - 2, BlocksPool.getInstance().numOfRemainingBlocks());
+
         // (2) check the two blocks in the allocator
         assertEquals(
             ((OakNativeMemoryAllocator)oak.getMemoryManager().getMemoryAllocator()).
@@ -180,16 +182,17 @@ public class OakMemoryManagerTest {
 
         //check that after three allocations of a block size
         // (1) we have all the blocks in the pool except three which are in the allocator
-        assertEquals(BlocksPool.getInstance().numOfRemainingBlocks(),
-            BlocksPool.NUMBER_OF_BLOCKS-3);
+        assertEquals(initialRemainingBlocks - 3, BlocksPool.getInstance().numOfRemainingBlocks());
+
         // (2) check the 3 blocks in the allocator
         assertEquals(
             ((OakNativeMemoryAllocator)oak.getMemoryManager().getMemoryAllocator()).
-                numOfAllocatedBlocks(),
-            3);
+                    numOfAllocatedBlocks(), 3);
+
         assertEquals(valueSizeAfterSerialization,    // check the newest block allocation
             ((OakNativeMemoryAllocator)oak.getMemoryManager().getMemoryAllocator())
                 .getCurrentBlock().allocated());
+
         assertEquals(valueSizeAfterSerialization*3 + keyBufferSize,    // check the total allocation
             oak.getMemoryManager().getMemoryAllocator().allocated());
         // check that what you read is the same that you wrote
