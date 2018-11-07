@@ -18,7 +18,7 @@ import static org.junit.Assert.assertEquals;
 
 public class OakMemoryManagerTest {
 
-    private MemoryManager memoryManager;
+    
     private static int maxItemsPerChunk = 1024;
     private static int maxBytesPerChunkItem = 100;
     private static int valueSizeAfterSerialization = Integer.MAX_VALUE/40;
@@ -41,25 +41,14 @@ public class OakMemoryManagerTest {
         }
     }
 
-    @Before
-    public void init() {
-//        memoryManager = new // one OakMap capacity about KB, 3 blocks
-//            MemoryManager(BlocksPool.BLOCK_SIZE*3,null);
-    }
-
-    @After
-    public void finish() {
-//        memoryManager.close();
-    }
-
     @Rule
     public ExpectedException thrown = ExpectedException.none();
 
     @Test
     public void checkCapacity() {
 
-        memoryManager = new // one OakMap capacity about KB, 3 blocks
-            MemoryManager(BlocksPool.BLOCK_SIZE*3,null, ThreadIndexCalculator.newInstance());
+        MemoryManager memoryManager = new // one OakMap capacity about KB, 3 blocks
+                MemoryManager(BlocksPool.BLOCK_SIZE * 3, null, ThreadIndexCalculator.newInstance());
 
         /* simple allocation */
         ByteBuffer bb = memoryManager.allocate(4);
@@ -242,8 +231,8 @@ public class OakMemoryManagerTest {
 
         ThreadIndexCalculator indexCalculator = ThreadIndexCalculator.newInstance();
 
-        memoryManager = new // one OakMap capacity about KB, 3 blocks
-            MemoryManager(BlocksPool.BLOCK_SIZE*3,null, indexCalculator);
+        MemoryManager memoryManager = new // one OakMap capacity about KB, 3 blocks
+                MemoryManager(BlocksPool.BLOCK_SIZE * 3, null, indexCalculator);
 
         memoryManager.setGCtrigger(10); // trigger release after releasing 10 byte buffers
 

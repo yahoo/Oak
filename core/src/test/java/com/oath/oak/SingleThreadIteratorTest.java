@@ -195,172 +195,224 @@ public class SingleThreadIteratorTest {
             assertTrue(value != null);
             assertEquals(i, value);
         }
-        Iterator iter = oak.descendingMap().valuesIterator();
-        i = 5;
-        while (iter.hasNext()) {
-            i--;
-            assertEquals(i, iter.next());
+        try (OakMap<Integer, Integer> oakDesc = oak.descendingMap();
+                OakCloseableIterator<Integer> iter = oakDesc.valuesIterator()) {
+            i = 5;
+            while (iter.hasNext()) {
+                i--;
+                assertEquals(i, iter.next());
+            }
+            assertEquals(0, i.intValue());
         }
-        assertEquals(0, i.intValue());
-        OakMap map = oak.descendingMap();
-        iter = oak.valuesIterator();
-        i = 0;
-        while (iter.hasNext()) {
-            assertEquals(i, iter.next());
-            i++;
-        }
-        assertEquals(5, i.intValue());
-        iter = map.entriesIterator();
-        i = 5;
-        while (iter.hasNext()) {
-            i--;
-            Map.Entry<Integer, Integer> e = (Map.Entry<Integer, Integer>) iter.next();
-            assertEquals(i, e.getValue());
-        }
-        assertEquals(0, i.intValue());
 
-        OakMap sub = oak.subMap(1, false, 4, true);
-        iter = sub.descendingMap().valuesIterator();
-        i = 5;
-        while (iter.hasNext()) {
-            i--;
-            assertEquals((int) i, iter.next());
+        try (OakCloseableIterator<Integer> iter = oak.valuesIterator()) {
+            i = 0;
+            while (iter.hasNext()) {
+                assertEquals(i, iter.next());
+                i++;
+            }
+            assertEquals(5, i.intValue());
         }
-        assertEquals(2, i.intValue());
+
+
+        try (OakMap<Integer, Integer> oakDesc = oak.descendingMap();
+                OakCloseableIterator<Map.Entry<Integer, Integer>> iter = oakDesc.entriesIterator()) {
+            i = 5;
+            while (iter.hasNext()) {
+                i--;
+                Map.Entry<Integer, Integer> e = (Map.Entry<Integer, Integer>) iter.next();
+                assertEquals(i, e.getValue());
+            }
+            assertEquals(0, i.intValue());
+        }
+
+
+
+        try (OakMap<Integer, Integer> sub = oak.subMap(1, false, 4, true);
+             OakMap<Integer, Integer> oakSubDesc = sub.descendingMap();
+             OakCloseableIterator iter = oakSubDesc.valuesIterator()) {
+            i = 5;
+            while (iter.hasNext()) {
+                i--;
+                assertEquals((int) i, iter.next());
+            }
+            assertEquals(2, i.intValue());
+        }
     }
 
     @Test
     public void testDescending() {
-        Iterator iter = oak.descendingMap().valuesIterator();
-        assertFalse(iter.hasNext());
+        try (OakMap<Integer, Integer> oakDesc = oak.descendingMap();
+                OakCloseableIterator iter = oakDesc.valuesIterator()) {
+            assertFalse(iter.hasNext());
 
-        Integer i;
-        for (i = 0; i < 5; i++) {
+            Integer i;
+            for (i = 0; i < 5; i++) {
+                oak.put(i, i);
+            }
+            for (i = 0; i < 5; i++) {
+                Integer value = oak.get(i);
+                assertTrue(value != null);
+                assertEquals(i, value);
+            }
+        }
+
+
+        try (OakCloseableIterator<Integer> iter = oak.valuesIterator()) {
+            Integer i = 0;
+            while (iter.hasNext()) {
+                assertEquals(i, iter.next());
+                i++;
+            }
+            assertEquals(5, i.intValue());
+        }
+
+
+        try ( OakMap<Integer, Integer> oakDesc = oak.descendingMap();
+                OakCloseableIterator<Integer> iter = oakDesc.valuesIterator()) {
+            Integer i = 5;
+            while (iter.hasNext()) {
+                i--;
+                assertEquals(i, iter.next());
+            }
+            assertEquals(0, i.intValue());
+        }
+
+
+        try (OakMap sub = oak.subMap(1, false, 4, true);
+        OakCloseableIterator<Integer> iter = sub.valuesIterator();) {
+            Integer i = 2;
+            while (iter.hasNext()) {
+                assertEquals(i, iter.next());
+                i++;
+            }
+            assertEquals(5, i.intValue());
+        }
+
+
+        try (OakMap oakSub = oak.subMap(1, false, 4, true);
+             OakMap oakDesc = oakSub.descendingMap();
+             OakCloseableIterator iter = oakDesc.valuesIterator()) {
+            Integer i = 5;
+            while (iter.hasNext()) {
+                i--;
+                assertEquals(i, iter.next());
+            }
+            assertEquals(2, i.intValue());
+        }
+
+
+
+        for (Integer i = 0; i < 3 * maxItemsPerChunk; i++) {
             oak.put(i, i);
         }
-        for (i = 0; i < 5; i++) {
+        for (Integer i = 0; i < 3 * maxItemsPerChunk; i++) {
             Integer value = oak.get(i);
             assertTrue(value != null);
             assertEquals(i, value);
         }
 
-        iter = oak.valuesIterator();
-        i = 0;
-        while (iter.hasNext()) {
-            assertEquals(i, iter.next());
-            i++;
-        }
-        assertEquals(5, i.intValue());
-
-        iter = oak.descendingMap().valuesIterator();
-        i = 5;
-        while (iter.hasNext()) {
-            i--;
-            assertEquals(i, iter.next());
-        }
-        assertEquals(0, i.intValue());
-
-        OakMap sub = oak.subMap(1, false, 4, true);
-        iter = sub.valuesIterator();
-        i = 2;
-        while (iter.hasNext()) {
-            assertEquals(i, iter.next());
-            i++;
-        }
-        assertEquals(5, i.intValue());
-
-        iter = sub.descendingMap().valuesIterator();
-        i = 5;
-        while (iter.hasNext()) {
-            i--;
-            assertEquals(i, iter.next());
-        }
-        assertEquals(2, i.intValue());
-
-
-        for (i = 0; i < 3 * maxItemsPerChunk; i++) {
-            oak.put(i, i);
-        }
-        for (i = 0; i < 3 * maxItemsPerChunk; i++) {
-            Integer value = oak.get(i);
-            assertTrue(value != null);
-            assertEquals(i, value);
-        }
-
-        iter = oak.valuesIterator();
-        i = 0;
-        while (iter.hasNext()) {
-            assertEquals(i, iter.next());
-            i++;
-        }
-        assertEquals(3 * maxItemsPerChunk, i.intValue());
-
-        iter = oak.descendingMap().valuesIterator();
-        i = 3 * maxItemsPerChunk;
-        while (iter.hasNext()) {
-            i--;
-            assertEquals(i, iter.next());
-        }
-        assertEquals(0, i.intValue());
-
-        sub = oak.subMap(2 * maxItemsPerChunk, true, 3 * maxItemsPerChunk, false);
-        iter = sub.valuesIterator();
-        i = 2 * maxItemsPerChunk;
-        while (iter.hasNext()) {
-            assertEquals(i, iter.next());
-            i++;
-        }
-        assertEquals(3 * maxItemsPerChunk, i.intValue());
-        iter = sub.descendingMap().valuesIterator();
-        i = 3 * maxItemsPerChunk;
-        while (iter.hasNext()) {
-            i--;
-            assertEquals(i, iter.next());
-        }
-        assertEquals(2 * maxItemsPerChunk, i.intValue());
-
-        sub = oak.subMap((int) Math.round(0.1 * maxItemsPerChunk), true, (int) Math.round(2.3 * maxItemsPerChunk), false);
-        iter = sub.valuesIterator();
-        i = (int) Math.round(0.1 * maxItemsPerChunk);
-        while (iter.hasNext()) {
-            assertEquals(i, iter.next());
-            i++;
-        }
-        assertEquals((int) Math.round(2.3 * maxItemsPerChunk), i.intValue());
-        iter = sub.descendingMap().valuesIterator();
-        i = (int) Math.round(2.3 * maxItemsPerChunk);
-        while (iter.hasNext()) {
-            i--;
-            assertEquals(i, iter.next());
-        }
-        assertEquals((int) Math.round(0.1 * maxItemsPerChunk), i.intValue());
-
-        for (i = maxItemsPerChunk; i < 2 * maxItemsPerChunk; i++) {
-            ByteBuffer bb = ByteBuffer.allocate(4);
-            bb.putInt(i);
-            bb.flip();
-            sub.remove(bb);
-        }
-        iter = sub.valuesIterator();
-        i = (int) Math.round(0.1 * maxItemsPerChunk);
-        while (iter.hasNext()) {
-            if (i == maxItemsPerChunk) {
-                i = 2 * maxItemsPerChunk;
+        try (OakCloseableIterator<Integer> iter = oak.valuesIterator()) {
+            Integer i = 0;
+            while (iter.hasNext()) {
+                assertEquals(i, iter.next());
+                i++;
             }
-            assertEquals(i, iter.next());
-            i++;
+            assertEquals(3 * maxItemsPerChunk, i.intValue());
         }
-        assertEquals((int) Math.round(2.3 * maxItemsPerChunk), i.intValue());
-        iter = sub.descendingMap().valuesIterator();
-        i = (int) Math.round(2.3 * maxItemsPerChunk);
-        while (iter.hasNext()) {
-            i--;
-            if (i == 2 * maxItemsPerChunk - 1) {
-                i = maxItemsPerChunk - 1;
+
+
+        try (OakMap<Integer, Integer> oakDesc = oak.descendingMap();
+                OakCloseableIterator<Integer> iter = oakDesc.valuesIterator()) {
+            Integer i = 3 * maxItemsPerChunk;
+            while (iter.hasNext()) {
+                i--;
+                assertEquals(i, iter.next());
             }
-            assertEquals(i, iter.next());
+            assertEquals(0, i.intValue());
         }
-        assertEquals((int) Math.round(0.1 * maxItemsPerChunk), i.intValue());
+
+
+        try (OakMap<Integer, Integer> sub = oak.subMap(2 * maxItemsPerChunk, true, 3 * maxItemsPerChunk, false);) {
+            try (OakCloseableIterator<Integer> iter = sub.valuesIterator()) {
+                Integer i = 2 * maxItemsPerChunk;
+                while (iter.hasNext()) {
+                    assertEquals(i, iter.next());
+                    i++;
+                }
+                assertEquals(3 * maxItemsPerChunk, i.intValue());
+            }
+
+            try (OakMap<Integer, Integer> oakDesc = sub.descendingMap();
+                 OakCloseableIterator<Integer> iter = oakDesc.valuesIterator()) {
+                Integer i = 3 * maxItemsPerChunk;
+                while (iter.hasNext()) {
+                    i--;
+                    assertEquals(i, iter.next());
+                }
+                assertEquals(2 * maxItemsPerChunk, i.intValue());
+            }
+        }
+
+
+        try (OakMap sub = oak.subMap((int) Math.round(0.1 * maxItemsPerChunk), true, (int) Math.round(2.3 * maxItemsPerChunk), false)){
+            try (OakCloseableIterator<Integer> iter = sub.valuesIterator()) {
+                Integer i = (int) Math.round(0.1 * maxItemsPerChunk);
+                while (iter.hasNext()) {
+                    assertEquals(i, iter.next());
+                    i++;
+                }
+                assertEquals((int) Math.round(2.3 * maxItemsPerChunk), i.intValue());
+            }
+            try (OakMap<Integer, Integer> oakDesc = sub.descendingMap();
+                    OakCloseableIterator<Integer> iter = oakDesc.valuesIterator();) {
+
+                Integer i = (int) Math.round(2.3 * maxItemsPerChunk);
+                while (iter.hasNext()) {
+                    i--;
+                    assertEquals(i, iter.next());
+                }
+                assertEquals((int) Math.round(0.1 * maxItemsPerChunk), i.intValue());
+
+                for (i = maxItemsPerChunk; i < 2 * maxItemsPerChunk; i++) {
+                    ByteBuffer bb = ByteBuffer.allocate(4);
+                    bb.putInt(i);
+                    bb.flip();
+                    sub.remove(bb);
+                }
+            }
+
+            try (OakCloseableIterator<Integer> iter = sub.valuesIterator();) {
+                Integer i = (int) Math.round(0.1 * maxItemsPerChunk);
+                while (iter.hasNext()) {
+                    if (i == maxItemsPerChunk) {
+                        i = 2 * maxItemsPerChunk;
+                    }
+                    assertEquals(i, iter.next());
+                    i++;
+                }
+                assertEquals((int) Math.round(2.3 * maxItemsPerChunk), i.intValue());
+            }
+
+            try (OakMap<Integer, Integer> oakDesc = sub.descendingMap();
+                    OakCloseableIterator<Integer> iter = oakDesc.valuesIterator();) {
+
+                Integer i = (int) Math.round(2.3 * maxItemsPerChunk);
+                while (iter.hasNext()) {
+                    i--;
+                    if (i == 2 * maxItemsPerChunk - 1) {
+                        i = maxItemsPerChunk - 1;
+                    }
+                    assertEquals(i, iter.next());
+                }
+                assertEquals((int) Math.round(0.1 * maxItemsPerChunk), i.intValue());
+            }
+        }
+
+
+
+
+
     }
 
 }
