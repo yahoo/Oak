@@ -132,7 +132,7 @@ public class Chunk<K, V> {
         this.rebalancer = new AtomicReference<>(null); // to be updated on rebalance
         this.statistics = new Statistics();
         this.comparator = comparator;
-        this.byteBufferPerThread = new ByteBuffer[ThreadIndexCalculator.MAX_THREADS]; // init to null
+        this.byteBufferPerThread = new ByteBuffer[ThreadIndexCalculator.MAX_THREADS];
         this.externalSize = externalSize;
 
         this.keySerializer = keySerializer;

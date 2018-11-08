@@ -40,6 +40,7 @@ public class OakMap<K, V> implements AutoCloseable {
     private final K toKey;
     private boolean toInclusive;
     private final boolean isDescending;
+    private final ThreadIndexCalculator threadIndexCalculator;
 
     // internal constructor, to create OakMap use OakMapBuilder
     OakMap(K minKey, OakSerializer<K> keySerializer, OakSerializer<V> valueSerializer, OakComparator<K> oakComparator,
@@ -61,6 +62,7 @@ public class OakMap<K, V> implements AutoCloseable {
             }
         };
 
+        this.threadIndexCalculator = threadIndexCalculator;
         this.memoryManager = mm;
         this.internalOakMap = new InternalOakMap(minKey, keySerializer, valueSerializer, this.comparator,
                 this.memoryManager, chunkMaxItems, chunkBytesPerItem, threadIndexCalculator);
@@ -81,7 +83,8 @@ public class OakMap<K, V> implements AutoCloseable {
                    Function<Map.Entry<ByteBuffer, ByteBuffer>, Map.Entry<K, V>> entryDeserializeTransformer,
                    Comparator comparator,
                    K fromKey, boolean fromInclusive, K toKey,
-                   boolean toInclusive, boolean isDescending) {
+                   boolean toInclusive, boolean isDescending, ThreadIndexCalculator threadIndexCalculator) {
+        this.threadIndexCalculator = threadIndexCalculator;
         this.internalOakMap = internalOakMap;
         this.memoryManager = memoryManager;
         this.keyDeserializeTransformer = keyDeserializeTransformer;
@@ -347,7 +350,7 @@ public class OakMap<K, V> implements AutoCloseable {
         internalOakMap.open();
         return new OakMap<K, V>(this.internalOakMap, this.memoryManager, this.keyDeserializeTransformer,
                 this.valueDeserializeTransformer, this.entryDeserializeTransformer, this.comparator, fromKey,
-                fromInclusive, toKey, toInclusive, descending);
+                fromInclusive, toKey, toInclusive, descending, threadIndexCalculator);
     }
 
     /**
@@ -376,7 +379,8 @@ public class OakMap<K, V> implements AutoCloseable {
         }
         internalOakMap.open();
         return new OakMap<K, V>(this.internalOakMap, this.memoryManager, this.keyDeserializeTransformer,
-                this.valueDeserializeTransformer, this.entryDeserializeTransformer, this.comparator, this.fromKey, this.fromInclusive, toKey, inclusive, this.isDescending);
+                this.valueDeserializeTransformer, this.entryDeserializeTransformer, this.comparator, this.fromKey,
+                this.fromInclusive, toKey, inclusive, this.isDescending, threadIndexCalculator);
     }
 
     /**
@@ -405,7 +409,8 @@ public class OakMap<K, V> implements AutoCloseable {
         }
         internalOakMap.open();
         return new OakMap<K, V>(this.internalOakMap, this.memoryManager, this.keyDeserializeTransformer,
-                this.valueDeserializeTransformer, this.entryDeserializeTransformer, this.comparator, fromKey, inclusive, this.toKey, this.toInclusive, this.isDescending);
+                this.valueDeserializeTransformer, this.entryDeserializeTransformer, this.comparator, fromKey,
+                inclusive, this.toKey, this.toInclusive, this.isDescending, threadIndexCalculator);
     }
 
     /* ---------------- Retrieval methods -------------- */
@@ -422,7 +427,8 @@ public class OakMap<K, V> implements AutoCloseable {
     public OakMap<K, V> descendingMap() {
         internalOakMap.open();
         return new OakMap<K, V>(this.internalOakMap, this.memoryManager, this.keyDeserializeTransformer,
-                this.valueDeserializeTransformer, this.entryDeserializeTransformer, this.comparator, this.fromKey, this.fromInclusive, this.toKey, this.toInclusive, true);
+                this.valueDeserializeTransformer, this.entryDeserializeTransformer, this.comparator,
+                this.fromKey, this.fromInclusive, this.toKey, this.toInclusive, true, threadIndexCalculator);
     }
 
     /**

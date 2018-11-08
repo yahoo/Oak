@@ -1132,15 +1132,15 @@ class InternalOakMap<K, V> {
     }
 
     <T> OakCloseableIterator<T> valuesTransformIterator(K lo, boolean loInclusive, K hi, boolean hiInclusive, boolean isDescending, Function<ByteBuffer, T> transformer) {
-        return new ValueTransformIterator(lo, loInclusive, hi, hiInclusive, isDescending, transformer);
+        return new ValueTransformIterator<>(lo, loInclusive, hi, hiInclusive, isDescending, transformer);
     }
 
     <T> OakCloseableIterator<T> entriesTransformIterator(K lo, boolean loInclusive, K hi, boolean hiInclusive, boolean isDescending, Function<Map.Entry<ByteBuffer, ByteBuffer>, T> transformer) {
-        return new EntryTransformIterator(lo, loInclusive, hi, hiInclusive, isDescending, transformer);
+        return new EntryTransformIterator<>(lo, loInclusive, hi, hiInclusive, isDescending, transformer);
     }
 
     <T> OakCloseableIterator<T> keysTransformIterator(K lo, boolean loInclusive, K hi, boolean hiInclusive, boolean isDescending, Function<ByteBuffer, T> transformer) {
-        return new KeyTransformIterator(lo, loInclusive, hi, hiInclusive, isDescending, transformer);
+        return new KeyTransformIterator<>(lo, loInclusive, hi, hiInclusive, isDescending, transformer);
     }
 
 }

@@ -152,6 +152,9 @@ class MemoryManager {
         assert !isIdle(l);
         l -= BUSY_BIT; // set to idle (in case this is the last nested call)
         timeStamp.set(l);
+        if (isIdle(l)) {
+            threadIndexCalculator.releaseIndex();
+        }
     }
 
     void assertIfNotIdle() {

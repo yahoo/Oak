@@ -38,9 +38,9 @@ public class MemoryReleaseTest {
 
         }
         oak.close();
-        long a = Long.valueOf(ManagementFactory.getPlatformMXBean(HotSpotDiagnosticMXBean.class)
+        long maxDirectMemorySize = Long.valueOf(ManagementFactory.getPlatformMXBean(HotSpotDiagnosticMXBean.class)
                 .getVMOption("MaxDirectMemorySize").getValue());
-        long blocks = a/BlocksPool.BLOCK_SIZE;
+        long blocks = maxDirectMemorySize/BlocksPool.BLOCK_SIZE;
         assertEquals(blocks, BlocksPool.getInstance().numOfRemainingBlocks());
     }
 }

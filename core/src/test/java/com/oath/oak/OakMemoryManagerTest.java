@@ -215,12 +215,6 @@ public class OakMemoryManagerTest {
 
         oak.remove(1); // this should actually trigger the free of key 0 memory
 
-        for(int i = 0; i < 10; i++){
-            key = i;
-            oak.put(key, val);
-            oak.remove(key);
-        }
-
         oak.close();
     }
 
