@@ -12,6 +12,8 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.stream.Collector;
+import java.util.stream.Collectors;
 
 class MemoryManager {
 
@@ -54,6 +56,7 @@ class MemoryManager {
     }
 
     void close() {
+        releasedArray.forEach(this::forceRelease);
         memoryAllocator.close();
     }
 
