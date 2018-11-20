@@ -1,3 +1,8 @@
+/**
+ * Copyright 2018 Oath Inc.
+ * Licensed under the terms of the Apache 2.0 license.
+ * Please see LICENSE file in the project root for terms.
+ */
 
 package com.oath.oak;
 
@@ -26,7 +31,7 @@ import org.openjdk.jmh.runner.options.OptionsBuilder;
 import java.util.ArrayList;
 import java.util.concurrent.TimeUnit;
 
-public class Ingestion {
+public class PutBenchmark {
 
     static public final int KEY_SIZE_BYTES = 64;
     static public final int VALUE_SIZE_BYTES = 64;
@@ -64,7 +69,7 @@ public class Ingestion {
     @State(Scope.Thread)
     public static class ThreadState {
 
-        @Param({"100000"})
+        @Param({"500000"})
         private int numRows;
 
         private ArrayList<Pair<String, String>> rows;
@@ -93,7 +98,22 @@ public class Ingestion {
     @Fork(value = 1)
     @Threads(8)
     @Benchmark
-    public void Ingest(Blackhole blackhole,BenchmarkState state,ThreadState threadState) throws Exception {
+    public void put(Blackhole blackhole,BenchmarkState state,ThreadState threadState) {
+        for (int i = 0; i < threadState.numRows; ++i) {
+            Pair<String, String> pair = threadState.rows.get(i);
+            state.oakMap.put(pair.getKey(), pair.getValue());
+            blackhole.consume(state.oakMap);
+        }
+    }
+
+    @Warmup(iterations = 5)
+    @Measurement(iterations = 10)
+    @BenchmarkMode(Mode.AverageTime)
+    @OutputTimeUnit(TimeUnit.MILLISECONDS)
+    @Fork(value = 1)
+    @Threads(8)
+    @Benchmark
+    public void putIfAbsent(Blackhole blackhole,BenchmarkState state,ThreadState threadState) {
         for (int i = 0; i < threadState.numRows; ++i) {
             Pair<String, String> pair = threadState.rows.get(i);
             state.oakMap.put(pair.getKey(), pair.getValue());
@@ -102,10 +122,10 @@ public class Ingestion {
     }
 
 
-    //java -jar -Xmx8g -XX:MaxDirectMemorySize=8g ./benchmarks/target/benchmarks.jar Ingestion -p numRows=100000 -prof stack
+    //java -jar -Xmx8g -XX:MaxDirectMemorySize=8g ./benchmarks/target/benchmarks.jar put -p numRows=500000 -prof stack
     public static void main(String[] args) throws RunnerException {
         Options opt = new OptionsBuilder()
-                .include(Ingestion.class.getSimpleName())
+                .include(PutBenchmark.class.getSimpleName())
                 .forks(0)
                 .threads(1)
                 .build();
