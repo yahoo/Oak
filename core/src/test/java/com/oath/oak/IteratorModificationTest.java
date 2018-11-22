@@ -60,7 +60,7 @@ public class IteratorModificationTest {
 
         Thread scanThread = new Thread(() -> {
 
-            OakCloseableIterator<Map.Entry<String, String>> iterator = oak.entriesIterator();
+            OakIterator<Map.Entry<String, String>> iterator = oak.entriesIterator();
             latch.countDown();
             while (iterator.hasNext()) {
 

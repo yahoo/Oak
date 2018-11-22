@@ -432,24 +432,24 @@ public class OakMap<K, V> implements AutoCloseable {
     }
 
     /**
-     * Returns a {@link OakCloseableIterator} of the values contained in this map
+     * Returns a {@link OakIterator} of the values contained in this map
      * in ascending order of the corresponding keys.
      */
-    public OakCloseableIterator<V> valuesIterator() {
+    public OakIterator<V> valuesIterator() {
         return internalOakMap.valuesTransformIterator(fromKey, fromInclusive, toKey, toInclusive, isDescending, valueDeserializeTransformer);
     }
 
     /**
-     * Returns a {@link OakCloseableIterator} of the mappings contained in this map in ascending key order.
+     * Returns a {@link OakIterator} of the mappings contained in this map in ascending key order.
      */
-    public OakCloseableIterator<Map.Entry<K, V>> entriesIterator() {
+    public OakIterator<Map.Entry<K, V>> entriesIterator() {
         return internalOakMap.entriesTransformIterator(fromKey, fromInclusive, toKey, toInclusive, isDescending, entryDeserializeTransformer);
     }
 
     /**
-     * Returns a {@link OakCloseableIterator} of the keys contained in this map in ascending order.
+     * Returns a {@link OakIterator} of the keys contained in this map in ascending order.
      */
-    public OakCloseableIterator<K> keysIterator() {
+    public OakIterator<K> keysIterator() {
         return internalOakMap.keysTransformIterator(fromKey, fromInclusive, toKey, toInclusive, isDescending, keyDeserializeTransformer);
     }
 
