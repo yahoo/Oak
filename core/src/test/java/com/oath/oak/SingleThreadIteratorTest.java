@@ -240,6 +240,7 @@ public class SingleThreadIteratorTest {
         }
     }
 
+
     @Test
     public void testDescending() {
         try (OakMap<Integer, Integer> oakDesc = oak.descendingMap();

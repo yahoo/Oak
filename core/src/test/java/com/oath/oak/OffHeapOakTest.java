@@ -27,7 +27,7 @@ import static org.junit.Assert.assertFalse;
 
 public class OffHeapOakTest {
     private OakMap<Integer, Integer> oak;
-    private final int NUM_THREADS = 12;
+    private final int NUM_THREADS = 31;
     private ArrayList<Thread> threads;
     private CountDownLatch latch;
     private Consumer<OakWBuffer> emptyComputer;
@@ -119,7 +119,7 @@ public class OffHeapOakTest {
             OakCloseableIterator<Map.Entry<Integer, Integer>> iter0 = oak.entriesIterator();
             while (iter0.hasNext()) {
                 Map.Entry<Integer, Integer> entry = iter0.next();
-                assertTrue(entry.getValue() != null);
+                if (entry == null) continue;
                 assertEquals(
                     "\nOn should be empty: Key " + entry.getKey()
                         + ", Value " + entry.getValue(),

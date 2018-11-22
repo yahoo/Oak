@@ -6,19 +6,22 @@
 
 package com.oath.oak;
 
+import javafx.util.Pair;
+
 import java.nio.ByteBuffer;
 import java.util.Comparator;
 import java.util.ConcurrentModificationException;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.NoSuchElementException;
 import java.util.concurrent.ConcurrentSkipListMap;
+import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.logging.Logger;
-import java.util.NoSuchElementException;
 import java.util.AbstractMap;
 
 class InternalOakMap<K, V> {
@@ -164,11 +167,25 @@ class InternalOakMap<K, V> {
 
         updateIndexAndNormalize(engaged, newChunks);
 
-        for (Chunk chunk : engaged
-        ) {
+        for (Chunk chunk : engaged) {
+            ConcurrentSkipListSet<Iter> viewingIterators = chunk.getSignedIterators();
             chunk.release();
-        }
+            viewingIterators.forEach(iterator -> {
+                if (iterator.getNextKeyIndex() != Chunk.NONE) {
 
+                    int index = iterator.getNextKeyIndex();
+
+                    // Check if iterator moved to next chunk.
+                    // index can be 0 if iterator just finished iterating all chunks, and this thread started this
+                    // iteration before the iterator removed itself from viewers
+                    if (iterator.nextChunk == chunk && index != 0) {
+                        K lastKey = keySerializer.deserialize(chunk.readKey(index));
+                        iterator.setLastKey(chunk, lastKey);
+                    }
+                }
+            });
+
+        }
         if (result.success && result.putIfAbsent) {
             size.incrementAndGet();
         }
@@ -740,34 +757,38 @@ class InternalOakMap<K, V> {
      */
     abstract class Iter<T> implements OakCloseableIterator<T> {
 
-        final K lo;
+        private K lo;
         /**
          * upper bound key, or null if to end
          */
-        final K hi;
+        private K hi;
         /**
          * inclusion flag for lo
          */
-        final boolean loInclusive;
+        private boolean loInclusive;
         /**
          * inclusion flag for hi
          */
-        final boolean hiInclusive;
+        private boolean hiInclusive;
         /**
          * direction
          */
-        final boolean isDescending;
+        private final boolean isDescending;
 
         /**
          * the next node to return from next();
          */
-        Chunk<K, V> nextChunk;
-        Chunk.ChunkIter nextChunkIter;
-        int next;
+        protected Chunk<K, V> nextChunk;
+        protected Chunk.ChunkIter nextChunkIter;
+        protected int nextIndex;
         /**
          * Cache of next value field to maintain weak consistency
          */
-        Handle nextHandle;
+        protected Handle nextHandle;
+
+        // Set by rebalancer if chunk is deleted
+        // This is the next key to return when next() is called
+        private AtomicReference<Object> lastKeyBeforeChunkDelete;
 
         /**
          * Initializes ascending iterator for entire range.
@@ -786,16 +807,15 @@ class InternalOakMap<K, V> {
             // we use another nested attach-detach invocation to allow releasing the memory where
             // iterator already traversed. Finally to mark the thread idle we need the detach to be
             // invoked from the close of this closeable iterator.
-            memoryManager.startOperation();
-            next = Chunk.NONE;
+            nextIndex = Chunk.NONE;
             nextHandle = null;
+            memoryManager.startOperation();
             initChunk();
-            findNextKeyInRange();
+            memoryManager.stopOperation();
         }
 
         @Override
         public void close() {
-            memoryManager.stopOperation();
         }
 
         boolean tooLow(Object key) {
@@ -810,12 +830,17 @@ class InternalOakMap<K, V> {
                     (c == 0 && !hiInclusive)));
         }
 
+
         boolean inBounds(Object key) {
-            return !tooLow(key) && !tooHigh(key);
+            if (!isDescending) {
+                return !tooHigh(key);
+            } else {
+                return !tooLow(key);
+            }
         }
 
         public final boolean hasNext() {
-            return next != Chunk.NONE;
+            return nextIndex != Chunk.NONE;
         }
 
         public T next() {
@@ -827,159 +852,169 @@ class InternalOakMap<K, V> {
             }
         }
 
+        public int getNextKeyIndex() {
+            return nextIndex;
+        }
+
         // the actual next()
         abstract T internalNext();
 
         /**
          * Advances next to higher entry.
+         * Return previous index
          */
-        void advance() {
-            if (next == Chunk.NONE)
+        Pair<ByteBuffer, Handle> advance() {
+
+            Object lastKey = lastKeyBeforeChunkDelete.get();
+            if (!(lastKey instanceof Chunk)) {
+                //Current chunk got released
+                if (isDescending) {
+                    hiInclusive = true;
+                    hi = (K)lastKeyBeforeChunkDelete.get();
+                }
+                else {
+                    loInclusive = true;
+                    lo = (K)lastKeyBeforeChunkDelete.get();
+                }
+                initChunk();
+                if (nextChunkIter == null) {
+                    throw new NoSuchElementException();
+                }
+                if (nextIndex == Chunk.NONE) {
+                    throw new ConcurrentModificationException();
+                }
+            }
+
+            if (nextIndex == Chunk.NONE) {
                 throw new NoSuchElementException();
-            findNextKeyInRange();
+            }
+
+
+            ByteBuffer bb = getKey(nextIndex, nextChunk);
+            Handle currentHandle = nextHandle;
+            setNextKey();
+            return new Pair<>(bb, currentHandle);
         }
 
-        /**
-         * used only to init the iterator
-         */
+        //Make next* point to next value to return
         private void initChunk() {
+
+            nextChunkIter = null;
+            nextIndex = Chunk.NONE;
+
             if (!isDescending) {
                 if (lo != null)
                     nextChunk = skiplist.floorEntry(lo).getValue();
                 else
                     nextChunk = skiplist.floorEntry(minKey).getValue();
-                if (nextChunk == null) {
-                    nextChunkIter = null;
-                } else {
-                    nextChunkIter = lo != null ? nextChunk.ascendingIter(lo) : nextChunk.ascendingIter();
+                if (nextChunk != null) {
+                    nextChunkIter = lo != null ? nextChunk.ascendingIter(lo, loInclusive) : nextChunk.ascendingIter();
                 }
             } else {
                 nextChunk = hi != null ? skiplist.floorEntry(hi).getValue()
                         : skiplist.lastEntry().getValue();
-                if (nextChunk == null) {
-                    nextChunkIter = null;
-                } else {
+                if (nextChunk != null) {
                     nextChunkIter = hi != null ? nextChunk.descendingIter(hi, hiInclusive) : nextChunk.descendingIter();
                 }
             }
+            lastKeyBeforeChunkDelete = new AtomicReference<>(nextChunk);
+            nextChunk.signIterator(this);
+            setNextKey();
         }
+
+
+        private Chunk<K, V> getNextChunk(Chunk<K, V> current) {
+            if (!isDescending) {
+                return current.next.getReference();
+            } else {
+                ByteBuffer serializedMinKey = current.minKey;
+                Map.Entry<Object, Chunk<K, V>> entry = skiplist.lowerEntry(serializedMinKey);
+                if (entry == null) {
+                    return null;
+                } else {
+                    return entry.getValue();
+                }
+            }
+        }
+
+
+        private Chunk.ChunkIter getChunkIter(Chunk<K, V> current) {
+            if (!isDescending) {
+                return current.ascendingIter();
+            } else {
+                return current.descendingIter();
+            }
+        }
+
 
         /**
          * sets nextChunk, nextChunkIter, next and nextValue to the next key
          * if such a key doesn't exists then next is set to Chunk.NONE and nextValue is set to null
          */
-        private void findNextKeyInRange() {
-            if (nextChunkIter == null) {
-                return;
-            }
-            if (!isDescending) {
-                ascend();
-            } else {
-                descend();
-            }
-        }
+        private void setNextKey() {
 
-        private void ascend() {
-            if (!findNextChunk()) {
-                return;
-            }
-            // now look for first key in range
-            next = nextChunkIter.next();
-            ByteBuffer key = getKey(next, nextChunk);
+            Chunk<K, V> currentChunk = nextChunk;
 
-            while (!inBounds(key)) {
-                if (tooHigh(key)) {
-                    // if we reached a key that is too high then there is no key in range
-                    next = Chunk.NONE;
-                    nextHandle = null;
-                    return;
-                }
-                if (!findNextChunk()) {
-                    return;
-                }
-                next = nextChunkIter.next();
-                key = getKey(next, nextChunk);
-            }
-            // set next value
-            Handle h = nextChunk.getHandle(next);
-            if (h != null) {
-                nextHandle = h;
-            } else {
-                nextHandle = null;
-            }
-        }
 
-        private boolean findNextChunk() {
             while (!nextChunkIter.hasNext()) { // chunks can have only removed keys
-                nextChunk = nextChunk.next.getReference(); // try next chunk
+                nextChunk.signoutIterator(this);
+                nextChunk = getNextChunk(nextChunk);
                 if (nextChunk == null) { // there is no next chunk
-                    next = Chunk.NONE;
+                    nextIndex = Chunk.NONE;
                     nextHandle = null;
-                    return false;
+                    return;
                 }
-                nextChunkIter = nextChunk.ascendingIter();
+                nextChunkIter = getChunkIter(nextChunk);
             }
-            return true;
-        }
 
-        private boolean findPrevChunk() {
-            while (!nextChunkIter.hasNext()) {
-                ByteBuffer serializedMinKey = nextChunk.minKey;
-                Map.Entry e = skiplist.lowerEntry(serializedMinKey);
-                if (e == null) { // there no next chunk
-                    assert serializedMinKey == minKey;
-                    next = Chunk.NONE;
-                    nextHandle = null;
-                    return false;
-                }
-                nextChunk = (Chunk) e.getValue();
-                Chunk nextNext = nextChunk.next.getReference();
-                if (nextNext == null) {
-                    nextChunkIter = nextChunk.descendingIter(keySerializer.deserialize(serializedMinKey), false);
-                    continue;
-                }
-                ByteBuffer nextMinKey = nextNext.minKey;
-                if (comparator.compare(nextMinKey, serializedMinKey) < 0) {
-                    nextChunk = nextNext;
-                    nextMinKey = nextChunk.next.getReference().minKey;
-                    while (comparator.compare(nextMinKey, serializedMinKey) < 0) {
-                        nextChunk = nextChunk.next.getReference();
-                        nextMinKey = nextChunk.next.getReference().minKey;
-                    }
-                }
-                nextChunkIter = nextChunk.descendingIter(keySerializer.deserialize(serializedMinKey), false); // TODO check correctness
-            }
-            return true;
-        }
+            //Must get nextIndex before return to avoid nextIndex==0 after init
+            nextIndex = nextChunkIter.next();
 
-        private void descend() {
-            if (!findPrevChunk()) {
+            //
+            boolean res = lastKeyBeforeChunkDelete.compareAndSet(currentChunk, nextChunk);
+            if (res == false) {
+                // failed to swap, rebalance on currentChunk updated lastKeyBeforeChunkDelete
                 return;
             }
-            // now look for first key in range
-            next = nextChunkIter.next();
-            ByteBuffer key = getKey(next, nextChunk);
 
-            while (!inBounds(key)) {
-                if (tooLow(key)) {
-                    // if we reached a key that is too low then there is no key in range
-                    next = Chunk.NONE;
-                    nextHandle = null;
-                    return;
-                }
-                if (!findPrevChunk()) {
-                    return;
-                }
-                next = nextChunkIter.next();
-                key = getKey(next, nextChunk);
+            //Must sign iterator after prev stages
+            if (currentChunk != nextChunk) {
+                nextChunk.signIterator(this);
             }
-            nextHandle = nextChunk.getHandle(next); // set next value
+            //Check if released for frozen and store last key
+            if (nextChunk.state() == Chunk.State.RELEASED) {
+                //save last key
+                K lastKey = keySerializer.deserialize(getKey(nextIndex, nextChunk));
+                setLastKey(nextChunk, lastKey);
+                //No return to take care of first entrance after init
+            }
+
+
+            ByteBuffer key = getKey(nextIndex, nextChunk);
+            if (!inBounds(key)) {
+                // if we reached a key that is too high then there is no key in range
+                nextIndex = Chunk.NONE;
+                nextHandle = null;
+                return;
+            }
+
+            // set next value
+            nextHandle = nextChunk.getHandle(nextIndex);
+            return;
         }
+
 
         ByteBuffer getKey(int ki, Chunk c) {
             return c.readKey(ki);
         }
 
+        public boolean setLastKey(Object expect, Object update) {
+            boolean ret = lastKeyBeforeChunkDelete.compareAndSet(expect, update);
+            if (ret == true) {
+                //System.out.println("WRITGO " + this + " " + update);
+            }
+            return ret;
+        }
     }
 
     class ValueIterator extends Iter<OakRBuffer> {
@@ -990,8 +1025,7 @@ class InternalOakMap<K, V> {
 
         @Override
         public OakRBuffer internalNext() {
-            Handle handle = nextHandle;
-            advance();
+            Handle handle = advance().getValue();
             if (handle == null)
                 return null;
 
@@ -1010,8 +1044,7 @@ class InternalOakMap<K, V> {
         }
 
         public T internalNext() {
-            Handle handle = nextHandle;
-            advance();
+            Handle handle = advance().getValue();
             if (handle == null) {
                 return null;
             }
@@ -1029,17 +1062,12 @@ class InternalOakMap<K, V> {
         }
 
         public Map.Entry<OakRBuffer, OakRBuffer> internalNext() {
-            int n = next;
-            Chunk c = nextChunk;
-            Handle handle = nextHandle;
-            advance();
-            if (handle == null) {
+            Pair<ByteBuffer, Handle> pair = advance();
+            if (pair.getValue() == null) {
                 return null;
             }
-            ByteBuffer serializedKey = getKey(n, c);
-            //serializedKey = serializedKey.slice(); // TODO can I get rid of this?
-            return new AbstractMap.SimpleImmutableEntry<OakRBuffer, OakRBuffer>
-                    (new OakRKeyBufferImpl(serializedKey), new OakRValueBufferImpl(handle));
+            return new AbstractMap.SimpleImmutableEntry<>(new OakRKeyBufferImpl(pair.getKey()),
+                    new OakRValueBufferImpl(pair.getValue()));
         }
     }
 
@@ -1054,15 +1082,13 @@ class InternalOakMap<K, V> {
         }
 
         public T internalNext() {
-            int n = next;
-            Chunk c = nextChunk;
-            Handle handle = nextHandle;
-            advance();
+
+            Pair<ByteBuffer, Handle> pair = advance();
+            Handle handle = pair.getValue();
+            ByteBuffer serializedKey = pair.getKey();
             if (handle == null) {
                 return null;
             }
-            ByteBuffer serializedKey = getKey(n, c);
-            //serializedKey = serializedKey.slice(); // TODO can I get rid of this?
             handle.readLock.lock();
             if (handle.isDeleted()) {
                 handle.readLock.unlock();
@@ -1088,10 +1114,9 @@ class InternalOakMap<K, V> {
 
         @Override
         public OakRBuffer internalNext() {
-            int n = next;
-            Chunk c = nextChunk;
-            advance();
-            ByteBuffer serializedKey = getKey(n, c);
+
+            Pair<ByteBuffer, Handle> pair = advance();
+            ByteBuffer serializedKey = pair.getKey();
             serializedKey = serializedKey.slice(); // TODO can I get rid of this?
             return new OakRKeyBufferImpl(serializedKey);
         }
@@ -1108,10 +1133,8 @@ class InternalOakMap<K, V> {
         }
 
         public T internalNext() {
-            int n = next;
-            Chunk c = nextChunk;
-            advance();
-            ByteBuffer serializedKey = getKey(n, c);
+            Pair<ByteBuffer, Handle> pair = advance();
+            ByteBuffer serializedKey = pair.getKey();
             serializedKey = serializedKey.slice(); // TODO can I get rid of this?
             return transformer.apply(serializedKey);
         }
