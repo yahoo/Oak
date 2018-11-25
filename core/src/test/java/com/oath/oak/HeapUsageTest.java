@@ -70,7 +70,7 @@ public class HeapUsageTest {
         // currently tested up to 2GB
         int numOfEntries = 360000;
 
-        System.out.println("key size: " + keySize + "B" + ", value size: " + ((double) valSize) / K + "KB");
+        //System.out.println("key size: " + keySize + "B" + ", value size: " + ((double) valSize) / K + "KB");
 
         Integer key = 0;
         Integer val = 0;

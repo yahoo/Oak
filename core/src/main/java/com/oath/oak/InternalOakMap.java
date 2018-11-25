@@ -835,7 +835,7 @@ class InternalOakMap<K, V> {
         }
 
         public final boolean hasNext() {
-            return nextIndex != Chunk.NONE;
+            return nextIndex != Chunk.NONE && nextHandle != null;
         }
 
         public T next() {
