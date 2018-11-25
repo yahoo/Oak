@@ -900,12 +900,19 @@ public class Chunk<K, V> {
             next = get(binaryFind(from), OFFSET_NEXT);
 
             int handle = get(next, OFFSET_HANDLE_INDEX);
+
+            int compare=-1;
+            if (next != Chunk.NONE)
+                compare = compare(from,readKey(next));
+
             while (next != Chunk.NONE &&
-                    (compare(from,readKey(next)) > 0 ||
-                    (compare(from,readKey(next)) >= 0 && !inclusive)||
+                    (compare > 0 ||
+                    (compare >= 0 && !inclusive)||
                     handle < 0)) {
                 next = get(next, OFFSET_NEXT);
                 handle = get(next, OFFSET_HANDLE_INDEX);
+                if (next != Chunk.NONE)
+                    compare = compare(from,readKey(next));
             }
         }
 
@@ -1105,7 +1112,7 @@ public class Chunk<K, V> {
     }
 
 
-    public void signIterator(InternalOakMap.Iter iterator) {
+    public void signInIterator(InternalOakMap.Iter iterator) {
         viewers.add(iterator);
     }
 

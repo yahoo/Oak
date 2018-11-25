@@ -167,24 +167,23 @@ class InternalOakMap<K, V> {
 
         updateIndexAndNormalize(engaged, newChunks);
 
+
+        // Go over all iterators siged in this chunk and set there lastKey. This is done so that we can free this chunks
+        // buffers and the iterator will not touch released bytebuffers.
         for (Chunk chunk : engaged) {
             ConcurrentSkipListSet<Iter> viewingIterators = chunk.getSignedIterators();
             chunk.release();
             viewingIterators.forEach(iterator -> {
-                if (iterator.getNextKeyIndex() != Chunk.NONE) {
 
-                    int index = iterator.getNextKeyIndex();
-
-                    // Check if iterator moved to next chunk.
-                    // index can be 0 if iterator just finished iterating all chunks, and this thread started this
-                    // iteration before the iterator removed itself from viewers
-                    if (iterator.nextChunk == chunk && index != 0) {
-                        K lastKey = keySerializer.deserialize(chunk.readKey(index));
-                        iterator.setLastKey(chunk, lastKey);
-                    }
+                int index = iterator.getNextKeyIndex();
+                // Check if iterator moved to next chunk.
+                // index can be 0 if iterator is starting or ending. If starting we dont set the lastKey but the
+                // iterator will see RELEASED and set it itself
+                if (iterator.nextChunk == chunk && index != 0) {
+                    K lastKey = keySerializer.deserialize(chunk.readKey(index));
+                    iterator.setLastKey(chunk, lastKey);
                 }
             });
-
         }
         if (result.success && result.putIfAbsent) {
             size.incrementAndGet();
@@ -914,7 +913,7 @@ class InternalOakMap<K, V> {
                 }
             }
             lastKeyBeforeChunkDelete = new AtomicReference<>(nextChunk);
-            nextChunk.signIterator(this);
+            nextChunk.signInIterator(this);
             setNextKey();
         }
 
@@ -975,7 +974,7 @@ class InternalOakMap<K, V> {
 
             //Must sign iterator after prev stages
             if (currentChunk != nextChunk) {
-                nextChunk.signIterator(this);
+                nextChunk.signInIterator(this);
             }
 
             //Check if released for frozen and store last key

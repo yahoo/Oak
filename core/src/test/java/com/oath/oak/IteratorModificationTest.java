@@ -47,7 +47,8 @@ public class IteratorModificationTest {
         oak.close();
     }
 
-    @Test()
+
+    @Test(timeout = 10000)
     public void descendingIterationDuringRebalanceExclude() throws InterruptedException {
         doIterationTest(99,
                 false,
@@ -56,7 +57,7 @@ public class IteratorModificationTest {
                 true);
     }
 
-    @Test()
+    @Test(timeout = 10000)
     public void descendingIterationDuringRebalance() throws InterruptedException {
         doIterationTest(0,
                 true,
@@ -65,7 +66,7 @@ public class IteratorModificationTest {
                 true);
     }
 
-    @Test()
+    @Test(timeout = 10000)
     public void iterationDuringRebalance() throws InterruptedException {
         doIterationTest(0,
                 true,
@@ -74,7 +75,7 @@ public class IteratorModificationTest {
                 false);
     }
 
-    @Test()
+    @Test(timeout = 10000)
     public void iterationDuringRebalanceExclude() throws InterruptedException {
         doIterationTest(234,
                 false,
