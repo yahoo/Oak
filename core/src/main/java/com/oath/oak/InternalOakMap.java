@@ -977,6 +977,7 @@ class InternalOakMap<K, V> {
             if (currentChunk != nextChunk) {
                 nextChunk.signIterator(this);
             }
+
             //Check if released for frozen and store last key
             if (nextChunk.state() == Chunk.State.RELEASED) {
                 //save last key

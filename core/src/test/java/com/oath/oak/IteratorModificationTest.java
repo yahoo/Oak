@@ -3,9 +3,11 @@ package com.oath.oak;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
+import org.junit.rules.Timeout;
 
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -45,70 +47,128 @@ public class IteratorModificationTest {
         oak.close();
     }
 
+    @Test()
+    public void descendingIterationDuringRebalanceExclude() throws InterruptedException {
+        doIterationTest(99,
+                false,
+                ELEMENTS-99,
+                false,
+                true);
+    }
 
-    @Test
-    public void continueIterationDuringRebalance() throws InterruptedException {
+    @Test()
+    public void descendingIterationDuringRebalance() throws InterruptedException {
+        doIterationTest(0,
+                true,
+                ELEMENTS-1,
+                true,
+                true);
+    }
+
+    @Test()
+    public void iterationDuringRebalance() throws InterruptedException {
+        doIterationTest(0,
+                true,
+                ELEMENTS-1,
+                true,
+                false);
+    }
+
+    @Test()
+    public void iterationDuringRebalanceExclude() throws InterruptedException {
+        doIterationTest(234,
+                false,
+                ELEMENTS-342,
+                false,
+                false);
+    }
+
+
+    public void doIterationTest(int startKey, boolean includeStart, int endKey, boolean includeEnd,
+                                boolean  isDescending) throws InterruptedException {
 
         AtomicBoolean passed = new AtomicBoolean(false);
-        AtomicInteger i = new AtomicInteger(0);
-        CountDownLatch latch = new CountDownLatch(1);
+        AtomicBoolean continueWriting = new AtomicBoolean(true);
+        AtomicInteger currentKey;
 
-        Object readLock = new Object();
-        Object writeLock = new Object();
-
-
+        if (!isDescending) {
+            if (includeStart) {
+                currentKey = new AtomicInteger(startKey);
+            } else {
+                currentKey = new AtomicInteger(startKey + 1);
+            }
+        } else {
+            if (includeEnd) {
+                currentKey = new AtomicInteger(endKey);
+            } else {
+                currentKey = new AtomicInteger(endKey - 1);
+            }
+        }
+        Semaphore readLock = new Semaphore(0);
+        Semaphore writeLock = new Semaphore(0);
 
         Thread scanThread = new Thread(() -> {
 
-            OakIterator<Map.Entry<String, String>> iterator = oak.entriesIterator();
-            latch.countDown();
-            while (iterator.hasNext()) {
+            String startKeyString = String.format("%0$" + KEY_SIZE + "s", String.valueOf(startKey));
+            String endKeyString = String.format("%0$" + VALUE_SIZE + "s", String.valueOf(endKey));
 
-                try {
-                    synchronized (readLock) {
-                        readLock.wait();
+            try (OakMap<String, String> submap = oak.subMap(startKeyString, includeStart, endKeyString, includeEnd,isDescending)) {
+
+                OakIterator<Map.Entry<String, String>> iterator = submap.entriesIterator();
+
+                writeLock.release();
+                int i = 0;
+                while (iterator.hasNext()) {
+                    try {
+                        readLock.acquire();
+                    } catch (InterruptedException e) {
+                        e.printStackTrace();
                     }
-                } catch (InterruptedException e) {
-                    e.printStackTrace();
+                    String expectedKey = String.format("%0$" + KEY_SIZE + "s", String.valueOf(currentKey.get()));
+                    String expectedVal = String.format("%0$" + VALUE_SIZE + "s", String.valueOf(currentKey.get()));
+                    Map.Entry<String, String> entry = iterator.next();
+                    assertEquals(expectedKey, entry.getKey());
+                    assertEquals(expectedVal, entry.getValue());
+                    writeLock.release();
+                    if (!isDescending)
+                        currentKey.getAndIncrement();
+                    else
+                        currentKey.getAndDecrement();
+                    i++;
                 }
 
-                String expectedKey = String.format("%0$" + KEY_SIZE + "s", String.valueOf(i.get()));
-                String expectedVal = String.format("%0$" + VALUE_SIZE + "s", String.valueOf(i.get()));
+                int expectedIterations = endKey - startKey + 1;
+                if (!includeEnd) expectedIterations --;
+                if (!includeStart) expectedIterations --;
 
-                Map.Entry<String, String> entry = iterator.next();
-                assertEquals(expectedKey, entry.getKey());
-                assertEquals(expectedVal, entry.getValue());
-                i.getAndIncrement();
-                synchronized (writeLock) {
-                    writeLock.notify();
-                }
+                assertEquals(expectedIterations, i);
+                passed.set(true);
             }
-            assertEquals(ELEMENTS, i.get());
-            passed.set(true);
+            writeLock.release();
+            continueWriting.set(false);
+
         });
         scanThread.start();
 
 
         Thread putThread = new Thread(() -> {
+
+            // First block to prevent starting before reader thread init iterator
             try {
-                latch.await();
+                writeLock.acquire();
             } catch (InterruptedException e) {
                 e.printStackTrace();
             }
-            while (i.get() < ELEMENTS) {
+            while (continueWriting.get()) {
                 for (int j = 0; j < 200; j++) {
-                    String key = String.format("%0$" + KEY_SIZE + "s", String.valueOf(i));
-                    String val = String.format("%0$" + VALUE_SIZE + "s", String.valueOf(i));
+                    String key = String.format("%0$" + KEY_SIZE + "s", String.valueOf(currentKey));
+                    String val = String.format("%0$" + VALUE_SIZE + "s", String.valueOf(currentKey));
                     oak.remove(key);
                     oak.put(key, val);
                 }
                 try {
-                    synchronized (readLock) {
-                        readLock.notify();
-                    }
-                    synchronized (writeLock) {
-                        writeLock.wait();
-                    }
+                    readLock.release();
+                    writeLock.acquire();
                 } catch (InterruptedException e) {
                     e.printStackTrace();
                 }
@@ -121,10 +181,10 @@ public class IteratorModificationTest {
         assertTrue(passed.get());
     }
 
-    @Test
-    public void concurrentModificationTest(){
-        //TODO
-    }
+//    @Test
+//    public void concurrentModificationTest(){
+//        //TODO
+//    }
 
 
 
