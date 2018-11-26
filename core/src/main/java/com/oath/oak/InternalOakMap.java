@@ -171,8 +171,8 @@ class InternalOakMap<K, V> {
         // Go over all iterators siged in this chunk and set there lastKey. This is done so that we can free this chunks
         // buffers and the iterator will not touch released bytebuffers.
         for (Chunk chunk : engaged) {
-            ConcurrentSkipListSet<Iter> viewingIterators = chunk.getSignedIterators();
             chunk.release();
+            ConcurrentSkipListSet<Iter> viewingIterators = chunk.getSignedIterators();
             viewingIterators.forEach(iterator -> {
 
                 int index = iterator.getNextKeyIndex();
@@ -835,7 +835,7 @@ class InternalOakMap<K, V> {
         }
 
         public final boolean hasNext() {
-            return nextIndex != Chunk.NONE && nextHandle != null;
+            return nextIndex != Chunk.NONE;
         }
 
         public T next() {
@@ -1005,11 +1005,7 @@ class InternalOakMap<K, V> {
         }
 
         public boolean setLastKey(Object expect, Object update) {
-            boolean ret = lastKeyBeforeChunkDelete.compareAndSet(expect, update);
-            if (ret == true) {
-                //System.out.println("WRITGO " + this + " " + update);
-            }
-            return ret;
+            return lastKeyBeforeChunkDelete.compareAndSet(expect, update);
         }
     }
 

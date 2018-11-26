@@ -1,44 +1,40 @@
 
 package com.oath.oak;
 
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentLinkedQueue;
-import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class ThreadIndexCalculator {
 
-    private final ConcurrentMap<Long, Integer> map;
     static final int MAX_THREADS = 32;
-    private final ConcurrentLinkedQueue<Integer> freeIndexList;
-
+    private ThreadLocal<Integer> local = ThreadLocal.withInitial(()->-1);
+    AtomicInteger[] indices = new AtomicInteger[MAX_THREADS];
 
     private ThreadIndexCalculator() {
-        map = new ConcurrentHashMap<>();
-        freeIndexList = new ConcurrentLinkedQueue<>();
         for (Integer i=0; i < MAX_THREADS; ++i) {
-            freeIndexList.add(i);
+            indices[i] = new AtomicInteger(-1);
         }
     }
 
 
     public int getIndex() {
-        long tid = Thread.currentThread().getId();
-        Integer index = map.get(tid);
-        if (index != null) {
-            return index;
+
+        int localInt = local.get();
+        if (localInt != -1) {
+            return localInt;
         }
-        Integer newIndex = freeIndexList.poll();
-        assert newIndex != null;
-        map.put(tid, newIndex);
-        return newIndex;
+        int tid = (int) Thread.currentThread().getId();
+        int i = tid % 32;
+        while(!indices[i].compareAndSet(-1, tid)) {
+            //TODO get out of loop sometime
+            i = (i + 1) % 32;
+        }
+        local.set(i);
+        return i;
     }
 
     public void releaseIndex() {
-        long tid = Thread.currentThread().getId();
-        Integer index = map.remove(tid);
-        assert index != null;
-        freeIndexList.add(index);
+        indices[local.get()].set(-1);
+        local.set(-1);
     }
 
 
