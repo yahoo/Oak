@@ -39,8 +39,8 @@ import java.util.concurrent.TimeUnit;
 public class ScanBenchmark
 {
 
-    static public final int KEY_SIZE_BYTES = 64;
-    static public final int VALUE_SIZE_BYTES = 64;
+    static public final int KEY_SIZE_BYTES = 4;
+    static public final int VALUE_SIZE_BYTES = 4;
 
     private OakMap<String, String> oakMap;
 
@@ -124,7 +124,7 @@ public class ScanBenchmark
     //java -jar -Xmx8g -XX:MaxDirectMemorySize=8g ./benchmarks/target/benchmarks.jar Scan -p numRows=1000000 -prof stack
     public static void main(String[] args) throws RunnerException {
         Options opt = new OptionsBuilder()
-                .include(ScanBenchmark.class.getSimpleName())
+                .include("scan")
                 .forks(0)
                 .threads(8)
                 .build();

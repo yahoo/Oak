@@ -147,6 +147,7 @@ public class Chunk<K, V> {
         INFANT,
         NORMAL,
         FROZEN,
+        DETACHED,
         RELEASED
     }
 
@@ -168,8 +169,13 @@ public class Chunk<K, V> {
 
     /*-------------- Methods --------------*/
 
+    void detach() {
+        state.compareAndSet(State.FROZEN, State.DETACHED);
+    }
+
+
     void release() {
-        if (state.compareAndSet(State.FROZEN, State.RELEASED)) {
+        if (state.compareAndSet(State.DETACHED, State.RELEASED)) {
             keysManager.release();
         }
     }

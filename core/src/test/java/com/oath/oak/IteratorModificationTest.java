@@ -3,8 +3,8 @@ package com.oath.oak;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
-import org.junit.rules.Timeout;
 
+import java.util.ConcurrentModificationException;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Semaphore;
@@ -66,7 +66,7 @@ public class IteratorModificationTest {
                 true);
     }
 
-    @Test(timeout = 10000)
+    @Test(timeout = 1000000)
     public void iterationDuringRebalance() throws InterruptedException {
         doIterationTest(0,
                 true,
@@ -182,11 +182,81 @@ public class IteratorModificationTest {
         assertTrue(passed.get());
     }
 
-//    @Test
-//    public void concurrentModificationTest(){
-//        //TODO
-//    }
+    @Test
+    public void concurrentModificationTest() throws InterruptedException {
+
+        CountDownLatch deleteLatch= new CountDownLatch(1);
+        CountDownLatch scanLatch= new CountDownLatch(1);
+        AtomicBoolean passed = new AtomicBoolean(false);
+
+        Thread scanThread = new Thread(() -> {
+            OakIterator<Map.Entry<String, String>> iterator = oak.entriesIterator();
+            assertTrue(iterator.hasNext());
+            deleteLatch.countDown();
+            try {
+                scanLatch.await();
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+            try {
+                iterator.next();
+            } catch (ConcurrentModificationException e) {
+                passed.set(true);
+            }
+        });
+
+        Thread deleteThread = new Thread(() -> {
+            try {
+                deleteLatch.await();
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+            for (int i = 0; i < ELEMENTS; i++) {
+                String key = String.format("%0$" + KEY_SIZE + "s", String.valueOf(i));
+                oak.remove(key);
+            }
+            scanLatch.countDown();
+        });
+
+        scanThread.start();
+        deleteThread.start();
+
+        scanThread.join();
+        deleteThread.join();
+        assertTrue(passed.get());
+    }
+
+    @Test
+    public void stressTest() throws InterruptedException {
+
+        Thread[] threads = new Thread[ThreadIndexCalculator.MAX_THREADS];
+        AtomicInteger passed = new AtomicInteger(0);
+        AtomicBoolean run = new AtomicBoolean(true);
+        for (int i = 0; i < ThreadIndexCalculator.MAX_THREADS; ++i) {
+            threads[i] = new Thread(() -> {
+
+                while (run.get()) {
+                    try (OakMap<String,String> so = oak.subMap(String.format("%0$" + KEY_SIZE + "s", String.valueOf(0)),false,
+                            String.format("%0$" + KEY_SIZE + "s", String.valueOf(ELEMENTS-10)), true)) {
+                        OakIterator<Map.Entry<String, String>> iter = so.entriesIterator();
+                        String lastKey = String.format("%0$" + KEY_SIZE + "s", String.valueOf(0));
+                        while(iter.hasNext()) {
+                            Map.Entry<String, String> p = iter.next();
+                            assertTrue(p.getKey().compareTo(lastKey) >= 0 );
+                        }
+                    }
+                }
+                passed.getAndIncrement();
+            });
+            threads[i].start();
+        }
 
 
-
+        Thread.sleep(1000*10);
+        run.set(false);
+        for (int i = 0; i < ThreadIndexCalculator.MAX_THREADS; ++i) {
+            threads[i].join();
+        }
+        assertEquals(ThreadIndexCalculator.MAX_THREADS, passed.get());
+    }
 }
