@@ -176,7 +176,7 @@ class InternalOakMap<K, V> {
 
             ConcurrentSkipListSet<Iter> viewingIterators = chunk.getSignedIterators();
             viewingIterators.forEach(iterator -> {
-                IteratorState<K,V> iteratorState = iterator.getNextState();
+                IteratorState<K,V> iteratorState = iterator.nextState();
 
                 // Check if iterator moved to next chunk, after reading its state.
                 // index can be 0 if iterator has ended.
@@ -817,9 +817,7 @@ class InternalOakMap<K, V> {
         /**
          * the next node to return from next();
          */
-
-
-        private AtomicReference<IteratorState<K,V>> nextState;
+        private AtomicReference<IteratorState<K,V>> state;
 
         /**
          * Cache of next value field to maintain weak consistency
@@ -847,7 +845,7 @@ class InternalOakMap<K, V> {
             // we use another nested attach-detach invocation to allow releasing the memory where
             // iterator already traversed. Finally to mark the thread idle we need the detach to be
             // invoked from the close of this closeable iterator.
-            nextState = new AtomicReference<>(IteratorState.endState());
+            state = new AtomicReference<>(IteratorState.endState());
             nextHandle = null;
             memoryManager.startOperation();
             init();
@@ -876,7 +874,7 @@ class InternalOakMap<K, V> {
         }
 
         public final boolean hasNext() {
-            return nextState.get().validState();
+            return state.get().validState();
         }
 
         public T next() {
@@ -898,21 +896,22 @@ class InternalOakMap<K, V> {
          */
         Pair<ByteBuffer, Handle> advance() {
 
-            if (!nextState.get().validState()) {
+            if (!state.get().validState()) {
                 throw new NoSuchElementException();
             }
 
-            Chunk.State state = nextState.get().getChunk().state();
-            if (state == Chunk.State.RELEASED || state == Chunk.State.DETACHED) {
+            Chunk.State chunkState = state.get().getChunk().state();
+            if (chunkState == Chunk.State.RELEASED || chunkState == Chunk.State.DETACHED) {
                 Object lastKey;
-                if (state == Chunk.State.RELEASED) {
+                if (chunkState == Chunk.State.RELEASED) {
                     // IF RELEASED, either the rebalancer wrote lastKey or init of this chunk
                     lastKey = lastKeyBeforeRelease.get();
                 }
                 else {
                     // This is safe. If the chunk gets released now, the keys bytebuffer release epoch is larger than
                     // this iterator start epoch
-                    lastKey = getKey(nextState.get().getIndex(), nextState.get().chunk);
+                    lastKey = state.get().getChunk().readKey(state.get().getIndex());
+                    System.out.println("AAACCC " + lastKey);
                 }
 
                 if (isDescending) {
@@ -926,13 +925,13 @@ class InternalOakMap<K, V> {
 
                 init();
 
-                if (!nextState.get().validState()) {
+                if (!state.get().validState()) {
                     //TODO return lastKey
                     throw new ConcurrentModificationException();
                 }
             }
 
-            ByteBuffer bb = getKey(nextState.get().getIndex(), nextState.get().chunk);
+            ByteBuffer bb = state.get().getChunk().readKey(state.get().getIndex());
             Handle currentHandle = nextHandle;
             advanceState();
             return new Pair<>(bb, currentHandle);
@@ -952,7 +951,7 @@ class InternalOakMap<K, V> {
                 if (nextChunk != null) {
                     nextChunkIter = lo != null ? nextChunk.ascendingIter(lo, loInclusive) : nextChunk.ascendingIter();
                 } else {
-                    nextState.set(IteratorState.endState());
+                    state.set(IteratorState.endState());
                     nextHandle = null;
                     return;
                 }
@@ -962,24 +961,25 @@ class InternalOakMap<K, V> {
                 if (nextChunk != null) {
                     nextChunkIter = hi != null ? nextChunk.descendingIter(hi, hiInclusive) : nextChunk.descendingIter();
                 } else {
-                    nextState.set(IteratorState.endState());
+                    state.set(IteratorState.endState());
                     nextHandle = null;
                     return;
                 }
             }
 
-            IteratorState<K, V> newState = getNextState(IteratorState.state(nextChunk, nextChunkIter, 0));
+            IteratorState<K, V> newState = nextState(IteratorState.state(nextChunk, nextChunkIter, 0));
 
             if (!newState.validState()) {
-                nextState.set(IteratorState.endState());
+                state.set(IteratorState.endState());
                 nextHandle = null;
                 return;
             }
 
+            // Safe. if chunk got released now, release epoch is higher than iterator start epoch.
             ByteBuffer key = newState.getChunk().readKey(newState.getIndex());
             if (!inBounds(key)) {
                 // if we reached a key that is too high then there is no key in range
-                nextState.set(IteratorState.endState());
+                state.set(IteratorState.endState());
                 nextHandle = null;
                 return;
             }
@@ -988,7 +988,7 @@ class InternalOakMap<K, V> {
             lastKeyBeforeRelease = new AtomicReference<>(newState.getChunk());
 
             // This set must be before next if.
-            nextState.set(newState);
+            state.set(newState);
             newState.chunk.signInIterator(this);
 
             if (newState.getChunk().state() == Chunk.State.DETACHED ||
@@ -1022,7 +1022,7 @@ class InternalOakMap<K, V> {
             }
         }
 
-        private IteratorState<K,V> getNextState (IteratorState<K,V> currentState) {
+        private IteratorState<K,V> nextState(IteratorState<K,V> currentState) {
 
             Chunk<K, V> nextChunk = currentState.getChunk();
             Chunk.ChunkIter nextChunkIter = currentState.getChunkIter();
@@ -1042,49 +1042,43 @@ class InternalOakMap<K, V> {
 
         private void advanceState() {
 
-            IteratorState<K,V> currentState = nextState.get();
+            IteratorState<K,V> currentState = state.get();
 
-            IteratorState<K, V> newState = getNextState(currentState);
+            IteratorState<K, V> newState = nextState(currentState);
 
-            nextState.set(newState);
+            state.set(newState);
 
             if (!newState.validState()) {
                 nextHandle = null;
                 return;
             }
 
-            Chunk<K, V> newChunk = newState.getChunk();
-            int newIndex = newState.getIndex();
 
-            if (currentState.getChunk() != newChunk) {
+            if (currentState.getChunk() != newState.getChunk()) {
                 // Moved to next chunk
                 currentState.getChunk().signoutIterator(this);
-                newChunk.signInIterator(this);
-                if (!casLastKey(currentState.getChunk(), newChunk)) {
-                    // A rebalancer set this before me, on the chunk im leaving currentChunk
-                } else {
-
-                }
+                newState.getChunk().signInIterator(this);
+                lastKeyBeforeRelease.set(newState.getChunk());
             } else {
                 //stayed in same chunk
             }
 
             if (newState.getChunk().state() == Chunk.State.DETACHED ||
                     newState.getChunk().state() == Chunk.State.RELEASED) {
-                lastKeyBeforeRelease.set(keySerializer.deserialize(getKey(newIndex, newChunk)));
+                lastKeyBeforeRelease.set(keySerializer.deserialize(newState.getChunk().readKey(newState.getIndex())));
             }
 
             // Safe. if chunk got released now, release epoch is higher than iterator start epoch.
-            ByteBuffer key = getKey(newIndex, newChunk);
+            ByteBuffer key = getKey(newState.getIndex(), newState.getChunk());
             if (!inBounds(key)) {
                 // if we reached a key that is too high then there is no key in range
                 nextHandle = null;
-                nextState.set(IteratorState.endState());
+                state.set(IteratorState.endState());
                 return;
             }
 
             // set next value
-            nextHandle = newChunk.getHandle(newIndex);
+            nextHandle = newState.getChunk().getHandle(newState.getIndex());
             return;
         }
 
@@ -1097,7 +1091,7 @@ class InternalOakMap<K, V> {
             return lastKeyBeforeRelease.compareAndSet(expect, update);
         }
 
-        public IteratorState<K,V> getNextState() {return nextState.get();}
+        public IteratorState<K,V> nextState() {return state.get();}
 
     }
 
