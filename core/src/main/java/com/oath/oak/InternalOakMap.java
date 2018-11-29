@@ -181,6 +181,7 @@ class InternalOakMap<K, V> {
                 // Check if iterator moved to next chunk, after reading its state.
                 // index can be 0 if iterator has ended.
                 if (iteratorState.validState() && iteratorState.getChunk() == chunk) {
+                    //TODO YONIGO KEEP BB
                     K lastKey = keySerializer.deserialize(iteratorState.getChunk().readKey(iteratorState.getIndex()));
                     iterator.casLastKey(chunk, lastKey);
                     //TODO YONIGO: set chunk in iterator as null
@@ -189,6 +190,8 @@ class InternalOakMap<K, V> {
 
             chunk.release();
         }
+
+
         if (result.success && result.putIfAbsent) {
             size.incrementAndGet();
         }
@@ -761,13 +764,21 @@ class InternalOakMap<K, V> {
         private final  Chunk<K, V> chunk;
         private final Chunk.ChunkIter chunkIter;
         private final int index;
+        private final State state;
 
-        private static IteratorState endState = new IteratorState<>(null, null, 0);
+        private enum State{
+            INIT_STATE,
+            VALID_STATE,
+            END_STATE
+        }
 
-        private IteratorState(Chunk<K, V> nextChunk, Chunk.ChunkIter nextChunkIter, int nextIndex) {
+        private static IteratorState endState = new IteratorState<>(null, null, 0, State.END_STATE);
+
+        private IteratorState(Chunk<K, V> nextChunk, Chunk.ChunkIter nextChunkIter, int nextIndex, State state) {
             this.chunk = nextChunk;
             this.chunkIter = nextChunkIter;
             this.index = nextIndex;
+            this.state = state;
         }
 
         public Chunk<K, V> getChunk() {
@@ -782,11 +793,14 @@ class InternalOakMap<K, V> {
             return index;
         }
 
-        boolean validState() { return index != 0;}
+        boolean validState() { return state == State.VALID_STATE;}
 
         public static <K, V> IteratorState<K, V> endState() {return endState;}
         public static <K, V> IteratorState<K, V> state(Chunk<K, V> nextChunk, Chunk.ChunkIter nextChunkIter, int nextIndex) {
-            return new IteratorState<>(nextChunk, nextChunkIter, nextIndex);
+            return new IteratorState<>(nextChunk, nextChunkIter, nextIndex, State.VALID_STATE);
+        }
+        public static <K, V> IteratorState<K, V> initState(Chunk<K, V> nextChunk, Chunk.ChunkIter nextChunkIter) {
+            return new IteratorState<>(nextChunk, nextChunkIter, 0, State.INIT_STATE);
         }
 
     }
@@ -904,14 +918,13 @@ class InternalOakMap<K, V> {
             if (chunkState == Chunk.State.RELEASED || chunkState == Chunk.State.DETACHED) {
                 Object lastKey;
                 if (chunkState == Chunk.State.RELEASED) {
-                    // IF RELEASED, either the rebalancer wrote lastKey or init of this chunk
+                    //TODO who set
                     lastKey = lastKeyBeforeRelease.get();
                 }
                 else {
                     // This is safe. If the chunk gets released now, the keys bytebuffer release epoch is larger than
-                    // this iterator start epoch
+                    // this next() start epoch
                     lastKey = state.get().getChunk().readKey(state.get().getIndex());
-                    System.out.println("AAACCC " + lastKey);
                 }
 
                 if (isDescending) {
@@ -966,37 +979,17 @@ class InternalOakMap<K, V> {
                     return;
                 }
             }
+            //Init state, not valid yet, must move forword
+            IteratorState<K, V> initState = IteratorState.initState(nextChunk, nextChunkIter);
+            state.set(initState);
 
-            IteratorState<K, V> newState = nextState(IteratorState.state(nextChunk, nextChunkIter, 0));
+            lastKeyBeforeRelease = new AtomicReference<>(initState.getChunk());
 
-            if (!newState.validState()) {
-                state.set(IteratorState.endState());
-                nextHandle = null;
-                return;
-            }
+            // ok to signin init state, the rebalancer will ignore
+            initState.getChunk().signInIterator(this);
 
-            // Safe. if chunk got released now, release epoch is higher than iterator start epoch.
-            ByteBuffer key = newState.getChunk().readKey(newState.getIndex());
-            if (!inBounds(key)) {
-                // if we reached a key that is too high then there is no key in range
-                state.set(IteratorState.endState());
-                nextHandle = null;
-                return;
-            }
+            advanceState();
 
-            //Must set this before signin to chunk so that rebalancer doesnt get null
-            lastKeyBeforeRelease = new AtomicReference<>(newState.getChunk());
-
-            // This set must be before next if.
-            state.set(newState);
-            newState.chunk.signInIterator(this);
-
-            if (newState.getChunk().state() == Chunk.State.DETACHED ||
-                    newState.getChunk().state() == Chunk.State.RELEASED) {
-                lastKeyBeforeRelease.set(keySerializer.deserialize(newState.getChunk().readKey(newState.getIndex())));
-            }
-
-            nextHandle = newState.chunk.getHandle(newState.getIndex());
         }
 
 
@@ -1040,11 +1033,13 @@ class InternalOakMap<K, V> {
             return IteratorState.state(nextChunk, nextChunkIter, nextIndex);
         }
 
+
+        // Long explanation here
         private void advanceState() {
 
             IteratorState<K,V> currentState = state.get();
 
-            IteratorState<K, V> newState = nextState(currentState);
+            IteratorState<K,V> newState = nextState(currentState);
 
             state.set(newState);
 
@@ -1053,23 +1048,21 @@ class InternalOakMap<K, V> {
                 return;
             }
 
-
             if (currentState.getChunk() != newState.getChunk()) {
                 // Moved to next chunk
                 currentState.getChunk().signoutIterator(this);
                 newState.getChunk().signInIterator(this);
                 lastKeyBeforeRelease.set(newState.getChunk());
-            } else {
-                //stayed in same chunk
             }
 
             if (newState.getChunk().state() == Chunk.State.DETACHED ||
                     newState.getChunk().state() == Chunk.State.RELEASED) {
+                // TODO YONIGO: why is this safe:
                 lastKeyBeforeRelease.set(keySerializer.deserialize(newState.getChunk().readKey(newState.getIndex())));
             }
 
             // Safe. if chunk got released now, release epoch is higher than iterator start epoch.
-            ByteBuffer key = getKey(newState.getIndex(), newState.getChunk());
+            ByteBuffer key = newState.getChunk().readKey(newState.getIndex());
             if (!inBounds(key)) {
                 // if we reached a key that is too high then there is no key in range
                 nextHandle = null;
@@ -1079,13 +1072,8 @@ class InternalOakMap<K, V> {
 
             // set next value
             nextHandle = newState.getChunk().getHandle(newState.getIndex());
-            return;
         }
 
-
-        ByteBuffer getKey(int ki, Chunk c) {
-            return c.readKey(ki);
-        }
 
         public boolean casLastKey(Object expect, Object update) {
             return lastKeyBeforeRelease.compareAndSet(expect, update);

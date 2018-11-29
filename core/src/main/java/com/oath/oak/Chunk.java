@@ -59,7 +59,7 @@ public class Chunk<K, V> {
     private static final Unsafe unsafe;
     private final MemoryManager memoryManager;
     ByteBuffer minKey;       // minimal key that can be put in this chunk
-    AtomicMarkableReference<Chunk> next;
+    AtomicMarkableReference<Chunk<K,V>> next;
     Comparator<Object> comparator;
     private ByteBuffer[] byteBufferPerThread;
     // in split/compact process, represents parent of split (can be null!)
