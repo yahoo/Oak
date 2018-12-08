@@ -171,8 +171,9 @@ class InternalOakMap<K, V> {
         // Go over all iterators siged in this chunk and set there lastKey. This is done so that we can free this chunks
         // buffers and the iterator will not touch released bytebuffers.
         for (Chunk chunk : engaged) {
-
             chunk.detach();
+        }
+        for (Chunk chunk : engaged) {
 
             ConcurrentSkipListSet<Iter> viewingIterators = chunk.getSignedIterators();
             viewingIterators.forEach(iterator -> {
