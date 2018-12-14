@@ -137,7 +137,6 @@ class MemoryManager {
         int idx = threadIndexCalculator.getIndex();
         AtomicLong timeStamp = timeStamps[idx];
         timeStamp.set(0);
-        threadIndexCalculator.releaseIndex();
     }
 
     void assertIfNotIdle() {

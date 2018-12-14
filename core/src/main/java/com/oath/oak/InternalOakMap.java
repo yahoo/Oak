@@ -811,8 +811,11 @@ class InternalOakMap<K, V> {
      */
     abstract class Iter<T> implements OakIterator<T> {
 
-        private final long iterationEpoch;
+        private long iterationEpoch;
+        private int epochUsageCounter = 0;
+        private static final int EPOCH_USAGE_COUNTER = 1000000;
         private K lo;
+
         /**
          * upper bound key, or null if to end
          */
@@ -866,7 +869,6 @@ class InternalOakMap<K, V> {
             memoryManager.startOperation();
             init();
             memoryManager.stopOperation();
-            iterationEpoch = memoryManager.getandIncrementEpoch();
         }
 
         boolean tooLow(Object key) {
@@ -896,6 +898,10 @@ class InternalOakMap<K, V> {
 
         public T next() {
             try {
+                if (epochUsageCounter-- <= 0) {
+                    iterationEpoch = memoryManager.getandIncrementEpoch();
+                    epochUsageCounter = EPOCH_USAGE_COUNTER;
+                }
                 memoryManager.iteratorStartOperation(iterationEpoch);
                 return internalNext();
             } finally {
