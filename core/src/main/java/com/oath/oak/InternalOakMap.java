@@ -813,7 +813,7 @@ class InternalOakMap<K, V> {
 
         private long iterationEpoch;
         private int epochUsageCounter = 0;
-        private static final int EPOCH_USAGE_COUNTER = 1000000;
+        private static final int EPOCH_USAGE_COUNTER = 100;
         private K lo;
 
         /**
