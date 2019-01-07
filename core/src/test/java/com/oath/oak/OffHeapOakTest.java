@@ -6,20 +6,16 @@
 
 package com.oath.oak;
 
-import junit.framework.TestCase;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
 
-import java.nio.ByteBuffer;
 import java.util.ArrayList;
-import java.util.Iterator;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.function.Consumer;
-import java.util.function.Function;
 
 import static junit.framework.TestCase.assertTrue;
 import static org.junit.Assert.assertEquals;
@@ -27,7 +23,7 @@ import static org.junit.Assert.assertFalse;
 
 public class OffHeapOakTest {
     private OakMap<Integer, Integer> oak;
-    private final int NUM_THREADS = 12;
+    private final int NUM_THREADS = 31;
     private ArrayList<Thread> threads;
     private CountDownLatch latch;
     private Consumer<OakWBuffer> emptyComputer;
@@ -116,16 +112,16 @@ public class OffHeapOakTest {
                 e.printStackTrace();
             }
             oak.assertIfNotIdle();
-            OakCloseableIterator<Map.Entry<Integer, Integer>> iter0 = oak.entriesIterator();
+            OakIterator<Map.Entry<Integer, Integer>> iter0 = oak.entriesIterator();
             while (iter0.hasNext()) {
                 Map.Entry<Integer, Integer> entry = iter0.next();
-                assertTrue(entry.getValue() != null);
+                if (entry == null) continue;
                 assertEquals(
                     "\nOn should be empty: Key " + entry.getKey()
                         + ", Value " + entry.getValue(),
                     0, entry.getValue() - entry.getKey());
             }
-            iter0.close();
+
             oak.assertIfNotIdle();
             for (int i = 0; i < 6 * maxItemsPerChunk; i++) {
                 oak.put(i, i);
@@ -135,7 +131,7 @@ public class OffHeapOakTest {
                 oak.remove(i);
             }
             oak.assertIfNotIdle();
-            OakCloseableIterator<Map.Entry<Integer, Integer>> iter9 = oak.entriesIterator();
+            OakIterator<Map.Entry<Integer, Integer>> iter9 = oak.entriesIterator();
             while (iter9.hasNext()) {
                 Map.Entry<Integer, Integer> entry = iter9.next();
                 if (entry == null) continue;
@@ -151,7 +147,7 @@ public class OffHeapOakTest {
                         + ", Value " + entry.getValue(),
                     0, entry.getValue() - entry.getKey());
             }
-            iter9.close();
+
             oak.assertIfNotIdle();
             for (int i = 0; i < 6 * maxItemsPerChunk; i++) {
                 oak.putIfAbsent(i, i);
@@ -161,7 +157,7 @@ public class OffHeapOakTest {
                 oak.remove(i);
             }
 
-            OakCloseableIterator<Map.Entry<Integer, Integer>> iter8 = oak.entriesIterator();
+            OakIterator<Map.Entry<Integer, Integer>> iter8 = oak.entriesIterator();
             while (iter8.hasNext()) {
                 Map.Entry<Integer, Integer> entry = iter8.next();
                 if (entry == null) continue;
@@ -171,7 +167,7 @@ public class OffHeapOakTest {
                         + ", Value " + entry.getValue(),
                     0, entry.getValue() - entry.getKey());
             }
-            iter8.close();
+
 
             for (int i = 0; i < 6 * maxItemsPerChunk; i++) {
                 oak.put(i, i);

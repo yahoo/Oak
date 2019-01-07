@@ -20,15 +20,6 @@ class MemoryManager {
     final ArrayList<LinkedList<Pair<Long,ByteBuffer>>> releasedArray;
     private final AtomicLong max;
 
-    // Pay attention, this busy bit is used as a counter for nested calls of start thread method.
-    // It can be increased only 2^23 (8,388,608) times, before overflowing.
-    // This is needed for iterators that reappear
-    // in the data structure and assume the chunks on their way are not going to be de-allocated.
-    // In case iterator should cover more than this number of items, the code should be adopted.
-    // The stop thread method (in turn) decreases the busy bit count and should achieve zero when
-    // thread is really idle.
-    private static final long BUSY_BIT = 1L << 48;
-    private static final long IDLE_MASK = 0xFFFF000000000000L; // last byte
     private static final int RELEASES_DEFAULT = 100; // TODO: make it configurable
     private final ThreadIndexCalculator threadIndexCalculator;
 
@@ -111,51 +102,41 @@ class MemoryManager {
 
     // the MSB (busy bit) is not set
     private boolean isIdle(long timeStamp) {
-        return (timeStamp & IDLE_MASK) == 0L;
+        return (timeStamp) == 0L;
     }
 
     private long getValue(long timeStamp) {
-        return timeStamp & (~IDLE_MASK);
+        return timeStamp;
+    }
+
+    long getandIncrementEpoch(){
+        return max.getAndIncrement();
     }
 
     void startOperation() {
         int idx = threadIndexCalculator.getIndex();
         AtomicLong timeStamp = timeStamps[idx];
-        long l = timeStamp.get();
-        long v = getValue(l);
-
-        if (!isIdle(l)) {
-            // if already not idle, busy bit is set, increase just internal counter, not global max
-            l += 1;
-            l += BUSY_BIT; // just increment in one busy bit, that serves as a counter
-            timeStamp.set(l);
-            assert !isIdle(timeStamp.get()); // the thread should continue to be marked as busy
-            return;
-        }
-
-        // if our local counter v overgrown the global max, return the global max to be maximum
-        // so the number (per thread) is always growing
-        long global_max = this.max.get();
-        long diff = (v > global_max) ? v - global_max + 1 : 1;
-        long max = this.max.addAndGet(diff);
-
-        l &= IDLE_MASK; // zero the local counter
-        l += max;       // set it to be current maximum
-        l += BUSY_BIT;  // set to not idle
-        timeStamp.set(l);
-        assert !isIdle(timeStamp.get());
+        timeStamp.set(max.getAndIncrement());
     }
 
     void stopOperation() {
         int idx = threadIndexCalculator.getIndex();
         AtomicLong timeStamp = timeStamps[idx];
-        long l = timeStamp.get();
-        assert !isIdle(l);
-        l -= BUSY_BIT; // set to idle (in case this is the last nested call)
-        timeStamp.set(l);
-        if (isIdle(l)) {
-            threadIndexCalculator.releaseIndex();
-        }
+        timeStamp.set(0);
+        threadIndexCalculator.releaseIndex();
+    }
+
+    void iteratorStartOperation(long epoch) {
+        int idx = threadIndexCalculator.getIndex();
+        AtomicLong timeStamp = timeStamps[idx];
+        timeStamp.set(epoch);
+        return;
+    }
+
+    void iteratorStopOperation() {
+        int idx = threadIndexCalculator.getIndex();
+        AtomicLong timeStamp = timeStamps[idx];
+        timeStamp.set(0);
     }
 
     void assertIfNotIdle() {

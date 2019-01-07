@@ -56,10 +56,10 @@ public class OakTransformView<K, T> implements AutoCloseable{
   }
 
   /**
-   * Returns a {@link OakCloseableIterator} of a transformation of values contained in this map
+   * Returns a {@link OakIterator} of a transformation of values contained in this map
    * in ascending order of the corresponding keys.
    */
-  public OakCloseableIterator<T> valuesIterator() {
+  public OakIterator<T> valuesIterator() {
     return internalOakMap.valuesTransformIterator(
             fromKey, externalOakMap.getFromInclusive(),
             toKey, externalOakMap.getToInclusive(),
@@ -67,9 +67,9 @@ public class OakTransformView<K, T> implements AutoCloseable{
   }
 
   /**
-   * Returns a {@link OakCloseableIterator} of a transformation of the mappings contained in this map in ascending key order.
+   * Returns a {@link OakIterator} of a transformation of the mappings contained in this map in ascending key order.
    */
-  public OakCloseableIterator<T> entriesIterator() {
+  public OakIterator<T> entriesIterator() {
     return internalOakMap.entriesTransformIterator(
             fromKey, externalOakMap.getFromInclusive(),
             toKey, externalOakMap.getToInclusive(),
@@ -77,9 +77,9 @@ public class OakTransformView<K, T> implements AutoCloseable{
   }
 
   /**
-   * Returns a {@link OakCloseableIterator} of a transformation of the keys contained in this map in ascending order.
+   * Returns a {@link OakIterator} of a transformation of the keys contained in this map in ascending order.
    */
-  public OakCloseableIterator<T> keysIterator() {
+  public OakIterator<T> keysIterator() {
     return internalOakMap.keysTransformIterator(
             fromKey, externalOakMap.getFromInclusive(),
             toKey, externalOakMap.getToInclusive(),

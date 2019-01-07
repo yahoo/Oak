@@ -7,78 +7,79 @@
 package com.oath.oak;
 
 import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
+            import java.nio.ByteOrder;
 
 public class OakRKeyBufferImpl implements OakRBuffer {
 
-  private final ByteBuffer byteBuffer;
+    private final ByteBuffer byteBuffer;
 
-  OakRKeyBufferImpl(ByteBuffer byteBuffer) {
-    this.byteBuffer = byteBuffer;
-  }
+    OakRKeyBufferImpl(ByteBuffer byteBuffer) {
+        this.byteBuffer = byteBuffer;
+    }
 
-  @Override
-  public int capacity() {
-    return byteBuffer.capacity();
-  }
+    @Override
+    public int capacity() {
+        return byteBuffer.capacity();
+    }
 
-  @Override
-  public int position() {
-    return byteBuffer.position();
-  }
+    @Override
+    public int position() {
+        return byteBuffer.position();
+    }
 
-  @Override
-  public int limit() {
-    return byteBuffer.limit();
-  }
+    @Override
+    public int limit() {
+        return byteBuffer.limit();
+    }
 
-  @Override
-  public int remaining() {
-    return byteBuffer.remaining();
-  }
+    @Override
+    public int remaining() {
+        return byteBuffer.remaining();
+    }
 
-  @Override
-  public boolean hasRemaining() {
-    return byteBuffer.hasRemaining();
-  }
+    @Override
+    public boolean hasRemaining() {
+        return byteBuffer.hasRemaining();
+    }
 
-  @Override
-  public byte get(int index) {
-    return byteBuffer.get(index);
-  }
+    @Override
+    public byte get(int index) {
+        return byteBuffer.get(index);
+    }
 
-  @Override
-  public ByteOrder order() {
-    return byteBuffer.order();
-  }
+    @Override
+    public ByteOrder order() {
+        return byteBuffer.order();
+    }
 
-  @Override
-  public char getChar(int index) {
-    return byteBuffer.getChar(index);
-  }
+    @Override
+    public char getChar(int index) {
+        return byteBuffer.getChar(index);
+    }
 
-  @Override
-  public short getShort(int index) {
-    return byteBuffer.getShort(index);
-  }
+    @Override
+    public short getShort(int index) {
+        return byteBuffer.getShort(index);
+    }
 
-  @Override
-  public int getInt(int index) {
-    return byteBuffer.getInt(index);
-  }
+    @Override
+    public int getInt(int index) {
+        return byteBuffer.getInt(index);
+    }
 
-  @Override
-  public long getLong(int index) {
-    return byteBuffer.getLong(index);
-  }
+    @Override
+    public long getLong(int index) {
+        return byteBuffer.getLong(index);
+    }
 
-  @Override
-  public float getFloat(int index) {
-    return byteBuffer.getFloat(index);
-  }
+    @Override
+    public float getFloat(int index) {
+        return byteBuffer.getFloat(index);
+    }
 
-  @Override
-  public double getDouble(int index) {
-    return byteBuffer.getChar(index);
-  }
+    @Override
+    public double getDouble(int index) {
+        return byteBuffer.getChar(index);
+    }
+
 }

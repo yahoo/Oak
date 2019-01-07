@@ -39,8 +39,8 @@ import java.util.concurrent.TimeUnit;
 public class ScanBenchmark
 {
 
-    static public final int KEY_SIZE_BYTES = 64;
-    static public final int VALUE_SIZE_BYTES = 64;
+    static public final int KEY_SIZE_BYTES = 4;
+    static public final int VALUE_SIZE_BYTES = 4;
 
     private OakMap<String, String> oakMap;
 
@@ -77,19 +77,20 @@ public class ScanBenchmark
 
     @Benchmark
     public void scan(Blackhole blackhole) {
-        try (OakCloseableIterator<String> iterator = oakMap.keysIterator()) {
-            while (iterator.hasNext()) {
-                String val = iterator.next();
-                blackhole.consume(val);
-            }
+        OakIterator<String> iterator = oakMap.keysIterator();
+
+        while (iterator.hasNext()) {
+            String val = iterator.next();
+            blackhole.consume(val);
         }
+
     }
 
     @Benchmark
     public void bufferViewScan(Blackhole blackhole) {
 
-        try (OakBufferView<String> bufferView = oakMap.createBufferView();
-             OakCloseableIterator<OakRBuffer> iterator = bufferView.keysIterator()) {
+        try (OakBufferView<String> bufferView = oakMap.createBufferView()) {
+            OakIterator<OakRBuffer> iterator = bufferView.keysIterator();
             while (iterator.hasNext()) {
                 OakRBuffer val = iterator.next();
                 blackhole.consume(val);
@@ -99,8 +100,8 @@ public class ScanBenchmark
 
     @Benchmark
     public void inverseScan(Blackhole blackhole) {
-        try (OakMap inverseMap = oakMap.descendingMap();
-             OakCloseableIterator<String> iterator = inverseMap.keysIterator()) {
+        try (OakMap inverseMap = oakMap.descendingMap()) {
+            OakIterator<String> iterator = inverseMap.keysIterator();
             while (iterator.hasNext()) {
                 String val = iterator.next();
                 blackhole.consume(val);
@@ -111,8 +112,8 @@ public class ScanBenchmark
     @Benchmark
     public void inverseBufferViewScan(Blackhole blackhole) {
         try (OakMap inverseMap = oakMap.descendingMap();
-             OakBufferView<String> bufferView = inverseMap.createBufferView();
-             OakCloseableIterator<OakRBuffer> iterator = bufferView.keysIterator()) {
+             OakBufferView<String> bufferView = inverseMap.createBufferView()) {
+            OakIterator<OakRBuffer> iterator = bufferView.keysIterator();
             while (iterator.hasNext()) {
                 OakRBuffer val = iterator.next();
                 blackhole.consume(val);
@@ -123,7 +124,7 @@ public class ScanBenchmark
     //java -jar -Xmx8g -XX:MaxDirectMemorySize=8g ./benchmarks/target/benchmarks.jar Scan -p numRows=1000000 -prof stack
     public static void main(String[] args) throws RunnerException {
         Options opt = new OptionsBuilder()
-                .include(ScanBenchmark.class.getSimpleName())
+                .include("scan")
                 .forks(0)
                 .threads(8)
                 .build();

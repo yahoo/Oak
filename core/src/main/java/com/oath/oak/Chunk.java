@@ -12,6 +12,7 @@ import java.lang.reflect.Constructor;
 import java.nio.ByteBuffer;
 import java.util.Comparator;
 import java.util.EmptyStackException;
+import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicMarkableReference;
@@ -58,7 +59,7 @@ public class Chunk<K, V> {
     private static final Unsafe unsafe;
     private final MemoryManager memoryManager;
     ByteBuffer minKey;       // minimal key that can be put in this chunk
-    AtomicMarkableReference<Chunk> next;
+    AtomicMarkableReference<Chunk<K,V>> next;
     Comparator<Object> comparator;
     private ByteBuffer[] byteBufferPerThread;
     // in split/compact process, represents parent of split (can be null!)
@@ -82,6 +83,7 @@ public class Chunk<K, V> {
     // for writing the keys into the bytebuffers
     private final OakSerializer<K> keySerializer;
     private final OakSerializer<V> valueSerializer;
+    private final ConcurrentSkipListSet<InternalOakMap.Iter> signedIterators;
 
     /*-------------- Constructors --------------*/
 
@@ -138,12 +140,14 @@ public class Chunk<K, V> {
         this.keySerializer = keySerializer;
         this.valueSerializer = valueSerializer;
         this.threadIndexCalculator = threadIndexCalculator;
+        signedIterators = new ConcurrentSkipListSet<>(Comparator.comparingInt(System::identityHashCode));
     }
 
     enum State {
         INFANT,
         NORMAL,
         FROZEN,
+        DETACHED,
         RELEASED
     }
 
@@ -165,8 +169,13 @@ public class Chunk<K, V> {
 
     /*-------------- Methods --------------*/
 
+    void detach() {
+        state.compareAndSet(State.FROZEN, State.DETACHED);
+    }
+
+
     void release() {
-        if (state.compareAndSet(State.FROZEN, State.RELEASED)) {
+        if (state.compareAndSet(State.DETACHED, State.RELEASED)) {
             keysManager.release();
         }
     }
@@ -862,8 +871,8 @@ public class Chunk<K, V> {
         return new AscendingIter();
     }
 
-    AscendingIter ascendingIter(K from) {
-        return new AscendingIter(from);
+    AscendingIter ascendingIter(K from, boolean inclusive) {
+        return new AscendingIter(from, inclusive);
     }
 
     DescendingIter descendingIter() {
@@ -888,21 +897,28 @@ public class Chunk<K, V> {
             next = get(HEAD_NODE, OFFSET_NEXT);
             int handle = get(next, OFFSET_HANDLE_INDEX);
             while (next != Chunk.NONE && handle < 0) {
-//                while (next != Chunk.NONE && (handle < 0 || (handle > 0 && handles[handle].isDeleted()))) {
-                // if there is a next but it was removed then try next item
                 next = get(next, OFFSET_NEXT);
                 handle = get(next, OFFSET_HANDLE_INDEX);
             }
         }
 
-        AscendingIter(K from) {
+        AscendingIter(K from, boolean inclusive) {
             next = get(binaryFind(from), OFFSET_NEXT);
+
             int handle = get(next, OFFSET_HANDLE_INDEX);
-            while (next != Chunk.NONE && handle < 0) {
-//                while (next != Chunk.NONE && (handle < 0 || (handle > 0 && handles[handle].isDeleted()))) {
-                // if there is a next but it was removed then try next item
+
+            int compare=-1;
+            if (next != Chunk.NONE)
+                compare = compare(from,readKey(next));
+
+            while (next != Chunk.NONE &&
+                    (compare > 0 ||
+                    (compare >= 0 && !inclusive)||
+                    handle < 0)) {
                 next = get(next, OFFSET_NEXT);
                 handle = get(next, OFFSET_HANDLE_INDEX);
+                if (next != Chunk.NONE)
+                    compare = compare(from,readKey(next));
             }
         }
 
@@ -910,8 +926,6 @@ public class Chunk<K, V> {
             next = get(next, OFFSET_NEXT);
             int handle = get(next, OFFSET_HANDLE_INDEX);
             while (next != Chunk.NONE && handle < 0) {
-//                while (next != Chunk.NONE && (handle < 0 || (handle > 0 && handles[handle].isDeleted()))) {
-                // if there is a next but it was removed then try next item
                 next = get(next, OFFSET_NEXT);
                 handle = get(next, OFFSET_HANDLE_INDEX);
             }
@@ -1103,6 +1117,19 @@ public class Chunk<K, V> {
 
     }
 
+
+    public void signInIterator(InternalOakMap.Iter iterator) {
+        signedIterators.add(iterator);
+    }
+
+
+    public void signoutIterator(InternalOakMap.Iter iterator) {
+        signedIterators.remove(iterator);
+    }
+
+    public ConcurrentSkipListSet<InternalOakMap.Iter> getSignedIterators() {
+        return signedIterators;
+    }
 
 
     /*-------------- Statistics --------------*/

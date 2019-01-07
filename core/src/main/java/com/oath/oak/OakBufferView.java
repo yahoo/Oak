@@ -43,10 +43,10 @@ public class OakBufferView<K> implements AutoCloseable{
   }
 
   /**
-   * Returns a {@link OakCloseableIterator} of the values contained in this map
+   * Returns a {@link OakIterator} of the values contained in this map
    * in ascending order of the corresponding keys.
    */
-  public OakCloseableIterator<OakRBuffer> valuesIterator() {
+  public OakIterator<OakRBuffer> valuesIterator() {
     return internalOakMap.valuesBufferViewIterator(
         fromKey, externalOakMap.getFromInclusive(),
         toKey, externalOakMap.getToInclusive(),
@@ -54,9 +54,9 @@ public class OakBufferView<K> implements AutoCloseable{
   }
 
   /**
-   * Returns a {@link OakCloseableIterator} of the mappings contained in this map in ascending key order.
+   * Returns a {@link OakIterator} of the mappings contained in this map in ascending key order.
    */
-  public OakCloseableIterator<Map.Entry<OakRBuffer, OakRBuffer>> entriesIterator() {
+  public OakIterator<Map.Entry<OakRBuffer, OakRBuffer>> entriesIterator() {
     return internalOakMap.entriesBufferViewIterator(
         fromKey, externalOakMap.getFromInclusive(),
         toKey, externalOakMap.getToInclusive(),
@@ -64,9 +64,9 @@ public class OakBufferView<K> implements AutoCloseable{
   }
 
   /**
-   * Returns a {@link OakCloseableIterator} of the keys contained in this map in ascending order.
+   * Returns a {@link OakIterator} of the keys contained in this map in ascending order.
    */
-  public OakCloseableIterator<OakRBuffer> keysIterator() {
+  public OakIterator<OakRBuffer> keysIterator() {
     return internalOakMap.keysBufferViewIterator(
         fromKey, externalOakMap.getFromInclusive(),
         toKey, externalOakMap.getToInclusive(),

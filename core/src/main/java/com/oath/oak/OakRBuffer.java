@@ -24,21 +24,21 @@ public interface OakRBuffer {
      *
      * @return The capacity of this buffer
      */
-    int capacity() throws NullPointerException;
+    int capacity();
 
     /**
      * Returns this buffer's position.
      *
      * @return The position of this buffer
      */
-    int position() throws NullPointerException;
+    int position();
 
     /**
      * Returns this buffer's limit.
      *
      * @return The limit of this buffer
      */
-    int limit() throws NullPointerException;
+    int limit();
 
     /**
      * Returns the number of elements between the current position and the
@@ -46,7 +46,7 @@ public interface OakRBuffer {
      *
      * @return The number of elements remaining in this buffer
      */
-    int remaining() throws NullPointerException;
+    int remaining();
 
     /**
      * Tells whether there are any elements between the current position and
@@ -55,7 +55,7 @@ public interface OakRBuffer {
      * @return <tt>true</tt> if, and only if, there is at least one element
      * remaining in this buffer
      */
-    boolean hasRemaining() throws NullPointerException;
+    boolean hasRemaining();
 
     /**
      * Absolute <i>get</i> method.  Reads the byte at the given
@@ -66,7 +66,7 @@ public interface OakRBuffer {
      * @throws IndexOutOfBoundsException If <tt>index</tt> is negative
      *                                   or not smaller than the buffer's limit
      */
-    byte get(int index) throws NullPointerException;
+    byte get(int index);
 
     /**
      * Retrieves this buffer's byte order.
