@@ -83,7 +83,7 @@ public class Chunk<K, V> {
     // for writing the keys into the bytebuffers
     private final OakSerializer<K> keySerializer;
     private final OakSerializer<V> valueSerializer;
-    private final ConcurrentSkipListSet<InternalOakMap.Iter> viewers;
+    private final ConcurrentSkipListSet<InternalOakMap.Iter> signedIterators;
 
     /*-------------- Constructors --------------*/
 
@@ -140,7 +140,7 @@ public class Chunk<K, V> {
         this.keySerializer = keySerializer;
         this.valueSerializer = valueSerializer;
         this.threadIndexCalculator = threadIndexCalculator;
-        viewers = new ConcurrentSkipListSet<>(Comparator.comparingInt(System::identityHashCode));
+        signedIterators = new ConcurrentSkipListSet<>(Comparator.comparingInt(System::identityHashCode));
     }
 
     enum State {
@@ -1119,16 +1119,16 @@ public class Chunk<K, V> {
 
 
     public void signInIterator(InternalOakMap.Iter iterator) {
-        viewers.add(iterator);
+        signedIterators.add(iterator);
     }
 
 
     public void signoutIterator(InternalOakMap.Iter iterator) {
-        viewers.remove(iterator);
+        signedIterators.remove(iterator);
     }
 
     public ConcurrentSkipListSet<InternalOakMap.Iter> getSignedIterators() {
-        return viewers;
+        return signedIterators;
     }
 
 

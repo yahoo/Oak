@@ -140,6 +140,23 @@ class InternalOakMap<K, V> {
         return c;
     }
 
+    private void updateSignedIterators(Chunk chunk) {
+        ConcurrentSkipListSet<Iter> viewingIterators = chunk.getSignedIterators();
+        viewingIterators.forEach(iterator -> {
+            IteratorState<K,V> iteratorState = iterator.getState();
+
+            // Check if iterator moved to next chunk, after reading its state.
+            // index can be 0 if iterator has ended.
+            if (iteratorState.validState() && iteratorState.getChunk() == chunk) {
+                //TODO: Instead of deserializing keep the bb
+                K lastKey = keySerializer.deserialize(iteratorState.getChunk().readKey(iteratorState.getIndex()));
+                iterator.casLastKey(chunk, lastKey);
+                //TODO: set chunk in iterator as null to allow gc of chunk
+            }
+        });
+    }
+
+
     private Rebalancer.RebalanceResult rebalance(Chunk<K, V> c, K key, V value, Consumer<ByteBuffer> computer, Operation op) {
         if (c == null) {
             assert op == Operation.NO_OP;
@@ -170,28 +187,12 @@ class InternalOakMap<K, V> {
 
         // Go over all iterators siged in this chunk and set there lastKey. This is done so that we can free this chunks
         // buffers and the iterator will not touch released bytebuffers.
-        for (Chunk chunk : engaged) {
-            chunk.detach();
-        }
-        for (Chunk chunk : engaged) {
+        engaged.forEach(chunk -> chunk.detach());
 
-            ConcurrentSkipListSet<Iter> viewingIterators = chunk.getSignedIterators();
-            viewingIterators.forEach(iterator -> {
-                IteratorState<K,V> iteratorState = iterator.nextState();
-
-                // Check if iterator moved to next chunk, after reading its state.
-                // index can be 0 if iterator has ended.
-                if (iteratorState.validState() && iteratorState.getChunk() == chunk) {
-                    //TODO YONIGO KEEP BB
-                    K lastKey = keySerializer.deserialize(iteratorState.getChunk().readKey(iteratorState.getIndex()));
-                    iterator.casLastKey(chunk, lastKey);
-                    //TODO YONIGO: set chunk in iterator as null
-                }
-            });
-
+        engaged.forEach(chunk -> {
+            updateSignedIterators(chunk);
             chunk.release();
-        }
-
+        });
 
         if (result.success && result.putIfAbsent) {
             size.incrementAndGet();
@@ -773,7 +774,8 @@ class InternalOakMap<K, V> {
             END_STATE
         }
 
-        private static IteratorState endState = new IteratorState<>(null, null, 0, State.END_STATE);
+        private static IteratorState endState =
+                new IteratorState<>(null, null, Chunk.NONE, State.END_STATE);
 
         private IteratorState(Chunk<K, V> nextChunk, Chunk.ChunkIter nextChunkIter, int nextIndex, State state) {
             this.chunk = nextChunk;
@@ -801,7 +803,7 @@ class InternalOakMap<K, V> {
             return new IteratorState<>(nextChunk, nextChunkIter, nextIndex, State.VALID_STATE);
         }
         public static <K, V> IteratorState<K, V> initState(Chunk<K, V> nextChunk, Chunk.ChunkIter nextChunkIter) {
-            return new IteratorState<>(nextChunk, nextChunkIter, 0, State.INIT_STATE);
+            return new IteratorState<>(nextChunk, nextChunkIter, Chunk.NONE, State.INIT_STATE);
         }
 
     }
@@ -811,6 +813,8 @@ class InternalOakMap<K, V> {
      */
     abstract class Iter<T> implements OakIterator<T> {
 
+        // Updating the epoch of every next() is very expensive because of access to an atomic in MemoryManager.
+        // Instead we update the epoch every EPOCH_USAGE_COUNTER.
         private long iterationEpoch;
         private int epochUsageCounter = 0;
         private static final int EPOCH_USAGE_COUNTER = 100;
@@ -945,6 +949,7 @@ class InternalOakMap<K, V> {
                     lo = (K)lastKey;
                 }
 
+                // Update the state to point to last returned key.
                 init();
 
                 if (!state.get().validState()) {
@@ -959,7 +964,7 @@ class InternalOakMap<K, V> {
             return new Pair<>(bb, currentHandle);
         }
 
-        //Init iterator next state to first key
+        // Make the iterator point to lo or hi to start iteration
         private void init() {
 
             Chunk.ChunkIter nextChunkIter = null;
@@ -1043,7 +1048,6 @@ class InternalOakMap<K, V> {
         }
 
 
-        // Long explanation here
         private void advanceState() {
 
             IteratorState<K,V> currentState = state.get();
@@ -1088,7 +1092,7 @@ class InternalOakMap<K, V> {
             return lastKeyBeforeRelease.compareAndSet(expect, update);
         }
 
-        public IteratorState<K,V> nextState() {return state.get();}
+        public IteratorState<K,V> getState() {return state.get();}
 
     }
 
