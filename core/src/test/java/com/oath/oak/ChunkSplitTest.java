@@ -6,7 +6,7 @@ import java.lang.reflect.Field;
 import java.util.concurrent.ConcurrentSkipListMap;
 import static org.junit.Assert.assertTrue;
 
-public class TestChunkSplit {
+public class ChunkSplitTest {
 
     @Test
     public void testSplitByCount() throws NoSuchFieldException, IllegalAccessException {

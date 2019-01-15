@@ -91,7 +91,7 @@ public class OakMapBuilder<K,V> {
     ThreadIndexCalculator threadIndexCalculator = ThreadIndexCalculator.newInstance();
     MemoryManager memoryManager = new MemoryManager(memoryCapacity, memoryAllocator,threadIndexCalculator);
 
-    return new OakMap(
+    return new OakMap<>(
             minKey,
             keySerializer,
             valueSerializer,
