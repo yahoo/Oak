@@ -19,7 +19,7 @@ public class OakMap<K, V> implements CompositionalOakMap<K, V> {
                 .setValueSerializer(MyBufferOak.serializer)
                 .setMinKey(minKey)
                 .setComparator(MyBufferOak.keysComparator)
-                .setChunkBytesPerItem(Parameters.keySize)
+                .setChunkBytesPerItem(Parameters.keySize + Integer.BYTES)
                 .setChunkMaxItems(Chunk.MAX_ITEMS_DEFAULT);
         oak = builder.build();
         oakView = oak.createBufferView();
@@ -112,7 +112,7 @@ public class OakMap<K, V> implements CompositionalOakMap<K, V> {
                 .setValueSerializer(MyBufferOak.serializer)
                 .setMinKey(minKey)
                 .setComparator(MyBufferOak.keysComparator)
-                .setChunkBytesPerItem(Parameters.keySize)
+                .setChunkBytesPerItem(Parameters.keySize + Integer.BYTES)
                 .setChunkMaxItems(Chunk.MAX_ITEMS_DEFAULT);
         oak = builder.build();
         oakView = oak.createBufferView();

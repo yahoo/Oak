@@ -85,12 +85,12 @@ public class Test {
 				}
 				break;
 			case MAP:
-				if (mapBench.putIfAbsent((Integer) v, (Integer) v) == null) {
+				if (mapBench.putIfAbsent(v, v) == null) {
 					i--;
 				}	
 				break;
 			case SORTEDSET:
-				if (sortedBench.add((Integer) v)) {
+				if (sortedBench.add(v)) {
 					i--;
 				}	
 				break;
