@@ -1,15 +1,14 @@
 package com.oath.oak.synchrobench.maps;
 
 
-
 import com.oath.oak.*;
 import com.oath.oak.synchrobench.contention.abstractions.CompositionalOakMap;
+import com.oath.oak.synchrobench.contention.benchmark.Parameters;
 
 public class OakMap<K, V> implements CompositionalOakMap<K, V> {
-
     private com.oath.oak.OakMap<MyBuffer, MyBuffer> oak;
+    private OakMapBuilder<MyBuffer, MyBuffer> builder;
     private MyBuffer minKey;
-    private OakMapBuilder builder;
     private OakBufferView oakView;
 
     public OakMap() {
@@ -20,17 +19,14 @@ public class OakMap<K, V> implements CompositionalOakMap<K, V> {
                 .setValueSerializer(MyBufferOak.serializer)
                 .setMinKey(minKey)
                 .setComparator(MyBufferOak.keysComparator)
-                .setChunkBytesPerItem(Chunk.BYTES_PER_ITEM_DEFAULT)
-                .setChunkMaxItems(Chunk.MAX_ITEMS_DEFAULT)
-                //.setMemoryPool(new SimpleBenchMemPoolImpl(Integer.MAX_VALUE/2,Chunk.MAX_ITEMS_DEFAULT,Chunk.BYTES_PER_ITEM_DEFAULT, Parameters.valSize))
-        ;
-        oak = (com.oath.oak.OakMap<MyBuffer, MyBuffer>) builder.build();
+                .setChunkBytesPerItem(Parameters.keySize)
+                .setChunkMaxItems(Chunk.MAX_ITEMS_DEFAULT);
+        oak = builder.build();
         oakView = oak.createBufferView();
     }
 
     @Override
     public boolean getOak(K key) {
-        OakRBuffer buffer = oakView.get(key);
         return oak.get((MyBuffer) key) != null;
     }
 
@@ -61,20 +57,21 @@ public class OakMap<K, V> implements CompositionalOakMap<K, V> {
 
     @Override
     public boolean ascendOak(K from, int length) {
-        com.oath.oak.OakMap<MyBuffer, MyBuffer> sub = oak.tailMap((MyBuffer) from, true);
-        OakBufferView<MyBuffer> oakView = sub.createBufferView();
-        int i = 0;
-        OakIterator<OakRBuffer> iter = oakView.keysIterator();
-        while (iter.hasNext() && i < length) {
-            i++;
-            iter.next();
+        int i;
+        try (com.oath.oak.OakMap<MyBuffer, MyBuffer> sub = oak.tailMap((MyBuffer) from, true)) {
+            OakBufferView<MyBuffer> oakView = sub.createBufferView();
+            i = 0;
+            OakIterator<OakRBuffer> iter = oakView.keysIterator();
+            while (iter.hasNext() && i < length) {
+                i++;
+                iter.next();
+            }
+            try {
+                oakView.close();
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
         }
-        try {
-            oakView.close();
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-        sub.close();
         return i == length;
     }
 
@@ -115,11 +112,9 @@ public class OakMap<K, V> implements CompositionalOakMap<K, V> {
                 .setValueSerializer(MyBufferOak.serializer)
                 .setMinKey(minKey)
                 .setComparator(MyBufferOak.keysComparator)
-                .setChunkBytesPerItem(Chunk.BYTES_PER_ITEM_DEFAULT)
-                .setChunkMaxItems(Chunk.MAX_ITEMS_DEFAULT)
-                //.setMemoryPool(new SimpleBenchMemPoolImpl(Integer.MAX_VALUE/2,Chunk.MAX_ITEMS_DEFAULT,Chunk.BYTES_PER_ITEM_DEFAULT, Parameters.valSize))
-        ;
-        oak = (com.oath.oak.OakMap<MyBuffer, MyBuffer>) builder.build();
+                .setChunkBytesPerItem(Parameters.keySize)
+                .setChunkMaxItems(Chunk.MAX_ITEMS_DEFAULT);
+        oak = builder.build();
         oakView = oak.createBufferView();
     }
 }

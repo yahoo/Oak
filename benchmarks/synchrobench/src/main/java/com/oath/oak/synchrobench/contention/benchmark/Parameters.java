@@ -6,9 +6,9 @@ package com.oath.oak.synchrobench.contention.benchmark;
  *
  * @author Vincent Gramoli
  */
-class Parameters {
+public class Parameters {
     
-    static int numThreads = 1,
+    public static int numThreads = 1,
     	numMilliseconds = 5000,
     	numWrites = 0,
     	numWriteAlls = 0,

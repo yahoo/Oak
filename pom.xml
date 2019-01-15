@@ -109,7 +109,6 @@
 
     <properties>
         <java.version>1.8</java.version>
-
         <!-- Maven Plugin Versioning -->
         <maven-clean-plugin.version>2.5</maven-clean-plugin.version>
         <maven-compiler-plugin.version>3.8.0</maven-compiler-plugin.version>
@@ -236,5 +235,16 @@
             <version>RELEASE</version>
         </dependency>
     </dependencies>
+
+
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>com.yahoo.oak</groupId>
+                <artifactId>oak</artifactId>
+                <version>0.1.4-SNAPSHOT</version>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
 
 </project>

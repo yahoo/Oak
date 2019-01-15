@@ -93,17 +93,14 @@ public class ThreadLoopOak implements Runnable {
         int size = 100;
 
 
+        MyBuffer key = new MyBuffer(Parameters.keySize);
+
         while (!stop) {
             Integer newInt = rand.nextInt(Parameters.range);
-            MyBuffer key = new MyBuffer(Parameters.keySize);
-            MyBuffer val = new MyBuffer(Parameters.valSize);
-
-
-            key.buffer.putInt(0,newInt);
-            val.buffer.putInt(0,newInt);
 
             int coin = rand.nextInt(1000);
             if (coin < cdf[0]) { // -a
+                key.buffer.putInt(0,newInt);
                 if(!change){
                     bench.removeOak(key);
                     numRemove++;
@@ -115,11 +112,15 @@ public class ThreadLoopOak implements Runnable {
                     }
                 }
             } else if (coin < cdf[1]) { // -u
+                MyBuffer newKey = new MyBuffer(Parameters.keySize);
+                MyBuffer newVal = new MyBuffer(Parameters.valSize);
+                newKey.buffer.putInt(0,newInt);
+                newVal.buffer.putInt(0,newInt);
                 if (!change) {
-                    bench.putOak(key,val);
+                    bench.putOak(newKey,newVal);
                     numAdd++;
                 } else {
-                    if (bench.putIfAbsentOak(key,val)) {
+                    if (bench.putIfAbsentOak(newKey,newVal)) {
                         numAdd++;
                     } else {
                         failures++;
@@ -138,6 +139,7 @@ public class ThreadLoopOak implements Runnable {
                 }
             } else {
                 if (!change) {
+                    key.buffer.putInt(0,newInt);
                     if (bench.getOak(key))
                         numContains++;
                     else
