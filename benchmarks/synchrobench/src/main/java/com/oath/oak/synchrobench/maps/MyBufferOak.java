@@ -40,17 +40,9 @@ class MyBufferOak {
     static OakComparator<MyBuffer> keysComparator = new OakComparator<MyBuffer>() {
         private int compare(ByteBuffer buffer1, int pos1, int cap1, ByteBuffer buffer2, int pos2, int cap2) {
             for (int i = 0; i < cap1; i += Integer.BYTES) {
-                if (i < cap2) {
-                    int i1 = buffer1.getInt(pos1 + i);
-                    int i2 = buffer2.getInt(pos2 + i);
-                    if (i1 > i2) {
-                        return 1;
-                    } else if (i1 < i2) {
-                        return -1;
-                    }
-                    continue;
-                }
-                return 1;
+                if (i >= cap2) return 1;
+                int cmp = Integer.compare(buffer1.getInt(pos1 + i), buffer2.getInt(pos2 + i));
+                if (cmp != 0) return cmp;
             }
             return 0;
         }
