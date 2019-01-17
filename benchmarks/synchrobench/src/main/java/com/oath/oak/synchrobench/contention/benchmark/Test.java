@@ -19,19 +19,14 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 public class Test {
 
-	public static final String VERSION = "11-17-2014";
-	
-	public enum Type {
-	    INTSET, MAP, SORTEDSET, OAKMAP
+    public enum Type {
+        OAKMAP
 	}
 
 	/** The array of threads executing the benchmark */
 	private Thread[] threads;
 	/** The array of runnable thread codes */
-	private ThreadLoop[] threadLoops;
 	private ThreadLoopOak[] threadLoopsOak;
-	private ThreadSetLoop[] threadLoopsSet;
-	private ThreadSortedSetLoop[] threadLoopsSSet;
 	/** The observed duration of the benchmark */
 	private double elapsedTime;
 	/** The throughput */
@@ -54,11 +49,7 @@ public class Test {
 	private long aborts = 0;
 	/** The instance of the benchmark */
 	private Type benchType = null;
-	private CompositionalIntSet setBench = null;
-	private CompositionalSortedSet<Integer> sortedBench = null;
-	private CompositionalMap<Integer, Integer> mapBench = null;
 	private CompositionalOakMap<MyBuffer, MyBuffer> oakBench = null;
-	ConcurrentHashMap<Integer, Integer> map = null;
 	/** The instance of the benchmark */
 	/** The benchmark methods */
 	private Method[] methods;
@@ -79,21 +70,6 @@ public class Test {
 		for (long i = size; i > 0;) {
 			Integer v = s_random.get().nextInt(range);
 			switch(benchType) {
-			case INTSET:
-				if (setBench.addInt(v)) {
-					i--;
-				}
-				break;
-			case MAP:
-				if (mapBench.putIfAbsent(v, v) == null) {
-					i--;
-				}	
-				break;
-			case SORTEDSET:
-				if (sortedBench.add(v)) {
-					i--;
-				}	
-				break;
 			case OAKMAP:
 			    MyBuffer key = new MyBuffer(Parameters.keySize);
 			    key.buffer.putInt(0,v);
@@ -125,16 +101,7 @@ public class Test {
 					.getConstructor();
 			methods = benchClass.getDeclaredMethods();
 			
-			if (CompositionalIntSet.class.isAssignableFrom((Class<?>) benchClass)) {
-				setBench = (CompositionalIntSet)c.newInstance();
-				benchType = Type.INTSET;
-			} else if (CompositionalMap.class.isAssignableFrom((Class<?>) benchClass)) {
-				mapBench = (CompositionalMap<Integer, Integer>) c.newInstance();
-				benchType = Type.MAP;
-			} else if (CompositionalSortedSet.class.isAssignableFrom((Class<?>) benchClass)) {
-				sortedBench = (CompositionalSortedSet<Integer>) c.newInstance();
-				benchType = Type.SORTEDSET;
-			} else if (CompositionalOakMap.class.isAssignableFrom((Class<?>) benchClass)) {
+            if (CompositionalOakMap.class.isAssignableFrom(benchClass)) {
 				oakBench = (CompositionalOakMap<MyBuffer, MyBuffer>) c.newInstance();
 				benchType = Type.OAKMAP;
 			}
@@ -154,30 +121,6 @@ public class Test {
 	 */
 	private void initThreads() throws InterruptedException {
 		switch(benchType) {
-		case INTSET:
-			threadLoopsSet = new ThreadSetLoop[Parameters.numThreads];
-			threads = new Thread[Parameters.numThreads];
-			for (short threadNum = 0; threadNum < Parameters.numThreads; threadNum++) {
-				threadLoopsSet[threadNum] = new ThreadSetLoop(threadNum, setBench, methods);
-				threads[threadNum] = new Thread(threadLoopsSet[threadNum]);
-			}
-			break;
-		case MAP:
-			threadLoops = new ThreadLoop[Parameters.numThreads];
-			threads = new Thread[Parameters.numThreads];
-			for (short threadNum = 0; threadNum < Parameters.numThreads; threadNum++) {
-				threadLoops[threadNum] = new ThreadLoop(threadNum, mapBench, methods);
-				threads[threadNum] = new Thread(threadLoops[threadNum]);
-			}
-			break;
-		case SORTEDSET:
-			threadLoopsSSet = new ThreadSortedSetLoop[Parameters.numThreads];
-			threads = new Thread[Parameters.numThreads];
-			for (short threadNum = 0; threadNum < Parameters.numThreads; threadNum++) {
-				threadLoopsSSet[threadNum] = new ThreadSortedSetLoop(threadNum, sortedBench, methods);
-				threads[threadNum] = new Thread(threadLoopsSSet[threadNum]);
-			}
-			break;
 		case OAKMAP:
 			threadLoopsOak = new ThreadLoopOak[Parameters.numThreads];
 			threads = new Thread[Parameters.numThreads];
@@ -228,18 +171,6 @@ public class Test {
 			Thread.sleep(milliseconds);
 		} finally {
 			switch(benchType) {
-			case INTSET:
-				for (ThreadSetLoop threadLoop : threadLoopsSet)
-					threadLoop.stopThread();
-				break;
-			case MAP:
-				for (ThreadLoop threadLoop : threadLoops)
-					threadLoop.stopThread();
-				break;
-			case SORTEDSET:
-				for (ThreadSortedSetLoop threadLoop : threadLoopsSSet)
-					threadLoop.stopThread();
-				break;
 			case OAKMAP:
 				for (ThreadLoopOak threadLoop : threadLoopsOak)
 					threadLoop.stopThread();
@@ -255,15 +186,6 @@ public class Test {
 
 	public void clear() {
 		switch(benchType) {
-		case INTSET:
-			setBench.clear();
-			break;
-		case MAP:
-			mapBench.clear();
-			break;
-		case SORTEDSET:
-			sortedBench.clear();
-			break;
 		case OAKMAP:
 			oakBench.clear();
 			break;
@@ -309,21 +231,6 @@ public class Test {
 			}
 			test.execute(Parameters.numMilliseconds, false);
 
-			if (test.setBench instanceof MaintenanceAlg) {
-				((MaintenanceAlg) test.setBench).stopMaintenance();
-				test.structMods += ((MaintenanceAlg) test.setBench)
-						.getStructMods();
-			}
-			if (test.mapBench instanceof MaintenanceAlg) {
-				((MaintenanceAlg) test.mapBench).stopMaintenance();
-				test.structMods += ((MaintenanceAlg) test.mapBench)
-						.getStructMods();
-			}
-			if (test.sortedBench instanceof MaintenanceAlg) {
-				((MaintenanceAlg) test.sortedBench).stopMaintenance();
-				test.structMods += ((MaintenanceAlg) test.sortedBench)
-						.getStructMods();
-			}
 			if (test.oakBench instanceof MaintenanceAlg) {
 				((MaintenanceAlg) test.oakBench).stopMaintenance();
 				test.structMods += ((MaintenanceAlg) test.oakBench)
@@ -550,48 +457,6 @@ public class Test {
 	private void printBasicStats() {
 		for (short threadNum = 0; threadNum < Parameters.numThreads; threadNum++) {
 			switch(benchType) {
-			case INTSET:
-				numAdd += threadLoopsSet[threadNum].numAdd;
-				numRemove += threadLoopsSet[threadNum].numRemove;
-				numAddAll += threadLoopsSet[threadNum].numAddAll;
-				numRemoveAll += threadLoopsSet[threadNum].numRemoveAll;
-				numSize += threadLoopsSet[threadNum].numSize;
-				numContains += threadLoopsSet[threadNum].numContains;
-				failures += threadLoopsSet[threadNum].failures;
-				total += threadLoopsSet[threadNum].total;
-				aborts += threadLoopsSet[threadNum].aborts;
-				getCount += threadLoopsSet[threadNum].getCount;
-				nodesTraversed += threadLoopsSet[threadNum].nodesTraversed;
-				structMods += threadLoopsSet[threadNum].structMods;
-				break;
-			case MAP:
-				numAdd += threadLoops[threadNum].numAdd;
-				numRemove += threadLoops[threadNum].numRemove;
-				numAddAll += threadLoops[threadNum].numAddAll;
-				numRemoveAll += threadLoops[threadNum].numRemoveAll;
-				numSize += threadLoops[threadNum].numSize;
-				numContains += threadLoops[threadNum].numContains;
-				failures += threadLoops[threadNum].failures;
-				total += threadLoops[threadNum].total;
-				aborts += threadLoops[threadNum].aborts;
-				getCount += threadLoops[threadNum].getCount;
-				nodesTraversed += threadLoops[threadNum].nodesTraversed;
-				structMods += threadLoops[threadNum].structMods;
-				break;
-			case SORTEDSET:
-				numAdd += threadLoopsSSet[threadNum].numAdd;
-				numRemove += threadLoopsSSet[threadNum].numRemove;
-				numAddAll += threadLoopsSSet[threadNum].numAddAll;
-				numRemoveAll += threadLoopsSSet[threadNum].numRemoveAll;
-				numSize += threadLoopsSSet[threadNum].numSize;
-				numContains += threadLoopsSSet[threadNum].numContains;
-				failures += threadLoopsSSet[threadNum].failures;
-				total += threadLoopsSSet[threadNum].total;
-				aborts += threadLoopsSSet[threadNum].aborts;
-				getCount += threadLoopsSSet[threadNum].getCount;
-				nodesTraversed += threadLoopsSSet[threadNum].nodesTraversed;
-				structMods += threadLoopsSSet[threadNum].structMods;
-				break;
 			case OAKMAP:
 				numAdd += threadLoopsOak[threadNum].numAdd;
 				numRemove += threadLoopsOak[threadNum].numRemove;
@@ -650,39 +515,13 @@ public class Test {
 				+ formatDouble(((double) failures / (double) total) * 100)
 				+ " %)");
 		switch(benchType) {
-		case INTSET:
-			System.out.println("  Final size:              \t" + setBench.size());
-			if (Parameters.numWriteAlls == 0) System.out.println("  Expected size:           \t" + (Parameters.size+numAdd-numRemove));
-			break;
-		case MAP:
-			System.out.println("  Final size:              \t" + mapBench.size());
-			if (Parameters.numWriteAlls == 0) System.out.println("  Expected size:           \t" + (Parameters.size+numAdd-numRemove));
-			break;
-		case SORTEDSET:
-			System.out.println("  Final size:              \t" + sortedBench.size());
+            case OAKMAP:
+			System.out.println("  Final size:              \t" + oakBench.size());
 			if (Parameters.numWriteAlls == 0) System.out.println("  Expected size:           \t" + (Parameters.size+numAdd-numRemove));
 			break;
 		}
 
 		switch(benchType) {
-		case INTSET:
-			if (setBench instanceof MaintenanceAlg) {
-				System.out.println("  #nodes (inc. deleted): \t"
-						+ ((MaintenanceAlg) setBench).numNodes());
-			}
-			break;
-		case MAP:
-			if (mapBench instanceof MaintenanceAlg) {
-				System.out.println("  #nodes (inc. deleted): \t"
-						+ ((MaintenanceAlg) mapBench).numNodes());
-			}
-			break;
-		case SORTEDSET:
-			if (mapBench instanceof MaintenanceAlg) {
-				System.out.println("  #nodes (inc. deleted): \t"
-						+ ((MaintenanceAlg) sortedBench).numNodes());
-			}
-			break;
 		case OAKMAP:
 			if (oakBench instanceof MaintenanceAlg) {
 				System.out.println("  #nodes (inc. deleted): \t"
@@ -730,48 +569,6 @@ public class Test {
 
 		for (short threadNum = 0; threadNum < Parameters.numThreads; threadNum++) {
 			switch (benchType) {
-			case INTSET:
-			threadLoopsSet[threadNum].numAdd = 0;
-			threadLoopsSet[threadNum].numRemove = 0;
-			threadLoopsSet[threadNum].numAddAll = 0;
-			threadLoopsSet[threadNum].numRemoveAll = 0;
-			threadLoopsSet[threadNum].numSize = 0;
-			threadLoopsSet[threadNum].numContains = 0;
-			threadLoopsSet[threadNum].failures = 0;
-			threadLoopsSet[threadNum].total = 0;
-			threadLoopsSet[threadNum].aborts = 0;
-			threadLoopsSet[threadNum].nodesTraversed = 0;
-			threadLoopsSet[threadNum].getCount = 0;
-			threadLoopsSet[threadNum].structMods = 0;
-			break;
-			case MAP:
-			threadLoops[threadNum].numAdd = 0;
-			threadLoops[threadNum].numRemove = 0;
-			threadLoops[threadNum].numAddAll = 0;
-			threadLoops[threadNum].numRemoveAll = 0;
-			threadLoops[threadNum].numSize = 0;
-			threadLoops[threadNum].numContains = 0;
-			threadLoops[threadNum].failures = 0;
-			threadLoops[threadNum].total = 0;
-			threadLoops[threadNum].aborts = 0;
-			threadLoops[threadNum].nodesTraversed = 0;
-			threadLoops[threadNum].getCount = 0;
-			threadLoops[threadNum].structMods = 0;
-			break;
-			case SORTEDSET:
-			threadLoopsSSet[threadNum].numAdd = 0;
-			threadLoopsSSet[threadNum].numRemove = 0;
-			threadLoopsSSet[threadNum].numAddAll = 0;
-			threadLoopsSSet[threadNum].numRemoveAll = 0;
-			threadLoopsSSet[threadNum].numSize = 0;
-			threadLoopsSSet[threadNum].numContains = 0;
-			threadLoopsSSet[threadNum].failures = 0;
-			threadLoopsSSet[threadNum].total = 0;
-			threadLoopsSSet[threadNum].aborts = 0;
-			threadLoopsSSet[threadNum].nodesTraversed = 0;
-			threadLoopsSSet[threadNum].getCount = 0;
-			threadLoopsSSet[threadNum].structMods = 0;
-			break;
 			case OAKMAP:
 			threadLoopsOak[threadNum].numAdd = 0;
 			threadLoopsOak[threadNum].numRemove = 0;

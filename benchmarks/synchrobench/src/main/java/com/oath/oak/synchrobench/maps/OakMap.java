@@ -117,4 +117,9 @@ public class OakMap<K, V> implements CompositionalOakMap<K, V> {
         oak = builder.build();
         oakView = oak.createBufferView();
     }
+
+    @Override
+    public int size() {
+        return oak.entries();
+    }
 }

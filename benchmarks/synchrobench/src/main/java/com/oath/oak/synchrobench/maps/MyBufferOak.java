@@ -69,7 +69,7 @@ class MyBufferOak {
             int cap1 = serializedKey.getInt(pos1);
             int pos2 = key.buffer.position();
             int cap2 = key.buffer.capacity();
-            return compare(serializedKey, pos1 + Integer.BYTES, cap1, key.buffer, pos2, cap2);
+            return compare(serializedKey, pos1 + Integer.BYTES, cap1 - Integer.BYTES, key.buffer, pos2, cap2);
 
         }
     };
