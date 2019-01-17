@@ -14,7 +14,7 @@ import java.util.ArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.function.Consumer;
 
-import static junit.framework.TestCase.assertTrue;
+import static junit.framework.TestCase.*;
 import static org.junit.Assert.assertEquals;
 
 public class MultiThreadComputeTest {
@@ -23,40 +23,32 @@ public class MultiThreadComputeTest {
     private final int NUM_THREADS = 31;
     private ArrayList<Thread> threads;
     private CountDownLatch latch;
-    Consumer<OakWBuffer> computer;
-    Consumer<OakWBuffer> emptyComputer;
-    int maxItemsPerChunk = 1024;
-    int maxBytesPerChunkItem = 100;
+    private Consumer<OakWBuffer> computer;
+    private Consumer<OakWBuffer> emptyComputer;
+    private int maxItemsPerChunk = 1024;
 
     @Before
     public void init() {
 
-        OakMapBuilder builder = OakMapBuilder.getDefaultBuilder()
+        int maxBytesPerChunkItem = 100;
+        OakMapBuilder<Integer, Integer> builder = OakMapBuilder.getDefaultBuilder()
                 .setChunkMaxItems(maxItemsPerChunk)
                 .setChunkBytesPerItem(maxBytesPerChunkItem);
-        oak = (OakMap<Integer, Integer>) builder.build();
+        oak = builder.build();
         latch = new CountDownLatch(1);
         threads = new ArrayList<>(NUM_THREADS);
-        ((OakNativeMemoryAllocator)oak.getMemoryManager().memoryAllocator).stopMemoryReuse();
-        computer = new Consumer<OakWBuffer>() {
-            @Override
-            public void accept(OakWBuffer oakWBuffer) {
-                if (oakWBuffer.getInt(0) == 0) {
-                    oakWBuffer.putInt(0, 1);
-                }
+        computer = oakWBuffer -> {
+            if (oakWBuffer.getInt(0) == 0) {
+                oakWBuffer.putInt(0, 1);
             }
         };
 
-        emptyComputer = new Consumer<OakWBuffer>() {
-            @Override
-            public void accept(OakWBuffer oakWBuffer) {
-                return;
-            }
+        emptyComputer = oakWBuffer -> {
         };
     }
 
     @After
-    public void finish() throws Exception{
+    public void finish() {
         oak.close();
     }
 
@@ -98,7 +90,7 @@ public class MultiThreadComputeTest {
             }
 
             Integer value = oak.get(0);
-            assertTrue(value != null);
+            assertNotNull(value);
             assertEquals((Integer) 1, value);
 
             for (int i = maxItemsPerChunk; i < 2 * maxItemsPerChunk; i++) {
@@ -158,7 +150,7 @@ public class MultiThreadComputeTest {
         }
         for (Integer i = 0; i < maxItemsPerChunk; i++) {
             Integer value = oak.get(i);
-            assertTrue(value != null);
+            assertNotNull(value);
             if (i == 0) {
                 assertEquals((Integer) 1, value);
                 continue;
@@ -171,7 +163,7 @@ public class MultiThreadComputeTest {
         }
         for (Integer i = maxItemsPerChunk; i < 2 * maxItemsPerChunk; i++) {
             Integer value = oak.get(i);
-            assertTrue(value == null);
+            assertNull(value);
         }
         for (Integer i = 2 * maxItemsPerChunk; i < 3 * maxItemsPerChunk; i++) {
             Integer value = oak.get(i);
@@ -179,7 +171,7 @@ public class MultiThreadComputeTest {
         }
         for (Integer i = 3 * maxItemsPerChunk; i < 4 * maxItemsPerChunk; i++) {
             Integer value = oak.get(i);
-            assertTrue(value == null);
+            assertNull(value);
         }
 
         for (Integer i = 4 * maxItemsPerChunk; i < 6 * maxItemsPerChunk; i++) {

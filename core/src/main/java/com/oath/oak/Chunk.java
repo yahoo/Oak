@@ -19,7 +19,6 @@ import java.util.concurrent.atomic.AtomicMarkableReference;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 import java.util.function.Consumer;
-import java.util.logging.Logger;
 
 public class Chunk<K, V> {
 
@@ -54,8 +53,6 @@ public class Chunk<K, V> {
     public static final int MAX_ITEMS_DEFAULT = 256;
     private final ThreadIndexCalculator threadIndexCalculator;
 
-    /*-------------- Members --------------*/
-    Logger log = Logger.getLogger(InternalOakMap.class.getName());
     private static final Unsafe unsafe;
     private final MemoryManager memoryManager;
     ByteBuffer minKey;       // minimal key that can be put in this chunk
@@ -72,7 +69,7 @@ public class Chunk<K, V> {
     private final Handle[] handles;
     private AtomicReferenceArray<OpData> pendingOps;
     private final AtomicInteger entryIndex;    // points to next free index of entry array
-    public final AtomicInteger keyIndex;    // points to next free index of key array
+    final AtomicInteger keyIndex;    // points to next free index of key array
     private final AtomicInteger handleIndex;    // points to next free index of entry array
     private final Statistics statistics;
     // # of sorted items at entry-array's beginning (resulting from split)
@@ -120,7 +117,7 @@ public class Chunk<K, V> {
         this.entryIndex = new AtomicInteger(FIRST_ITEM);
         this.handles = new Handle[maxItems + FIRST_ITEM];
         this.handleIndex = new AtomicInteger(FIRST_ITEM);
-        this.keysManager = new KeysManager<>(this.maxKeyBytes, memoryManager, keySerializer);
+        this.keysManager = new KeysManager<K>(this.maxKeyBytes, memoryManager, keySerializer);
         this.keyIndex = new AtomicInteger(FIRST_ITEM);
         this.sortedCount = new AtomicInteger(0);
         this.minKey = minKey;

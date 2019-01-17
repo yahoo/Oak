@@ -3,7 +3,7 @@ package com.oath.oak;
 
 import java.nio.ByteBuffer;
 
-class StringComparator implements OakComparator<String>{
+public class StringComparator implements OakComparator<String>{
 
     @Override
     public int compareKeys(String key1, String key2) {

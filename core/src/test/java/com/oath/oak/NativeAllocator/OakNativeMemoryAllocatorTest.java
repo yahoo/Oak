@@ -1,0 +1,225 @@
+package com.oath.oak.NativeAllocator;
+
+import com.oath.oak.*;
+import org.junit.Test;
+
+import java.nio.ByteBuffer;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Random;
+
+import static junit.framework.TestCase.assertNull;
+import static junit.framework.TestCase.assertTrue;
+import static org.junit.Assert.*;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
+
+public class OakNativeMemoryAllocatorTest {
+    private static int maxItemsPerChunk = 1024;
+    private static int maxBytesPerChunkItem = 100;
+    private static int valueSizeAfterSerialization = Integer.MAX_VALUE / 40;
+    private static int keyBufferSize = maxItemsPerChunk * maxBytesPerChunkItem;
+
+    public static class CheckOakCapacityValueSerializer implements OakSerializer<Integer> {
+
+        @Override
+        public void serialize(Integer value, ByteBuffer targetBuffer) {
+            targetBuffer.putInt(targetBuffer.position(), value);
+        }
+
+        @Override
+        public Integer deserialize(ByteBuffer serializedValue) {
+            return serializedValue.getInt(serializedValue.position());
+        }
+
+        @Override
+        public int calculateSize(Integer value) {
+            return valueSizeAfterSerialization;
+        }
+    }
+
+    @Test
+    public void allocateContention() throws InterruptedException {
+        Random random = new Random();
+        long capacity = 100;
+        int blockSize = 8;
+        int buffersPerBlock = 2;
+        List<Block> blocks = Collections.synchronizedList(new ArrayList<>());
+        int allocationSize = blockSize / buffersPerBlock;
+
+        BlocksProvider mockProvider = mock(BlocksProvider.class);
+        when(mockProvider.blockSize()).thenReturn(blockSize);
+        when(mockProvider.getBlock()).thenAnswer(invocation -> {
+            Thread.sleep(random.nextInt(500));
+            Block newBlock = new Block(blockSize);
+            blocks.add(newBlock);
+            return newBlock;
+        });
+        OakNativeMemoryAllocator allocator = new OakNativeMemoryAllocator(capacity, mockProvider);
+
+        int numAllocators = 10;
+        ArrayList<Thread> threads = new ArrayList<>();
+
+        for (int i = 0; i < numAllocators; i++) {
+            Thread fn = new Thread(() -> allocator.allocate(allocationSize));
+            threads.add(fn);
+        }
+        for (int i = 0; i < numAllocators; i++) {
+            threads.get(i).start();
+        }
+        for (int i = 0; i < numAllocators; i++) {
+            threads.get(i).join();
+        }
+
+        assertEquals(numAllocators * allocationSize, allocator.allocated());
+        assertEquals(numAllocators / buffersPerBlock, blocks.size());
+    }
+
+
+    @Test
+    public void checkCapacity() {
+
+        int blockSize = BlocksPool.getInstance().blockSize();
+        int capacity = blockSize * 3;
+        OakNativeMemoryAllocator ma = new OakNativeMemoryAllocator(capacity);
+
+        /* simple allocation */
+        ByteBuffer bb = ma.allocate(4);
+        assertEquals(4, bb.remaining());
+        assertEquals(4, ma.getCurrentBlock().allocated());
+
+
+        ByteBuffer bb1 = ma.allocate(4);
+        assertEquals(4, bb1.remaining());
+        assertEquals(8, ma.getCurrentBlock().allocated());
+
+        ByteBuffer bb2 = ma.allocate(8);
+        assertEquals(8, bb2.remaining());
+        assertEquals(16, ma.getCurrentBlock().allocated());
+
+        /* big allocation */
+        ByteBuffer bb3 = ma.allocate(blockSize - 8);
+        assertEquals(blockSize - 8,
+                bb3.remaining());                                   // check the new ByteBuffer size
+        assertEquals(blockSize - 8,  // check the new block allocation
+                ma.getCurrentBlock().allocated());
+
+        /* complete up to full block allocation */
+        ByteBuffer bb4 = ma.allocate(8);
+        assertEquals(8, bb4.remaining());              // check the new ByteBuffer size
+        assertEquals(blockSize,               // check the new block allocation
+                ma.getCurrentBlock().allocated());
+
+        /* next small allocation should move us to the next block */
+        ByteBuffer bb5 = ma.allocate(8);
+        assertEquals(8, bb5.remaining());           // check the newest ByteBuffer size
+        assertEquals(8,                             // check the newest block allocation
+                ma.getCurrentBlock().allocated());
+
+        ma.close();
+    }
+
+    @Test
+    public void checkOakCapacity() {
+        int initialRemainingBlocks = BlocksPool.getInstance().numOfRemainingBlocks();
+        int blockSize = BlocksPool.getInstance().blockSize();
+        int capacity = blockSize * 3;
+
+        OakNativeMemoryAllocator ma = new OakNativeMemoryAllocator(capacity);
+        OakMapBuilder<Integer, Integer> builder = OakMapBuilder.getDefaultBuilder()
+                .setChunkMaxItems(maxItemsPerChunk)
+                .setChunkBytesPerItem(maxBytesPerChunkItem)
+                .setValueSerializer(new CheckOakCapacityValueSerializer())
+                .setMemoryAllocator(ma);
+
+        OakMap<Integer, Integer> oak = builder.build();
+
+        //check that before any allocation
+        // (1) we have all the blocks in the pool except one which is in the allocator
+        assertEquals(initialRemainingBlocks - 1, BlocksPool.getInstance().numOfRemainingBlocks());
+
+        // (2) check the one block in the allocator
+        assertEquals(ma.numOfAllocatedBlocks(), 1);
+
+        Integer val = 1;
+        Integer key = 0;
+
+        // pay attention that the given value serializer CheckOakCapacityValueSerializer
+        // will transform a single integer into huge buffer of size about 100MB,
+        // what is currently one block size
+        oak.put(key, val);
+
+        //check that after a single allocation of a block size
+        // (1) we have all the blocks in the pool except one which is in the allocator
+        assertEquals(initialRemainingBlocks - 1, BlocksPool.getInstance().numOfRemainingBlocks());
+
+        // (2) check the one block in the allocator
+        assertEquals(ma.numOfAllocatedBlocks(), 1);
+        assertEquals(valueSizeAfterSerialization + keyBufferSize, ma.allocated());   // check the newest block allocation
+        // check that what you read is the same that you wrote
+        Integer resultForKey = oak.getMinKey();
+        Integer resultForValue = oak.get(key);
+        assertEquals(resultForKey, key);
+        assertEquals(resultForValue, val);
+
+        key = 1;
+        oak.put(key, val);
+
+        //check that after a double allocation of a block size
+        // (1) we have all the blocks in the pool except two which are in the allocator
+        assertEquals(initialRemainingBlocks - 2, BlocksPool.getInstance().numOfRemainingBlocks());
+
+        // (2) check the two blocks in the allocator
+        assertEquals(ma.numOfAllocatedBlocks(), 2);
+        assertEquals(valueSizeAfterSerialization, ma.getCurrentBlock().allocated());   // check the newest block allocation
+        assertEquals(valueSizeAfterSerialization * 2 + keyBufferSize, ma.allocated());   // check the total allocation
+        // check that what you read is the same that you wrote
+        resultForKey = oak.getMaxKey();
+        resultForValue = oak.get(key);
+        assertEquals(resultForKey, key);
+        assertEquals(resultForValue, val);
+
+        key = 2;
+        oak.put(key, val);
+
+        //check that after three allocations of a block size
+        // (1) we have all the blocks in the pool except three which are in the allocator
+        assertEquals(initialRemainingBlocks - 3, BlocksPool.getInstance().numOfRemainingBlocks());
+
+        // (2) check the 3 blocks in the allocator
+        assertEquals(ma.numOfAllocatedBlocks(), 3);
+        assertEquals(valueSizeAfterSerialization, ma.getCurrentBlock().allocated());   // check the newest block allocation
+        assertEquals(valueSizeAfterSerialization * 3 + keyBufferSize, ma.allocated());   // check the total allocation
+        // check that what you read is the same that you wrote
+        resultForKey = oak.getMaxKey();
+        resultForValue = oak.get(key);
+        assertEquals(resultForKey, key);
+        assertEquals(resultForValue, val);
+
+        // we have set current OakMap capacity to be 3 block sizes,
+        // thus we expect OakOutOfMemoryException
+        key = 3;
+        boolean gotException = false;
+        try {
+            oak.put(key, val);
+        } catch (OakOutOfMemoryException e) {
+            gotException = true;
+        }
+        assertTrue(gotException);
+
+        key = 0; // should be written
+        Integer value = oak.get(key);
+        assertEquals((Integer) 1, value);
+
+        oak.remove(key); // remove the key so we have space for more
+
+        key = 3; // should not be written
+        value = oak.get(key);
+        assertNull(value);
+
+        oak.remove(1); // this should actually trigger the free of key 0 memory
+
+        oak.close();
+    }
+}

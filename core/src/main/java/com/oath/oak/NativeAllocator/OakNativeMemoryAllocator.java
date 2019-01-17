@@ -4,8 +4,10 @@
  * Please see LICENSE file in the project root for terms.
  */
 
-package com.oath.oak;
+package com.oath.oak.NativeAllocator;
 
+import com.oath.oak.OakMemoryAllocator;
+import com.oath.oak.OakOutOfMemoryException;
 import javafx.util.Pair;
 
 import java.nio.ByteBuffer;
@@ -14,18 +16,15 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.atomic.AtomicLong;
 
-class OakNativeMemoryAllocator implements OakMemoryAllocator{
+public class OakNativeMemoryAllocator implements OakMemoryAllocator {
 
     // blocks allocated solely to this Allocator
-    private final ConcurrentLinkedQueue<Block> blocks = new ConcurrentLinkedQueue<Block>();
+    private final ConcurrentLinkedQueue<Block> blocks = new ConcurrentLinkedQueue<>();
     // free list of ByteBuffers which can be reused
     private final ConcurrentSkipListSet<Pair<Integer,ByteBuffer>> freeList =
         new ConcurrentSkipListSet<>(Comparator.comparing(Pair::getKey));
+    private final BlocksProvider blocksProvider;
     private Block currentBlock;
-
-    // this boolean doesn't allow memory to be reused, by default set to false
-    // but can be set to true in testing (or manually configured for some special run)
-    private boolean stopMemoryReuse = false;
 
     // the memory allocation limit for this Allocator
     // current capacity is set as number of blocks (!) allocated for this OakMap
@@ -37,11 +36,17 @@ class OakNativeMemoryAllocator implements OakMemoryAllocator{
     private final AtomicLong allocated = new AtomicLong(0);
 
     // constructor
-    // input param: memory capacity given to this Oak
-    OakNativeMemoryAllocator(long capacity) {
+    // input param: memory capacity given to this Oak. Uses default BlocksPool
+    public OakNativeMemoryAllocator(long capacity) {
+       this(capacity, BlocksPool.getInstance());
+    }
+
+    // A testable constructor
+    OakNativeMemoryAllocator(long capacity, BlocksProvider blocksProvider) {
+        this.blocksProvider = blocksProvider;
         // initially allocate one single block from pool
         // this may lazy initialize the pool and take time if this is the first call for the pool
-        Block b = BlocksPool.getInstance().getBlock();
+        Block b = blocksProvider.getBlock();
         this.blocks.add(b);
         this.currentBlock = b;
         this.capacity = capacity;
@@ -53,7 +58,7 @@ class OakNativeMemoryAllocator implements OakMemoryAllocator{
     @Override
     public ByteBuffer allocate(int size) {
 
-        if (!stopMemoryReuse && !freeList.isEmpty()) {
+        if (!freeList.isEmpty()) {
             for (Pair<Integer, ByteBuffer> kv : freeList) {
                 ByteBuffer bb = kv.getValue();
                 if (bb.capacity() >= size && freeList.remove(kv)) {
@@ -71,16 +76,20 @@ class OakNativeMemoryAllocator implements OakMemoryAllocator{
             } catch (OakOutOfMemoryException e) {
                 // there is no space in current block
                 // may be a buffer bigger than any block is requested?
-                if (size > BlocksPool.BLOCK_SIZE) {
+                if (size > blocksProvider.blockSize()) {
                     throw new OakOutOfMemoryException();
                 }
                 // does allocation of new block brings us out of capacity?
-                if ((blocks.size() + 1) * BlocksPool.BLOCK_SIZE > capacity) {
+                if ((blocks.size() + 1) * blocksProvider.blockSize() > capacity) {
                     throw new OakOutOfMemoryException();
                 } else {
-                    Block b = BlocksPool.getInstance().getBlock();
-                    this.blocks.add(b);
-                    this.currentBlock = b;
+                    synchronized (this) {
+                        if (currentBlock.allocated() + size > currentBlock.getCapacity()) {
+                            Block b = blocksProvider.getBlock();
+                            this.blocks.add(b);
+                            this.currentBlock = b;
+                        }
+                    }
                 }
             }
         }
@@ -102,7 +111,7 @@ class OakNativeMemoryAllocator implements OakMemoryAllocator{
         byte[] zeroes = new byte[bb.remaining()];
         bb.put(zeroes);
         bb.rewind(); // put the position back to zero
-        freeList.add(new Pair<Integer, ByteBuffer>(System.identityHashCode(bb),bb));
+        freeList.add(new Pair<>(System.identityHashCode(bb), bb));
     }
 
     // Releases all memory allocated for this Oak (should be used as part of the Oak destruction)
@@ -110,7 +119,7 @@ class OakNativeMemoryAllocator implements OakMemoryAllocator{
     @Override
     public void close() {
         for (Block b : blocks) {
-            BlocksPool.getInstance().returnBlock(b);
+            blocksProvider.returnBlock(b);
         }
         // no need to do anything with the free list,
         // as all free list members were residing on one of the (already released) blocks
@@ -127,8 +136,4 @@ class OakNativeMemoryAllocator implements OakMemoryAllocator{
 
     // used only for testing
     int numOfAllocatedBlocks() { return blocks.size(); }
-
-    // used only for testing
-    void stopMemoryReuse() { this.stopMemoryReuse = true; }
-    void startMemoryReuse() { this.stopMemoryReuse = false; }
 }

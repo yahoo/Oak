@@ -6,6 +6,8 @@
 
 package com.oath.oak;
 
+import com.oath.oak.NativeAllocator.OakNativeMemoryAllocator;
+
 import java.nio.ByteBuffer;
 
 /**
@@ -89,7 +91,12 @@ public class OakMapBuilder<K,V> {
 
   public OakMap<K, V> build() {
     ThreadIndexCalculator threadIndexCalculator = ThreadIndexCalculator.newInstance();
-    MemoryManager memoryManager = new MemoryManager(memoryCapacity, memoryAllocator,threadIndexCalculator);
+
+    if (memoryAllocator == null) {
+      this.memoryAllocator = new OakNativeMemoryAllocator(memoryCapacity);
+    }
+
+    MemoryManager memoryManager = new MemoryManager(memoryAllocator, threadIndexCalculator);
 
     return new OakMap<>(
             minKey,
@@ -165,7 +172,7 @@ public class OakMapBuilder<K,V> {
     return new OakMapBuilder<Integer, Integer>()
             .setKeySerializer(serializerK)
             .setValueSerializer(serializerV)
-            .setMinKey(new Integer(Integer.MIN_VALUE))
+            .setMinKey(Integer.MIN_VALUE)
             .setComparator(comparator);
   }
 }

@@ -6,286 +6,85 @@
 
 package com.oath.oak;
 
-import org.junit.After;
 import org.junit.Before;
-import org.junit.Rule;
 import org.junit.Test;
-import org.junit.rules.ExpectedException;
+import org.mockito.stubbing.Answer;
 
 import java.nio.ByteBuffer;
-import static junit.framework.TestCase.assertTrue;
+
 import static org.junit.Assert.assertEquals;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.Mockito.*;
 
 public class OakMemoryManagerTest {
+    private OakMemoryAllocator memoryAllocator;
+    private ThreadIndexCalculator indexCalculator;
+    private MemoryManager memoryManager;
+    private long allocatedBytes;
 
-    
-    private static int maxItemsPerChunk = 1024;
-    private static int maxBytesPerChunkItem = 100;
-    private static int valueSizeAfterSerialization = Integer.MAX_VALUE/40;
-    private static int keyBufferSize = maxItemsPerChunk*maxBytesPerChunkItem;
-    public static class CheckOakCapacityValueSerializer implements OakSerializer<Integer> {
+    @Before
+    public void setUp() {
+        allocatedBytes = 0;
+        indexCalculator = mock(ThreadIndexCalculator.class);
+        when(indexCalculator.getIndex()).thenReturn(7);
+        memoryAllocator = mock(OakMemoryAllocator.class);
+        when(memoryAllocator.allocate(anyInt())).thenAnswer((Answer) invocation -> {
+            int size = (int) invocation.getArguments()[0];
+            allocatedBytes += size;
+            return ByteBuffer.allocate(size);
 
-        @Override
-        public void serialize(Integer value, ByteBuffer targetBuffer) {
-            targetBuffer.putInt(targetBuffer.position(), value);
-        }
-
-        @Override
-        public Integer deserialize(ByteBuffer serializedValue) {
-            return serializedValue.getInt(serializedValue.position());
-        }
-
-        @Override
-        public int calculateSize(Integer value) {
-            return valueSizeAfterSerialization;
-        }
-    }
-
-    @Rule
-    public ExpectedException thrown = ExpectedException.none();
-
-    @Test
-    public void checkCapacity() {
-
-        MemoryManager memoryManager = new // one OakMap capacity about KB, 3 blocks
-                MemoryManager(BlocksPool.BLOCK_SIZE * 3, null, ThreadIndexCalculator.newInstance());
-
-        /* simple allocation */
-        ByteBuffer bb = memoryManager.allocate(4);
-        assertEquals(4, bb.remaining());        // check the new ByteBuffer size
-        assertEquals(4,                         // check block allocation
-            ((OakNativeMemoryAllocator)memoryManager.getMemoryAllocator())
-                .getCurrentBlock().allocated());
-
-        ByteBuffer bb1 = memoryManager.allocate(4);
-        assertEquals(4, bb1.remaining());       // check the new ByteBuffer size
-        assertEquals(8,                         // check block allocation
-            ((OakNativeMemoryAllocator)memoryManager.getMemoryAllocator())
-                .getCurrentBlock().allocated());
-
-        ByteBuffer bb2 = memoryManager.allocate(8);
-        assertEquals(8, bb2.remaining());       // check the new ByteBuffer size
-        assertEquals(16,                        // check block allocation
-            ((OakNativeMemoryAllocator)memoryManager.getMemoryAllocator())
-                .getCurrentBlock().allocated());
-
-        /* big allocation */
-        ByteBuffer bb3 = memoryManager.allocate(BlocksPool.BLOCK_SIZE - 8);
-        assertEquals(BlocksPool.BLOCK_SIZE - 8,
-            bb3.remaining());                                   // check the new ByteBuffer size
-        assertEquals(BlocksPool.BLOCK_SIZE - 8,  // check the new block allocation
-            ((OakNativeMemoryAllocator)memoryManager.getMemoryAllocator())
-                .getCurrentBlock().allocated());
-
-        /* complete up to full block allocation */
-        ByteBuffer bb4 = memoryManager.allocate(8);
-        assertEquals(8, bb4.remaining());              // check the new ByteBuffer size
-        assertEquals(BlocksPool.BLOCK_SIZE,               // check the new block allocation
-            ((OakNativeMemoryAllocator)memoryManager.getMemoryAllocator())
-                .getCurrentBlock().allocated());
-
-        /* next small allocation should move us to the next block */
-        ByteBuffer bb5 = memoryManager.allocate(8);
-        assertEquals(8, bb5.remaining());           // check the newest ByteBuffer size
-        assertEquals(8,                             // check the newest block allocation
-            ((OakNativeMemoryAllocator)memoryManager.getMemoryAllocator())
-                .getCurrentBlock().allocated());
-
-        memoryManager.close();
+        });
+        doAnswer(invocation -> {
+            ByteBuffer bb = (ByteBuffer) invocation.getArguments()[0];
+            allocatedBytes -= bb.capacity();
+            return  allocatedBytes;
+        }).when(memoryAllocator).free(any());
+        when(memoryAllocator.allocated()).thenAnswer((Answer) invocationOnMock -> allocatedBytes);
+        memoryManager = new MemoryManager(memoryAllocator, indexCalculator);
     }
 
     @Test
-    public void checkOakCapacity() {
-
-        int initialRemainingBlocks = BlocksPool.getInstance().numOfRemainingBlocks();
-
-        OakMapBuilder builder = OakMapBuilder.getDefaultBuilder()
-                .setChunkMaxItems(maxItemsPerChunk)
-                .setChunkBytesPerItem(maxBytesPerChunkItem)
-                .setValueSerializer(new CheckOakCapacityValueSerializer())
-                .setMemoryCapacity(BlocksPool.BLOCK_SIZE*3);
-
-        OakMap<Integer, Integer> oak = (OakMap<Integer, Integer>) builder.build();
-
-        //check that before any allocation
-        // (1) we have all the blocks in the pool except one which is in the allocator
-        assertEquals(initialRemainingBlocks - 1, BlocksPool.getInstance().numOfRemainingBlocks());
-
-        // (2) check the one block in the allocator
-        assertEquals(
-            ((OakNativeMemoryAllocator)oak.getMemoryManager().getMemoryAllocator()).
-                numOfAllocatedBlocks(),
-            1);
-
-        Integer val = 1;
-        Integer key = 0;
-
-        // pay attention that the given value serializer CheckOakCapacityValueSerializer
-        // will transform a single integer into huge buffer of size about 100MB,
-        // what is currently one block size
-        oak.put(key, val);
-
-        //check that after a single allocation of a block size
-        // (1) we have all the blocks in the pool except one which is in the allocator
-        assertEquals(initialRemainingBlocks - 1, BlocksPool.getInstance().numOfRemainingBlocks());
-
-        // (2) check the one block in the allocator
-        assertEquals(
-            ((OakNativeMemoryAllocator)oak.getMemoryManager().getMemoryAllocator()).
-                numOfAllocatedBlocks(),
-            1);
-        assertEquals(valueSizeAfterSerialization + keyBufferSize,    // check the newest block allocation
-            ((OakNativeMemoryAllocator)oak.getMemoryManager().getMemoryAllocator())
-                .getCurrentBlock().allocated());
-        // check that what you read is the same that you wrote
-        Integer resultForKey = oak.getMinKey();
-        Integer resultForValue = oak.get(key);
-        assertEquals(resultForKey,key);
-        assertEquals(resultForValue,val);
-
-        key = 1;
-        oak.put(key, val);
-
-        //check that after a double allocation of a block size
-        // (1) we have all the blocks in the pool except two which are in the allocator
-        assertEquals(initialRemainingBlocks - 2, BlocksPool.getInstance().numOfRemainingBlocks());
-
-        // (2) check the two blocks in the allocator
-        assertEquals(
-            ((OakNativeMemoryAllocator)oak.getMemoryManager().getMemoryAllocator()).
-                numOfAllocatedBlocks(),
-            2);
-        assertEquals(valueSizeAfterSerialization,    // check the newest block allocation
-            ((OakNativeMemoryAllocator)oak.getMemoryManager().getMemoryAllocator())
-                .getCurrentBlock().allocated());
-        assertEquals(valueSizeAfterSerialization*2 + keyBufferSize,    // check the total allocation
-            oak.getMemoryManager().getMemoryAllocator().allocated());
-        // check that what you read is the same that you wrote
-        resultForKey = oak.getMaxKey();
-        resultForValue = oak.get(key);
-        assertEquals(resultForKey,key);
-        assertEquals(resultForValue,val);
-
-        key = 2;
-        oak.put(key, val);
-
-        //check that after three allocations of a block size
-        // (1) we have all the blocks in the pool except three which are in the allocator
-        assertEquals(initialRemainingBlocks - 3, BlocksPool.getInstance().numOfRemainingBlocks());
-
-        // (2) check the 3 blocks in the allocator
-        assertEquals(
-            ((OakNativeMemoryAllocator)oak.getMemoryManager().getMemoryAllocator()).
-                    numOfAllocatedBlocks(), 3);
-
-        assertEquals(valueSizeAfterSerialization,    // check the newest block allocation
-            ((OakNativeMemoryAllocator)oak.getMemoryManager().getMemoryAllocator())
-                .getCurrentBlock().allocated());
-
-        assertEquals(valueSizeAfterSerialization*3 + keyBufferSize,    // check the total allocation
-            oak.getMemoryManager().getMemoryAllocator().allocated());
-        // check that what you read is the same that you wrote
-        resultForKey = oak.getMaxKey();
-        resultForValue = oak.get(key);
-        assertEquals(resultForKey,key);
-        assertEquals(resultForValue,val);
-
-        // we have set current OakMap capacity to be 3 block sizes,
-        // thus we expect OakOutOfMemoryException
-        key = 3;
-        boolean gotException = false;
-        try {
-            oak.put(key, val);
-        } catch (OakOutOfMemoryException e) {
-            gotException = true;
-        }
-        assertTrue(gotException);
-
-        key = 0; // should be written
-        Integer value = (Integer) oak.get(key);
-        assertEquals((Integer) 1, value);
-
-        // request one release so GC can be triggered
-        oak.getMemoryManager().setGCtrigger(1);
-        oak.remove(key); // remove the key so we have space for more
-
-        key = 3; // should not be written
-        value = (Integer) oak.get(key);
-        assertTrue(value == null);
-
-        oak.remove(1); // this should actually trigger the free of key 0 memory
-
-        oak.close();
-    }
-
-
-
-    @Test
-    public void checkRelease() {
-
-        ThreadIndexCalculator indexCalculator = ThreadIndexCalculator.newInstance();
-
-        MemoryManager memoryManager = new // one OakMap capacity about KB, 3 blocks
-                MemoryManager(BlocksPool.BLOCK_SIZE * 3, null, indexCalculator);
-
-        memoryManager.setGCtrigger(10); // trigger release after releasing 10 byte buffers
-
+    public void allocate() {
         ByteBuffer bb = memoryManager.allocate(4);
         assertEquals(4, bb.remaining());
         assertEquals(4, memoryManager.allocated());
-        memoryManager.release(bb);
 
         bb = memoryManager.allocate(4);
         assertEquals(4, bb.remaining());
         assertEquals(8, memoryManager.allocated());
-        memoryManager.release(bb);
+    }
 
-        bb = memoryManager.allocate(4);
-        assertEquals(4, bb.remaining());
-        assertEquals(12, memoryManager.allocated());
-        memoryManager.release(bb);
+    @Test
+    public void release() {
+        memoryManager.setGCtrigger(2);
 
-        bb = memoryManager.allocate(4);
-        assertEquals(4, bb.remaining());
-        assertEquals(16, memoryManager.allocated());
-        memoryManager.release(bb);
+        ByteBuffer bb1 = memoryManager.allocate(4);
+        ByteBuffer bb2 = memoryManager.allocate(4);
 
-        bb = memoryManager.allocate(4);
-        assertEquals(4, bb.remaining());
-        assertEquals(20, memoryManager.allocated());
-        memoryManager.release(bb);
+        memoryManager.release(bb1);
+        verify(memoryAllocator, times(0)).free(any());
+        assertEquals(8, memoryManager.allocated());
 
-        bb = memoryManager.allocate(4);
-        assertEquals(4, bb.remaining());
-        assertEquals(24, memoryManager.allocated());
-        memoryManager.release(bb);
+        memoryManager.release(bb2);
+        verify(memoryAllocator, times(2)).free(any());
+        assertEquals(0, memoryManager.allocated());
+    }
 
-        bb = memoryManager.allocate(4);
-        assertEquals(4, bb.remaining());
-        assertEquals(28, memoryManager.allocated());
-        memoryManager.release(bb);
 
-        bb = memoryManager.allocate(4);
-        assertEquals(4, bb.remaining());
-        assertEquals(32, memoryManager.allocated());
-        memoryManager.release(bb);
+    @Test
+    public void close() {
+        memoryManager.setGCtrigger(2);
 
-        bb = memoryManager.allocate(4);
-        assertEquals(4, bb.remaining());
-        assertEquals(36, memoryManager.allocated());
-        memoryManager.release(bb);
-
-        assertEquals(9, memoryManager.releasedArray.get(indexCalculator.getIndex()).size());
-
-        bb = memoryManager.allocate(4);
-        assertEquals(4, bb.remaining());
-        assertEquals(40, memoryManager.allocated());
-        memoryManager.release(bb);
-
-        assertEquals(0, memoryManager.releasedArray.get(indexCalculator.getIndex()).size());
+        ByteBuffer bb1 = memoryManager.allocate(4);
+        memoryManager.release(bb1);
+        verify(memoryAllocator, times(0)).free(any());
+        assertEquals(4, memoryManager.allocated());
 
         memoryManager.close();
+        verify(memoryAllocator, times(1)).free(any());
+        assertEquals(0, memoryManager.allocated());
     }
+
 //
 //    @Test
 //    public void checkSingleThreadRelease() {

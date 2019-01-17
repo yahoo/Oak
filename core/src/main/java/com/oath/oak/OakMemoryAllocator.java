@@ -13,7 +13,7 @@ import java.nio.ByteBuffer;
 // in order to continue supporting off-heap)
 // allocator is also getting a ByteBuffer to reuse the memory, given ByteBuffer is
 // no longer in use by any thread
-interface OakMemoryAllocator {
+public interface OakMemoryAllocator {
 
     // Allocates ByteBuffer of the given size, thread safe.
     ByteBuffer allocate(int size);
