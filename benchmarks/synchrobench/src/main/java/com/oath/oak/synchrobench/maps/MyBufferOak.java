@@ -38,13 +38,13 @@ class MyBufferOak {
     };
 
     static OakComparator<MyBuffer> keysComparator = new OakComparator<MyBuffer>() {
-        private int compare(ByteBuffer buffer1, int pos1, int cap1, ByteBuffer buffer2, int pos2, int cap2) {
-            for (int i = 0; i < cap1; i += Integer.BYTES) {
-                if (i >= cap2) return 1;
-                int cmp = Integer.compare(buffer1.getInt(pos1 + i), buffer2.getInt(pos2 + i));
+        private int compare(ByteBuffer buffer1, int base1, int len1, ByteBuffer buffer2, int base2, int len2) {
+            int n = Math.min(len1, len2);
+            for (int i = base1, j = base2; i < n; i += Integer.BYTES, j += Integer.BYTES) {
+                int cmp = Integer.compare(buffer1.getInt(i), buffer2.getInt(j));
                 if (cmp != 0) return cmp;
             }
-            return 0;
+            return (len1 - len2);
         }
 
         @Override
@@ -69,7 +69,7 @@ class MyBufferOak {
             int cap1 = serializedKey.getInt(pos1);
             int pos2 = key.buffer.position();
             int cap2 = key.buffer.capacity();
-            return compare(serializedKey, pos1 + Integer.BYTES, cap1 - Integer.BYTES, key.buffer, pos2, cap2);
+            return compare(serializedKey, pos1 + Integer.BYTES, cap1, key.buffer, pos2, cap2);
 
         }
     };
