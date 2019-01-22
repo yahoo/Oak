@@ -4,8 +4,9 @@
  * Please see LICENSE file in the project root for terms.
  */
 
-package com.oath.oak;
+package com.oath.oak.NativeAllocator;
 
+import com.oath.oak.OakOutOfMemoryException;
 import sun.misc.Cleaner;
 import java.lang.reflect.Field;
 import java.nio.ByteBuffer;
@@ -77,5 +78,9 @@ class Block {
         }
         assert cleaner != null;
         cleaner.clean();
+    }
+
+    public int getCapacity() {
+        return capacity;
     }
 }

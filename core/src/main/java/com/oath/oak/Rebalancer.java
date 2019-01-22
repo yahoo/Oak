@@ -11,12 +11,9 @@ import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
-import java.util.logging.Logger;
 
 class Rebalancer<K, V> {
 
-
-    Logger log = Logger.getLogger(Rebalancer.class.getName());
 
     /*-------------- Constants --------------*/
 
@@ -50,7 +47,7 @@ class Rebalancer<K, V> {
 
     /*-------------- Constructors --------------*/
 
-    Rebalancer(Chunk chunk, Comparator<Object> comparator, boolean offHeap, MemoryManager memoryManager,
+    Rebalancer(Chunk<K, V> chunk, Comparator<Object> comparator, boolean offHeap, MemoryManager memoryManager,
                OakSerializer<K> keySerializer, OakSerializer<V> valueSerializer,
                ThreadIndexCalculator threadIndexCalculator) {
         this.rebalanceSize = 2;

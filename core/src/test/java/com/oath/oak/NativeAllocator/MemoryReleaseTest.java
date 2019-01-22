@@ -1,14 +1,16 @@
-package com.oath.oak;
+package com.oath.oak.NativeAllocator;
 
 
+import com.oath.oak.OakMap;
+import com.oath.oak.OakMapBuilder;
+import com.oath.oak.StringComparator;
+import com.oath.oak.StringSerializer;
 import com.sun.management.HotSpotDiagnosticMXBean;
-import com.sun.management.VMOption;
 import org.junit.Test;
 
 import java.lang.management.ManagementFactory;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.fail;
 
 public class MemoryReleaseTest {
 
@@ -40,7 +42,7 @@ public class MemoryReleaseTest {
         oak.close();
         long maxDirectMemorySize = Long.valueOf(ManagementFactory.getPlatformMXBean(HotSpotDiagnosticMXBean.class)
                 .getVMOption("MaxDirectMemorySize").getValue());
-        long blocks = maxDirectMemorySize/BlocksPool.BLOCK_SIZE;
+        long blocks = maxDirectMemorySize/BlocksPool.getInstance().blockSize();
         assertEquals(blocks, BlocksPool.getInstance().numOfRemainingBlocks());
     }
 }

@@ -2,7 +2,7 @@ package com.oath.oak;
 
 import java.nio.ByteBuffer;
 
-class StringSerializer implements OakSerializer<String> {
+public class StringSerializer implements OakSerializer<String> {
 
     @Override
     public void serialize(String object, ByteBuffer targetBuffer) {

@@ -4,30 +4,30 @@
  * Please see LICENSE file in the project root for terms.
  */
 
-package com.oath.oak;
+package com.oath.oak.NativeAllocator;
 
 import java.util.concurrent.ConcurrentLinkedQueue;
 
 /*
-* The singleton Pool to pre-allocate and reuse blocks of off-heap memory. The singleton has lazy
-* initialization so the big memory is allocated only on demand when first Oak is used.
-* However it makes creation of the first Oak slower. This initialization is thread safe, thus
-* multiple concurrent Oak creations will result only in the one Pool.
-* */
-class BlocksPool {
+ * The singleton Pool to pre-allocate and reuse blocks of off-heap memory. The singleton has lazy
+ * initialization so the big memory is allocated only on demand when first Oak is used.
+ * However it makes creation of the first Oak slower. This initialization is thread safe, thus
+ * multiple concurrent Oak creations will result only in the one Pool.
+ * */
+class BlocksPool implements BlocksProvider {
 
     private static BlocksPool instance = null;
-    private final ConcurrentLinkedQueue<Block> blocks = new ConcurrentLinkedQueue<Block>();
+    private final ConcurrentLinkedQueue<Block> blocks = new ConcurrentLinkedQueue<>();
 
-    // TODO change BLOCK_SIZE and NUMBER_OF_BLOCKS to be pre-configurable, currently changeable for tests
-    public final static int BLOCK_SIZE = 104857600; // currently 100MB, the one block size
+    // TODO change BLOCK_SIZE and NUMBER_OF_BLOCKS to be pre-configurable
+    private final static int BLOCK_SIZE = 104857600; // currently 100MB, the one block size
     // Number of memory blocks to be pre-allocated (currently gives us 2GB). When it is not enough,
     // another such amount of memory will be allocated at once.
-    public final static int NUMBER_OF_BLOCKS = 20;
+    private final static int NUMBER_OF_BLOCKS = 20;
 
     // not thread safe, private constructor; should be called only once
     private BlocksPool() {
-        prealloc(BLOCK_SIZE, NUMBER_OF_BLOCKS);
+        prealloc(NUMBER_OF_BLOCKS);
     }
 
     /**
@@ -45,11 +45,16 @@ class BlocksPool {
         return instance;
     }
 
+    @Override
+    public int blockSize() {
+        return BLOCK_SIZE;
+    }
+
     /**
      * Returns a single Block from within the Pool, enlarges the Pool if needed
      * Thread-safe
      */
-    Block getBlock() {
+    public Block getBlock() {
         Block b = null;
         while (b == null) {
             boolean noMoreBlocks = blocks.isEmpty();
@@ -60,7 +65,7 @@ class BlocksPool {
             if (noMoreBlocks || b == null) {
                 synchronized (BlocksPool.class) { // can be easily changed to lock-free
                     if (blocks.isEmpty()) {
-                        prealloc(BLOCK_SIZE, NUMBER_OF_BLOCKS/2);
+                        prealloc(NUMBER_OF_BLOCKS / 2);
                     }
                 }
             }
@@ -72,12 +77,12 @@ class BlocksPool {
      * Returns a single Block to the Pool, decreases the Pool if needed
      * Assumes block is not used by any concurrent thread, otherwise thread-safe
      */
-    void returnBlock(Block b) {
+    public void returnBlock(Block b) {
         b.reset();
         blocks.add(b);
-        if (blocks.size() > 3*NUMBER_OF_BLOCKS) {
+        if (blocks.size() > 3 * NUMBER_OF_BLOCKS) {
             synchronized (BlocksPool.class) { // can be easily changed to lock-free
-                for (int i=0; i<NUMBER_OF_BLOCKS; i++) {
+                for (int i = 0; i < NUMBER_OF_BLOCKS; i++) {
                     this.blocks.poll().clean();
                 }
             }
@@ -96,10 +101,10 @@ class BlocksPool {
         }
     }
 
-    private void prealloc(int blockSize, int numOfBlocks) {
+    private void prealloc(int numOfBlocks) {
         // pre-allocation loop
-        for (int i=0; i<numOfBlocks; i++) {
-            this.blocks.add(new Block(blockSize));
+        for (int i = 0; i < numOfBlocks; i++) {
+            this.blocks.add(new Block(BlocksPool.BLOCK_SIZE));
         }
     }
 

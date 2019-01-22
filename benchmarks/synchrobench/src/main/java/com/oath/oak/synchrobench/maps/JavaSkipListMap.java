@@ -68,4 +68,9 @@ public class JavaSkipListMap<K, V> implements CompositionalOakMap<K, V> {
     public void clear() {
         skipListMap = new ConcurrentSkipListMap<>();
     }
+
+    @Override
+    public int size() {
+        return skipListMap.size();
+    }
 }

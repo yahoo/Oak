@@ -902,17 +902,21 @@ class InternalOakMap<K, V> {
 
         public T next() {
             try {
-                if (epochUsageCounter-- <= 0) {
-                    iterationEpoch = memoryManager.getandIncrementEpoch();
-                    epochUsageCounter = EPOCH_USAGE_COUNTER;
-                }
-                memoryManager.iteratorStartOperation(iterationEpoch);
+                iterationEpoch = memoryManager.iteratorStartOperation(iterationEpoch, updateEpoch());
                 return internalNext();
             } finally {
                 memoryManager.iteratorStopOperation();
             }
         }
 
+        private boolean updateEpoch() {
+            boolean updateEpoch = false;
+            if (epochUsageCounter-- <= 0) {
+                updateEpoch = true;
+                epochUsageCounter = EPOCH_USAGE_COUNTER;
+            }
+            return updateEpoch;
+        }
 
         // the actual next()
         abstract T internalNext();

@@ -20,4 +20,6 @@ public interface CompositionalOakMap<K, V> {
 
     void clear();
 
+    int size();
+
 }
