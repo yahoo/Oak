@@ -185,7 +185,7 @@ class Rebalancer<K, V> {
                 } else {
                     // we have to open an new chunk
                     // TODO do we want to use slice here?
-                    ByteBuffer bb = currFrozen.readKey(ei);
+                    ByteBuffer bb = currFrozen.readKey(ei).slice();
                     int remaining = bb.remaining();
                     int position = bb.position();
                     ByteBuffer newMinKey = ByteBuffer.allocate(remaining);

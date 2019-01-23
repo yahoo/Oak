@@ -90,9 +90,11 @@ public class ComputeTest {
         @Override
         public int compareKeys(ByteBuffer buff1, ByteBuffer buff2) {
             for (int i = 0; i < keySize; i++) {
-                if (buff1.getInt(Integer.BYTES * i) > buff2.getInt(Integer.BYTES * i))
+                int i1 = buff1.getInt(buff1.position() + Integer.BYTES * i);
+                int i2 = buff2.getInt(buff2.position() + Integer.BYTES * i);
+                if (i1 > i2)
                     return 1;
-                else if (buff1.getInt(Integer.BYTES * i) < buff2.getInt(Integer.BYTES * i))
+                else if (i1 < i2)
                     return -1;
             }
             return 0;

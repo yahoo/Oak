@@ -5,6 +5,10 @@ import com.oath.oak.*;
 import com.oath.oak.NativeAllocator.OakNativeMemoryAllocator;
 import com.oath.oak.synchrobench.contention.abstractions.CompositionalOakMap;
 import com.oath.oak.synchrobench.contention.benchmark.Parameters;
+import sun.misc.Cleaner;
+
+import java.lang.reflect.Field;
+import java.nio.ByteBuffer;
 
 public class OakMap<K, V> implements CompositionalOakMap<K, V> {
     private com.oath.oak.OakMap<MyBuffer, MyBuffer> oak;
@@ -28,6 +32,7 @@ public class OakMap<K, V> implements CompositionalOakMap<K, V> {
                 .setChunkBytesPerItem(Parameters.keySize + Integer.BYTES)
                 .setChunkMaxItems(Chunk.MAX_ITEMS_DEFAULT)
                 .setMemoryAllocator(ma);
+
         oak = builder.build();
         oakView = oak.createBufferView();
     }
@@ -135,6 +140,7 @@ public class OakMap<K, V> implements CompositionalOakMap<K, V> {
         return oak.entries();
     }
 
+
     public void printMemStats() {
         OakNativeMemoryAllocator.Stats stats = ma.getStats();
         System.out.printf("\tReleased buffers: \t\t%d\n", stats.releasedBuffers);
@@ -143,4 +149,5 @@ public class OakMap<K, V> implements CompositionalOakMap<K, V> {
         System.out.printf("\tReclaimed bytes: \t\t%d\n", stats.reclaimedBytes);
 
     }
+
 }

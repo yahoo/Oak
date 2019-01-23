@@ -5,7 +5,9 @@ import com.oath.oak.synchrobench.contention.abstractions.CompositionalOakMap;
 import com.oath.oak.synchrobench.contention.abstractions.MaintenanceAlg;
 import com.oath.oak.synchrobench.maps.MyBuffer;
 import com.oath.oak.synchrobench.maps.OakMap;
-
+import javax.management.MBeanServer;
+import java.io.IOException;
+import java.lang.management.ManagementFactory;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Method;
 import java.util.Formatter;
@@ -197,7 +199,7 @@ public class Test {
 		}
 	}
 
-	public static void main(String[] args) throws InterruptedException {
+	public static void main(String[] args) throws InterruptedException, IOException {
 		boolean firstIteration = true;
 		Test test = new Test(args);
 		test.printParams();

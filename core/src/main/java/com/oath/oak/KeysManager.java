@@ -45,8 +45,7 @@ class KeysManager<K> {
     }
 
     public ByteBuffer getKeys() {
-        assert keys.position() == 0;
-        return keys.duplicate();
+        return keys;
     }
 
     public void release() {

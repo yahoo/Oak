@@ -672,7 +672,7 @@ class InternalOakMap<K, V> {
         if (lookUp == null || lookUp.handle == null || lookUp.entryIndex == -1) {
             return null;
         }
-        ByteBuffer serializedKey = c.readKey(lookUp.entryIndex);
+        ByteBuffer serializedKey = c.readKey(lookUp.entryIndex).slice();
         return transformer.apply(serializedKey);
     }
 
@@ -686,7 +686,7 @@ class InternalOakMap<K, V> {
         if (lookUp == null || lookUp.handle == null || lookUp.entryIndex == -1) {
             return null;
         }
-        ByteBuffer serializedKey = c.readKey(lookUp.entryIndex);
+        ByteBuffer serializedKey = c.readKey(lookUp.entryIndex).slice();
         return new OakRKeyBufferImpl(serializedKey);
     }
 
@@ -941,7 +941,7 @@ class InternalOakMap<K, V> {
                 else {
                     // This is safe. If the chunk gets released now, the keys bytebuffer release epoch is larger than
                     // this next() start epoch
-                    lastKey = state.get().getChunk().readKey(state.get().getIndex());
+                    lastKey = state.get().getChunk().readKey(state.get().getIndex()).slice();
                 }
 
                 if (isDescending) {
@@ -962,7 +962,7 @@ class InternalOakMap<K, V> {
                 }
             }
 
-            ByteBuffer bb = state.get().getChunk().readKey(state.get().getIndex());
+            ByteBuffer bb = state.get().getChunk().readKey(state.get().getIndex()).slice();
             Handle currentHandle = nextHandle;
             advanceState();
             return new Pair<>(bb, currentHandle);
