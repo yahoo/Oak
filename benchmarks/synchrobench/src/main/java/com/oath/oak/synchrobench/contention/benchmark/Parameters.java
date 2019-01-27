@@ -20,7 +20,7 @@ public class Parameters {
 		keySize = 4,
         valSize = 4;
     
-    static boolean detailedStats = true;
+    public static boolean detailedStats = false;
 	static boolean change = false;
 
     static String benchClassName = "skiplists.lockfree.NonBlockingFriendlySkipListMap";

@@ -32,6 +32,7 @@ class Block {
     ByteBuffer allocate(int size) {
         int now = allocated.getAndAdd(size);
         if (now + size > this.capacity) {
+             allocated.getAndAdd(-size);
             throw new OakOutOfMemoryException();
         }
         // the duplicate is needed for thread safeness, otherwise (in single threaded environment)

@@ -2,6 +2,7 @@ package com.oath.oak.synchrobench.maps;
 
 
 import com.oath.oak.*;
+import com.oath.oak.NativeAllocator.OakNativeMemoryAllocator;
 import com.oath.oak.synchrobench.contention.abstractions.CompositionalOakMap;
 import com.oath.oak.synchrobench.contention.benchmark.Parameters;
 
@@ -10,8 +11,13 @@ public class OakMap<K, V> implements CompositionalOakMap<K, V> {
     private OakMapBuilder<MyBuffer, MyBuffer> builder;
     private MyBuffer minKey;
     private OakBufferView oakView;
+    private OakNativeMemoryAllocator ma;
 
     public OakMap() {
+        ma = new OakNativeMemoryAllocator(Integer.MAX_VALUE);
+        if (Parameters.detailedStats) {
+            ma.collectStats();
+        }
         minKey = new MyBuffer(Integer.BYTES);
         minKey.buffer.putInt(0, Integer.MIN_VALUE);
         builder = new OakMapBuilder<MyBuffer, MyBuffer>()
@@ -20,7 +26,8 @@ public class OakMap<K, V> implements CompositionalOakMap<K, V> {
                 .setMinKey(minKey)
                 .setComparator(MyBufferOak.keysComparator)
                 .setChunkBytesPerItem(Parameters.keySize + Integer.BYTES)
-                .setChunkMaxItems(Chunk.MAX_ITEMS_DEFAULT);
+                .setChunkMaxItems(Chunk.MAX_ITEMS_DEFAULT)
+                .setMemoryAllocator(ma);
         oak = builder.build();
         oakView = oak.createBufferView();
     }
@@ -105,6 +112,10 @@ public class OakMap<K, V> implements CompositionalOakMap<K, V> {
         }
         oak.close();
 
+        ma = new OakNativeMemoryAllocator(Integer.MAX_VALUE);
+        if (Parameters.detailedStats) {
+            ma.collectStats();
+        }
         minKey = new MyBuffer(Integer.BYTES);
         minKey.buffer.putInt(0, Integer.MIN_VALUE);
         builder = new OakMapBuilder<MyBuffer, MyBuffer>()
@@ -113,7 +124,8 @@ public class OakMap<K, V> implements CompositionalOakMap<K, V> {
                 .setMinKey(minKey)
                 .setComparator(MyBufferOak.keysComparator)
                 .setChunkBytesPerItem(Parameters.keySize + Integer.BYTES)
-                .setChunkMaxItems(Chunk.MAX_ITEMS_DEFAULT);
+                .setChunkMaxItems(Chunk.MAX_ITEMS_DEFAULT)
+                .setMemoryAllocator(ma);
         oak = builder.build();
         oakView = oak.createBufferView();
     }
@@ -121,5 +133,14 @@ public class OakMap<K, V> implements CompositionalOakMap<K, V> {
     @Override
     public int size() {
         return oak.entries();
+    }
+
+    public void printMemStats() {
+        OakNativeMemoryAllocator.Stats stats = ma.getStats();
+        System.out.printf("\tReleased buffers: \t\t%d\n", stats.releasedBuffers);
+        System.out.printf("\tReleased bytes: \t\t%d\n", stats.releasedBytes);
+        System.out.printf("\tReclaimed buffers: \t\t%d\n", stats.reclaimedBuffers);
+        System.out.printf("\tReclaimed bytes: \t\t%d\n", stats.reclaimedBytes);
+
     }
 }

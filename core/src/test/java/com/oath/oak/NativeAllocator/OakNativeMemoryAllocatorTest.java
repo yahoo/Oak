@@ -4,10 +4,9 @@ import com.oath.oak.*;
 import org.junit.Test;
 
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Random;
+import java.util.*;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import static junit.framework.TestCase.assertNull;
 import static junit.framework.TestCase.assertTrue;
@@ -221,5 +220,49 @@ public class OakNativeMemoryAllocatorTest {
         oak.remove(1); // this should actually trigger the free of key 0 memory
 
         oak.close();
+    }
+
+    @Test
+    public void checkFreelistOrdering() {
+        long capacity = 100;
+        OakNativeMemoryAllocator allocator = new OakNativeMemoryAllocator(capacity);
+        allocator.collectStats();
+
+        // Order is important here!
+        int[] sizes = new int[] {4, 16 , 8, 32};
+        List<ByteBuffer> allocated = Arrays.stream(sizes)
+                .mapToObj(allocator::allocate)
+                .collect(Collectors.toList());
+        int bytesAllocated = IntStream.of(sizes).sum();
+
+        allocated.forEach(allocator::free);
+
+        OakNativeMemoryAllocator.Stats stats = allocator.getStats();
+        assertEquals(sizes.length, stats.releasedBuffers);
+        assertEquals(bytesAllocated, stats.releasedBytes);
+
+        // Requesting a small buffer should not reclaim existing buffers
+        allocator.allocate(1);
+        stats = allocator.getStats();
+        assertEquals(0, stats.reclaimedBuffers);
+
+        // Verify free list ordering
+        ByteBuffer bb = allocator.allocate(4);
+        assertEquals(4, bb.capacity());
+        bb = allocator.allocate(4);
+        assertEquals(8, bb.capacity());
+
+        stats = allocator.getStats();
+        assertEquals(2, stats.reclaimedBuffers);
+        assertEquals(8, stats.reclaimedBytes);
+
+        bb = allocator.allocate(32);
+        assertEquals(32, bb.capacity());
+        bb = allocator.allocate(16);
+        assertEquals(16, bb.capacity());
+
+        assertEquals(sizes.length, stats.reclaimedBuffers);
+        // We lost 4 bytes recycling an 8-byte buffer for a 4-byte allocation
+        assertEquals(bytesAllocated - 4, stats.reclaimedBytes);
     }
 }
