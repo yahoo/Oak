@@ -68,9 +68,10 @@ public class OakNativeMemoryAllocator implements OakMemoryAllocator {
         if (!freeList.isEmpty()) {
             for (Pair<Integer, ByteBuffer> kv : freeList) {
                 ByteBuffer bb = kv.getValue();
-                if (bb.capacity() > (RECLAIM_FACTOR * size)) break;     // all remaining buffers are too big
 
-                if (bb.capacity() >= size && freeList.remove(kv)) {
+                if (bb.remaining() > (RECLAIM_FACTOR * size)) break;     // all remaining buffers are too big
+
+                if (bb.remaining() >= size && freeList.remove(kv)) {
                     assert bb.position() == 0;
                     if (stats != null) stats.reclaim(size);
                     return bb;
@@ -104,7 +105,6 @@ public class OakNativeMemoryAllocator implements OakMemoryAllocator {
             }
         }
         allocated.addAndGet(size);
-        assert bb.position() == 0;
         return bb;
     }
 
@@ -115,15 +115,8 @@ public class OakNativeMemoryAllocator implements OakMemoryAllocator {
     // Allocator!
     @Override
     public void free(ByteBuffer bb) {
-        allocated.addAndGet(-(bb.limit()));
-        bb.clear();
-        // ZERO THE MEMORY: A new byte array will automatically be initialized with all zeroes
-        byte[] zeroes = new byte[bb.remaining()];
-        bb.put(zeroes);
-        bb.rewind(); // put the position back to zero
-
+        allocated.addAndGet(-(bb.remaining()));
         if (stats != null) stats.release(bb);
-
         freeList.add(new Pair<>(System.identityHashCode(bb), bb));
     }
 

@@ -6,9 +6,10 @@
 
 package com.oath.oak;
 
+import sun.reflect.generics.reflectiveObjects.NotImplementedException;
+
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
-import java.util.ConcurrentModificationException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Consumer;
@@ -41,7 +42,6 @@ class Handle<V> implements OakWBuffer {
 
     void setValue(ByteBuffer value) {
         writeLock.lock();
-        value.rewind();
         this.value = value;
         writeLock.unlock();
     }
@@ -69,15 +69,13 @@ class Handle<V> implements OakWBuffer {
             return;
         }
         int capacity = serializer.calculateSize(newVal);
-        if (this.value.capacity() < capacity) { // can not reuse the existing space
+        if (this.value.remaining() < capacity) { // can not reuse the existing space
             memoryManager.release(this.value);
             this.value = memoryManager.allocate(capacity);
         } else {
-            this.value.clear(); // zero the position
+
         }
         serializer.serialize(newVal, this.value);
-        value.rewind();
-        assert value.position() == 0;
         writeLock.unlock();
     }
 
@@ -93,209 +91,98 @@ class Handle<V> implements OakWBuffer {
             OakWBufferImpl oakWBufferImpl = new OakWBufferImpl(this, memoryManager);
             computer.accept(oakWBufferImpl);
         } finally {
-            this.value.rewind(); // TODO rewind?
             writeLock.unlock();
         }
-        assert value.position() == 0;
         return true;
     }
 
     @Override
     public OakWBuffer position(int newPosition) {
-        assert writeLock.isHeldByCurrentThread();
-        value.position(newPosition);
-        return this;
+        throw new NotImplementedException();
     }
 
     @Override
     public OakWBuffer mark() {
-        assert writeLock.isHeldByCurrentThread();
-        value.mark();
-        return this;
+        throw new NotImplementedException();
     }
 
     @Override
     public OakWBuffer reset() {
-        assert writeLock.isHeldByCurrentThread();
-        value.reset();
-        return this;
+        throw new NotImplementedException();
     }
 
     @Override
     public OakWBuffer clear() {
-        assert writeLock.isHeldByCurrentThread();
-        value.clear();
-        return this;
+        throw new NotImplementedException();
     }
 
     @Override
     public OakWBuffer flip() {
-        assert writeLock.isHeldByCurrentThread();
-        value.flip();
-        return this;
+        throw new NotImplementedException();
     }
 
     @Override
     public OakWBuffer rewind() {
-        assert writeLock.isHeldByCurrentThread();
-        value.rewind();
-        return this;
+        throw new NotImplementedException();
     }
 
     @Override
     public ByteBuffer getByteBuffer() {
-        assert writeLock.isHeldByCurrentThread();
-        return value;
+        throw new NotImplementedException();
     }
 
     public ByteBuffer getImmutableByteBuffer() {
         //TODO: check that the read lock is held by the current thread
-        ByteBuffer readOnlyBB = value.asReadOnlyBuffer();
-        // the new read only BB object capacity, limit, position, and mark values
-        // will be identical to those of the value buffer (shared with others).
-        // for thread-safeness the returned BB need to be rewind
-        readOnlyBB.rewind();
         return value.asReadOnlyBuffer();
     }
 
     @Override
     // increments the position and thus should be used only in write mode
     public byte get() {
-        assert writeLock.isHeldByCurrentThread();
-        return value.get();
+        throw new NotImplementedException();
     }
 
     @Override
     public OakWBuffer put(byte b) {
-        assert writeLock.isHeldByCurrentThread();
-        value.put(b);
-        return this;
+        throw new NotImplementedException();
     }
 
     @Override
     public int capacity() {
-        return value.capacity();
-    }
-
-    int capacityLock() {
-        readLock.lock();
-        if (isDeleted()) {
-            readLock.unlock();
-            throw new NullPointerException();
-        }
-        int capacity;
-        try {
-            capacity = value.capacity();
-        } finally {
-            readLock.unlock();
-        }
-        return capacity;
+        throw new NotImplementedException();
     }
 
     @Override
     public int position() {
-        return value.position();
-    }
-
-    int positionLock() {
-        readLock.lock();
-        if (isDeleted()) {
-            readLock.unlock();
-            throw new NullPointerException();
-        }
-        int position;
-        try {
-            position = value.position();
-        } finally {
-            readLock.unlock();
-        }
-        return position;
+        throw new NotImplementedException();
     }
 
     @Override
     public int limit() {
-        return value.limit();
+        throw new NotImplementedException();
     }
 
-    int limitLock() {
-        readLock.lock();
-        if (isDeleted()) {
-            readLock.unlock();
-            throw new NullPointerException();
-        }
-        int limit;
-        try {
-            limit = value.limit();
-        } finally {
-            readLock.unlock();
-        }
-        return limit;
-    }
 
     @Override
     public int remaining() {
-        return value.remaining();
+        throw new NotImplementedException();
     }
 
-    int remainingLock() {
-        readLock.lock();
-        if (isDeleted()) {
-            readLock.unlock();
-            throw new NullPointerException();
-        }
-        int remaining;
-        try {
-            remaining = value.remaining();
-        } finally {
-            readLock.unlock();
-        }
-        return remaining;
-    }
 
     @Override
     public boolean hasRemaining() {
         return value.hasRemaining();
     }
 
-    boolean hasRemainingLock() {
-        readLock.lock();
-        if (isDeleted()) {
-            readLock.unlock();
-            throw new NullPointerException();
-        }
-        boolean hasRemaining;
-        try {
-            hasRemaining = value.hasRemaining();
-        } finally {
-            readLock.unlock();
-        }
-        return hasRemaining;
-    }
-
     @Override
     public byte get(int index) {
-        return value.get(index);
-    }
-
-    byte getLock(int index) {
-        readLock.lock();
-        if (isDeleted()) {
-            readLock.unlock();
-            throw new NullPointerException();
-        }
-        byte b;
-        try {
-            b = get(index);
-        } finally {
-            readLock.unlock();
-        }
-        return b;
+        return value.get(value.position() + index);
     }
 
     @Override
     public OakWBuffer put(int index, byte b) {
         assert writeLock.isHeldByCurrentThread();
-        value.put(index, b);
+        value.put(value.position() + index, b);
         return this;
     }
 
@@ -303,42 +190,25 @@ class Handle<V> implements OakWBuffer {
     // increments the position and thus should be used only in write mode
     public OakWBuffer get(byte[] dst, int offset, int length) {
         assert writeLock.isHeldByCurrentThread();
-        value.get(dst, offset, length);
+        value.get(dst, value.position() + offset, length);
         return this;
     }
 
     @Override
     public OakWBuffer put(byte[] src, int offset, int length) {
         assert writeLock.isHeldByCurrentThread();
-        value.put(src, offset, length);
+        value.put(src, value.position() + offset, length);
         return this;
     }
 
     @Override
     public OakWBuffer put(byte[] src) {
-        assert writeLock.isHeldByCurrentThread();
-        value.put(src);
-        return this;
+        throw new NotImplementedException();
     }
 
     @Override
     public ByteOrder order() {
         return value.order();
-    }
-
-    ByteOrder orderLock() {
-        readLock.lock();
-        if (isDeleted()) {
-            readLock.unlock();
-            throw new NullPointerException();
-        }
-        ByteOrder order;
-        try {
-            order = order();
-        } finally {
-            readLock.unlock();
-        }
-        return order;
     }
 
     @Override
@@ -349,235 +219,133 @@ class Handle<V> implements OakWBuffer {
 
     @Override
     public char getChar() {
-        return value.getChar();
+        throw new NotImplementedException();
     }
 
     @Override
     public OakWBuffer putChar(char value) {
-        assert writeLock.isHeldByCurrentThread();
-        this.value.putChar(value);
-        return this;
+        throw new NotImplementedException();
     }
 
     @Override
     public char getChar(int index) {
-        return value.getChar(index);
-    }
-
-    char getCharLock(int index) {
-        readLock.lock();
-        if (isDeleted()) {
-            readLock.unlock();
-            throw new ConcurrentModificationException();
-        }
-        char c;
-        try {
-            c = getChar(index);
-        } finally {
-            readLock.unlock();
-        }
-        return c;
+        return value.getChar(value.position() + index);
     }
 
     @Override
     public OakWBuffer putChar(int index, char value) {
         assert writeLock.isHeldByCurrentThread();
-        this.value.putChar(index, value);
+        this.value.putChar(this.value.position() + index, value);
         return this;
     }
 
     @Override
     public short getShort() {
-        return value.getShort();
+        throw new NotImplementedException();
     }
 
     @Override
     public OakWBuffer putShort(short value) {
-        assert writeLock.isHeldByCurrentThread();
-        this.value.putShort(value);
-        return this;
+        throw new NotImplementedException();
     }
 
     @Override
     public short getShort(int index) {
-        return value.getShort(index);
-    }
-
-    short getShortLock(int index) {
-        readLock.lock();
-        if (isDeleted()) {
-            readLock.unlock();
-            throw new NullPointerException();
-        }
-        short s;
-        try {
-            s = getShort(index);
-        } finally {
-            readLock.unlock();
-        }
-        return s;
+        return value.getShort(value.position() + index);
     }
 
     @Override
     public OakWBuffer putShort(int index, short value) {
         assert writeLock.isHeldByCurrentThread();
-        this.value.putShort(index, value);
+        this.value.putShort(this.value.position() + index, value);
         return this;
     }
 
     @Override
     public int getInt() {
-        return value.getInt();
+        throw new NotImplementedException();
     }
 
     @Override
     public OakWBuffer putInt(int value) {
-        assert writeLock.isHeldByCurrentThread();
-        this.value.putInt(value);
-        return this;
+        throw new NotImplementedException();
     }
 
     @Override
     public int getInt(int index) {
-        return value.getInt(index);
-    }
-
-    int getIntLock(int index) {
-        readLock.lock();
-        if (isDeleted()) {
-            readLock.unlock();
-            throw new NullPointerException();
-        }
-        int j;
-        try {
-            j = getInt(index);
-        } finally {
-            readLock.unlock();
-        }
-        return j;
+        return value.getInt(value.position() + index);
     }
 
     @Override
     public OakWBuffer putInt(int index, int value) {
         assert writeLock.isHeldByCurrentThread();
-        this.value.putInt(index, value);
+        this.value.putInt(this.value.position() + index, value);
         return this;
     }
 
     @Override
     public long getLong() {
-        return value.getLong();
+        throw new NotImplementedException();
     }
 
     @Override
     public OakWBuffer putLong(long value) {
-        assert writeLock.isHeldByCurrentThread();
-        this.value.putLong(value);
-        return this;
+        throw new NotImplementedException();
     }
 
     @Override
     public long getLong(int index) {
-        return value.getLong(index);
-    }
-
-    long getLongLock(int index) {
-        readLock.lock();
-        if (isDeleted()) {
-            readLock.unlock();
-            throw new NullPointerException();
-        }
-        long l;
-        try {
-            l = getLong(index);
-        } finally {
-            readLock.unlock();
-        }
-        return l;
+        return value.getLong(value.position() + index);
     }
 
     @Override
     public OakWBuffer putLong(int index, long value) {
         assert writeLock.isHeldByCurrentThread();
-        this.value.putLong(index, value);
+        this.value.putLong(this.value.position() + index, value);
         return this;
     }
 
     @Override
     public float getFloat() {
-        return value.getFloat();
+        throw new NotImplementedException();
     }
 
     @Override
     public OakWBuffer putFloat(float value) {
-        assert writeLock.isHeldByCurrentThread();
-        this.value.putFloat(value);
-        return this;
+        throw new NotImplementedException();
     }
 
     @Override
     public float getFloat(int index) {
-        return value.getFloat(index);
-    }
-
-    float getFloatLock(int index) {
-        readLock.lock();
-        if (isDeleted()) {
-            readLock.unlock();
-            throw new NullPointerException();
-        }
-        float f;
-        try {
-            f = getFloat(index);
-        } finally {
-            readLock.unlock();
-        }
-        return f;
+        return value.getFloat(value.position() + index);
     }
 
     @Override
     public OakWBuffer putFloat(int index, float value) {
         assert writeLock.isHeldByCurrentThread();
-        this.value.putFloat(index, value);
+        this.value.putFloat(this.value.position() + index, value);
         return this;
     }
 
     @Override
     public double getDouble() {
-        return value.getDouble();
+        throw new NotImplementedException();
     }
 
     @Override
     public OakWBuffer putDouble(double value) {
-        assert writeLock.isHeldByCurrentThread();
-        this.value.putDouble(value);
-        return this;
+        throw new NotImplementedException();
     }
 
     @Override
     public double getDouble(int index) {
-        return value.getDouble(index);
-    }
-
-    double getDoubleLock(int index) {
-        readLock.lock();
-        if (isDeleted()) {
-            readLock.unlock();
-            throw new NullPointerException();
-        }
-        double d;
-        try {
-            d = getDouble(index);
-        } finally {
-            readLock.unlock();
-        }
-        return d;
+        return value.getDouble(value.position() + index);
     }
 
     @Override
     public OakWBuffer putDouble(int index, double value) {
         assert writeLock.isHeldByCurrentThread();
-        this.value.putDouble(index, value);
+        this.value.putDouble(this.value.position() + index, value);
         return this;
     }
 }

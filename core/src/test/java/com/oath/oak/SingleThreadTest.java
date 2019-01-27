@@ -147,7 +147,6 @@ public class SingleThreadTest {
         }
         for (Integer i = 0; i < 4 * maxItemsPerChunk; i++) {
             value = oak.get(i);
-            assertTrue(value != null);
             TestCase.assertEquals(i, value);
         }
     }

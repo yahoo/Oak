@@ -40,12 +40,6 @@ class Block {
         ByteBuffer bb = buffer.duplicate();
         bb.position(now);
         bb.limit(now + size);
-        // slice() must be used in order to limit the access on the new byte buffer, otherwise
-        // one can access bytebuffer below position and till the huge (immutable) capacity
-        // slice sets position, limit and capacity
-        bb = bb.slice();
-        assert bb.position() == 0;
-        assert buffer.position() == 0;
         return bb;
     }
 

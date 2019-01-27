@@ -19,7 +19,7 @@ import static org.junit.Assert.assertTrue;
 
 public class ComputeTest {
 
-    private static int NUM_THREADS;
+    private static int NUM_THREADS = 16;
 
     static OakMap<ByteBuffer, ByteBuffer> oak;
     private static final long K = 1024;
@@ -38,7 +38,7 @@ public class ComputeTest {
         @Override
         public void serialize(ByteBuffer obj, ByteBuffer targetBuffer) {
             for (int i = 0; i < keySize; i++) {
-                targetBuffer.putInt(Integer.BYTES * i, obj.getInt(Integer.BYTES * i));
+                targetBuffer.putInt(targetBuffer.position() + Integer.BYTES * i, obj.getInt(Integer.BYTES * i));
             }
         }
 
@@ -47,7 +47,7 @@ public class ComputeTest {
             ByteBuffer key = ByteBuffer.allocate(keySize);
             key.position(0);
             for (int i = 0; i < keySize; i++) {
-                key.putInt(Integer.BYTES * i, byteBuffer.getInt(Integer.BYTES * i));
+                key.putInt(Integer.BYTES * i, byteBuffer.getInt(byteBuffer.position() + Integer.BYTES * i));
             }
             key.position(0);
             return key;
@@ -64,7 +64,7 @@ public class ComputeTest {
         @Override
         public void serialize(ByteBuffer value, ByteBuffer targetBuffer) {
             for (int i = 0; i < valSize; i++) {
-                targetBuffer.putInt(Integer.BYTES * i, value.getInt(Integer.BYTES * i));
+                targetBuffer.putInt(targetBuffer.position() + Integer.BYTES * i, value.getInt(Integer.BYTES * i));
             }
         }
 
@@ -73,7 +73,7 @@ public class ComputeTest {
             ByteBuffer value = ByteBuffer.allocate(valSize * Integer.BYTES);
             value.position(0);
             for (int i = 0; i < valSize; i++) {
-                value.putInt(Integer.BYTES * i, serializedValue.getInt(Integer.BYTES * i));
+                value.putInt(Integer.BYTES * i, serializedValue.getInt(serializedValue.position() + Integer.BYTES * i));
             }
             value.position(0);
             return value;
@@ -117,13 +117,16 @@ public class ComputeTest {
             if (oakWBuffer.getInt(0) == oakWBuffer.getInt(Integer.BYTES * keySize)) {
                 return;
             }
+            int index = 0;
             int[] arr = new int[keySize];
             for (int i = 0; i < 50; i++) {
                 for (int j = 0; j < keySize; j++) {
-                    arr[j] = oakWBuffer.getInt();
+                    arr[j] = oakWBuffer.getInt(index);
+                    index+=Integer.BYTES;
                 }
                 for (int j = 0; j < keySize; j++) {
-                    oakWBuffer.putInt(arr[j]);
+                    oakWBuffer.putInt(index, arr[j]);
+                    index+=Integer.BYTES;
                 }
             }
         }
@@ -166,7 +169,6 @@ public class ComputeTest {
 
     @Test
     public void testMain() throws InterruptedException {
-
         ByteBuffer minKey = ByteBuffer.allocate(keySize * Integer.BYTES);
         minKey.position(0);
         for (int i = 0; i < keySize; i++) {
@@ -184,7 +186,7 @@ public class ComputeTest {
 
         oak = (OakMap<ByteBuffer, ByteBuffer>) builder.build();
 
-        NUM_THREADS = 16;
+
         numOfEntries = 100;
 
 
