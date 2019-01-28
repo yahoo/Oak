@@ -27,7 +27,7 @@ public class OakNativeMemoryAllocator implements OakMemoryAllocator {
 
     // free list of ByteBuffers which can be reused - sorted by buffer size, then by unique hash
     private Comparator<Pair<Integer, ByteBuffer>> comparator =
-            Comparator.<Pair<Integer, ByteBuffer>, Integer>comparing(p -> p.getValue().capacity())
+            Comparator.<Pair<Integer, ByteBuffer>, Integer>comparing(p -> p.getValue().remaining())
             .thenComparing(Pair::getKey);
     private final ConcurrentSkipListSet<Pair<Integer,ByteBuffer>> freeList = new ConcurrentSkipListSet<>(comparator);
     private final BlocksProvider blocksProvider;
@@ -72,7 +72,6 @@ public class OakNativeMemoryAllocator implements OakMemoryAllocator {
                 if (bb.remaining() > (RECLAIM_FACTOR * size)) break;     // all remaining buffers are too big
 
                 if (bb.remaining() >= size && freeList.remove(kv)) {
-                    assert bb.position() == 0;
                     if (stats != null) stats.reclaim(size);
                     return bb;
                 }
@@ -163,7 +162,7 @@ public class OakNativeMemoryAllocator implements OakMemoryAllocator {
         public void release(ByteBuffer bb) {
             synchronized (this) {
                 releasedBuffers++;
-                releasedBytes += bb.limit();
+                releasedBytes += bb.remaining();
             }
         }
 

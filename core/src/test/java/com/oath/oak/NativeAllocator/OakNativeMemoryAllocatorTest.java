@@ -248,18 +248,18 @@ public class OakNativeMemoryAllocatorTest {
 
         // Verify free list ordering
         ByteBuffer bb = allocator.allocate(4);
-        assertEquals(4, bb.capacity());
+        assertEquals(4, bb.remaining());
         bb = allocator.allocate(4);
-        assertEquals(8, bb.capacity());
+        assertEquals(8, bb.remaining());
 
         stats = allocator.getStats();
         assertEquals(2, stats.reclaimedBuffers);
         assertEquals(8, stats.reclaimedBytes);
 
         bb = allocator.allocate(32);
-        assertEquals(32, bb.capacity());
+        assertEquals(32, bb.remaining());
         bb = allocator.allocate(16);
-        assertEquals(16, bb.capacity());
+        assertEquals(16, bb.remaining());
 
         assertEquals(sizes.length, stats.reclaimedBuffers);
         // We lost 4 bytes recycling an 8-byte buffer for a 4-byte allocation
