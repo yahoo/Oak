@@ -1,14 +1,16 @@
 package com.oath.oak.synchrobench.contention.benchmark;
 
-import com.oath.oak.synchrobench.contention.abstractions.*;
+import com.oath.oak.synchrobench.contention.abstractions.CompositionalMap;
+import com.oath.oak.synchrobench.contention.abstractions.CompositionalOakMap;
+import com.oath.oak.synchrobench.contention.abstractions.MaintenanceAlg;
 import com.oath.oak.synchrobench.maps.MyBuffer;
+import com.oath.oak.synchrobench.maps.OakMap;
 
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Method;
 import java.util.Formatter;
 import java.util.Locale;
 import java.util.Random;
-import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Synchrobench-java, a benchmark to evaluate the implementations of 
@@ -31,6 +33,8 @@ public class Test {
 	private double elapsedTime;
 	/** The throughput */
 	private double[] throughput = null;
+	/** Element count */
+    private int[] totalSize = null;
 	/** The iteration */
 	private int currentIteration = 0;
 
@@ -149,6 +153,7 @@ public class Test {
 		}
 		instanciateAbstraction(Parameters.benchClassName);
 		this.throughput = new double[Parameters.iterations];
+		this.totalSize = new int[Parameters.iterations];
 	}
 
 	/**
@@ -238,10 +243,12 @@ public class Test {
 			}
 
 			test.printBasicStats();
-			if (Parameters.detailedStats)
-				test.printDetailedStats();
+			if (Parameters.detailedStats) {
+                test.printDetailedStats();
+                ((OakMap) test.oakBench).printMemStats();
+            }
 
-			firstIteration = false;
+            firstIteration = false;
 			test.currentIteration++;
 		}
 
@@ -474,6 +481,7 @@ public class Test {
 			}
 		}
 		throughput[currentIteration] = ((double) total / elapsedTime);
+		totalSize[currentIteration] = oakBench.size();
 		printLine('-');
 		System.out.println("Benchmark statistics");
 		printLine('-');
@@ -516,8 +524,8 @@ public class Test {
 				+ " %)");
 		switch(benchType) {
             case OAKMAP:
-			System.out.println("  Final size:              \t" + oakBench.size());
-			if (Parameters.numWriteAlls == 0) System.out.println("  Expected size:           \t" + (Parameters.size+numAdd-numRemove));
+			System.out.println("  Final size:              \t" + totalSize[currentIteration]);
+			if (Parameters.numWriteAlls == 0) System.out.println("  Expected size:           \t" + (Parameters.size + numAdd - numRemove));
 			break;
 		}
 
@@ -816,12 +824,16 @@ public class Test {
 		int n = Parameters.iterations;
 		System.out.println("  Iterations:                 \t" + n);
 		double sum = 0;
+        int sizeSum = 0;
 		for (int i = 0; i < n; i++) {
 			sum += ((throughput[i]/1024)/1024);
-		}
+            sizeSum += totalSize[i];
+        }
 		System.out.println("  Total throughput (mebiops/s): " + sum);
 		double mean = sum / n;
+		double meanSize = (double) sizeSum / n;
 		System.out.println("  |--Mean:                    \t" + mean);
+		System.out.println("  |--Mean Total Size:         \t" + meanSize);
 		double temp = 0;
 		for (int i = 0; i < n; i++) {
 			double diff = ((throughput[i]/1024)/1024) - mean;

@@ -1,27 +1,12 @@
 #!/bin/bash
 
-dir=..
+dir=`pwd`
 output=${dir}/output
-bin=${dir}/bin
 java=java
-jarfile="../oak-synchrobench.jar"
-javaopt="-server -Xmx8g -XX:MaxDirectMemorySize=16g"
+jarfile="target/oak-benchmarks-synchrobench-0.1.4-SNAPSHOT.jar"
+javaopt="-server"
 
-### javac options
-# -O (dead-code erasure, constants pre-computation...)
-### JVM HotSpot options
-# -server (Run the JVM in server mode) 
-# -Xmx1g -Xms1g (set memory size)
-# -Xss2048k (Set stack size)
-# -Xoptimize (Use the optimizing JIT compiler) 
-# -XX:+UseBoundThreads (Bind user threads to Solaris kernel threads)
-###
-
-stms="estm estmmvcc"
-syncs="oak"
-#syncs="sequential lockbased lockfree transactional"
-#thread="1 2 4 8 16 32 64"
-thread="01 04 12 24"
+thread="01 04 08 12"
 
 #size="16384 65536"
 size="5000000"
@@ -46,21 +31,9 @@ else
 fi
 
 
-mkdir ${output}/log ${output}/data ${output}/plot ${output}/ps
-
 ###############################
 # records all benchmark outputs
 ###############################
-
-
-# Oak vs JavaSkipList
-benchClassPrefix="com.oath.oak.synchrobench.maps"
-benchs="OakMap JavaSkipListMap"
-#declare -A scenarios=(["get-only"]=""
-#                      ["ascend-only"]="-c"
-#                      ["descend-only"]="-c -a 100"
-#                      ["put-remove-50-50"]="-a 50 -u 100"
-#                     )
 
 #declare -A scenarios=(["get-only"]=""
 #                      ["ascend-only"]="-c"
@@ -68,30 +41,44 @@ benchs="OakMap JavaSkipListMap"
 #                      ["put-only"]="-a 0 -u 100"
 #                     )
 
-
 declare -A scenarios=(["put-only"]="-a 0 -u 100")
+
+declare -A heap_limit=(["OakMap"]="8g 12g 16g"
+                       ["JavaSkipListMap"]="12g 16g 20g 24g 28g"
+                      )
+
+directMemSize="12g"
+
+duration="30000"
+
+# Oak vs JavaSkipList
+benchClassPrefix="com.oath.oak.synchrobench.maps"
+benchs="OakMap JavaSkipListMap"
 
 echo "Starting oak test `date`"
 
-if [[ "${syncs}" =~ "oak" ]]; then
-#for bench in ${benchs}; do
 for scenario in ${!scenarios[@]}; do
   for bench in ${benchs}; do
     echo ""
     echo "Scenario: ${bench} ${scenario}"
-    for write in ${writes}; do
-      for t in ${thread}; do
-        for i in ${size}; do
-          r=`echo "2*${i}" | bc`
-          out=${output}/log/oak-${scenario}-${bench}-i${i}-t${t}.log
-          cmd="${java} ${javaopt} -jar ${jarfile} -b ${benchClassPrefix}.${bench} ${scenarios[$scenario]} -k ${keysize} -v ${valuesize} -i ${i} -r ${r} -n ${iterations} -t ${t}"
-          echo ${cmd} >> ${out}
-          ${cmd} >> ${out} 2>&1
+    heapSize="${heap_limit[${bench}]}"
+    for heapLimit in ${heapSize}; do
+      javaopt="-server -Xmx${heapLimit} -XX:MaxDirectMemorySize=${directMemSize}"
+      for write in ${writes}; do
+        for t in ${thread}; do
+          for i in ${size}; do
+            r=`echo "2*${i}" | bc`
+            out=${output}/oak-${scenario}-${bench}-xmx${heapLimit}-DirectMeM${directMemSize}-t${t}.log
+            cmd="${java} ${javaopt} -jar ${jarfile} -b ${benchClassPrefix}.${bench} ${scenarios[$scenario]} -k ${keysize} -v ${valuesize} -i ${i} -r ${r} -n ${iterations} -t ${t} -d ${duration}"
+            echo ${cmd}
+            echo ${cmd} >> ${out}
+            ${cmd} >> ${out} 2>&1
+          done
         done
       done
     done
   done
 done
-fi
 
 echo "Oak test complete `date`"
+

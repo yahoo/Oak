@@ -18,11 +18,18 @@ import java.util.concurrent.atomic.AtomicLong;
 
 public class OakNativeMemoryAllocator implements OakMemoryAllocator {
 
+    // When allocating n bytes and there are buffers in the free list, only free buffers of size <= n * RECLAIM_FACTOR will be recycled
+    // This parameter may be tuned for performance vs off-heap memory utilization
+    private static final int RECLAIM_FACTOR = 2;
+
     // blocks allocated solely to this Allocator
     private final ConcurrentLinkedQueue<Block> blocks = new ConcurrentLinkedQueue<>();
-    // free list of ByteBuffers which can be reused
-    private final ConcurrentSkipListSet<Pair<Integer,ByteBuffer>> freeList =
-        new ConcurrentSkipListSet<>(Comparator.comparing(Pair::getKey));
+
+    // free list of ByteBuffers which can be reused - sorted by buffer size, then by unique hash
+    private Comparator<Pair<Integer, ByteBuffer>> comparator =
+            Comparator.<Pair<Integer, ByteBuffer>, Integer>comparing(p -> p.getValue().capacity())
+            .thenComparing(Pair::getKey);
+    private final ConcurrentSkipListSet<Pair<Integer,ByteBuffer>> freeList = new ConcurrentSkipListSet<>(comparator);
     private final BlocksProvider blocksProvider;
     private Block currentBlock;
 
@@ -61,8 +68,11 @@ public class OakNativeMemoryAllocator implements OakMemoryAllocator {
         if (!freeList.isEmpty()) {
             for (Pair<Integer, ByteBuffer> kv : freeList) {
                 ByteBuffer bb = kv.getValue();
+                if (bb.capacity() > (RECLAIM_FACTOR * size)) break;     // all remaining buffers are too big
+
                 if (bb.capacity() >= size && freeList.remove(kv)) {
                     assert bb.position() == 0;
+                    if (stats != null) stats.reclaim(size);
                     return bb;
                 }
             }
@@ -111,6 +121,9 @@ public class OakNativeMemoryAllocator implements OakMemoryAllocator {
         byte[] zeroes = new byte[bb.remaining()];
         bb.put(zeroes);
         bb.rewind(); // put the position back to zero
+
+        if (stats != null) stats.release(bb);
+
         freeList.add(new Pair<>(System.identityHashCode(bb), bb));
     }
 
@@ -136,4 +149,38 @@ public class OakNativeMemoryAllocator implements OakMemoryAllocator {
 
     // used only for testing
     int numOfAllocatedBlocks() { return blocks.size(); }
+
+
+    private Stats stats = null;
+
+    public void collectStats() {
+        stats = new Stats();
+    }
+
+    public Stats getStats() {
+        return stats;
+    }
+
+    public class Stats {
+        public int reclaimedBuffers;
+        public int releasedBuffers;
+        public long releasedBytes;
+        public long reclaimedBytes;
+
+        public void release(ByteBuffer bb) {
+            synchronized (this) {
+                releasedBuffers++;
+                releasedBytes += bb.limit();
+            }
+        }
+
+        public void reclaim(int size) {
+            synchronized (this) {
+                reclaimedBuffers++;
+                reclaimedBytes += size;
+            }
+        }
+    }
 }
+
+
