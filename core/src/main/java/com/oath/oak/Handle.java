@@ -75,7 +75,7 @@ class Handle<V> implements OakWBuffer {
         } else {
 
         }
-        serializer.serialize(newVal, this.value);
+        serializer.serialize(newVal, this.value.slice());
         writeLock.unlock();
     }
 
@@ -128,12 +128,12 @@ class Handle<V> implements OakWBuffer {
 
     @Override
     public ByteBuffer getByteBuffer() {
-        throw new NotImplementedException();
+        return value.slice();
     }
 
     public ByteBuffer getImmutableByteBuffer() {
         //TODO: check that the read lock is held by the current thread
-        return value.asReadOnlyBuffer();
+        return value.asReadOnlyBuffer().slice();
     }
 
     @Override
