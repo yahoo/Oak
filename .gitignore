@@ -25,3 +25,4 @@ oak.iml
 hs_err_pid*
 target/
 *.iml
+benchmarks/synchrobench/dependency-reduced-pom.xml

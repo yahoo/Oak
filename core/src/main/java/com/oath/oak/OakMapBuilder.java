@@ -133,13 +133,11 @@ public class OakMapBuilder<K,V> {
 
       @Override
       public void serialize(Integer obj, ByteBuffer targetBuffer) {
-        assert targetBuffer.position() == 0;
         targetBuffer.putInt(targetBuffer.position(), obj);
       }
 
       @Override
       public Integer deserialize(ByteBuffer serializedObj) {
-        assert serializedObj.position() == 0;
         return serializedObj.getInt(serializedObj.position());
       }
 

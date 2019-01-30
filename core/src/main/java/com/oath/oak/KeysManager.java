@@ -23,7 +23,6 @@ class KeysManager<K> {
                            MemoryManager memoryManager,
                            OakSerializer<K> keySerializer) {
         keys = memoryManager.allocate(bytes);
-        assert keys.position() == 0;
         this.memoryManager = memoryManager;
         this.keySerializer = keySerializer;
         this.released = new AtomicBoolean(false);
@@ -34,19 +33,16 @@ class KeysManager<K> {
     }
 
     public void writeKey(K key, int ki) {
-        assert keys.position() == 0;
         ByteBuffer byteBuffer = keys.duplicate();
-        byteBuffer.position(ki);
-        byteBuffer.limit(ki + keySerializer.calculateSize(key));
+        byteBuffer.position(keys.position() + ki);
+        byteBuffer.limit(keys.position() + ki + keySerializer.calculateSize(key));
         byteBuffer = byteBuffer.slice();
-        assert byteBuffer.position() == 0;
         // byteBuffer is set so it protects us from the overwrites of the serializer
         keySerializer.serialize(key, byteBuffer);
     }
 
     public ByteBuffer getKeys() {
-        assert keys.position() == 0;
-        return keys.duplicate();
+        return keys;
     }
 
     public void release() {
@@ -56,6 +52,7 @@ class KeysManager<K> {
     }
 
     public void copyKeys(KeysManager srcKeysManager, int srcIndex, int index, int lengthToCopy) {
+
         ByteBuffer srcKeys = srcKeysManager.getKeys();
         int srcKeyPos = srcKeys.position();
         int myPos = keys.position();
@@ -68,7 +65,6 @@ class KeysManager<K> {
     }
 
     public int getPosition() {
-        assert keys.position() == 0;
         return keys.position();
     }
 }
