@@ -31,7 +31,7 @@ class Handle<V> implements OakWBuffer {
 
     void increaseValueCapacity(MemoryManager memoryManager) {
         assert writeLock.isHeldByCurrentThread();
-        ByteBuffer newValue = memoryManager.allocate(value.capacity() * 2);
+        ByteBuffer newValue = memoryManager.allocate(value.remaining() * 2);
         for (int j = 0; j < value.limit(); j++) {
             newValue.put(j, value.get(j));
         }
@@ -72,8 +72,6 @@ class Handle<V> implements OakWBuffer {
         if (this.value.remaining() < capacity) { // can not reuse the existing space
             memoryManager.release(this.value);
             this.value = memoryManager.allocate(capacity);
-        } else {
-
         }
         serializer.serialize(newVal, this.value.slice());
         writeLock.unlock();
@@ -128,6 +126,7 @@ class Handle<V> implements OakWBuffer {
 
     @Override
     public ByteBuffer getByteBuffer() {
+        assert writeLock.isHeldByCurrentThread();
         return value.slice();
     }
 

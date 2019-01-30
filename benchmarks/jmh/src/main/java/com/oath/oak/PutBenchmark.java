@@ -49,7 +49,6 @@ public class PutBenchmark {
                     .setValueSerializer(new StringSerializer())
                     .setComparator(new StringComparator())
                     .setMinKey("")
-                    .setMemoryAllocator(new MemAllocator())
                     .setChunkBytesPerItem(KEY_SIZE_BYTES);
 
             oakMap = builder.build();

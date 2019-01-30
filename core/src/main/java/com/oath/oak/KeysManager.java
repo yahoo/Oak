@@ -36,6 +36,7 @@ class KeysManager<K> {
         ByteBuffer byteBuffer = keys.duplicate();
         byteBuffer.position(keys.position() + ki);
         byteBuffer.limit(keys.position() + ki + keySerializer.calculateSize(key));
+        byteBuffer = byteBuffer.slice();
         // byteBuffer is set so it protects us from the overwrites of the serializer
         keySerializer.serialize(key, byteBuffer);
     }
