@@ -26,7 +26,7 @@ import org.openjdk.jmh.runner.options.Options;
 import org.openjdk.jmh.runner.options.OptionsBuilder;
 
 
-
+import java.nio.ByteBuffer;
 import java.util.concurrent.TimeUnit;
 
 @Warmup(iterations = 5)
@@ -90,9 +90,9 @@ public class ScanBenchmark
     public void bufferViewScan(Blackhole blackhole) {
 
         try (OakBufferView<String> bufferView = oakMap.createBufferView()) {
-            OakIterator<OakRBuffer> iterator = bufferView.keysIterator();
+            OakIterator<ByteBuffer> iterator = bufferView.keysIterator();
             while (iterator.hasNext()) {
-                OakRBuffer val = iterator.next();
+                ByteBuffer val = iterator.next();
                 blackhole.consume(val);
             }
         }
@@ -113,9 +113,9 @@ public class ScanBenchmark
     public void inverseBufferViewScan(Blackhole blackhole) {
         try (OakMap inverseMap = oakMap.descendingMap();
              OakBufferView<String> bufferView = inverseMap.createBufferView()) {
-            OakIterator<OakRBuffer> iterator = bufferView.keysIterator();
+            OakIterator<ByteBuffer> iterator = bufferView.keysIterator();
             while (iterator.hasNext()) {
-                OakRBuffer val = iterator.next();
+                ByteBuffer val = iterator.next();
                 blackhole.consume(val);
             }
         }

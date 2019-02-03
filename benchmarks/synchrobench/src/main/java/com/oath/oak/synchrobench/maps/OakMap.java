@@ -6,6 +6,8 @@ import com.oath.oak.NativeAllocator.OakNativeMemoryAllocator;
 import com.oath.oak.synchrobench.contention.abstractions.CompositionalOakMap;
 import com.oath.oak.synchrobench.contention.benchmark.Parameters;
 
+import java.nio.ByteBuffer;
+
 public class OakMap<K, V> implements CompositionalOakMap<K, V> {
     private com.oath.oak.OakMap<MyBuffer, MyBuffer> oak;
     private OakMapBuilder<MyBuffer, MyBuffer> builder;
@@ -68,7 +70,7 @@ public class OakMap<K, V> implements CompositionalOakMap<K, V> {
         try (com.oath.oak.OakMap<MyBuffer, MyBuffer> sub = oak.tailMap((MyBuffer) from, true)) {
             OakBufferView<MyBuffer> oakView = sub.createBufferView();
             i = 0;
-            OakIterator<OakRBuffer> iter = oakView.keysIterator();
+            OakIterator<ByteBuffer> iter = oakView.keysIterator();
             while (iter.hasNext() && i < length) {
                 i++;
                 iter.next();
@@ -88,7 +90,7 @@ public class OakMap<K, V> implements CompositionalOakMap<K, V> {
         com.oath.oak.OakMap<MyBuffer, MyBuffer> sub = desc.tailMap((MyBuffer) from, true);
         OakBufferView<MyBuffer> oakView = sub.createBufferView();
         int i = 0;
-        OakIterator<OakRBuffer> iter = oakView.keysIterator();
+        OakIterator<ByteBuffer> iter = oakView.keysIterator();
         while (iter.hasNext() && i < length) {
             i++;
             iter.next();

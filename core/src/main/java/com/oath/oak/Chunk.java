@@ -531,7 +531,8 @@ public class Chunk<K, V> {
         } else if (operation == Operation.COMPUTE){
             Handle h = handles[foundHandleIdx];
             if(h != null){
-                boolean succ = h.compute(opData.computer, memoryManager);
+                //TODO YONIGO - in this compute is the memory manager needed?
+                boolean succ = h.compute(opData.computer);
                 if (!succ) {
                     // we tried to perform the compute but the handle was deleted,
                     // we can get to pointToValue with Operation.COMPUTE only from PIACIP

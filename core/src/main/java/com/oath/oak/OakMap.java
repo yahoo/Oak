@@ -257,7 +257,7 @@ public class OakMap<K, V> implements AutoCloseable {
      * @return {@code false} if there was no mapping for the key
      * @throws IllegalArgumentException if the specified key or the function is null
      */
-    public boolean computeIfPresent(K key, Consumer<OakWBuffer> computer) {
+    public boolean computeIfPresent(K key, Consumer<ByteBuffer> computer) {
         if (key == null || computer == null)
             throw new IllegalArgumentException();
         if (!inBounds(key))
@@ -279,7 +279,7 @@ public class OakMap<K, V> implements AutoCloseable {
      * @param value       value to be associated with the specified key
      * @param computer    for computing the new value when the key is present
      */
-    public void putIfAbsentComputeIfPresent(K key, V value, Consumer<OakWBuffer> computer) {
+    public void putIfAbsentComputeIfPresent(K key, V value, Consumer<ByteBuffer> computer) {
         if (key == null || value == null || computer == null)
             throw new IllegalArgumentException();
         if (!inBounds(key))
@@ -458,7 +458,7 @@ public class OakMap<K, V> implements AutoCloseable {
      * Return the OakMap view, where the mappings are presented as OakBuffers without costly deserialization
      */
     public OakBufferView<K> createBufferView(){
-        return new OakBufferView(internalOakMap,this, fromKey, toKey);
+        return new OakBufferView<>(internalOakMap,this, fromKey, toKey);
     }
 
     /**

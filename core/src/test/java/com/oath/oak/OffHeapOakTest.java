@@ -12,6 +12,7 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
 
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
@@ -26,7 +27,7 @@ public class OffHeapOakTest {
     private final int NUM_THREADS = 31;
     private ArrayList<Thread> threads;
     private CountDownLatch latch;
-    private Consumer<OakWBuffer> emptyComputer;
+    private Consumer<ByteBuffer> emptyComputer;
     int maxItemsPerChunk = 248;
     int maxBytesPerChunkItem = 100;
 
@@ -38,9 +39,9 @@ public class OffHeapOakTest {
         oak = (OakMap<Integer, Integer>) builder.build();
         latch = new CountDownLatch(1);
         threads = new ArrayList<>(NUM_THREADS);
-        emptyComputer = new Consumer<OakWBuffer>() {
+        emptyComputer = new Consumer<ByteBuffer>() {
             @Override
-            public void accept(OakWBuffer oakWBuffer) {
+            public void accept(ByteBuffer byteBuffer) {
                 return;
             }
         };

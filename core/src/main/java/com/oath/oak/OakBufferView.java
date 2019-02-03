@@ -6,6 +6,7 @@
 
 package com.oath.oak;
 
+import java.nio.ByteBuffer;
 import java.util.Map;
 
 /**
@@ -29,7 +30,7 @@ public class OakBufferView<K> implements AutoCloseable{
     this.toKey = toKey;
   }
 
-  public OakRBuffer get(K key) {
+  public ByteBuffer get(K key) {
     if (key == null)
       throw new NullPointerException();
     if (!externalOakMap.inBounds(key))
@@ -46,7 +47,7 @@ public class OakBufferView<K> implements AutoCloseable{
    * Returns a {@link OakIterator} of the values contained in this map
    * in ascending order of the corresponding keys.
    */
-  public OakIterator<OakRBuffer> valuesIterator() {
+  public OakIterator<ByteBuffer> valuesIterator() {
     return internalOakMap.valuesBufferViewIterator(
         fromKey, externalOakMap.getFromInclusive(),
         toKey, externalOakMap.getToInclusive(),
@@ -56,7 +57,7 @@ public class OakBufferView<K> implements AutoCloseable{
   /**
    * Returns a {@link OakIterator} of the mappings contained in this map in ascending key order.
    */
-  public OakIterator<Map.Entry<OakRBuffer, OakRBuffer>> entriesIterator() {
+  public OakIterator<Map.Entry<ByteBuffer, ByteBuffer>> entriesIterator() {
     return internalOakMap.entriesBufferViewIterator(
         fromKey, externalOakMap.getFromInclusive(),
         toKey, externalOakMap.getToInclusive(),
@@ -66,7 +67,7 @@ public class OakBufferView<K> implements AutoCloseable{
   /**
    * Returns a {@link OakIterator} of the keys contained in this map in ascending order.
    */
-  public OakIterator<OakRBuffer> keysIterator() {
+  public OakIterator<ByteBuffer> keysIterator() {
     return internalOakMap.keysBufferViewIterator(
         fromKey, externalOakMap.getFromInclusive(),
         toKey, externalOakMap.getToInclusive(),

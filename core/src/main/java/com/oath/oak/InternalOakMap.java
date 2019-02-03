@@ -492,7 +492,7 @@ class InternalOakMap<K, V> {
         Chunk c = findChunk(key); // find chunk matching key
         Chunk.LookUp lookUp = c.lookUp(key);
         if (lookUp != null && lookUp.handle != null) {
-            if (lookUp.handle.compute(computer, memoryManager)) {
+            if (lookUp.handle.compute(computer)) {
                 // compute was successful and handle wasn't found deleted; in case
                 // this handle was already found as deleted, continue to construct another handle
                 return;
@@ -538,7 +538,7 @@ class InternalOakMap<K, V> {
                     ei = prevEi;
                     prevHi = c.getHandleIndex(prevEi);
                 } else {
-                    if (handle.compute(computer, memoryManager)) {
+                    if (handle.compute(computer)) {
                         // compute was successful and handle wasn't found deleted; in case
                         // this handle was already found as deleted, continue to construct another handle
                         return;
@@ -632,7 +632,7 @@ class InternalOakMap<K, V> {
         }
     }
 
-    OakRBuffer get(K key) {
+    ByteBuffer get(K key) {
         if (key == null) {
             throw new NullPointerException();
         }
@@ -642,7 +642,7 @@ class InternalOakMap<K, V> {
         if (lookUp == null || lookUp.handle == null) {
             return null;
         }
-        return new OakRValueBufferImpl(lookUp.handle);
+        return lookUp.handle.getImmutableByteBuffer();
     }
 
     <T> T getValueTransformation(K key, Function<ByteBuffer,T> transformer) {
@@ -655,11 +655,11 @@ class InternalOakMap<K, V> {
         if (lookUp == null || lookUp.handle == null) {
             return null;
         }
-
-        lookUp.handle.readLock.lock();
-        T transformation = transformer.apply(lookUp.handle.getImmutableByteBuffer());
-        lookUp.handle.readLock.unlock();
-        return transformation;
+        return (T) lookUp.handle.transform(transformer);
+//        lookUp.handle.readLock.lock();
+//        T transformation = transformer.apply(lookUp.handle.getImmutableByteBuffer());
+//        lookUp.handle.readLock.unlock();
+//        return transformation;
     }
 
     <T> T getKeyTransformation(K key, Function<ByteBuffer,T> transformer) {
@@ -676,7 +676,8 @@ class InternalOakMap<K, V> {
         return transformer.apply(serializedKey);
     }
 
-    OakRBuffer getKey(K key) {
+    //TODO YONIGO - why would i want this interface?
+    ByteBuffer getKey(K key) {
         if (key == null) {
             throw new NullPointerException();
         }
@@ -687,13 +688,14 @@ class InternalOakMap<K, V> {
             return null;
         }
         ByteBuffer serializedKey = c.readKey(lookUp.entryIndex).slice();
-        return new OakRKeyBufferImpl(serializedKey);
+        //TODO YONIGO ASSERT key is readonly in this and other funciton that return BB of key!
+        return serializedKey;
     }
 
-    OakRBuffer getMinKey() {
+    ByteBuffer getMinKey() {
         Chunk<K, V> c = skiplist.firstEntry().getValue();
-        ByteBuffer serializedMinKey = c.readMinKey();
-        return new OakRKeyBufferImpl(serializedMinKey);
+        ByteBuffer serializedMinKey = c.readMinKey().slice();
+        return serializedMinKey;
     }
 
     <T> T getMinKeyTransformation(Function<ByteBuffer,T> transformer) {
@@ -707,7 +709,7 @@ class InternalOakMap<K, V> {
         return transformer.apply(serializedMinKey);
     }
 
-    OakRBuffer getMaxKey() {
+    ByteBuffer getMaxKey() {
         Chunk<K, V> c = skiplist.lastEntry().getValue();
         Chunk<K, V> next = c.next.getReference();
         // since skiplist isn't updated atomically in split/compaction, the max key might belong in the next chunk
@@ -717,8 +719,8 @@ class InternalOakMap<K, V> {
             next = c.next.getReference();
         }
 
-        ByteBuffer serializedMaxKey = c.readMaxKey();
-        return new OakRKeyBufferImpl(serializedMaxKey);
+        ByteBuffer serializedMaxKey = c.readMaxKey().slice();
+        return serializedMaxKey;
     }
 
     <T> T getMaxKeyTransformation(Function<ByteBuffer,T> transformer) {
@@ -738,7 +740,7 @@ class InternalOakMap<K, V> {
         return transformer.apply(serializedMaxKey);
     }
 
-    boolean computeIfPresent(K key, Consumer<OakWBuffer> computer) {
+    boolean computeIfPresent(K key, Consumer<ByteBuffer> computer) {
         if (key == null || computer == null) {
             throw new NullPointerException();
         }
@@ -747,7 +749,7 @@ class InternalOakMap<K, V> {
         Chunk.LookUp lookUp = c.lookUp(key);
         if (lookUp == null || lookUp.handle == null) return false;
 
-        lookUp.handle.compute(computer, memoryManager);
+        lookUp.handle.compute(computer);
         return true;
     }
 
@@ -1100,19 +1102,19 @@ class InternalOakMap<K, V> {
 
     }
 
-    class ValueIterator extends Iter<OakRBuffer> {
+    class ValueIterator extends Iter<ByteBuffer> {
 
         ValueIterator(K lo, boolean loInclusive, K hi, boolean hiInclusive, boolean isDescending) {
             super(lo, loInclusive, hi, hiInclusive, isDescending);
         }
 
         @Override
-        public OakRBuffer internalNext() {
+        public ByteBuffer internalNext() {
             Handle handle = advance().getValue();
             if (handle == null)
                 return null;
 
-            return new OakRValueBufferImpl(handle);
+            return handle.getImmutableByteBuffer();
         }
     }
 
@@ -1131,26 +1133,22 @@ class InternalOakMap<K, V> {
             if (handle == null) {
                 return null;
             }
-            handle.readLock.lock();
-            T transformation = transformer.apply(handle.getImmutableByteBuffer());
-            handle.readLock.unlock();
-            return transformation;
+            return (T) handle.transform(transformer);
         }
     }
 
-    class EntryIterator extends Iter<Map.Entry<OakRBuffer, OakRBuffer>> {
+    class EntryIterator extends Iter<Map.Entry<ByteBuffer, ByteBuffer>> {
 
         EntryIterator(K lo, boolean loInclusive, K hi, boolean hiInclusive, boolean isDescending) {
             super(lo, loInclusive, hi, hiInclusive, isDescending);
         }
 
-        public Map.Entry<OakRBuffer, OakRBuffer> internalNext() {
+        public Map.Entry<ByteBuffer, ByteBuffer> internalNext() {
             Pair<ByteBuffer, Handle> pair = advance();
             if (pair.getValue() == null) {
                 return null;
             }
-            return new AbstractMap.SimpleImmutableEntry<>(new OakRKeyBufferImpl(pair.getKey()),
-                    new OakRValueBufferImpl(pair.getValue()));
+            return new AbstractMap.SimpleImmutableEntry<>(pair.getKey(), pair.getValue().getImmutableByteBuffer());
         }
     }
 
@@ -1169,39 +1167,39 @@ class InternalOakMap<K, V> {
             Pair<ByteBuffer, Handle> pair = advance();
             Handle handle = pair.getValue();
             ByteBuffer serializedKey = pair.getKey();
-            if (handle == null) {
+            if (handle == null || serializedKey == null) {
                 return null;
             }
-            handle.readLock.lock();
+
+            handle.readLock();
             if (handle.isDeleted()) {
-                handle.readLock.unlock();
+                handle.readUnlock();
                 return null;
             }
             ByteBuffer serializedValue = handle.getImmutableByteBuffer();
-            Map.Entry<ByteBuffer, ByteBuffer> entry = new AbstractMap.SimpleEntry<ByteBuffer, ByteBuffer>(serializedKey, serializedValue);
-            if (serializedKey == null || serializedValue == null || entry == null || transformer == null) {
-                handle.readLock.unlock();
+            Map.Entry<ByteBuffer, ByteBuffer> entry = new AbstractMap.SimpleEntry<>(serializedKey, serializedValue);
+            if (serializedValue == null) {
+                handle.readUnlock();
                 return null;
             }
             T transformation = transformer.apply(entry);
-            handle.readLock.unlock();
+            handle.readUnlock();
             return transformation;
         }
     }
 
-    class KeyIterator extends Iter<OakRBuffer> {
+    class KeyIterator extends Iter<ByteBuffer> {
 
         KeyIterator(K lo, boolean loInclusive, K hi, boolean hiInclusive, boolean isDescending) {
             super(lo, loInclusive, hi, hiInclusive, isDescending);
         }
 
         @Override
-        public OakRBuffer internalNext() {
+        public ByteBuffer internalNext() {
 
             Pair<ByteBuffer, Handle> pair = advance();
-            ByteBuffer serializedKey = pair.getKey();
-            serializedKey = serializedKey.slice(); // TODO can I get rid of this?
-            return new OakRKeyBufferImpl(serializedKey);
+            ByteBuffer serializedKey = pair.getKey().slice(); //TODO YONIGO SLICE NEEDED?
+            return serializedKey;
         }
     }
 
@@ -1225,15 +1223,15 @@ class InternalOakMap<K, V> {
 
     // Factory methods for iterators
 
-    OakIterator<OakRBuffer> valuesBufferViewIterator(K lo, boolean loInclusive, K hi, boolean hiInclusive, boolean isDescending) {
+    OakIterator<ByteBuffer> valuesBufferViewIterator(K lo, boolean loInclusive, K hi, boolean hiInclusive, boolean isDescending) {
         return new ValueIterator(lo, loInclusive, hi, hiInclusive, isDescending);
     }
 
-    OakIterator<Map.Entry<OakRBuffer, OakRBuffer>> entriesBufferViewIterator(K lo, boolean loInclusive, K hi, boolean hiInclusive, boolean isDescending) {
+    OakIterator<Map.Entry<ByteBuffer, ByteBuffer>> entriesBufferViewIterator(K lo, boolean loInclusive, K hi, boolean hiInclusive, boolean isDescending) {
         return new EntryIterator(lo, loInclusive, hi, hiInclusive, isDescending);
     }
 
-    OakIterator<OakRBuffer> keysBufferViewIterator(K lo, boolean loInclusive, K hi, boolean hiInclusive, boolean isDescending) {
+    OakIterator<ByteBuffer> keysBufferViewIterator(K lo, boolean loInclusive, K hi, boolean hiInclusive, boolean isDescending) {
         return new KeyIterator(lo, loInclusive, hi, hiInclusive, isDescending);
     }
 

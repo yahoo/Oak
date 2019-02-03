@@ -13,6 +13,7 @@ import org.junit.Test;
 import org.junit.After;
 import org.junit.rules.ExpectedException;
 
+import java.nio.ByteBuffer;
 import java.util.function.Consumer;
 
 
@@ -157,9 +158,9 @@ public class SingleThreadTest {
     @Test
     public void testComputeIf() {
         Integer value;
-        Consumer<OakWBuffer> computer = new Consumer<OakWBuffer>() {
+        Consumer<ByteBuffer> computer = new Consumer<ByteBuffer>() {
             @Override
-            public void accept(OakWBuffer oakWBuffer) {
+            public void accept(ByteBuffer oakWBuffer) {
                 if (oakWBuffer.getInt(0) == 0)
                     oakWBuffer.putInt(0, 1);
             }
@@ -195,9 +196,9 @@ public class SingleThreadTest {
     @Test
     public void testCompute() {
         Integer value;
-        Consumer<OakWBuffer> computer = new Consumer<OakWBuffer>() {
+        Consumer<ByteBuffer> computer = new Consumer<ByteBuffer>() {
             @Override
-            public void accept(OakWBuffer oakWBuffer) {
+            public void accept(ByteBuffer oakWBuffer) {
                 if (oakWBuffer.getInt(0) == 0)
                     oakWBuffer.putInt(0, 1);
             }

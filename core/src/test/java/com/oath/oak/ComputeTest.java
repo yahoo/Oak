@@ -111,23 +111,20 @@ public class ComputeTest {
         }
     }
 
-    static Consumer<OakWBuffer> computer = new Consumer<OakWBuffer>() {
-        @Override
-        public void accept(OakWBuffer oakWBuffer) {
-            if (oakWBuffer.getInt(0) == oakWBuffer.getInt(Integer.BYTES * keySize)) {
-                return;
+    static Consumer<ByteBuffer> computer = byteBuffer -> {
+        if (byteBuffer.getInt(0) == byteBuffer.getInt(Integer.BYTES * keySize)) {
+            return;
+        }
+        int index = 0;
+        int[] arr = new int[keySize];
+        for (int i = 0; i < 50; i++) {
+            for (int j = 0; j < keySize; j++) {
+                arr[j] = byteBuffer.getInt(index);
+                index+=Integer.BYTES;
             }
-            int index = 0;
-            int[] arr = new int[keySize];
-            for (int i = 0; i < 50; i++) {
-                for (int j = 0; j < keySize; j++) {
-                    arr[j] = oakWBuffer.getInt(index);
-                    index+=Integer.BYTES;
-                }
-                for (int j = 0; j < keySize; j++) {
-                    oakWBuffer.putInt(index, arr[j]);
-                    index+=Integer.BYTES;
-                }
+            for (int j = 0; j < keySize; j++) {
+                byteBuffer.putInt(index, arr[j]);
+                index+=Integer.BYTES;
             }
         }
     };
