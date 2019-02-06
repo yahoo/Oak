@@ -14,6 +14,7 @@ import java.util.LinkedList;
 import java.util.concurrent.atomic.AtomicLong;
 
 public class MemoryManager {
+    private final OakMemoryAllocator keysMemoryAllocator;
     private final OakMemoryAllocator memoryAllocator;
     private final AtomicLong[] timeStamps;
     private final ArrayList<LinkedList<Pair<Long, ByteBuffer>>> releasedArray;
@@ -39,6 +40,7 @@ public class MemoryManager {
         max = new AtomicLong(0);
         releases = RELEASES_DEFAULT;
         this.threadIndexCalculator = threadIndexCalculator;
+        keysMemoryAllocator = new DirectMemoryAllocator();
     }
 
     public ByteBuffer allocate(int size) {
@@ -48,6 +50,7 @@ public class MemoryManager {
     public void close() {
         releasedArray.forEach(this::forceRelease);
         memoryAllocator.close();
+        keysMemoryAllocator.close();
     }
 
     void release(ByteBuffer bb) {
@@ -97,9 +100,6 @@ public class MemoryManager {
         return timeStamp;
     }
 
-    private long getandIncrementEpoch() {
-        return max.getAndIncrement();
-    }
 
     public void startOperation() {
         int idx = threadIndexCalculator.getIndex();
@@ -114,24 +114,6 @@ public class MemoryManager {
         threadIndexCalculator.releaseIndex();
     }
 
-    public long iteratorStartOperation(long epoch, boolean updateEpoch) {
-        long iterationEpoch = epoch;
-        if (updateEpoch) {
-            iterationEpoch = getandIncrementEpoch();
-        }
-
-        int idx = threadIndexCalculator.getIndex();
-        AtomicLong timeStamp = timeStamps[idx];
-        timeStamp.set(iterationEpoch);
-
-        return iterationEpoch;
-    }
-
-    public void iteratorStopOperation() {
-        int idx = threadIndexCalculator.getIndex();
-        AtomicLong timeStamp = timeStamps[idx];
-        timeStamp.set(0);
-    }
 
     public void assertIfNotIdle() {
         int idx = threadIndexCalculator.getIndex();
@@ -148,5 +130,13 @@ public class MemoryManager {
     // used only for testing
     void setGCtrigger(int i) {
         releases = i;
+    }
+
+    public ByteBuffer allocateKeys(int bytes) {
+        return keysMemoryAllocator.allocate(bytes);
+    }
+
+    public void releaseKeys(ByteBuffer keys) {
+        keysMemoryAllocator.free(keys);
     }
 }

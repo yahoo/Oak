@@ -4,12 +4,14 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
+import java.nio.ByteBuffer;
 import java.util.ConcurrentModificationException;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Function;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
@@ -231,87 +233,55 @@ public class IteratorModificationTest {
         assertTrue(passed.get());
     }
 
-//    @Test
-//    public void stressTest() throws InterruptedException {
-//
-//        Thread[] threads = new Thread[ThreadIndexCalculator.MAX_THREADS];
-//        AtomicInteger passed = new AtomicInteger(0);
-//        AtomicBoolean run = new AtomicBoolean(true);
-//        int numThreads= 4;//ThreadIndexCalculator.MAX_THREADS;
-//        for (int i = 0; i < numThreads; ++i) {
-//            threads[i] = new Thread(() -> {
-//
-//                while (run.get()) {
-//                    try (OakMap<String,String> so = oak.subMap(String.format("%0$" + KEY_SIZE + "s", String.valueOf(0)),false,
-//                            String.format("%0$" + KEY_SIZE + "s", String.valueOf(ELEMENTS-10)), true)) {
-//                        OakIterator<Map.Entry<String, String>> iter = so.entriesIterator();
-//                        String lastKey = String.format("%0$" + KEY_SIZE + "s", String.valueOf(0));
-//                        while (iter.hasNext()) {
-//                            Map.Entry<String, String> p;
-//                            try {
-//                                p = iter.next();
-//                            } catch (ConcurrentModificationException e) {
-//                                break;
-//                            }
-//                            if (p != null) {
-//                                if (p.getKey().compareTo(lastKey) <= 0) {
-//                                    System.out.println(lastKey);
-//                                }
-//                                assertTrue(p.getKey().compareTo(lastKey) > 0);
-//                                lastKey = p.getKey();
-//                            }
-//                        }
-//                    }
-//                    for (int j = 0; j < ELEMENTS/2; j++) {
-//                        oak.remove(generateString(j,KEY_SIZE));
-//                    }
-//
-//                    for (int j = 0; j < ELEMENTS/2; j++) {
-//                        oak.put(generateString(j,KEY_SIZE), generateString(j,VALUE_SIZE));
-//                    }
-//
-//
-////                    try (OakMap<String,String> so = oak.subMap(String.format("%0$" + KEY_SIZE + "s", String.valueOf(0)),false,
-////                            String.format("%0$" + KEY_SIZE + "s", String.valueOf(ELEMENTS-10)), true,false)) {
-////                        OakIterator<Map.Entry<String, String>> iter = so.entriesIterator();
-////                        String lastKey = String.format("%0$" + KEY_SIZE + "s", String.valueOf(0));
-////                        while (iter.hasNext()) {
-////                            Map.Entry<String, String> p;
-////                            try {
-////                                p = iter.next();
-////                            } catch (ConcurrentModificationException e) {
-////                                break;
-////                            }
-////                            if (p != null) {
-////                                if (p.getKey().compareTo(lastKey) <= 0) {
-////                                    System.out.println(lastKey);
-////                                }
-////                                assertTrue(p.getKey().compareTo(lastKey) > 0);
-////                                lastKey = p.getKey();
-////                            }
-////                        }
-////                    }
-////                    for (int j = ELEMENTS/2; j < ELEMENTS; j++) {
-////                        oak.remove(generateString(j,KEY_SIZE));
-////                    }
-////
-////
-////                    for (int j = ELEMENTS/2; j < ELEMENTS; j++) {
-////                        oak.put(generateString(j,KEY_SIZE), generateString(j,VALUE_SIZE));
-////                    }
-//
-//                }
-//                passed.getAndIncrement();
-//            });
-//            threads[i].start();
-//        }
-//
-//
-//        Thread.sleep(1000*10);
-//        run.set(false);
-//        for (int i = 0; i < numThreads; ++i) {
-//            threads[i].join();
-//        }
-//        assertEquals(ThreadIndexCalculator.MAX_THREADS, passed.get());
-//    }
+
+    @Test
+    public void valueDeleteTest() throws InterruptedException {
+
+        OakIterator<Map.Entry<String, String>> enrtyIterator = oak.entriesIterator();
+        assertTrue(enrtyIterator.hasNext());
+        oak.remove(generateString(0, KEY_SIZE));
+        assertTrue(enrtyIterator.hasNext());
+        assertEquals(null, enrtyIterator.next());
+
+        OakIterator<String> valueIterator = oak.valuesIterator();
+        assertTrue(valueIterator.hasNext());
+        oak.remove(generateString(1, KEY_SIZE));
+        assertTrue(valueIterator.hasNext());
+        assertEquals(null, valueIterator.next());
+
+
+        try (OakTransformView<String, Integer> transformView = oak.createTransformView(byteBufferByteBufferEntry -> 123)) {
+
+            OakIterator<Integer> transformValuesIterator = transformView.valuesIterator();
+            assertTrue(transformValuesIterator.hasNext());
+            oak.remove(generateString(2, KEY_SIZE));
+            assertTrue(transformValuesIterator.hasNext());
+            assertEquals(null, transformValuesIterator.next());
+
+            OakIterator<Integer> transformEntriesIterator = transformView.entriesIterator();
+            assertTrue(transformEntriesIterator.hasNext());
+            oak.remove(generateString(3, KEY_SIZE));
+            assertTrue(transformEntriesIterator.hasNext());
+            assertEquals(null, transformEntriesIterator.next());
+        }
+
+
+        try (OakBufferView<String> bufferView = oak.createBufferView()) {
+
+            OakIterator<OakRBuffer> bufferValuesIterator = bufferView.valuesIterator();
+            assertTrue(bufferValuesIterator.hasNext());
+            oak.remove(generateString(4, KEY_SIZE));
+            assertTrue(bufferValuesIterator.hasNext());
+            assertEquals(null, bufferValuesIterator.next());
+
+            OakIterator<Map.Entry<OakRBuffer, OakRBuffer>> bufferEntriesIterator = bufferView.entriesIterator();
+            assertTrue(bufferEntriesIterator.hasNext());
+            oak.remove(generateString(5, KEY_SIZE));
+            assertTrue(bufferEntriesIterator.hasNext());
+            assertEquals(null, bufferEntriesIterator.next());
+        }
+
+
+    }
+
 }
