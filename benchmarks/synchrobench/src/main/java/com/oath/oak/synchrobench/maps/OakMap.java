@@ -34,6 +34,10 @@ public class OakMap<K, V> implements CompositionalOakMap<K, V> {
 
     @Override
     public boolean getOak(K key) {
+        if (Parameters.bufferView) {
+            OakBufferView<MyBuffer> bufferView = oak.createBufferView();
+            return bufferView.get((MyBuffer) key) != null;
+        }
         return oak.get((MyBuffer) key) != null;
     }
 

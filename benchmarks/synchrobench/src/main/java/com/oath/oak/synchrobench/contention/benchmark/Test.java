@@ -278,6 +278,8 @@ public class Test {
                 } else if (currentArg.equals("--change")
                             || currentArg.equals("-c")) {
                         Parameters.change = true;
+                } else if (currentArg.equals("--buffer")) {
+                        Parameters.bufferView = true;
 				} else {
 					String optionValue = args[argNumber++];
 					if (currentArg.equals("--thread-nums")
@@ -452,6 +454,9 @@ public class Test {
                 + " Bytes\n"
                 + "  Change:                \t"
                 + Parameters.change
+                + "\n"
+                + "  Buffer view:            \t"
+                + Parameters.bufferView
                 + "\n"
 				+ "  Benchmark:               \t"
 				+ Parameters.benchClassName;

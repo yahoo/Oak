@@ -23,5 +23,7 @@ public class Parameters {
     public static boolean detailedStats = false;
 	static boolean change = false;
 
+	public static boolean bufferView = false;
+
     static String benchClassName = "skiplists.lockfree.NonBlockingFriendlySkipListMap";
 }

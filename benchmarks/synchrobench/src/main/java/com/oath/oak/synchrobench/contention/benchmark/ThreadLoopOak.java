@@ -97,10 +97,10 @@ public class ThreadLoopOak implements Runnable {
 
         while (!stop) {
             Integer newInt = rand.nextInt(Parameters.range);
+            key.buffer.putInt(0,newInt);
 
             int coin = rand.nextInt(1000);
             if (coin < cdf[0]) { // -a
-                key.buffer.putInt(0,newInt);
                 if(!change){
                     bench.removeOak(key);
                     numRemove++;
@@ -139,7 +139,6 @@ public class ThreadLoopOak implements Runnable {
                 }
             } else {
                 if (!change) {
-                    key.buffer.putInt(0,newInt);
                     if (bench.getOak(key))
                         numContains++;
                     else

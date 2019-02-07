@@ -21,7 +21,7 @@ l="5000"
 warmup="0"
 snapshot="0"
 writeall="0"
-iterations="1"
+iterations="5"
 initialsize="50000"
 
 if [ ! -d "${output}" ]; then
@@ -35,16 +35,16 @@ fi
 # records all benchmark outputs
 ###############################
 
-#declare -A scenarios=(["get-only"]=""
-#                      ["ascend-only"]="-c"
-#                      ["descend-only"]="-c -a 100"
-#                      ["put-only"]="-a 0 -u 100"
-#                     )
+declare -A scenarios=(["get-only"]=""
+                      ["ascend-only"]="-c"
+                      ["descend-only"]="-c -a 100"
+                      ["put-only"]="-a 0 -u 100"
+                     )
 
-declare -A scenarios=(["put-only"]="-a 0 -u 100")
+#declare -A scenarios=(["put-only"]="-a 0 -u 100")
 
-declare -A heap_limit=(["OakMap"]="8g 12g 16g"
-                       ["JavaSkipListMap"]="12g 16g 20g 24g 28g"
+declare -A heap_limit=(["OakMap"]="8g 12g"
+                       ["JavaSkipListMap"]="20g 24g"
                       )
 
 directMemSize="12g"
