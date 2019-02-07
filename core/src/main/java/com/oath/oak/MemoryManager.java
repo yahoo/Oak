@@ -48,47 +48,12 @@ public class MemoryManager {
     }
 
     public void close() {
-        releasedArray.forEach(this::forceRelease);
         memoryAllocator.close();
         keysMemoryAllocator.close();
     }
 
     void release(ByteBuffer bb) {
-        int idx = threadIndexCalculator.getIndex();
-        LinkedList<Pair<Long, ByteBuffer>> myList = releasedArray.get(idx);
-        myList.addFirst(new Pair<>(this.max.incrementAndGet(), bb));
-        checkRelease(myList);
-    }
-
-    private void checkRelease(LinkedList<Pair<Long, ByteBuffer>> myList) {
-        if (myList.size() >= releases) {
-            forceRelease(myList);
-        }
-    }
-
-
-    private void forceRelease(LinkedList<Pair<Long, ByteBuffer>> myList) {
-        long min = Long.MAX_VALUE;
-        for (int j = 0; j < ThreadIndexCalculator.MAX_THREADS; j++) {
-            long timeStamp = timeStamps[j].get();
-            if (!isIdle(timeStamp)) {
-                // find minimal timestamp among the working threads
-                min = Math.min(min, getValue(timeStamp));
-            }
-        }
-        // collect and remove in two steps to avoid concurrent modification exception
-        LinkedList<Pair<Long, ByteBuffer>> toBeRemovedList = new LinkedList<>();
-        for (Pair<Long, ByteBuffer> pair : myList) {
-            // pair's key is the "old max", meaning the timestamp when the ByteBuffer was released
-            // (disconnected from the data structure)
-            if (pair.getKey() /* max */ < min) {
-                toBeRemovedList.add(pair);
-            }
-        }
-        myList.removeAll(toBeRemovedList);
-        for (Pair<Long, ByteBuffer> pair : toBeRemovedList) {
-            memoryAllocator.free(pair.getValue() /* pair's value is the byte buffer */);
-        }
+        memoryAllocator.free(bb);
     }
 
     // the MSB (busy bit) is not set
@@ -96,30 +61,17 @@ public class MemoryManager {
         return (timeStamp) == 0L;
     }
 
-    private long getValue(long timeStamp) {
-        return timeStamp;
-    }
-
-
     public void startOperation() {
-        int idx = threadIndexCalculator.getIndex();
-        AtomicLong timeStamp = timeStamps[idx];
-        timeStamp.set(max.getAndIncrement());
+
     }
 
     public void stopOperation() {
-        int idx = threadIndexCalculator.getIndex();
-        AtomicLong timeStamp = timeStamps[idx];
-        timeStamp.set(0);
-        threadIndexCalculator.releaseIndex();
+
     }
 
 
     public void assertIfNotIdle() {
-        int idx = threadIndexCalculator.getIndex();
-        AtomicLong timeStamp = timeStamps[idx];
-        long l = timeStamp.get();
-        assert isIdle(l);
+
     }
 
     // how many memory is allocated for this OakMap
