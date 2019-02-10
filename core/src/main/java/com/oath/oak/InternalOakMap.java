@@ -851,13 +851,7 @@ class InternalOakMap<K, V> {
         }
 
         public T next() {
-            try {
-                memoryManager.startOperation();
-                return internalNext();
-            } finally {
-                memoryManager.stopOperation();
-            }
-
+            return internalNext();
         }
 
 

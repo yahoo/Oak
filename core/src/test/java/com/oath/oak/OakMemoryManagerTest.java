@@ -40,7 +40,7 @@ public class OakMemoryManagerTest {
             return  allocatedBytes;
         }).when(memoryAllocator).free(any());
         when(memoryAllocator.allocated()).thenAnswer((Answer) invocationOnMock -> allocatedBytes);
-        memoryManager = new MemoryManager(memoryAllocator, indexCalculator);
+        memoryManager = new MemoryManager(memoryAllocator);
     }
 
     @Test
@@ -53,38 +53,4 @@ public class OakMemoryManagerTest {
         assertEquals(4, bb.remaining());
         assertEquals(8, memoryManager.allocated());
     }
-
-    @Test
-    public void release() {
-        memoryManager.setGCtrigger(2);
-
-        ByteBuffer bb1 = memoryManager.allocate(4);
-        ByteBuffer bb2 = memoryManager.allocate(4);
-
-        memoryManager.release(bb1);
-        verify(memoryAllocator, times(0)).free(any());
-        assertEquals(8, memoryManager.allocated());
-
-        memoryManager.release(bb2);
-        verify(memoryAllocator, times(2)).free(any());
-        assertEquals(0, memoryManager.allocated());
-    }
-
-
-    @Test
-    public void close() {
-        memoryManager.setGCtrigger(2);
-
-        ByteBuffer bb1 = memoryManager.allocate(4);
-        memoryManager.release(bb1);
-        verify(memoryAllocator, times(0)).free(any());
-        assertEquals(4, memoryManager.allocated());
-
-        memoryManager.close();
-        verify(memoryAllocator, times(1)).free(any());
-        assertEquals(0, memoryManager.allocated());
-    }
-
-
-
 }
