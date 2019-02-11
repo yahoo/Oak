@@ -137,12 +137,7 @@ public class OakMap<K, V> implements AutoCloseable {
             throw new IllegalArgumentException();
         if (!inBounds(key))
             throw new IllegalArgumentException("The key is out of map bounds");
-        try {
-            memoryManager.startOperation();
-            internalOakMap.put(key, value);
-        } finally {
-            memoryManager.stopOperation();
-        }
+        internalOakMap.put(key, value);
     }
 
     /**
@@ -160,12 +155,7 @@ public class OakMap<K, V> implements AutoCloseable {
             throw new IllegalArgumentException();
         if (!inBounds(key))
             throw new IllegalArgumentException("The key is out of map bounds");
-        try {
-            memoryManager.startOperation();
-            return internalOakMap.putIfAbsent(key, value);
-        } finally {
-            memoryManager.stopOperation();
-        }
+        return internalOakMap.putIfAbsent(key, value);
     }
 
     /**
@@ -179,12 +169,7 @@ public class OakMap<K, V> implements AutoCloseable {
             throw new IllegalArgumentException();
         if (!inBounds(key))
             throw new IllegalArgumentException("The key is out of map bounds");
-        try {
-            memoryManager.startOperation();
-            internalOakMap.remove(key);
-        } finally {
-            memoryManager.stopOperation();
-        }
+        internalOakMap.remove(key);
     }
 
     /**
@@ -201,12 +186,7 @@ public class OakMap<K, V> implements AutoCloseable {
             throw new IllegalArgumentException();
         if (!inBounds(key))
             throw new IllegalArgumentException("The key is out of map bounds");
-        try {
-            memoryManager.startOperation();
-            return (V) internalOakMap.getValueTransformation(key, valueDeserializeTransformer);
-        } finally {
-            memoryManager.stopOperation();
-        }
+        return (V) internalOakMap.getValueTransformation(key, valueDeserializeTransformer);
     }
 
     /**
@@ -221,12 +201,7 @@ public class OakMap<K, V> implements AutoCloseable {
             // this interface shouldn't be used with subMap
             throw new UnsupportedOperationException();
         }
-        try {
-            memoryManager.startOperation();
-            return (K) internalOakMap.getMinKeyTransformation(keyDeserializeTransformer);
-        } finally {
-            memoryManager.stopOperation();
-        }
+        return (K) internalOakMap.getMinKeyTransformation(keyDeserializeTransformer);
     }
 
     /**
@@ -241,12 +216,7 @@ public class OakMap<K, V> implements AutoCloseable {
             // this interface shouldn't be used with subMap
             throw new UnsupportedOperationException();
         }
-        try {
-            memoryManager.startOperation();
-            return (K) internalOakMap.getMaxKeyTransformation(keyDeserializeTransformer);
-        } finally {
-            memoryManager.stopOperation();
-        }
+        return (K) internalOakMap.getMaxKeyTransformation(keyDeserializeTransformer);
     }
 
     /**
@@ -262,12 +232,7 @@ public class OakMap<K, V> implements AutoCloseable {
             throw new IllegalArgumentException();
         if (!inBounds(key))
             throw new IllegalArgumentException("The key is out of map bounds");
-        try {
-            memoryManager.startOperation();
-            return internalOakMap.computeIfPresent(key, computer);
-        } finally {
-            memoryManager.stopOperation();
-        }
+        return internalOakMap.computeIfPresent(key, computer);
     }
 
     /**
@@ -284,12 +249,7 @@ public class OakMap<K, V> implements AutoCloseable {
             throw new IllegalArgumentException();
         if (!inBounds(key))
             throw new IllegalArgumentException("The key is out of map bounds");
-        try {
-            memoryManager.startOperation();
-            internalOakMap.putIfAbsentComputeIfPresent(key, value, computer);
-        } finally {
-            memoryManager.stopOperation();
-        }
+        internalOakMap.putIfAbsentComputeIfPresent(key, value, computer);
     }
 
     /*-------------- SubMap --------------*/
@@ -481,11 +441,6 @@ public class OakMap<K, V> implements AutoCloseable {
 
     boolean getToInclusive() {
         return toInclusive;
-    }
-
-    // For internal tests only
-    void assertIfNotIdle() {
-        memoryManager.assertIfNotIdle();
     }
 
     @Override public void close() {

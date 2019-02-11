@@ -111,7 +111,7 @@ public class OffHeapOakTest {
             } catch (InterruptedException e) {
                 e.printStackTrace();
             }
-            oak.assertIfNotIdle();
+
             OakIterator<Map.Entry<Integer, Integer>> iter0 = oak.entriesIterator();
             while (iter0.hasNext()) {
                 Map.Entry<Integer, Integer> entry = iter0.next();
@@ -122,15 +122,14 @@ public class OffHeapOakTest {
                     0, entry.getValue() - entry.getKey());
             }
 
-            oak.assertIfNotIdle();
             for (int i = 0; i < 6 * maxItemsPerChunk; i++) {
                 oak.put(i, i);
             }
-            oak.assertIfNotIdle();
+
             for (int i = 0; i < 6 * maxItemsPerChunk; i++) {
                 oak.remove(i);
             }
-            oak.assertIfNotIdle();
+
             OakIterator<Map.Entry<Integer, Integer>> iter9 = oak.entriesIterator();
             while (iter9.hasNext()) {
                 Map.Entry<Integer, Integer> entry = iter9.next();
@@ -148,7 +147,6 @@ public class OffHeapOakTest {
                     0, entry.getValue() - entry.getKey());
             }
 
-            oak.assertIfNotIdle();
             for (int i = 0; i < 6 * maxItemsPerChunk; i++) {
                 oak.putIfAbsent(i, i);
             }

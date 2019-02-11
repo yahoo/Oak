@@ -7,25 +7,19 @@
 package com.oath.oak;
 
 import java.nio.ByteBuffer;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.logging.Logger;
 
 class KeysManager<K> {
 
+    private final MemoryManager memoryManager;
     private final ByteBuffer keys;
-    int i;
-    private MemoryManager memoryManager;
     private final OakSerializer<K> keySerializer;
-    private AtomicBoolean released;
     private final Logger log = Logger.getLogger(KeysManager.class.getName());
 
-    KeysManager(int bytes,
-                           MemoryManager memoryManager,
-                           OakSerializer<K> keySerializer) {
-        keys = memoryManager.allocate(bytes);
-        this.memoryManager = memoryManager;
+    KeysManager(int bytes, MemoryManager memoryManager, OakSerializer<K> keySerializer) {
+        keys = memoryManager.allocateKeys(bytes);
         this.keySerializer = keySerializer;
-        this.released = new AtomicBoolean(false);
+        this.memoryManager = memoryManager;
     }
 
     public int length() {
@@ -46,9 +40,7 @@ class KeysManager<K> {
     }
 
     public void release() {
-        if (released.compareAndSet(false, true)) {
-            memoryManager.release(keys);
-        }
+        memoryManager.releaseKeys(keys);
     }
 
     public void copyKeys(KeysManager srcKeysManager, int srcIndex, int index, int lengthToCopy) {
@@ -57,9 +49,7 @@ class KeysManager<K> {
         int srcKeyPos = srcKeys.position();
         int myPos = keys.position();
         for (int j = 0; j < lengthToCopy; j++) {
-            if (myPos + index + j >= keys.limit()) {
-                log.info("can't put in buffer..");
-            }
+            assert(myPos + index + j < keys.limit());
             keys.put(myPos + index + j, srcKeys.get(srcKeyPos + srcIndex + j));
         }
     }
