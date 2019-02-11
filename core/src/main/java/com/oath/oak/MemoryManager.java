@@ -13,31 +13,32 @@ import java.nio.ByteBuffer;
 
 public class MemoryManager {
     private final OakMemoryAllocator keysMemoryAllocator;
-    private final OakMemoryAllocator memoryAllocator;
+    private final OakMemoryAllocator valuesMemoryAllocator;
 
-    public MemoryManager(OakMemoryAllocator ma) {
-        assert ma != null;
+    public MemoryManager(OakMemoryAllocator valuesMemoryAllocator, OakMemoryAllocator keysMemoryAllocator) {
+        assert valuesMemoryAllocator != null;
+        assert keysMemoryAllocator != null;
 
-        this.memoryAllocator = ma;
-        keysMemoryAllocator = new DirectMemoryAllocator();
+        this.valuesMemoryAllocator = valuesMemoryAllocator;
+        this.keysMemoryAllocator = keysMemoryAllocator;
     }
 
     public ByteBuffer allocate(int size) {
-        return memoryAllocator.allocate(size);
+        return valuesMemoryAllocator.allocate(size);
     }
 
     public void close() {
-        memoryAllocator.close();
+        valuesMemoryAllocator.close();
         keysMemoryAllocator.close();
     }
 
     void release(ByteBuffer bb) {
-        memoryAllocator.free(bb);
+        valuesMemoryAllocator.free(bb);
     }
 
     // how many memory is allocated for this OakMap
     public long allocated() {
-        return memoryAllocator.allocated();
+        return valuesMemoryAllocator.allocated();
     }
 
     public ByteBuffer allocateKeys(int bytes) {

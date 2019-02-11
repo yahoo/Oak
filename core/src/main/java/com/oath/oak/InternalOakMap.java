@@ -769,7 +769,7 @@ class InternalOakMap<K, V> {
         }
 
 
-        public static <K, V> IteratorState<K, V> initState(Chunk<K, V> nextChunk, Chunk.ChunkIter nextChunkIter) {
+        public static <K, V> IteratorState<K, V> newInstance(Chunk<K, V> nextChunk, Chunk.ChunkIter nextChunkIter) {
             return new IteratorState<>(nextChunk, nextChunkIter, Chunk.NONE);
         }
 
@@ -779,9 +779,6 @@ class InternalOakMap<K, V> {
      * Base of iterator classes:
      */
     abstract class Iter<T> implements OakIterator<T> {
-
-        // Updating the epoch of every next() is very expensive because of access to an atomic in MemoryManager.
-        // Instead we update the epoch every EPOCH_USAGE_COUNTER.
 
         private K lo;
 
@@ -850,10 +847,6 @@ class InternalOakMap<K, V> {
             return (state != null);
         }
 
-        public T next() {
-            return internalNext();
-        }
-
 
         private void initAfterRebalance() {
             //TODO - refactor to use ByeBuffer without deserializing.
@@ -878,7 +871,7 @@ class InternalOakMap<K, V> {
 
 
         // the actual next()
-        abstract T internalNext();
+        abstract public T next();
 
         /**
          * Advances next to higher entry.
@@ -933,7 +926,7 @@ class InternalOakMap<K, V> {
             }
 
             //Init state, not valid yet, must move forword
-            state = IteratorState.initState(nextChunk, nextChunkIter);
+            state = IteratorState.newInstance(nextChunk, nextChunkIter);
             advanceState();
         }
 
@@ -992,7 +985,7 @@ class InternalOakMap<K, V> {
         }
 
         @Override
-        public OakRBuffer internalNext() {
+        public OakRBuffer next() {
             Handle handle = advance().getValue();
             if (handle == null)
                 return null;
@@ -1011,7 +1004,7 @@ class InternalOakMap<K, V> {
             this.transformer = transformer;
         }
 
-        public T internalNext() {
+        public T next() {
             Handle handle = advance().getValue();
             if (handle == null) {
                 return null;
@@ -1029,7 +1022,7 @@ class InternalOakMap<K, V> {
             super(lo, loInclusive, hi, hiInclusive, isDescending);
         }
 
-        public Map.Entry<OakRBuffer, OakRBuffer> internalNext() {
+        public Map.Entry<OakRBuffer, OakRBuffer> next() {
             Pair<ByteBuffer, Handle> pair = advance();
             if (pair.getValue() == null) {
                 return null;
@@ -1049,7 +1042,7 @@ class InternalOakMap<K, V> {
             this.transformer = transformer;
         }
 
-        public T internalNext() {
+        public T next() {
 
             Pair<ByteBuffer, Handle> pair = advance();
             Handle handle = pair.getValue();
@@ -1081,7 +1074,7 @@ class InternalOakMap<K, V> {
         }
 
         @Override
-        public OakRBuffer internalNext() {
+        public OakRBuffer next() {
 
             Pair<ByteBuffer, Handle> pair = advance();
             ByteBuffer serializedKey = pair.getKey();
@@ -1099,7 +1092,7 @@ class InternalOakMap<K, V> {
             this.transformer = transformer;
         }
 
-        public T internalNext() {
+        public T next() {
             Pair<ByteBuffer, Handle> pair = advance();
             ByteBuffer serializedKey = pair.getKey();
             return transformer.apply(serializedKey);

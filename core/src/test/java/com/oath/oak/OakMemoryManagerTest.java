@@ -17,18 +17,18 @@ import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.*;
 
 public class OakMemoryManagerTest {
-    private OakMemoryAllocator memoryAllocator;
-    private ThreadIndexCalculator indexCalculator;
+    private OakMemoryAllocator valuesMemoryAllocator;
+    private OakMemoryAllocator keysMemoryAllocator;
+
     private MemoryManager memoryManager;
     private long allocatedBytes;
 
     @Before
     public void setUp() {
         allocatedBytes = 0;
-        indexCalculator = mock(ThreadIndexCalculator.class);
-        when(indexCalculator.getIndex()).thenReturn(7);
-        memoryAllocator = mock(OakMemoryAllocator.class);
-        when(memoryAllocator.allocate(anyInt())).thenAnswer((Answer) invocation -> {
+        valuesMemoryAllocator = mock(OakMemoryAllocator.class);
+        keysMemoryAllocator = new DirectMemoryAllocator();
+        when(valuesMemoryAllocator.allocate(anyInt())).thenAnswer((Answer) invocation -> {
             int size = (int) invocation.getArguments()[0];
             allocatedBytes += size;
             return ByteBuffer.allocate(size);
@@ -38,9 +38,9 @@ public class OakMemoryManagerTest {
             ByteBuffer bb = (ByteBuffer) invocation.getArguments()[0];
             allocatedBytes -= bb.capacity();
             return  allocatedBytes;
-        }).when(memoryAllocator).free(any());
-        when(memoryAllocator.allocated()).thenAnswer((Answer) invocationOnMock -> allocatedBytes);
-        memoryManager = new MemoryManager(memoryAllocator);
+        }).when(valuesMemoryAllocator).free(any());
+        when(valuesMemoryAllocator.allocated()).thenAnswer((Answer) invocationOnMock -> allocatedBytes);
+        memoryManager = new MemoryManager(valuesMemoryAllocator, keysMemoryAllocator);
     }
 
     @Test
@@ -52,5 +52,12 @@ public class OakMemoryManagerTest {
         bb = memoryManager.allocate(4);
         assertEquals(4, bb.remaining());
         assertEquals(8, memoryManager.allocated());
+    }
+
+    @Test
+    public void allocateKeys() {
+        ByteBuffer bb = memoryManager.allocateKeys(1024);
+        assertEquals(1024, bb.remaining());
+        assertEquals(1024, bb.capacity());
     }
 }

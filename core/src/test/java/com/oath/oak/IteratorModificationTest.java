@@ -4,21 +4,21 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
-import java.nio.ByteBuffer;
 import java.util.ConcurrentModificationException;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.Function;
 
-import static org.junit.Assert.assertEquals;
+import static junit.framework.TestCase.assertEquals;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
+
 
 public class IteratorModificationTest {
 
-    OakMap<String, String> oak;
+    private OakMap<String, String> oak;
     private static final int ELEMENTS = 1000;
     private static final int KEY_SIZE = 4;
     private static final int VALUE_SIZE= 4;
@@ -92,8 +92,8 @@ public class IteratorModificationTest {
     }
 
 
-    public void doIterationTest(int startKey, boolean includeStart, int endKey, boolean includeEnd,
-                                boolean  isDescending) throws InterruptedException {
+    private void doIterationTest(int startKey, boolean includeStart, int endKey, boolean includeEnd,
+                                 boolean isDescending) throws InterruptedException {
 
         AtomicBoolean passed = new AtomicBoolean(false);
         AtomicBoolean continueWriting = new AtomicBoolean(true);
@@ -235,19 +235,19 @@ public class IteratorModificationTest {
 
 
     @Test
-    public void valueDeleteTest() throws InterruptedException {
+    public void valueDeleteTest() {
 
         OakIterator<Map.Entry<String, String>> enrtyIterator = oak.entriesIterator();
         assertTrue(enrtyIterator.hasNext());
         oak.remove(generateString(0, KEY_SIZE));
         assertTrue(enrtyIterator.hasNext());
-        assertEquals(null, enrtyIterator.next());
+        assertNull(enrtyIterator.next());
 
         OakIterator<String> valueIterator = oak.valuesIterator();
         assertTrue(valueIterator.hasNext());
         oak.remove(generateString(1, KEY_SIZE));
         assertTrue(valueIterator.hasNext());
-        assertEquals(null, valueIterator.next());
+        assertNull(valueIterator.next());
 
 
         try (OakTransformView<String, Integer> transformView = oak.createTransformView(byteBufferByteBufferEntry -> 123)) {
@@ -256,13 +256,13 @@ public class IteratorModificationTest {
             assertTrue(transformValuesIterator.hasNext());
             oak.remove(generateString(2, KEY_SIZE));
             assertTrue(transformValuesIterator.hasNext());
-            assertEquals(null, transformValuesIterator.next());
+            assertNull(transformValuesIterator.next());
 
             OakIterator<Integer> transformEntriesIterator = transformView.entriesIterator();
             assertTrue(transformEntriesIterator.hasNext());
             oak.remove(generateString(3, KEY_SIZE));
             assertTrue(transformEntriesIterator.hasNext());
-            assertEquals(null, transformEntriesIterator.next());
+            assertNull(transformEntriesIterator.next());
         }
 
 
@@ -272,13 +272,13 @@ public class IteratorModificationTest {
             assertTrue(bufferValuesIterator.hasNext());
             oak.remove(generateString(4, KEY_SIZE));
             assertTrue(bufferValuesIterator.hasNext());
-            assertEquals(null, bufferValuesIterator.next());
+            assertNull(bufferValuesIterator.next());
 
             OakIterator<Map.Entry<OakRBuffer, OakRBuffer>> bufferEntriesIterator = bufferView.entriesIterator();
             assertTrue(bufferEntriesIterator.hasNext());
             oak.remove(generateString(5, KEY_SIZE));
             assertTrue(bufferEntriesIterator.hasNext());
-            assertEquals(null, bufferEntriesIterator.next());
+            assertNull(bufferEntriesIterator.next());
         }
 
 
