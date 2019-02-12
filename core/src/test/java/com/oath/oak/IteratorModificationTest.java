@@ -4,6 +4,7 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
+import java.nio.ByteBuffer;
 import java.util.ConcurrentModificationException;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
@@ -274,7 +275,7 @@ public class IteratorModificationTest {
             assertTrue(bufferValuesIterator.hasNext());
             assertNull(bufferValuesIterator.next());
 
-            OakIterator<Map.Entry<OakRBuffer, OakRBuffer>> bufferEntriesIterator = bufferView.entriesIterator();
+            OakIterator<Map.Entry<ByteBuffer, OakRBuffer>> bufferEntriesIterator = bufferView.entriesIterator();
             assertTrue(bufferEntriesIterator.hasNext());
             oak.remove(generateString(5, KEY_SIZE));
             assertTrue(bufferEntriesIterator.hasNext());

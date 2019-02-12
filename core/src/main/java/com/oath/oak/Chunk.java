@@ -80,7 +80,6 @@ public class Chunk<K, V> {
     // for writing the keys into the bytebuffers
     private final OakSerializer<K> keySerializer;
     private final OakSerializer<V> valueSerializer;
-    private final ConcurrentSkipListSet<InternalOakMap.Iter> signedIterators;
 
     /*-------------- Constructors --------------*/
 
@@ -137,7 +136,6 @@ public class Chunk<K, V> {
         this.keySerializer = keySerializer;
         this.valueSerializer = valueSerializer;
         this.threadIndexCalculator = threadIndexCalculator;
-        signedIterators = new ConcurrentSkipListSet<>(Comparator.comparingInt(System::identityHashCode));
     }
 
     enum State {
@@ -525,7 +523,7 @@ public class Chunk<K, V> {
         } else if (operation == Operation.COMPUTE){
             Handle h = handles[foundHandleIdx];
             if(h != null){
-                boolean succ = h.compute(opData.computer, memoryManager);
+                boolean succ = h.compute(opData.computer);
                 if (!succ) {
                     // we tried to perform the compute but the handle was deleted,
                     // we can get to pointToValue with Operation.COMPUTE only from PIACIP
@@ -932,7 +930,6 @@ public class Chunk<K, V> {
             advance();
             return toReturn;
         }
-
     }
 
     class DescendingIter implements ChunkIter {
@@ -1106,21 +1103,6 @@ public class Chunk<K, V> {
         }
 
     }
-
-
-    public void signInIterator(InternalOakMap.Iter iterator) {
-        signedIterators.add(iterator);
-    }
-
-
-    public void signoutIterator(InternalOakMap.Iter iterator) {
-        signedIterators.remove(iterator);
-    }
-
-    public ConcurrentSkipListSet<InternalOakMap.Iter> getSignedIterators() {
-        return signedIterators;
-    }
-
 
     /*-------------- Statistics --------------*/
 

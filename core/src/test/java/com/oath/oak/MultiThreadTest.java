@@ -251,9 +251,9 @@ public class MultiThreadTest {
                 }
             }
 
-            Consumer<OakWBuffer> computer = new Consumer<OakWBuffer>() {
+            Consumer<ByteBuffer> computer = new Consumer<ByteBuffer>() {
                 @Override
-                public void accept(OakWBuffer oakWBuffer) {
+                public void accept(ByteBuffer oakWBuffer) {
                     if (oakWBuffer.getInt(0) == 0) {
                         oakWBuffer.putInt(0, 1);
                     }
