@@ -111,9 +111,9 @@ public class ComputeTest {
         }
     }
 
-    static Consumer<OakWBuffer> computer = new Consumer<OakWBuffer>() {
+    static Consumer<ByteBuffer> computer = new Consumer<ByteBuffer>() {
         @Override
-        public void accept(OakWBuffer oakWBuffer) {
+        public void accept(ByteBuffer oakWBuffer) {
             if (oakWBuffer.getInt(0) == oakWBuffer.getInt(Integer.BYTES * keySize)) {
                 return;
             }

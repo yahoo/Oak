@@ -308,7 +308,7 @@ class Rebalancer<K, V> {
                 lookUp.handle.put(value, valueSerializer, memoryManager);
                 return false;
             } else if (operation == Operation.COMPUTE) {
-                lookUp.handle.compute(computer, memoryManager);
+                lookUp.handle.compute(computer);
                 return false;
             }
         }

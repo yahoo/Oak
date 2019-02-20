@@ -6,7 +6,9 @@
 
 package com.oath.oak;
 
+import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.util.function.Function;
 
 /**
  * A similar to read-only ByteBuffer interface that allows internal Oak data read access
@@ -25,37 +27,6 @@ public interface OakRBuffer {
      * @return The capacity of this buffer
      */
     int capacity();
-
-    /**
-     * Returns this buffer's position.
-     *
-     * @return The position of this buffer
-     */
-    int position();
-
-    /**
-     * Returns this buffer's limit.
-     *
-     * @return The limit of this buffer
-     */
-    int limit();
-
-    /**
-     * Returns the number of elements between the current position and the
-     * limit.
-     *
-     * @return The number of elements remaining in this buffer
-     */
-    int remaining();
-
-    /**
-     * Tells whether there are any elements between the current position and
-     * the limit.
-     *
-     * @return <tt>true</tt> if, and only if, there is at least one element
-     * remaining in this buffer
-     */
-    boolean hasRemaining();
 
     /**
      * Absolute <i>get</i> method.  Reads the byte at the given
@@ -156,4 +127,12 @@ public interface OakRBuffer {
      *                                   minus seven
      */
     double getDouble(int index) throws NullPointerException;
+
+    /**
+     * Perform a transformation on the inner ByteBuffer atomically.
+     * @param transformer The function to apply on the ByteBuffer
+     * @return The return value of the transform
+     */
+
+    <T> T transform(Function<ByteBuffer, T> transformer);
 }

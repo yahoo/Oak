@@ -10,6 +10,7 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.function.Consumer;
@@ -23,8 +24,8 @@ public class MultiThreadComputeTest {
     private final int NUM_THREADS = 31;
     private ArrayList<Thread> threads;
     private CountDownLatch latch;
-    private Consumer<OakWBuffer> computer;
-    private Consumer<OakWBuffer> emptyComputer;
+    private Consumer<ByteBuffer> computer;
+    private Consumer<ByteBuffer> emptyComputer;
     private int maxItemsPerChunk = 1024;
 
     @Before

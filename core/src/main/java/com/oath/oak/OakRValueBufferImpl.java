@@ -27,37 +27,6 @@ public class OakRValueBufferImpl implements OakRBuffer {
         return capacity;
     }
 
-    @Override
-    public int position() {
-        start();
-        int position = handle.position();
-        end();
-        return position;
-    }
-
-    @Override
-    public int limit() {
-        start();
-        int limit = handle.limit();
-        end();
-        return limit;
-    }
-
-    @Override
-    public int remaining() {
-        start();
-        int remaining = handle.remaining();
-        end();
-        return remaining;
-    }
-
-    @Override
-    public boolean hasRemaining() {
-        start();
-        boolean hasRemaining = handle.hasRemaining();
-        end();
-        return hasRemaining;
-    }
 
     @Override
     public byte get(int index) {
@@ -141,23 +110,23 @@ public class OakRValueBufferImpl implements OakRBuffer {
         if (transformer == null) {
             throw new NullPointerException();
         }
-
-        start();
-        T transformation = transformer.apply(handle.getImmutableByteBuffer());
-        end();
-        return transformation;
+        T retVal = (T)handle.transform(transformer);
+        if (retVal == null) {
+            throw new ConcurrentModificationException();
+        }
+        return retVal;
     }
 
     private void start() {
-        handle.readLock.lock();
+        handle.readLock();
         if (handle.isDeleted()) {
-            handle.readLock.unlock();
+            handle.readUnLock();
             throw new ConcurrentModificationException();
         }
     }
 
     private void end() {
-        handle.readLock.unlock();
+        handle.readUnLock();
     }
 
 }

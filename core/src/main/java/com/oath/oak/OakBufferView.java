@@ -6,6 +6,7 @@
 
 package com.oath.oak;
 
+import java.nio.ByteBuffer;
 import java.util.Map;
 
 /**
@@ -51,7 +52,7 @@ public class OakBufferView<K> implements AutoCloseable{
   /**
    * Returns a {@link OakIterator} of the mappings contained in this map in ascending key order.
    */
-  public OakIterator<Map.Entry<OakRBuffer, OakRBuffer>> entriesIterator() {
+  public OakIterator<Map.Entry<ByteBuffer, OakRBuffer>> entriesIterator() {
     return internalOakMap.entriesBufferViewIterator(
         fromKey, externalOakMap.getFromInclusive(),
         toKey, externalOakMap.getToInclusive(),
@@ -61,7 +62,7 @@ public class OakBufferView<K> implements AutoCloseable{
   /**
    * Returns a {@link OakIterator} of the keys contained in this map in ascending order.
    */
-  public OakIterator<OakRBuffer> keysIterator() {
+  public OakIterator<ByteBuffer> keysIterator() {
     return internalOakMap.keysBufferViewIterator(
         fromKey, externalOakMap.getFromInclusive(),
         toKey, externalOakMap.getToInclusive(),
