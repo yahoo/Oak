@@ -70,42 +70,56 @@ public class OakMap<K, V> implements CompositionalOakMap<K, V> {
 
     @Override
     public boolean ascendOak(K from, int length) {
-        int i;
-        try (com.oath.oak.OakMap<MyBuffer, MyBuffer> sub = oak.tailMap((MyBuffer) from, true)) {
-            OakBufferView<MyBuffer> oakView = sub.createBufferView();
-            i = 0;
-            OakIterator<ByteBuffer> iter = oakView.keysIterator();
-            while (iter.hasNext() && i < length) {
-                i++;
-                iter.next();
-            }
-            try {
-                oakView.close();
-            } catch (Exception e) {
-                e.printStackTrace();
-            }
-        }
-        return i == length;
+        com.oath.oak.OakMap<MyBuffer, MyBuffer> sub = oak.tailMap((MyBuffer) from, true);
+
+        boolean result = createAndScanView(sub, length);
+
+        sub.close();
+
+        return result;
     }
 
     @Override
     public boolean descendOak(K from, int length) {
         com.oath.oak.OakMap<MyBuffer, MyBuffer> desc = oak.descendingMap();
         com.oath.oak.OakMap<MyBuffer, MyBuffer> sub = desc.tailMap((MyBuffer) from, true);
-        OakBufferView<MyBuffer> oakView = sub.createBufferView();
+
+        boolean result = createAndScanView(sub, length);
+
+        sub.close();
+        desc.close();
+
+        return result;
+    }
+
+    private boolean createAndScanView(com.oath.oak.OakMap<MyBuffer, MyBuffer> subMap, int length) {
+        OakIterator<ByteBuffer> iter;
+        Runnable closeView;
+        if (Parameters.bufferView) {
+            OakBufferView<MyBuffer> oakView = subMap.createBufferView();
+            iter = oakView.keysIterator();
+            closeView = () -> oakView.close();
+        } else {
+            OakTransformView<MyBuffer, ByteBuffer> transformView = subMap.createTransformView(e -> MyBufferOak.serializer.deserialize(e.getKey()).buffer);
+            iter = transformView.keysIterator();
+            closeView = () -> transformView.close();
+        }
+
+        boolean result = iterate(iter, length);
+        try {
+            closeView.run();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return result;
+    }
+
+    private boolean iterate(OakIterator<ByteBuffer> iter, int length) {
         int i = 0;
-        OakIterator<ByteBuffer> iter = oakView.keysIterator();
         while (iter.hasNext() && i < length) {
             i++;
             iter.next();
         }
-        try {
-            oakView.close();
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-        sub.close();
-        desc.close();
         return i == length;
     }
 
