@@ -280,6 +280,8 @@ public class Test {
                         Parameters.change = true;
                 } else if (currentArg.equals("--buffer")) {
                         Parameters.bufferView = true;
+                } else if (currentArg.equals("--inc")) {
+                        Parameters.keyDistribution = Parameters.KeyDist.INCREASING;
 				} else {
 					String optionValue = args[argNumber++];
 					if (currentArg.equals("--thread-nums")
