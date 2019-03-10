@@ -72,67 +72,67 @@ public class MultiThreadComputeTest {
                 oak.putIfAbsent(i, i);
             }
 
-            for (Integer i = 0; i < 4 * maxItemsPerChunk; i++) {
-                oak.putIfAbsentComputeIfPresent(i, i, emptyComputer);
-            }
-
-            for (int i = 3 * maxItemsPerChunk; i < 4 * maxItemsPerChunk; i++) {
-                oak.remove(i);
-            }
-
-            oak.put(1, 2);
-
-            for (int i = 0; i < 4 * maxItemsPerChunk; i++) {
-                oak.computeIfPresent(i, computer);
-            }
-
-            for (int i = 0; i < maxItemsPerChunk; i++) {
-                oak.putIfAbsentComputeIfPresent(i, i, computer);
-            }
-
-            Integer value = oak.get(0);
-            assertNotNull(value);
-            assertEquals((Integer) 1, value);
-
-            for (int i = maxItemsPerChunk; i < 2 * maxItemsPerChunk; i++) {
-                oak.remove(i);
-            }
-
-            for (int i = 5 * maxItemsPerChunk; i < 6 * maxItemsPerChunk; i++) {
-                oak.putIfAbsent(i, i);
-            }
-
-            for (int i = 5 * maxItemsPerChunk; i < 6 * maxItemsPerChunk; i++) {
-                oak.remove(i);
-            }
-
-            for (int i = 3 * maxItemsPerChunk; i < 4 * maxItemsPerChunk; i++) {
-                oak.putIfAbsent(i, i);
-            }
-
-            for (int i = 3 * maxItemsPerChunk; i < 4 * maxItemsPerChunk; i++) {
-                oak.putIfAbsentComputeIfPresent(i, i, emptyComputer);
-            }
-
-            for (int i = 3 * maxItemsPerChunk; i < 4 * maxItemsPerChunk; i++) {
-                oak.remove(i);
-            }
-
-            for (int i = 2 * maxItemsPerChunk; i < 3 * maxItemsPerChunk; i++) {
-                oak.put(i, i);
-            }
-
-            for (int i = 3 * maxItemsPerChunk; i < 4 * maxItemsPerChunk; i++) {
-                oak.remove(i);
-            }
-
-            for (int i = maxItemsPerChunk; i < 2 * maxItemsPerChunk; i++) {
-                oak.remove(i);
-            }
-
-            for (int i = 4 * maxItemsPerChunk; i < 6 * maxItemsPerChunk; i++) {
-                oak.putIfAbsent(i, i);
-            }
+//            for (Integer i = 0; i < 4 * maxItemsPerChunk; i++) {
+//                oak.putIfAbsentComputeIfPresent(i, i, emptyComputer);
+//            }
+//
+//            for (int i = 3 * maxItemsPerChunk; i < 4 * maxItemsPerChunk; i++) {
+//                oak.remove(i);
+//            }
+//
+//            oak.put(1, 2);
+//
+//            for (int i = 0; i < 4 * maxItemsPerChunk; i++) {
+//                oak.computeIfPresent(i, computer);
+//            }
+//
+//            for (int i = 0; i < maxItemsPerChunk; i++) {
+//                oak.putIfAbsentComputeIfPresent(i, i, computer);
+//            }
+//
+//            Integer value = oak.get(0);
+//            assertNotNull(value);
+//            assertEquals((Integer) 1, value);
+//
+//            for (int i = maxItemsPerChunk; i < 2 * maxItemsPerChunk; i++) {
+//                oak.remove(i);
+//            }
+//
+//            for (int i = 5 * maxItemsPerChunk; i < 6 * maxItemsPerChunk; i++) {
+//                oak.putIfAbsent(i, i);
+//            }
+//
+//            for (int i = 5 * maxItemsPerChunk; i < 6 * maxItemsPerChunk; i++) {
+//                oak.remove(i);
+//            }
+//
+//            for (int i = 3 * maxItemsPerChunk; i < 4 * maxItemsPerChunk; i++) {
+//                oak.putIfAbsent(i, i);
+//            }
+//
+//            for (int i = 3 * maxItemsPerChunk; i < 4 * maxItemsPerChunk; i++) {
+//                oak.putIfAbsentComputeIfPresent(i, i, emptyComputer);
+//            }
+//
+//            for (int i = 3 * maxItemsPerChunk; i < 4 * maxItemsPerChunk; i++) {
+//                oak.remove(i);
+//            }
+//
+//            for (int i = 2 * maxItemsPerChunk; i < 3 * maxItemsPerChunk; i++) {
+//                oak.put(i, i);
+//            }
+//
+//            for (int i = 3 * maxItemsPerChunk; i < 4 * maxItemsPerChunk; i++) {
+//                oak.remove(i);
+//            }
+//
+//            for (int i = maxItemsPerChunk; i < 2 * maxItemsPerChunk; i++) {
+//                oak.remove(i);
+//            }
+//
+//            for (int i = 4 * maxItemsPerChunk; i < 6 * maxItemsPerChunk; i++) {
+//                oak.putIfAbsent(i, i);
+//            }
 
         }
     }

@@ -143,7 +143,6 @@ class InternalOakMap<K, V> {
 
     private Rebalancer.RebalanceResult rebalance(Chunk<K, V> c, K key, V value, Consumer<ByteBuffer> computer, Operation op) {
         if (c == null) {
-            assert op == Operation.NO_OP;
             return null;
         }
         Rebalancer rebalancer = new Rebalancer(c, comparator, true, memoryManager, keySerializer,
@@ -156,7 +155,7 @@ class InternalOakMap<K, V> {
         // will be redirected to help the rebalance procedure
         rebalancer.freeze();
 
-        Rebalancer.RebalanceResult result = rebalancer.createNewChunks(key, value, computer, op); // split or compact
+        Rebalancer.RebalanceResult result = rebalancer.createNewChunks(); // split or compact
         // if returned true then this thread was responsible for the creation of the new chunks
         // and it inserted the put
 
@@ -170,7 +169,7 @@ class InternalOakMap<K, V> {
 
         engaged.forEach(Chunk::release);
 
-        if (result.success && result.putIfAbsent) {
+        if (result.isSuccess() && result.getHelpedOp() == Operation.PUT_IF_ABSENT) {
             size.incrementAndGet();
         }
 
@@ -284,46 +283,6 @@ class InternalOakMap<K, V> {
         }
     }
 
-    private boolean rebalancePutIfAbsent(Chunk<K, V> c, K key, V value) {
-        Rebalancer.RebalanceResult result = rebalance(c, key, value, null, Operation.PUT_IF_ABSENT);
-        assert result != null;
-        if (!result.success) { // rebalance helped put
-            return putIfAbsent(key, value);
-        }
-        return result.putIfAbsent;
-    }
-
-    private void rebalancePut(Chunk<K, V> c, K key, V value) {
-        Rebalancer.RebalanceResult result = rebalance(c, key, value, null, Operation.PUT);
-        assert result != null;
-        if (result.success) { // rebalance helped put
-            return;
-        }
-        put(key, value);
-    }
-
-    private void rebalanceCompute(Chunk<K, V> c, K key, V value, Consumer<ByteBuffer> computer) {
-        Rebalancer.RebalanceResult result = rebalance(c, key, value, computer, Operation.COMPUTE);
-        assert result != null;
-        if (result.success) { // rebalance helped compute
-            return;
-        }
-        putIfAbsentComputeIfPresent(key, value, computer);
-    }
-
-    private boolean rebalanceRemove(Chunk<K, V> c, K key) {
-        Rebalancer.RebalanceResult result = rebalance(c, key, null, null, Operation.REMOVE);
-        assert result != null;
-        return result.success;
-    }
-
-    private boolean finishAfterPublishing(Chunk.OpData opData, Chunk<K, V> c){
-        // set pointer to value
-        boolean ret = c.pointToValue(opData);
-        c.unpublish(opData);
-        checkRebalance(c);
-        return ret;
-    }
 
     /*-------------- OakMap Methods --------------*/
 
@@ -332,11 +291,14 @@ class InternalOakMap<K, V> {
             throw new NullPointerException();
         }
 
-        Chunk<K, V> c = findChunk(key); // find chunk matching key
+        Chunk<K,V> c = findChunk(key); // find chunk matching key
         Chunk.LookUp lookUp = c.lookUp(key);
-        if (lookUp != null && lookUp.handle != null) {
-            lookUp.handle.put(value, valueSerializer, memoryManager);
-            return;
+        if (lookUp != null) {
+            if (lookUp.handle.put(value, valueSerializer, memoryManager)) {
+                c.getStatistics().incrementAddedCount();
+                return;
+            }
+
         }
 
         // if chunk is frozen or infant, we can't add to it
@@ -349,48 +311,49 @@ class InternalOakMap<K, V> {
             return;
         }
         if (state == Chunk.State.FROZEN || state == Chunk.State.RELEASED) {
-            rebalancePut(c, key, value);
+            rebalance(c, null, null, null, Operation.NO_OP);
+            put(key, value);
             return;
-        }
-
-        int ei = -1;
-        int prevHi = -1;
-        if (lookUp != null) {
-            ei = lookUp.entryIndex;
-            assert ei > 0;
-            prevHi = lookUp.handleIndex;
-        }
-
-        if (ei == -1) {
-            ei = c.allocateEntryAndKey(key);
-            if (ei == -1) {
-                rebalancePut(c, key, value);
-                return;
-            }
-            int prevEi = c.linkEntry(ei, true, key);
-            if (prevEi != ei) {
-                ei = prevEi;
-                prevHi = c.getHandleIndex(prevEi);
-            }
         }
 
         int hi = c.allocateHandle();
-        if (hi == -1) {
-            rebalancePut(c, key, value);
+        int ei = c.allocateEntryAndKey(key);
+        if (hi == -1 || ei == -1) {
+            rebalance(c, null, null, null, Operation.NO_OP);
+            put(key, value);
             return;
         }
+        c.writeValue(hi, value);
 
-        c.writeValue(hi, value); // write value in place
-
-        Chunk.OpData opData = new Chunk.OpData(Operation.PUT, ei, hi, prevHi, null);
+        //attache handle to entry
+        c.pointToValue(ei, hi);
 
         // publish put
-        if (!c.publish(opData)) {
-            rebalancePut(c, key, value);
+        // just put some value so that rebalance waits for this thread to finish
+        // If rebalancer gets to put an op in array then publish fails
+        //TODO YONIGO - this op is stupid
+        Chunk.OpData op = new Chunk.OpData(Operation.PUT, -1, -1, -1, null);
+        if (!c.publish(op)) {
+            c.getHandle(ei).remove(memoryManager);
+            rebalance(c, null, null, null, Operation.NO_OP);
+            put(key, value);
             return;
         }
 
-        finishAfterPublishing(opData, c);
+        //attache entry to chunk list
+        Chunk.LinkEntryResult linkResult = c.linkEntry(ei, true, key);
+        if(!linkResult.isNewEntry()) {
+            c.getHandle(ei).remove(memoryManager);
+            if (lookUp.handle.put(value, valueSerializer, memoryManager)) {
+                c.getStatistics().incrementAddedCount();
+            }
+        } else {
+            c.getStatistics().incrementAddedCount();
+        }
+
+
+        c.unpublish(op);
+
     }
 
     boolean putIfAbsent(K key, V value) {
@@ -398,10 +361,14 @@ class InternalOakMap<K, V> {
             throw new NullPointerException();
         }
 
-        Chunk c = findChunk(key); // find chunk matching key
-        Chunk.LookUp lookUp = c.lookUp(key);
-        if (lookUp != null && lookUp.handle != null) {
-            return false;
+        Chunk<K,V> c = findChunk(key); // find chunk matching key
+        Chunk.LookUp<V> lookUp = c.lookUp(key);
+        if (lookUp != null) {
+            //TODO YONIGO TEST
+            if(lookUp.handle.putIfAbsent(value, valueSerializer, memoryManager)) {
+                c.getStatistics().incrementAddedCount();
+                return true;
+            }
         }
 
         // if chunk is frozen or infant, we can't add to it
@@ -413,66 +380,64 @@ class InternalOakMap<K, V> {
             return putIfAbsent(key, value);
         }
         if (state == Chunk.State.FROZEN || state == Chunk.State.RELEASED) {
-            return rebalancePutIfAbsent(c, key, value);
-        }
-
-
-        int ei = -1;
-        int prevHi = -1;
-        if (lookUp != null) {
-            assert lookUp.handle == null;
-            ei = lookUp.entryIndex;
-            assert ei > 0;
-            prevHi = lookUp.handleIndex;
-        }
-
-        if (ei == -1) {
-            ei = c.allocateEntryAndKey(key);
-            if (ei == -1) {
-                return rebalancePutIfAbsent(c, key, value);
-            }
-            int prevEi = c.linkEntry(ei, true, key);
-            if (prevEi != ei) {
-                Handle handle = c.getHandle(prevEi);
-                if (handle == null) {
-                    ei = prevEi;
-                    prevHi = c.getHandleIndex(prevEi);
-                } else {
-                    return false;
-                }
-            }
+            rebalance(c, null, null, null, Operation.NO_OP);
+            return putIfAbsent(key, value);
         }
 
         int hi = c.allocateHandle();
-        if (hi == -1) {
-            return rebalancePutIfAbsent(c, key, value);
+        int ei = c.allocateEntryAndKey(key);
+        if (hi == -1 || ei == -1) {
+            rebalance(c, null, null, null, Operation.NO_OP);
+            return putIfAbsent(key, value);
         }
+        c.writeValue(hi, value);
 
-        c.writeValue(hi, value); // write value in place
-
-        Chunk.OpData opData = new Chunk.OpData(Operation.PUT_IF_ABSENT, ei, hi, prevHi, null);
+        //attache handle to entry
+        c.pointToValue(ei, hi);
 
         // publish put
-        if (!c.publish(opData)) {
-            return rebalancePutIfAbsent(c, key, value);
+        // just put some value so that rebalance waits for this thread to finish
+        // If rebalancer gets to put an op in array then publish fails
+        //TODO YONIGO - this op is stupid
+        Chunk.OpData op = new Chunk.OpData(Operation.PUT_IF_ABSENT, -1, -1, -1, null);
+        if (!c.publish(op)) {
+            c.getHandle(ei).remove(memoryManager);
+            rebalance(c, null, null, null, Operation.NO_OP);
+            return putIfAbsent(key, value);
         }
 
-        return finishAfterPublishing(opData, c);
+        //attache entry to chunk list
+        Chunk.LinkEntryResult linkResult = c.linkEntry(ei, true, key);
+        if(!linkResult.isNewEntry()) {
+            c.getHandle(ei).remove(memoryManager);
+            boolean retVal = c.getHandle(linkResult.getEi()).putIfAbsent(value, valueSerializer, memoryManager);
+            if (retVal) {
+                c.getStatistics().incrementAddedCount();
+            }
+            c.unpublish(op);
+            return retVal;
+        } else {
+            c.getStatistics().incrementAddedCount();
+            c.unpublish(op);
+            return true;
+        }
     }
 
-    void putIfAbsentComputeIfPresent(K key, V value, Consumer<ByteBuffer> computer) {
+    //return true if added a new value
+    boolean putIfAbsentComputeIfPresent(K key, V value, Consumer<ByteBuffer> computer) {
         if (key == null || value == null || computer == null) {
             throw new NullPointerException();
         }
 
-        Chunk c = findChunk(key); // find chunk matching key
-        Chunk.LookUp lookUp = c.lookUp(key);
-        if (lookUp != null && lookUp.handle != null) {
-            if (lookUp.handle.compute(computer)) {
-                // compute was successful and handle wasn't found deleted; in case
-                // this handle was already found as deleted, continue to construct another handle
-                return;
+        Chunk<K,V> c = findChunk(key); // find chunk matching key
+        Chunk.LookUp<V> lookUp = c.lookUp(key);
+        if (lookUp != null) {
+            //maybe entry is deleted so must try:
+            if (lookUp.handle.putIfAbsentComputeIfPresent(value, valueSerializer, computer, memoryManager)) {
+                c.getStatistics().incrementAddedCount();
+                return true;
             }
+            return false;
         }
 
         // if chunk is frozen or infant, we can't add to it
@@ -481,65 +446,52 @@ class InternalOakMap<K, V> {
         if (state == Chunk.State.INFANT) {
             // the infant is already connected so rebalancer won't add this put
             rebalance(c.creator(), null, null, null, Operation.NO_OP);
-            putIfAbsentComputeIfPresent(key, value, computer);
-            return;
+            return putIfAbsentComputeIfPresent(key, value, computer);
         }
         if (state == Chunk.State.FROZEN || state == Chunk.State.RELEASED) {
-            rebalanceCompute(c, key, value, computer);
-            return;
+            rebalance(c, null, null, null, Operation.NO_OP);
+            return putIfAbsentComputeIfPresent(key, value, computer);
         }
 
-        // we come here when no key was found, which can be in 3 cases:
-        // 1. no entry in the linked list at all
-        // 2. entry in the linked list, but handle is not attached
-        // 3. entry in the linked list, handle attached, but handle is marked deleted
-        int ei = -1;
-        int prevHi = -1;
-        if (lookUp != null) {
-            ei = lookUp.entryIndex;
-            assert ei > 0;
-            prevHi = lookUp.handleIndex;
+        int hi = c.allocateHandle(); // TODO YONIGO - This handler is not released if during rebalance helpOp handler gets computed
+        int ei = c.allocateEntryAndKey(key);
+        if (hi == -1 || ei == -1) {
+            rebalance(c, null, null, null, Operation.NO_OP);
+            return putIfAbsentComputeIfPresent(key, value, computer);
         }
+        c.writeValue(hi, value);
 
-        if (ei == -1) {
-            ei = c.allocateEntryAndKey(key);
-            if (ei == -1) {
-                rebalanceCompute(c, key, value, computer);
-                return;
-            }
-            int prevEi = c.linkEntry(ei, true, key);
-            if (prevEi != ei) {
-                Handle handle = c.getHandle(prevEi);
-                if (handle == null) {
-                    ei = prevEi;
-                    prevHi = c.getHandleIndex(prevEi);
-                } else {
-                    if (handle.compute(computer)) {
-                        // compute was successful and handle wasn't found deleted; in case
-                        // this handle was already found as deleted, continue to construct another handle
-                        return;
-                    }
-                }
-            }
-        }
-
-        int hi = c.allocateHandle();
-        if (hi == -1) {
-            rebalanceCompute(c, key, value, computer);
-            return;
-        }
-
-        c.writeValue(hi, value); // write value in place
-
-        Chunk.OpData opData = new Chunk.OpData(Operation.COMPUTE, ei, hi, prevHi, computer);
+        //attache handle to entry
+        c.pointToValue(ei, hi);
 
         // publish put
-        if (!c.publish(opData)) {
-            rebalanceCompute(c, key, value, computer);
-            return;
+        // just put some value so that rebalance waits for this thread to finish
+        // If rebalancer gets to put an op in array then publish fails
+        //TODO YONIGO - this op is stupid
+        Chunk.OpData op = new Chunk.OpData(Operation.PUT_IF_ABS_COMPUTE_IF_PRES, -1, -1, -1, null);
+        if (!c.publish(op)) {
+            c.getHandle(ei).remove(memoryManager);
+            rebalance(c, null, null, null, Operation.NO_OP);
+            return putIfAbsentComputeIfPresent(key, value, computer);
         }
 
-        finishAfterPublishing(opData, c);
+        //attache entry to chunk list
+        Chunk.LinkEntryResult linkResult = c.linkEntry(ei, true, key);
+        if(!linkResult.isNewEntry()) {
+            //another thread inserted this key so we compute
+            c.getHandle(ei).remove(memoryManager);
+            if (c.getHandle(linkResult.getEi()).putIfAbsentComputeIfPresent(value, valueSerializer, computer, memoryManager)) {
+                c.getStatistics().incrementAddedCount();
+                return true;
+            } else {
+                return false;
+            }
+
+        } else {
+            c.getStatistics().incrementAddedCount();
+            c.unpublish(op);
+            return true;
+        }
     }
 
     void remove(K key) {
@@ -547,65 +499,14 @@ class InternalOakMap<K, V> {
             throw new NullPointerException();
         }
 
-        boolean logical = true; // when logical is false, means we have marked the handle as deleted
-        Handle prev = null;
-
-        while (true) {
-
-            Chunk c = findChunk(key); // find chunk matching key
-            Chunk.LookUp lookUp = c.lookUp(key);
-            if (lookUp != null && logical) {
-                prev = lookUp.handle; // remember previous handle
+        Chunk c = findChunk(key); // find chunk matching key
+        Chunk.LookUp lookUp = c.lookUp(key);
+        if (lookUp != null) {
+            if (lookUp.handle.remove(memoryManager)) {
+                c.getStatistics().decrementAddedCount();
             }
-            if (!logical && lookUp != null && prev != lookUp.handle) {
-                return;  // someone else used this entry
-            }
-
-            if (lookUp == null || lookUp.handle == null) {
-                return; // there is no such key
-            }
-
-            if (logical) {
-                if (!lookUp.handle.remove(memoryManager)) {
-                    // we didn't succeed to remove the handle was marked as deleted already
-                    return;
-                }
-                // we have marked this handle as deleted
-            }
-
-            // if chunk is frozen or infant, we can't update it (remove deleted key, set handle index to -1)
-            // we need to help rebalancer first, then proceed
-            Chunk.State state = c.state();
-            if (state == Chunk.State.INFANT) {
-                // the infant is already connected so rebalancer won't add this put
-                rebalance(c.creator(), null, null, null, Operation.NO_OP);
-                logical = false;
-                continue;
-            }
-            if (state == Chunk.State.FROZEN || state == Chunk.State.RELEASED) {
-                if (!rebalanceRemove(c, key)) {
-                    logical = false;
-                    continue;
-                }
-                return;
-            }
-
-
-            assert lookUp.entryIndex > 0;
-            assert lookUp.handleIndex > 0;
-            Chunk.OpData opData = new Chunk.OpData(Operation.REMOVE, lookUp.entryIndex, -1, lookUp.handleIndex, null);
-
-            // publish
-            if (!c.publish(opData)) {
-                if (!rebalanceRemove(c, key)) {
-                    logical = false;
-                    continue;
-                }
-                return;
-            }
-
-            finishAfterPublishing(opData, c);
         }
+        checkRebalance(c);
     }
 
     OakRBuffer get(K key) {
@@ -981,7 +882,7 @@ class InternalOakMap<K, V> {
         @Override
         public OakRBuffer next() {
             Handle handle = advance().getValue();
-            if (handle == null)
+            if (handle.isDeleted())
                 return null;
 
             return new OakRValueBufferImpl(handle);
@@ -1015,7 +916,7 @@ class InternalOakMap<K, V> {
 
         public Map.Entry<ByteBuffer, OakRBuffer> next() {
             Pair<ByteBuffer, Handle> pair = advance();
-            if (pair.getValue() == null) {
+            if (pair.getValue().isDeleted()) {
                 return null;
             }
             return new AbstractMap.SimpleImmutableEntry<>(pair.getKey(),

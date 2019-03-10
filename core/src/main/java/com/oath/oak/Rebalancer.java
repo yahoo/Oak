@@ -76,12 +76,21 @@ class Rebalancer<K, V> {
     }
 
     static class RebalanceResult {
-        final boolean success;
-        final boolean putIfAbsent;
 
-        RebalanceResult(boolean success, boolean putIfAbsent) {
+        final private boolean success;
+        final private Operation helpedOp;
+
+        RebalanceResult(boolean success, Operation helpedOp) {
             this.success = success;
-            this.putIfAbsent = putIfAbsent;
+            this.helpedOp = helpedOp;
+        }
+
+        public boolean isSuccess() {
+            return success;
+        }
+
+        public Operation getHelpedOp() {
+            return helpedOp;
         }
     }
 
@@ -142,11 +151,11 @@ class Rebalancer<K, V> {
      * @return if managed to CAS to newChunk list of rebalance
      * if we did then the put was inserted
      */
-    RebalanceResult createNewChunks(K key, V value, Consumer<ByteBuffer> computer, Operation operation) {
+    RebalanceResult createNewChunks() {
 
         assert offHeap;
         if (this.newChunks.get() != null) {
-            return new RebalanceResult(false, false); // this was done by another thread already
+            return new RebalanceResult(false, Operation.NO_OP); // this was done by another thread already
         }
 
         List<Chunk> frozenChunks = engagedChunks.get();
@@ -207,14 +216,12 @@ class Rebalancer<K, V> {
 
         newChunks.add(currNewChunk);
 
-        boolean putIfAbsent = false;
-        if (operation != Operation.NO_OP) { // help this op (for lock freedom)
-            putIfAbsent = helpOp(newChunks, key, value, computer, operation);
-        }
+        //Operation helpOpPerformed = helpOp(newChunks, key, value, computer, operation);
+
 
         // if fail here, another thread succeeded, and op is effectively gone
         boolean cas = this.newChunks.compareAndSet(null, newChunks);
-        return new RebalanceResult(cas, putIfAbsent);
+        return new RebalanceResult(cas, null);
     }
 
     private boolean canAppendSuffix(List<Chunk> frozenSuffix, int maxCount, int maxBytes) {
@@ -285,87 +292,7 @@ class Rebalancer<K, V> {
         bytesInRange += chunk.keyIndex.get();
     }
 
-    /**
-     * insert/remove this key and value to one of the newChunks
-     * the key is guaranteed to be in the range of keys in the new chunk
-     */
-    private boolean helpOp(List<Chunk> newChunks, K key, V value, Consumer<ByteBuffer> computer, Operation operation) {
 
-        assert offHeap;
-        assert key != null;
-        assert operation == Operation.REMOVE || value != null;
-        assert operation != Operation.REMOVE || value == null;
-
-        Chunk c = findChunkInList(newChunks, key);
-
-        // look for key
-        Chunk.LookUp lookUp = c.lookUp(key);
-
-        if (lookUp != null && lookUp.handle != null) {
-            if(operation == Operation.PUT_IF_ABSENT) {
-                return false;
-            } else if(operation == Operation.PUT) {
-                lookUp.handle.put(value, valueSerializer, memoryManager);
-                return false;
-            } else if (operation == Operation.COMPUTE) {
-                lookUp.handle.compute(computer);
-                return false;
-            }
-        }
-        // TODO handle.put or handle.compute
-
-        int ei;
-        if (lookUp == null) { // no entry
-            if (operation == Operation.REMOVE) return true;
-            ei = c.allocateEntryAndKey(key);
-            if (ei <= 0)
-                throw new NullPointerException("Chunk was full during helpOp");
-            int eiLink = c.linkEntry(ei, false, key);
-            assert eiLink == ei; // no one else can insert
-        } else {
-            ei = lookUp.entryIndex;
-        }
-
-        int hi = -1;
-        if (operation != Operation.REMOVE) {
-            hi = c.allocateHandle();
-            assert hi > 0; // chunk can't be full
-
-            c.writeValue(hi, value); // write value in place
-
-        }
-
-        // set pointer to value
-        Chunk.OpData opData = new Chunk.OpData(Operation.NO_OP, ei, hi, -1, null);  // prev and op don't matter
-        c.pointToValueCAS(opData, false);
-
-        return (operation != Operation.REMOVE);
-    }
-
-
-    /**
-     * @return a chunk from the list that can hold the given key
-     */
-    private Chunk findChunkInList(List<Chunk> newChunks, Object key) {
-        Iterator<Chunk> iter = newChunks.iterator();
-        assert iter.hasNext();
-        Chunk next = iter.next();
-        Chunk prev = next;
-        assert compare(prev.minKey, key) <= 0;
-
-        while (iter.hasNext()) {
-            next = iter.next();
-            if (compare(next.minKey, key) > 0) {
-                // if we went to far
-                break;
-            } else {
-                // check next chunk
-                prev = next; // maybe there won't be any next, so set this here
-            }
-        }
-
-        return prev;
-    }
 
     /***
      * verifies that the chunk is not engaged and not null

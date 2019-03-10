@@ -10,9 +10,10 @@ import sun.misc.Unsafe;
 
 import java.lang.reflect.Constructor;
 import java.nio.ByteBuffer;
+import java.util.Arrays;
 import java.util.Comparator;
 import java.util.EmptyStackException;
-import java.util.concurrent.ConcurrentSkipListSet;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicMarkableReference;
@@ -190,6 +191,7 @@ public class Chunk<K, V> {
      * pending array
      */
     private boolean casPendingArray(int item, OpData expected, OpData opData) {
+        //TODO YONIGO - dont need this
         return pendingOps.compareAndSet(item, expected, opData);
     }
 
@@ -253,7 +255,7 @@ public class Chunk<K, V> {
     /**
      * gets the value for the given item, or 'null' if it doesn't exist
      */
-    Handle getHandle(int entryIndex) {
+    Handle<V> getHandle(int entryIndex) {
 
         int hi = get(entryIndex, OFFSET_HANDLE_INDEX);
 
@@ -264,10 +266,6 @@ public class Chunk<K, V> {
         } else {
             return handles[hi];
         }
-    }
-
-    int getHandleIndex(int entryIndex) {
-        return get(entryIndex, OFFSET_HANDLE_INDEX);
     }
 
     /**
@@ -289,9 +287,8 @@ public class Chunk<K, V> {
                 // if keys are equal - we've found the item
             else if (cmp == 0) {
                 int hi = get(curr, OFFSET_HANDLE_INDEX);
-                if (hi < 0) return new LookUp(null, curr, -1);
+                assert(hi >=0);
                 Handle h = handles[hi];
-                if (h.isDeleted()) return new LookUp(null, curr, hi);
                 return new LookUp(h, curr, hi);
             }
             // otherwise- proceed to next item
@@ -301,9 +298,9 @@ public class Chunk<K, V> {
         return null;
     }
 
-    static class LookUp {
+    static class LookUp<V> {
 
-        final Handle handle;
+        final Handle<V> handle;
         final int entryIndex;
         final int handleIndex;
 
@@ -356,7 +353,6 @@ public class Chunk<K, V> {
     boolean publish(OpData opData) {
 
         int idx = threadIndexCalculator.getIndex();
-        // publish into thread array
         return casPendingArray(idx, null, opData);
     }
 
@@ -366,7 +362,8 @@ public class Chunk<K, V> {
      **/
     void unpublish(OpData oldOpData) {
         int idx = threadIndexCalculator.getIndex();
-        casPendingArray(idx, oldOpData, null); // publish into thread array
+        //TODO YONIGO - this can be put?
+        boolean ret = casPendingArray(idx, oldOpData, null); // publish into thread array
     }
 
     /**
@@ -404,7 +401,26 @@ public class Chunk<K, V> {
         return ei;
     }
 
-    int linkEntry(int ei, boolean cas, K key) {
+    public static class LinkEntryResult {
+        private final int ei;
+
+        public int getEi() {
+            return ei;
+        }
+
+        public boolean isNewEntry() {
+            return newEntry;
+        }
+
+        private final boolean newEntry;
+
+        public LinkEntryResult(int ei, boolean newEntry) {
+            this.ei = ei;
+            this.newEntry = newEntry;
+        }
+    }
+
+    public LinkEntryResult linkEntry(int ei, boolean cas, K key) {
         int prev, curr, cmp;
         int anchor = -1;
 
@@ -432,7 +448,7 @@ public class Chunk<K, V> {
 
                 // if same key, someone else managed to add the key to the linked list
                 if (cmp == 0) {
-                    return curr;
+                    return new LinkEntryResult(curr, false);
                 }
             }
 
@@ -459,7 +475,7 @@ public class Chunk<K, V> {
                       }
                     }
                   }
-                  return ei;
+                  return new LinkEntryResult(ei, true);
                 }
                 // CAS didn't succeed, try again
             } else {
@@ -484,83 +500,10 @@ public class Chunk<K, V> {
     public int getMaxItems() { return maxItems; }
     public int getBytesPerItem() { return maxKeyBytes / maxItems; }
 
-    /**
-     * Updates a linked entry to point to handle or otherwise removes such a link. The handle in
-     * turn has the value. For linkage this is an insert linearization point.
-     * All the relevant data can be found inside opData.
-     *
-     * point to value
-     * if unsuccessful this means someone else got to it first (helping rebalancer or other operation)
-     */
-    boolean pointToValue(OpData opData) {
 
-        // try to perform the CAS according to operation data (opData)
-        if (pointToValueCAS(opData, true)) {
-            return true;
-        }
-
-        // the straight forward helping didn't work, check why
-        Operation operation = opData.op;
-
-        // the operation is remove, means we tried to change the handle index we knew about to -1
-        // the old handle index is no longer there so we have nothing to do
-        if (operation == Operation.REMOVE) {
-            return true; // this is a remove, no need to try again and return doesn't matter
-        }
-
-        // the operation is either NO_OP, PUT, PUT_IF_ABSENT, COMPUTE
-        int expectedHandleIdx = opData.handleIndex;
-        int foundHandleIdx = get(opData.entryIndex, OFFSET_HANDLE_INDEX);
-
-        if (foundHandleIdx == expectedHandleIdx) {
-            return true; // someone helped
-        } else if (foundHandleIdx < 0) {
-            // the handle was deleted, retry the attach
-            opData.prevHandleIndex = -1;
-            return pointToValue(opData); // remove completed, try again
-        } else if (operation == Operation.PUT_IF_ABSENT) {
-            return false; // too late
-        } else if (operation == Operation.COMPUTE){
-            Handle h = handles[foundHandleIdx];
-            if(h != null){
-                boolean succ = h.compute(opData.computer);
-                if (!succ) {
-                    // we tried to perform the compute but the handle was deleted,
-                    // we can get to pointToValue with Operation.COMPUTE only from PIACIP
-                    // retry to make a put and to attach the new handle
-                    opData.prevHandleIndex = foundHandleIdx;
-                    return pointToValue(opData);
-                }
-            }
-            return true;
-        }
-        // this is a put, try again
-        opData.prevHandleIndex = foundHandleIdx;
-        return pointToValue(opData);
+    void pointToValue(int entryIndex, int handleIndex) {
+        set(entryIndex, OFFSET_HANDLE_INDEX, handleIndex);
     }
-
-    /**
-     * used by put/putIfAbsent/remove and rebalancer
-     */
-    boolean pointToValueCAS(OpData opData, boolean cas) {
-        if (cas) {
-            if (casEntriesArray(opData.entryIndex, OFFSET_HANDLE_INDEX, opData.prevHandleIndex, opData.handleIndex)) {
-                // update statistics only by thread that CASed
-                if (opData.prevHandleIndex < 0 && opData.handleIndex > 0) { // previously a remove
-                    statistics.incrementAddedCount();
-                    externalSize.incrementAndGet();
-                } else if (opData.prevHandleIndex > 0 && opData.handleIndex == -1) { // removing
-                    statistics.decrementAddedCount();
-                    externalSize.decrementAndGet();
-                }
-                return true;
-            }
-        } else {
-            set(opData.entryIndex, OFFSET_HANDLE_INDEX, opData.handleIndex);
-        }
-        return false;
-    }
-
     /**
      * Engage the chunk to a rebalancer r.
      *
@@ -630,44 +573,21 @@ public class Chunk<K, V> {
     void freeze() {
         setState(State.FROZEN); // prevent new puts to this chunk
 
+        //TODO YONIGO - other thread should know that was rebalanced and  do operation again maybe?
+        int a = threadIndexCalculator.getIndex();
         // go over pending of all threads
         for (int i = 0; i < ThreadIndexCalculator.MAX_THREADS; ++i) {
-            OpData opData = pendingOps.get(i);
-            if (opData == FROZEN_OP_DATA) {
-                // frozen already
-                continue;
-            }
-            boolean casSuccess;
-            if (opData == null) {
-                casSuccess = casPendingArray(i, null, FROZEN_OP_DATA);
-                // can fail if there is a new pending op or some other thread froze it already
-            } else { // need to help this op
-                pointToValue(opData); // this is the helping part
-                casSuccess = casPendingArray(i, opData, FROZEN_OP_DATA);
-                // can fail if unpublished or some other thread froze it already
-            }
-
-            if (!casSuccess) { // try again
-                opData = pendingOps.get(i);
-                if (opData == FROZEN_OP_DATA) {
-                    // frozen already
-                    continue;
+            if( i == a) continue;
+            while(true) {
+                if (pendingOps.compareAndSet(i, null, FROZEN_OP_DATA)) {
+                    break;
                 }
-                if (opData == null) {
-                    casSuccess = casPendingArray(i, null, FROZEN_OP_DATA);
-                } else { // need to help this put
-                    pointToValue(opData); // this is the helping part
-                    casPendingArray(i, opData, null);
-                    // a thread can unpublish here
-                    // so we make sure we this will freeze even if a thread did unpublish here
-                    casSuccess = casPendingArray(i, null, FROZEN_OP_DATA);
+                OpData o = pendingOps.get(i);
+                if (o != null && o.op == Operation.NO_OP) {
+                    // another rebalance did this
+                    break;
                 }
-                // the frozen was set beforehand
-                // therefor a put could not publish or unpublish again
-                opData = pendingOps.get(i);
-                assert (casSuccess || opData == FROZEN_OP_DATA);
             }
-
         }
     }
 
@@ -703,7 +623,6 @@ public class Chunk<K, V> {
         int entryIndexStart = ei;
         int entryIndexEnd = entryIndexStart - 1;
         int eiPrev = NONE;
-        int currHandleIndex;
         int currKeyIndex;
         int prevKeyIndex = NONE;
         int prevKeyLength = 0;
@@ -711,7 +630,6 @@ public class Chunk<K, V> {
         boolean isFirst = true;
 
         while (true) {
-            currHandleIndex = srcChunk.get(ei, OFFSET_HANDLE_INDEX);
             currKeyIndex = srcChunk.get(ei, OFFSET_KEY_INDEX);
             int itemsToCopy = entryIndexEnd - entryIndexStart + 1;
 
@@ -721,7 +639,7 @@ public class Chunk<K, V> {
             // or save this item if it create a continuous interval with the previously saved item
             // which means it's key index is adjacent to prev's key index
             // and there is still room
-            if ((currHandleIndex > 0) && (isFirst || (eiPrev < sortedSize)
+            if ((!srcChunk.getHandle(ei).isDeleted()) && (isFirst || (eiPrev < sortedSize)
                     &&
                     (eiPrev + FIELDS == ei)
                     &&
@@ -748,6 +666,9 @@ public class Chunk<K, V> {
                 for (int i = 0; i < itemsToCopy; ++i) {
                     int offset = i * FIELDS;
                     // next should point to the next item
+                    if (sortedEntryIndex > 4096) {
+                        System.out.println("Aa");
+                    }
                     entries[sortedEntryIndex + offset + OFFSET_NEXT] = sortedEntryIndex + offset + FIELDS;
                     entries[sortedEntryIndex + offset + OFFSET_KEY_INDEX] = sortedKI;
                     int keyLength = srcChunk.entries[entryIndexStart + offset + OFFSET_KEY_LENGTH];
@@ -767,7 +688,7 @@ public class Chunk<K, V> {
                 sortedKeyIndex += keyLengthToCopy; // update
             }
 
-            if (currHandleIndex < 0) { // if now this is a removed item
+            if (srcChunk.getHandle(ei).isDeleted()) { // if now this is a removed item
                 // don't copy it, continue to next item
                 eiPrev = ei;
                 ei = srcChunk.get(ei, OFFSET_NEXT);
@@ -884,7 +805,7 @@ public class Chunk<K, V> {
         AscendingIter() {
             next = get(HEAD_NODE, OFFSET_NEXT);
             int handle = get(next, OFFSET_HANDLE_INDEX);
-            while (next != Chunk.NONE && handle < 0) {
+            while (next != Chunk.NONE && handles[handle].isDeleted()) {
                 next = get(next, OFFSET_NEXT);
                 handle = get(next, OFFSET_HANDLE_INDEX);
             }
@@ -901,8 +822,8 @@ public class Chunk<K, V> {
 
             while (next != Chunk.NONE &&
                     (compare > 0 ||
-                    (compare >= 0 && !inclusive)||
-                    handle < 0)) {
+                            (compare >= 0 && !inclusive) ||
+                            handles[handle].isDeleted())) {
                 next = get(next, OFFSET_NEXT);
                 handle = get(next, OFFSET_HANDLE_INDEX);
                 if (next != Chunk.NONE)
@@ -913,7 +834,7 @@ public class Chunk<K, V> {
         private void advance() {
             next = get(next, OFFSET_NEXT);
             int handle = get(next, OFFSET_HANDLE_INDEX);
-            while (next != Chunk.NONE && handle < 0) {
+            while (next != Chunk.NONE && handles[handle].isDeleted()) {
                 next = get(next, OFFSET_NEXT);
                 handle = get(next, OFFSET_HANDLE_INDEX);
             }
@@ -974,7 +895,7 @@ public class Chunk<K, V> {
             }
             next = stack.pop();
             int handle = get(next, OFFSET_HANDLE_INDEX);
-            while (next != Chunk.NONE && handle < 0) {
+            while (next != Chunk.NONE && handles[handle].isDeleted()) {
 //            while (next != Chunk.NONE && (handle < 0 || (handle > 0 && handles[handle].isDeleted()))) {
                 if (!stack.empty()) {
                     next = stack.pop();
