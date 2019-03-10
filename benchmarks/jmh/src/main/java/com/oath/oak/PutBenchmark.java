@@ -56,7 +56,7 @@ public class PutBenchmark {
 
         @TearDown
         public void tearDown() {
-            System.out.println("Num objects at tearDown " + oakMap.entries());
+            System.out.println("Num objects at tearDown " + oakMap.size());
         }
 
         @TearDown(Level.Iteration)
@@ -101,7 +101,7 @@ public class PutBenchmark {
     public void put(Blackhole blackhole,BenchmarkState state,ThreadState threadState) {
         for (int i = 0; i < threadState.numRows; ++i) {
             Pair<String, String> pair = threadState.rows.get(i);
-            state.oakMap.put(pair.getKey(), pair.getValue());
+            state.oakMap.ZC().put(pair.getKey(), pair.getValue());
             blackhole.consume(state.oakMap);
         }
     }
@@ -116,7 +116,7 @@ public class PutBenchmark {
     public void putIfAbsent(Blackhole blackhole,BenchmarkState state,ThreadState threadState) {
         for (int i = 0; i < threadState.numRows; ++i) {
             Pair<String, String> pair = threadState.rows.get(i);
-            state.oakMap.put(pair.getKey(), pair.getValue());
+            state.oakMap.ZC().put(pair.getKey(), pair.getValue());
             blackhole.consume(state.oakMap);
         }
     }

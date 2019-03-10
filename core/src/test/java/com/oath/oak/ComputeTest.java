@@ -158,9 +158,9 @@ public class ComputeTest {
                 myKey.putInt(0, k);
                 myVal.putInt(0, k);
                 if (o % 2 == 0)
-                    oak.computeIfPresent(myKey, computer);
+                    oak.ZC().computeIfPresent(myKey, computer);
                 else
-                    oak.putIfAbsent(myKey, myVal);
+                    oak.ZC().putIfAbsent(myKey, myVal);
 
             }
 
@@ -199,7 +199,7 @@ public class ComputeTest {
             ByteBuffer val = ByteBuffer.allocate(valSize * Integer.BYTES);
             key.putInt(0, i);
             val.putInt(0, i);
-            oak.putIfAbsent(key, val);
+            oak.ZC().putIfAbsent(key, val);
         }
 
         for (int i = 0; i < NUM_THREADS; i++) {

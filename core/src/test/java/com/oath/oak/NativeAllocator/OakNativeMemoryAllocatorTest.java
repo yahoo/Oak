@@ -147,7 +147,7 @@ public class OakNativeMemoryAllocatorTest {
         // pay attention that the given value serializer CheckOakCapacityValueSerializer
         // will transform a single integer into huge buffer of size about 100MB,
         // what is currently one block size
-        oak.put(key, val);
+        oak.ZC().put(key, val);
 
         //check that after a single allocation of a block size
         // (1) we have all the blocks in the pool except one which is in the allocator
@@ -157,13 +157,13 @@ public class OakNativeMemoryAllocatorTest {
         assertEquals(ma.numOfAllocatedBlocks(), 1);
         assertEquals(valueSizeAfterSerialization, ma.allocated());   // check the newest block allocation
         // check that what you read is the same that you wrote
-        Integer resultForKey = oak.getMinKey();
+        Integer resultForKey = oak.firstKey();
         Integer resultForValue = oak.get(key);
         assertEquals(resultForKey, key);
         assertEquals(resultForValue, val);
 
         key = 1;
-        oak.put(key, val);
+        oak.ZC().put(key, val);
 
         //check that after a double allocation of a block size
         // (1) we have all the blocks in the pool except two which are in the allocator
@@ -174,13 +174,13 @@ public class OakNativeMemoryAllocatorTest {
         assertEquals(valueSizeAfterSerialization, ma.getCurrentBlock().allocated());   // check the newest block allocation
         assertEquals(valueSizeAfterSerialization * 2, ma.allocated());   // check the total allocation
         // check that what you read is the same that you wrote
-        resultForKey = oak.getMaxKey();
+        resultForKey = oak.lastKey();
         resultForValue = oak.get(key);
         assertEquals(resultForKey, key);
         assertEquals(resultForValue, val);
 
         key = 2;
-        oak.put(key, val);
+        oak.ZC().put(key, val);
 
         //check that after three allocations of a block size
         // (1) we have all the blocks in the pool except three which are in the allocator
@@ -191,7 +191,7 @@ public class OakNativeMemoryAllocatorTest {
         assertEquals(valueSizeAfterSerialization, ma.getCurrentBlock().allocated());   // check the newest block allocation
         assertEquals(valueSizeAfterSerialization * 3, ma.allocated());   // check the total allocation
         // check that what you read is the same that you wrote
-        resultForKey = oak.getMaxKey();
+        resultForKey = oak.lastKey();
         resultForValue = oak.get(key);
         assertEquals(resultForKey, key);
         assertEquals(resultForValue, val);
@@ -201,7 +201,7 @@ public class OakNativeMemoryAllocatorTest {
         key = 3;
         boolean gotException = false;
         try {
-            oak.put(key, val);
+            oak.ZC().put(key, val);
         } catch (OakOutOfMemoryException e) {
             gotException = true;
         }
@@ -211,13 +211,13 @@ public class OakNativeMemoryAllocatorTest {
         Integer value = oak.get(key);
         assertEquals((Integer) 1, value);
 
-        oak.remove(key); // remove the key so we have space for more
+        oak.ZC().remove(key); // remove the key so we have space for more
 
         key = 3; // should not be written
         value = oak.get(key);
         assertNull(value);
 
-        oak.remove(1); // this should actually trigger the free of key 0 memory
+        oak.ZC().remove(1); // this should actually trigger the free of key 0 memory
 
         oak.close();
     }

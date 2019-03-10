@@ -21,7 +21,7 @@ public class ChunkSplitTest {
 
         for (int i=0; i < 11; i++) {
             String key = String.format("-%01d", i);
-            oak.put(key,key);
+            oak.ZC().put(key,key);
         }
 
         Field field = oak.getClass().getDeclaredField("internalOakMap");
@@ -48,7 +48,7 @@ public class ChunkSplitTest {
 
         for (int i=0; i < 10; i++) {
             String key = String.format("-%01024d", i);
-            oak.put(key,key);
+            oak.ZC().put(key,key);
         }
 
         Field field = oak.getClass().getDeclaredField("internalOakMap");

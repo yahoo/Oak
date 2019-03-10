@@ -107,7 +107,7 @@ public class FillTest {
                 arr[nextIdx] = tmp;
                 usedIdx--;
 
-                oak.putIfAbsent(next, next);
+                oak.ZC().putIfAbsent(next, next);
             }
 
             for (Integer i = end-1; i >= start; i--) {
@@ -136,7 +136,7 @@ public class FillTest {
         }
 
         for (int i = 0; i < (int) Math.round(NUM_OF_ENTRIES*0.5); i++) {
-            oak.putIfAbsent(i, i);
+            oak.ZC().putIfAbsent(i, i);
         }
 
         for (int i = 0; i < NUM_THREADS; i++) {

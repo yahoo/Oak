@@ -51,11 +51,11 @@ class Handle<V> {
         return true;
     }
 
-    void put(V newVal, OakSerializer<V> serializer, MemoryManager memoryManager) {
+    boolean put(V newVal, OakSerializer<V> serializer, MemoryManager memoryManager) {
         writeLock.lock();
         if (isDeleted()) {
             writeLock.unlock();
-            return;
+            return false;
         }
         int capacity = serializer.calculateSize(newVal);
         if (this.value.remaining() < capacity) { // can not reuse the existing space
@@ -64,6 +64,8 @@ class Handle<V> {
         }
         serializer.serialize(newVal, this.value.slice());
         writeLock.unlock();
+
+        return true;
     }
 
     // returns false in case handle was found deleted and compute didn't take place, true otherwise
@@ -130,6 +132,28 @@ class Handle<V> {
         readLock.unlock();
         return transformation;
     }
+
+    /**
+     * Applies a transformation under writers locking
+     *
+     * @param transformer
+     * @return Transformation result or null if value is deleted
+     */
+    <T> T mutatingTransform(Function<ByteBuffer, T> transformer) {
+        T result;
+        writeLock.lock();
+        if (isDeleted()) {
+            writeLock.unlock();
+            return null;
+        }
+        try {
+            result = transformer.apply(getSlicedByteBuffer());
+        } finally {
+            writeLock.unlock();
+        }
+        return result;
+    }
+
 
 
     public void readLock() {

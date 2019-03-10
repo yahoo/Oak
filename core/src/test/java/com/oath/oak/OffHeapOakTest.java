@@ -14,6 +14,7 @@ import org.junit.rules.ExpectedException;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.function.Consumer;
@@ -89,7 +90,7 @@ public class OffHeapOakTest {
                 e.printStackTrace();
             }
 
-            OakIterator<Map.Entry<Integer, Integer>> iter0 = oak.entriesIterator();
+            Iterator<Map.Entry<Integer, Integer>> iter0 = oak.entrySet().iterator();
             while (iter0.hasNext()) {
                 Map.Entry<Integer, Integer> entry = iter0.next();
                 if (entry == null) continue;
@@ -100,14 +101,14 @@ public class OffHeapOakTest {
             }
 
             for (int i = 0; i < 6 * maxItemsPerChunk; i++) {
-                oak.put(i, i);
+                oak.ZC().put(i, i);
             }
 
             for (int i = 0; i < 6 * maxItemsPerChunk; i++) {
-                oak.remove(i);
+                oak.ZC().remove(i);
             }
 
-            OakIterator<Map.Entry<Integer, Integer>> iter9 = oak.entriesIterator();
+            Iterator<Map.Entry<Integer, Integer>> iter9 = oak.entrySet().iterator();
             while (iter9.hasNext()) {
                 Map.Entry<Integer, Integer> entry = iter9.next();
                 if (entry == null) continue;
@@ -125,14 +126,14 @@ public class OffHeapOakTest {
             }
 
             for (int i = 0; i < 6 * maxItemsPerChunk; i++) {
-                oak.putIfAbsent(i, i);
+                oak.ZC().putIfAbsent(i, i);
             }
 
             for (int i = 0; i < 6 * maxItemsPerChunk; i++) {
-                oak.remove(i);
+                oak.ZC().remove(i);
             }
 
-            OakIterator<Map.Entry<Integer, Integer>> iter8 = oak.entriesIterator();
+            Iterator<Map.Entry<Integer, Integer>> iter8 = oak.entrySet().iterator();
             while (iter8.hasNext()) {
                 Map.Entry<Integer, Integer> entry = iter8.next();
                 if (entry == null) continue;
@@ -145,7 +146,7 @@ public class OffHeapOakTest {
 
 
             for (int i = 0; i < 6 * maxItemsPerChunk; i++) {
-                oak.put(i, i);
+                oak.ZC().put(i, i);
             }
         }
     }

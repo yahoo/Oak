@@ -27,6 +27,7 @@ import org.openjdk.jmh.runner.options.OptionsBuilder;
 
 
 import java.nio.ByteBuffer;
+import java.util.Iterator;
 import java.util.concurrent.TimeUnit;
 
 @Warmup(iterations = 5)
@@ -66,7 +67,7 @@ public class ScanBenchmark
             String val = String.format("%0$-" + VALUE_SIZE_BYTES/Character.BYTES +"s",
                     String.valueOf(i) + Thread.currentThread().getId());
 
-            oakMap.put(key, val);
+            oakMap.ZC().put(key, val);
         }
     }
 
@@ -77,7 +78,7 @@ public class ScanBenchmark
 
     @Benchmark
     public void scan(Blackhole blackhole) {
-        OakIterator<String> iterator = oakMap.keysIterator();
+        Iterator<String> iterator = oakMap.keySet().iterator();
 
         while (iterator.hasNext()) {
             String val = iterator.next();
@@ -88,20 +89,17 @@ public class ScanBenchmark
 
     @Benchmark
     public void bufferViewScan(Blackhole blackhole) {
-
-        try (OakBufferView<String> bufferView = oakMap.createBufferView()) {
-            OakIterator<ByteBuffer> iterator = bufferView.keysIterator();
-            while (iterator.hasNext()) {
-                ByteBuffer val = iterator.next();
-                blackhole.consume(val);
-            }
+       Iterator<ByteBuffer> iterator = oakMap.ZC().keySet().iterator();
+        while (iterator.hasNext()) {
+            ByteBuffer val = iterator.next();
+            blackhole.consume(val);
         }
     }
 
     @Benchmark
     public void inverseScan(Blackhole blackhole) {
         try (OakMap inverseMap = oakMap.descendingMap()) {
-            OakIterator<String> iterator = inverseMap.keysIterator();
+            Iterator<String> iterator = inverseMap.keySet().iterator();
             while (iterator.hasNext()) {
                 String val = iterator.next();
                 blackhole.consume(val);
@@ -111,9 +109,8 @@ public class ScanBenchmark
 
     @Benchmark
     public void inverseBufferViewScan(Blackhole blackhole) {
-        try (OakMap inverseMap = oakMap.descendingMap();
-             OakBufferView<String> bufferView = inverseMap.createBufferView()) {
-            OakIterator<ByteBuffer> iterator = bufferView.keysIterator();
+        try (OakMap inverseMap = oakMap.descendingMap()) {
+            Iterator<ByteBuffer> iterator = inverseMap.ZC().keySet().iterator();
             while (iterator.hasNext()) {
                 ByteBuffer val = iterator.next();
                 blackhole.consume(val);

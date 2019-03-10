@@ -27,7 +27,7 @@ public class Parameters {
     public static boolean detailedStats = false;
 	static boolean change = false;
 
-	public static boolean bufferView = false;
+	public static boolean zeroCopy = false;
 
 	public static KeyDist keyDistribution = KeyDist.RANDOM;
 

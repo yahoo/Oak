@@ -65,7 +65,7 @@ public class GetBenchmark {
                 String val = String.format("%0$-" + VALUE_SIZE_BYTES/Character.BYTES +"s",
                         String.valueOf(i));
 
-                oakMap.put(key,val);
+                oakMap.ZC().put(key,val);
                 keys.add(key);
             }
         }

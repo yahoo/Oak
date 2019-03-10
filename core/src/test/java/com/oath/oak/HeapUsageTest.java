@@ -89,7 +89,7 @@ public class HeapUsageTest {
 //            System.out.println("off heap used: " + oak.getMemoryManager().allocated() / M + "MB");
 
             for (int i = 0; i < numOfEntries; i++) {
-                oak.put(i, i);
+                oak.ZC().put(i, i);
             }
 //            System.out.println("\nAfter filling up oak");
 //            System.out.println("off heap used: " + oak.getMemoryManager().allocated() / M + "MB");
@@ -104,7 +104,7 @@ public class HeapUsageTest {
 //            System.out.println("heap used: " + (heapSize - heapFreeSize) / M + "MB");
 
             for (int i = 0; i < numOfEntries; i++) {
-                oak.put(i, i);
+                oak.ZC().put(i, i);
             }
 
             for (Integer i = 0; i < numOfEntries; i++) {

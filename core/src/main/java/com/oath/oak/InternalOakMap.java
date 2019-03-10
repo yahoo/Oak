@@ -9,19 +9,13 @@ package com.oath.oak;
 import javafx.util.Pair;
 
 import java.nio.ByteBuffer;
-import java.util.Comparator;
-import java.util.ConcurrentModificationException;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
-import java.util.NoSuchElementException;
+import java.util.*;
 import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.logging.Logger;
-import java.util.AbstractMap;
 
 class InternalOakMap<K, V> {
 
@@ -141,7 +135,7 @@ class InternalOakMap<K, V> {
 
 
 
-    private Rebalancer.RebalanceResult rebalance(Chunk<K, V> c, K key, V value, Consumer<ByteBuffer> computer, Operation op) {
+    private Rebalancer.RebalanceResult  rebalance(Chunk<K, V> c, K key, V value, Consumer<ByteBuffer> computer, Operation op) {
         if (c == null) {
             assert op == Operation.NO_OP;
             return null;
@@ -170,7 +164,7 @@ class InternalOakMap<K, V> {
 
         engaged.forEach(Chunk::release);
 
-        if (result.success && result.putIfAbsent) {
+        if (result.success && (result.oldHandle == null)) {
             size.incrementAndGet();
         }
 
@@ -284,13 +278,14 @@ class InternalOakMap<K, V> {
         }
     }
 
-    private boolean rebalancePutIfAbsent(Chunk<K, V> c, K key, V value) {
+    private Result<V> rebalancePutIfAbsent(Chunk<K, V> c, K key, V value, Function<ByteBuffer, V> transformer) {
         Rebalancer.RebalanceResult result = rebalance(c, key, value, null, Operation.PUT_IF_ABSENT);
         assert result != null;
         if (!result.success) { // rebalance helped put
-            return putIfAbsent(key, value);
+            return putIfAbsent(key, value, transformer);
         }
-        return result.putIfAbsent;
+        if (transformer == null) return Result.withFlag(result.oldHandle == null);
+        return Result.withValue((result.oldHandle != null) ? result.oldHandle.transform(transformer) : null);
     }
 
     private void rebalancePut(Chunk<K, V> c, K key, V value) {
@@ -299,7 +294,7 @@ class InternalOakMap<K, V> {
         if (result.success) { // rebalance helped put
             return;
         }
-        put(key, value);
+        put(key, value, null);
     }
 
     private void rebalanceCompute(Chunk<K, V> c, K key, V value, Consumer<ByteBuffer> computer) {
@@ -317,17 +312,18 @@ class InternalOakMap<K, V> {
         return result.success;
     }
 
-    private boolean finishAfterPublishing(Chunk.OpData opData, Chunk<K, V> c){
+    // Returns old handle if someone helped before pointToValue happened, or null if
+    private Handle finishAfterPublishing(Chunk.OpData opData, Chunk<K, V> c){
         // set pointer to value
-        boolean ret = c.pointToValue(opData);
+        Handle oldHandle = c.pointToValue(opData);
         c.unpublish(opData);
         checkRebalance(c);
-        return ret;
+        return oldHandle;
     }
 
     /*-------------- OakMap Methods --------------*/
 
-    void put(K key, V value) {
+    V put(K key, V value, Function<ByteBuffer, V> transformer) {
         if (key == null || value == null) {
             throw new NullPointerException();
         }
@@ -335,8 +331,9 @@ class InternalOakMap<K, V> {
         Chunk<K, V> c = findChunk(key); // find chunk matching key
         Chunk.LookUp lookUp = c.lookUp(key);
         if (lookUp != null && lookUp.handle != null) {
+            V v = (transformer != null) ? (V) lookUp.handle.transform(transformer) : null;
             lookUp.handle.put(value, valueSerializer, memoryManager);
-            return;
+            return v;
         }
 
         // if chunk is frozen or infant, we can't add to it
@@ -345,12 +342,12 @@ class InternalOakMap<K, V> {
         if (state == Chunk.State.INFANT) {
             // the infant is already connected so rebalancer won't add this put
             rebalance(c.creator(), null, null, null, Operation.NO_OP);
-            put(key, value);
-            return;
+            put(key, value, transformer);
+            return null;
         }
         if (state == Chunk.State.FROZEN || state == Chunk.State.RELEASED) {
             rebalancePut(c, key, value);
-            return;
+            return null;
         }
 
         int ei = -1;
@@ -365,7 +362,7 @@ class InternalOakMap<K, V> {
             ei = c.allocateEntryAndKey(key);
             if (ei == -1) {
                 rebalancePut(c, key, value);
-                return;
+                return null;
             }
             int prevEi = c.linkEntry(ei, true, key);
             if (prevEi != ei) {
@@ -377,7 +374,7 @@ class InternalOakMap<K, V> {
         int hi = c.allocateHandle();
         if (hi == -1) {
             rebalancePut(c, key, value);
-            return;
+            return null;
         }
 
         c.writeValue(hi, value); // write value in place
@@ -387,13 +384,15 @@ class InternalOakMap<K, V> {
         // publish put
         if (!c.publish(opData)) {
             rebalancePut(c, key, value);
-            return;
+            return null;
         }
 
         finishAfterPublishing(opData, c);
+
+        return null;
     }
 
-    boolean putIfAbsent(K key, V value) {
+    Result<V> putIfAbsent(K key, V value, Function<ByteBuffer, V> transformer) {
         if (key == null || value == null) {
             throw new NullPointerException();
         }
@@ -401,7 +400,8 @@ class InternalOakMap<K, V> {
         Chunk c = findChunk(key); // find chunk matching key
         Chunk.LookUp lookUp = c.lookUp(key);
         if (lookUp != null && lookUp.handle != null) {
-            return false;
+            if (transformer == null) return Result.withFlag(false);
+            return Result.withValue(lookUp.handle.transform(transformer));
         }
 
         // if chunk is frozen or infant, we can't add to it
@@ -410,10 +410,10 @@ class InternalOakMap<K, V> {
         if (state == Chunk.State.INFANT) {
             // the infant is already connected so rebalancer won't add this put
             rebalance(c.creator(), null, null, null, Operation.NO_OP);
-            return putIfAbsent(key, value);
+            return putIfAbsent(key, value, transformer);
         }
         if (state == Chunk.State.FROZEN || state == Chunk.State.RELEASED) {
-            return rebalancePutIfAbsent(c, key, value);
+            return rebalancePutIfAbsent(c, key, value, transformer);
         }
 
 
@@ -429,7 +429,7 @@ class InternalOakMap<K, V> {
         if (ei == -1) {
             ei = c.allocateEntryAndKey(key);
             if (ei == -1) {
-                return rebalancePutIfAbsent(c, key, value);
+                return rebalancePutIfAbsent(c, key, value, transformer);
             }
             int prevEi = c.linkEntry(ei, true, key);
             if (prevEi != ei) {
@@ -438,14 +438,15 @@ class InternalOakMap<K, V> {
                     ei = prevEi;
                     prevHi = c.getHandleIndex(prevEi);
                 } else {
-                    return false;
+                    if (transformer == null) return Result.withFlag(false);
+                    return Result.withValue(handle.transform(transformer));
                 }
             }
         }
 
         int hi = c.allocateHandle();
         if (hi == -1) {
-            return rebalancePutIfAbsent(c, key, value);
+            return rebalancePutIfAbsent(c, key, value, transformer);
         }
 
         c.writeValue(hi, value); // write value in place
@@ -454,10 +455,13 @@ class InternalOakMap<K, V> {
 
         // publish put
         if (!c.publish(opData)) {
-            return rebalancePutIfAbsent(c, key, value);
+            return rebalancePutIfAbsent(c, key, value, transformer);
         }
 
-        return finishAfterPublishing(opData, c);
+        Handle oldHandle = finishAfterPublishing(opData, c);
+
+        if (transformer == null) return Result.withFlag(oldHandle == null);
+        return Result.withValue((oldHandle != null) ? oldHandle.transform(transformer) : null);
     }
 
     void putIfAbsentComputeIfPresent(K key, V value, Consumer<ByteBuffer> computer) {
@@ -542,13 +546,14 @@ class InternalOakMap<K, V> {
         finishAfterPublishing(opData, c);
     }
 
-    void remove(K key) {
+    V remove(K key, V oldValue, Function<ByteBuffer, V> transformer) {
         if (key == null) {
             throw new NullPointerException();
         }
 
         boolean logical = true; // when logical is false, means we have marked the handle as deleted
         Handle prev = null;
+        V v = null;
 
         while (true) {
 
@@ -558,19 +563,25 @@ class InternalOakMap<K, V> {
                 prev = lookUp.handle; // remember previous handle
             }
             if (!logical && lookUp != null && prev != lookUp.handle) {
-                return;  // someone else used this entry
+                return v;  // someone else used this entry
             }
 
             if (lookUp == null || lookUp.handle == null) {
-                return; // there is no such key
+                return v; // there is no such key
             }
 
             if (logical) {
+                // we have marked this handle as deleted (successful remove)
+                V vv = (transformer != null) ? (V) lookUp.handle.transform(transformer) : null;
+
+                if (oldValue != null && !oldValue.equals(vv))
+                    return null;
+
                 if (!lookUp.handle.remove(memoryManager)) {
                     // we didn't succeed to remove the handle was marked as deleted already
-                    return;
+                    return null;
                 }
-                // we have marked this handle as deleted
+                v = vv;
             }
 
             // if chunk is frozen or infant, we can't update it (remove deleted key, set handle index to -1)
@@ -587,7 +598,7 @@ class InternalOakMap<K, V> {
                     logical = false;
                     continue;
                 }
-                return;
+                return v;
             }
 
 
@@ -601,7 +612,7 @@ class InternalOakMap<K, V> {
                     logical = false;
                     continue;
                 }
-                return;
+                return v;
             }
 
             finishAfterPublishing(opData, c);
@@ -677,7 +688,7 @@ class InternalOakMap<K, V> {
         Chunk<K, V> c = skiplist.firstEntry().getValue();
         ByteBuffer serializedMinKey = c.readMinKey();
 
-        return transformer.apply(serializedMinKey);
+        return (serializedMinKey != null) ? transformer.apply(serializedMinKey) : null;
     }
 
     ByteBuffer getMaxKey() {
@@ -707,7 +718,8 @@ class InternalOakMap<K, V> {
             next = c.next.getReference();
         }
         ByteBuffer serializedMaxKey = c.readMaxKey();
-        return transformer.apply(serializedMaxKey);
+
+        return (serializedMaxKey != null) ? transformer.apply(serializedMaxKey) : null;
     }
 
     boolean computeIfPresent(K key, Consumer<ByteBuffer> computer) {
@@ -727,6 +739,81 @@ class InternalOakMap<K, V> {
         Chunk c = skiplist.floorEntry(key).getValue();
         c = iterateChunks(c, key);
         return c;
+    }
+
+    V replace(K key, V value, Function<ByteBuffer,V> valueDeserializeTransformer) {
+        Chunk<K, V> c = findChunk(key); // find chunk matching key
+        Chunk.LookUp lookUp = c.lookUp(key);
+        if (lookUp == null || lookUp.handle == null)
+            return null;
+
+        Function<ByteBuffer, V> replaceTransform = bb -> {
+            // mutatingTransform guarantees that this is write-synchronous handle is not deleted
+            V v = valueDeserializeTransformer.apply(bb);
+
+            lookUp.handle.put(value, valueSerializer, memoryManager);
+
+            return v;
+        };
+
+        // will return null if handle was deleted between prior lookup and the next call
+        return (V) lookUp.handle.mutatingTransform(replaceTransform);
+    }
+
+    boolean replace(K key, V oldValue, V newValue, Function<ByteBuffer, V> valueDeserializeTransformer) {
+        Chunk<K, V> c = findChunk(key); // find chunk matching key
+        Chunk.LookUp lookUp = c.lookUp(key);
+        if (lookUp == null || lookUp.handle == null)
+            return false;
+
+        Function<ByteBuffer, Boolean> replaceTransform = bb -> {
+            // mutatingTransform guarantees that this is write-synchronous handle is not deleted
+            V v = valueDeserializeTransformer.apply(bb);
+            if (!v.equals(oldValue))
+                return false;
+
+            lookUp.handle.put(newValue, valueSerializer, memoryManager);
+
+            return true;
+        };
+
+        // res can be null if handle was deleted between lookup and the next call
+        Boolean res = (Boolean) lookUp.handle.mutatingTransform(replaceTransform);
+        return (res != null) ? res : false;
+    }
+
+    public Map.Entry<K, V> lowerEntry(K key) {
+        Map.Entry<Object, Chunk<K, V>> lowerChunkEntry = skiplist.lowerEntry(key);
+        if (lowerChunkEntry == null) {
+            /* we were looking for the minimal key */
+            return new AbstractMap.SimpleImmutableEntry<>(null, null);
+        }
+
+        Chunk c = lowerChunkEntry.getValue();
+        /* Iterate chunk to find prev(key) */
+        Chunk.AscendingIter chunkIter = c.ascendingIter();
+        int prevIndex = chunkIter.next();
+
+        while (chunkIter.hasNext()) {
+            int nextIndex = chunkIter.next();
+            int cmp = comparator.compare(c.readKey(nextIndex), key);
+            if (cmp >= 0) {
+                break;
+            }
+            prevIndex = nextIndex;
+        }
+
+        /* Edge case: we're looking for the lowest key in the map and it's still greater than minkey
+            (in which  case prevKey == key) */
+        ByteBuffer prevKey = c.readKey(prevIndex);
+        if (comparator.compare(prevKey, key) == 0) {
+            return new AbstractMap.SimpleImmutableEntry<>(null, null);
+        }
+
+        c.getHandle(prevIndex);
+        return new AbstractMap.SimpleImmutableEntry<>(
+                keySerializer.deserialize(prevKey),
+                valueSerializer.deserialize(c.getHandle(prevIndex).getSlicedReadOnlyByteBuffer()));
     }
 
     /*-------------- Iterators --------------*/
@@ -1114,4 +1201,19 @@ class InternalOakMap<K, V> {
         return new KeyTransformIterator<>(lo, loInclusive, hi, hiInclusive, isDescending, transformer);
     }
 
+    static class Result<V> {
+        final V value;
+        final boolean flag;
+        final boolean hasValue;
+
+        private Result(V value, boolean flag, boolean hasValue) {
+            this.value = value; this.flag = flag; this.hasValue = hasValue;
+
+        }
+
+        static Result withValue(Object value) { return new Result(value, false, true); }
+
+        static Result withFlag(boolean flag) { return new Result(null, flag, false); }
+
+    }
 }

@@ -8,6 +8,7 @@ import org.junit.Test;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.ConcurrentModificationException;
+import java.util.Iterator;
 import java.util.Map;
 import java.util.function.Function;
 
@@ -35,7 +36,7 @@ public class OakViewTests {
         for (int i = 0; i < ELEMENTS; i++) {
             String key = String.valueOf(i);
             String val = String.valueOf(i);
-            oak.put(key, val);
+            oak.ZC().put(key, val);
         }
     }
 
@@ -58,7 +59,6 @@ public class OakViewTests {
             return object.toString();
         };
 
-        try(OakBufferView<String> oakBV = oak.createBufferView()) {
             String testVal = String.valueOf(123);
             ByteBuffer testValBB = ByteBuffer.allocate(Integer.BYTES + testVal.length()*Character.BYTES);
             testValBB.putInt(0, testVal.length());
@@ -67,7 +67,7 @@ public class OakViewTests {
             }
 
 
-            OakRBuffer valBuffer = oakBV.get(testVal);
+            OakRBuffer valBuffer = oak.ZC().get(testVal);
             String transformed = valBuffer.transform(deserialize);
             assertEquals(testVal, transformed);
 
@@ -96,17 +96,14 @@ public class OakViewTests {
             for(int i =0 ; i < testValBytes.length/Long.BYTES; ++i) {
                 assertEquals(testValBB.getLong(i), valBuffer.getLong(i));
             }
-        }
     }
 
     @Test(expected = ConcurrentModificationException.class)
     public void testOakRBufferConcurrency(){
         String testVal = "987";
-        try(OakBufferView<String> oakBV = oak.createBufferView()) {
-            OakRBuffer valBuffer = oakBV.get(testVal);
-            oak.remove(testVal);
+            OakRBuffer valBuffer = oak.ZC().get(testVal);
+            oak.ZC().remove(testVal);
             valBuffer.get(0);
-        }
     }
 
     @Test
@@ -122,7 +119,6 @@ public class OakViewTests {
         };
 
 
-        try(OakBufferView<String> oakBV = oak.createBufferView()) {
 
             String[] values = new String[ELEMENTS];
             for (int i = 0; i < ELEMENTS; i++) {
@@ -130,14 +126,14 @@ public class OakViewTests {
             }
             Arrays.sort(values);
 
-            OakIterator<ByteBuffer> keyIterator = oakBV.keysIterator();
+            Iterator<ByteBuffer> keyIterator = oak.ZC().keySet().iterator();
             for (int i = 0; i < ELEMENTS; i++) {
                 ByteBuffer keyBB = keyIterator.next();
                 String deserializedKey = deserialize.apply(keyBB);
                 assertEquals(values[i],deserializedKey);
             }
 
-            OakIterator<OakRBuffer> valueIterator = oakBV.valuesIterator();
+            Iterator<OakRBuffer> valueIterator = oak.ZC().values().iterator();
             for (int i = 0; i < ELEMENTS; i++) {
                 OakRBuffer valueBB = valueIterator.next();
                 String deserializedValue = valueBB.transform(deserialize);
@@ -145,18 +141,17 @@ public class OakViewTests {
             }
 
 
-            OakIterator<Map.Entry<ByteBuffer, OakRBuffer>> entryIterator = oakBV.entriesIterator();
+            Iterator<Map.Entry<ByteBuffer, OakRBuffer>> entryIterator = oak.ZC().entrySet().iterator();
             for (int i = 0; i < ELEMENTS; i++) {
                 Map.Entry<ByteBuffer, OakRBuffer> entryBB = entryIterator.next();
                 String deserializedValue = entryBB.getValue().transform(deserialize);
                 assertEquals(values[i],deserializedValue);
             }
-        }
     }
 
     @Test
     public void testTransformViewAPIs(){
-        Function<Map.Entry<ByteBuffer, ByteBuffer>, Integer> transform = (entry) -> {
+        Function<Map.Entry<ByteBuffer, OakRBuffer>, Integer> transform = (entry) -> {
             assertNotNull(entry.getKey());
             assertNotNull(entry.getValue());
             int size = entry.getValue().getInt(0);
@@ -169,7 +164,6 @@ public class OakViewTests {
         };
 
 
-        try(OakTransformView<String, Integer> oakTV = oak.createTransformView(transform)) {
 
             String[] values = new String[ELEMENTS];
             for (int i = 0; i < ELEMENTS; i++) {
@@ -177,11 +171,10 @@ public class OakViewTests {
             }
             Arrays.sort(values);
 
-            OakIterator<Integer> entryIterator = oakTV.entriesIterator();
+            Iterator<Integer> entryIterator = oak.ZC().entrySet().stream().map(transform).iterator();
             for (int i = 0; i < ELEMENTS; i++) {
                 Integer entryT = entryIterator.next();
                 assertEquals(Integer.valueOf(values[i]),entryT);
             }
-        }
     }
 }

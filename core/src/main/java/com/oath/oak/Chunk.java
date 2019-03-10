@@ -489,14 +489,13 @@ public class Chunk<K, V> {
      * turn has the value. For linkage this is an insert linearization point.
      * All the relevant data can be found inside opData.
      *
-     * point to value
-     * if unsuccessful this means someone else got to it first (helping rebalancer or other operation)
+     * if someone else got to it first (helping rebalancer or other operation), returns the old handle
      */
-    boolean pointToValue(OpData opData) {
+    Handle pointToValue(OpData opData) {
 
         // try to perform the CAS according to operation data (opData)
         if (pointToValueCAS(opData, true)) {
-            return true;
+            return null;
         }
 
         // the straight forward helping didn't work, check why
@@ -505,7 +504,7 @@ public class Chunk<K, V> {
         // the operation is remove, means we tried to change the handle index we knew about to -1
         // the old handle index is no longer there so we have nothing to do
         if (operation == Operation.REMOVE) {
-            return true; // this is a remove, no need to try again and return doesn't matter
+            return null; // this is a remove, no need to try again and return doesn't matter
         }
 
         // the operation is either NO_OP, PUT, PUT_IF_ABSENT, COMPUTE
@@ -513,13 +512,13 @@ public class Chunk<K, V> {
         int foundHandleIdx = get(opData.entryIndex, OFFSET_HANDLE_INDEX);
 
         if (foundHandleIdx == expectedHandleIdx) {
-            return true; // someone helped
+            return null; // someone helped
         } else if (foundHandleIdx < 0) {
             // the handle was deleted, retry the attach
             opData.prevHandleIndex = -1;
             return pointToValue(opData); // remove completed, try again
         } else if (operation == Operation.PUT_IF_ABSENT) {
-            return false; // too late
+            return handles[foundHandleIdx]; // too late
         } else if (operation == Operation.COMPUTE){
             Handle h = handles[foundHandleIdx];
             if(h != null){
@@ -532,7 +531,7 @@ public class Chunk<K, V> {
                     return pointToValue(opData);
                 }
             }
-            return true;
+            return null;
         }
         // this is a put, try again
         opData.prevHandleIndex = foundHandleIdx;
