@@ -206,6 +206,7 @@ public class MultiThreadTest {
                 oak.putIfAbsent(i, i);
                 value = oak.get(i);
                 //TODO YONIGO - value can be null because of remove
+                if (value == null) continue;
                 assertEquals(i, value);
             }
 

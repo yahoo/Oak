@@ -10,10 +10,10 @@ import sun.misc.Unsafe;
 
 import java.lang.reflect.Constructor;
 import java.nio.ByteBuffer;
-import java.util.Arrays;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.EmptyStackException;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.List;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicMarkableReference;
@@ -623,6 +623,7 @@ public class Chunk<K, V> {
         int entryIndexStart = ei;
         int entryIndexEnd = entryIndexStart - 1;
         int eiPrev = NONE;
+        Handle currHandleIndex;
         int currKeyIndex;
         int prevKeyIndex = NONE;
         int prevKeyLength = 0;
@@ -630,6 +631,7 @@ public class Chunk<K, V> {
         boolean isFirst = true;
 
         while (true) {
+            currHandleIndex = srcChunk.getHandle(ei);
             currKeyIndex = srcChunk.get(ei, OFFSET_KEY_INDEX);
             int itemsToCopy = entryIndexEnd - entryIndexStart + 1;
 
@@ -639,7 +641,7 @@ public class Chunk<K, V> {
             // or save this item if it create a continuous interval with the previously saved item
             // which means it's key index is adjacent to prev's key index
             // and there is still room
-            if ((!srcChunk.getHandle(ei).isDeleted()) && (isFirst || (eiPrev < sortedSize)
+            if ((!currHandleIndex.isDeleted()) && (isFirst || (eiPrev < sortedSize)
                     &&
                     (eiPrev + FIELDS == ei)
                     &&
@@ -666,9 +668,6 @@ public class Chunk<K, V> {
                 for (int i = 0; i < itemsToCopy; ++i) {
                     int offset = i * FIELDS;
                     // next should point to the next item
-                    if (sortedEntryIndex > 4096) {
-                        System.out.println("Aa");
-                    }
                     entries[sortedEntryIndex + offset + OFFSET_NEXT] = sortedEntryIndex + offset + FIELDS;
                     entries[sortedEntryIndex + offset + OFFSET_KEY_INDEX] = sortedKI;
                     int keyLength = srcChunk.entries[entryIndexStart + offset + OFFSET_KEY_LENGTH];
@@ -688,7 +687,7 @@ public class Chunk<K, V> {
                 sortedKeyIndex += keyLengthToCopy; // update
             }
 
-            if (srcChunk.getHandle(ei).isDeleted()) { // if now this is a removed item
+            if (currHandleIndex.isDeleted()) { // if now this is a removed item
                 // don't copy it, continue to next item
                 eiPrev = ei;
                 ei = srcChunk.get(ei, OFFSET_NEXT);
@@ -822,7 +821,7 @@ public class Chunk<K, V> {
 
             while (next != Chunk.NONE &&
                     (compare > 0 ||
-                            (compare >= 0 && !inclusive) ||
+                    (compare >= 0 && !inclusive)||
                             handles[handle].isDeleted())) {
                 next = get(next, OFFSET_NEXT);
                 handle = get(next, OFFSET_HANDLE_INDEX);

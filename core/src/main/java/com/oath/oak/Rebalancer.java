@@ -167,7 +167,6 @@ class Rebalancer<K, V> {
         Chunk currNewChunk = new Chunk<K, V>(firstFrozen.minKey, firstFrozen, firstFrozen.comparator, memoryManager,
                 currFrozen.getMaxItems(), currFrozen.getBytesPerItem(), currFrozen.externalSize,
                 keySerializer, valueSerializer, threadIndexCalculator);
-
         int ei = firstFrozen.getFirstItemEntryIndex();
 
         List<Chunk> newChunks = new LinkedList<>();

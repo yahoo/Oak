@@ -344,7 +344,7 @@ class InternalOakMap<K, V> {
         Chunk.LinkEntryResult linkResult = c.linkEntry(ei, true, key);
         if(!linkResult.isNewEntry()) {
             c.getHandle(ei).remove(memoryManager);
-            if (lookUp.handle.put(value, valueSerializer, memoryManager)) {
+            if (c.getHandle(linkResult.getEi()).put(value, valueSerializer, memoryManager)) {
                 c.getStatistics().incrementAddedCount();
             }
         } else {
@@ -415,10 +415,12 @@ class InternalOakMap<K, V> {
                 c.getStatistics().incrementAddedCount();
             }
             c.unpublish(op);
+            checkRebalance(c);
             return retVal;
         } else {
             c.getStatistics().incrementAddedCount();
             c.unpublish(op);
+            checkRebalance(c);
             return true;
         }
     }
@@ -482,8 +484,10 @@ class InternalOakMap<K, V> {
             c.getHandle(ei).remove(memoryManager);
             if (c.getHandle(linkResult.getEi()).putIfAbsentComputeIfPresent(value, valueSerializer, computer, memoryManager)) {
                 c.getStatistics().incrementAddedCount();
+                c.unpublish(op);
                 return true;
             } else {
+                c.unpublish(op);
                 return false;
             }
 
