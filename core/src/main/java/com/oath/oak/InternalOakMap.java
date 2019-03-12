@@ -141,9 +141,9 @@ class InternalOakMap<K, V> {
 
 
 
-    private Rebalancer.RebalanceResult rebalance(Chunk<K, V> c) {
+    private void rebalance(Chunk<K, V> c) {
         if (c == null) {
-            return null;
+            return;
         }
         Rebalancer rebalancer = new Rebalancer(c, comparator, true, memoryManager, keySerializer,
                 valueSerializer, threadIndexCalculator);
@@ -155,7 +155,7 @@ class InternalOakMap<K, V> {
         // will be redirected to help the rebalance procedure
         rebalancer.freeze();
 
-        Rebalancer.RebalanceResult result = rebalancer.createNewChunks(); // split or compact
+        rebalancer.createNewChunks(); // split or compact
         // if returned true then this thread was responsible for the creation of the new chunks
         // and it inserted the put
 
@@ -169,11 +169,6 @@ class InternalOakMap<K, V> {
 
         engaged.forEach(Chunk::release);
 
-        if (result.isSuccess() && result.getHelpedOp() == Operation.PUT_IF_ABSENT) {
-            size.incrementAndGet();
-        }
-
-        return result;
     }
 
     private void checkRebalance(Chunk c) {
@@ -291,66 +286,14 @@ class InternalOakMap<K, V> {
             throw new NullPointerException();
         }
 
-        Chunk<K,V> c = findChunk(key); // find chunk matching key
-        Chunk.LookUp lookUp = c.lookUp(key);
-        if (lookUp != null) {
-            if (lookUp.handle.put(value, valueSerializer, memoryManager)) {
-                c.getStatistics().incrementAddedCount();
-                size.incrementAndGet();
-            }
-            return;
-        }
+        Function<Handle<V>, Boolean> computeFunction = handle ->
+                handle.put(value, valueSerializer, memoryManager);
 
-        // if chunk is frozen or infant, we can't add to it
-        // we need to help rebalancer first, then proceed
-        Chunk.State state = c.state();
-        if (state == Chunk.State.INFANT) {
-            // the infant is already connected so rebalancer won't add this put
-            rebalance(c.creator());
-            put(key, value);
-            return;
+        AbstractPutResult retval = abstractPut(key, value, computeFunction);
+        while (retval == AbstractPutResult.REBALANCED) {
+            retval = abstractPut(key, value, computeFunction);
         }
-        if (state == Chunk.State.FROZEN || state == Chunk.State.RELEASED) {
-            rebalance(c);
-            put(key, value);
-            return;
-        }
-
-        int hi = c.allocateHandle();
-        int ei = c.allocateEntryAndKey(key);
-        if (hi == -1 || ei == -1) {
-            rebalance(c);
-            put(key, value);
-            return;
-        }
-
-        //attache handle to entry
-        c.pointToValue(ei, hi);
-
-        // publish put
-        // just put some value so that rebalance waits for this thread to finish
-        // If rebalancer gets to put an op in array then publish fails
-        if (!c.publish()) {
-            rebalance(c);
-            put(key, value);
-            return;
-        }
-
-
-        //attache entry to chunk list
-        c.getHandle(ei).setValue(value, valueSerializer, memoryManager);
-        Chunk.LinkEntryResult linkResult = c.linkEntry(ei, true, key);
-        if(!linkResult.isNewEntry()) {
-            c.getHandle(ei).remove(memoryManager);
-            if (c.getHandle(linkResult.getEi()).put(value, valueSerializer, memoryManager)) {
-                c.getStatistics().incrementAddedCount();
-                size.incrementAndGet();
-            }
-        } else {
-            c.getStatistics().incrementAddedCount();
-            size.incrementAndGet();
-        }
-        c.unpublish();
+        return;
     }
 
     boolean putIfAbsent(K key, V value) {
@@ -358,16 +301,33 @@ class InternalOakMap<K, V> {
             throw new NullPointerException();
         }
 
-        Chunk<K,V> c = findChunk(key); // find chunk matching key
+        Function<Handle<V>, Boolean> computeFunction = handle ->
+                handle.putIfAbsent(value, valueSerializer, memoryManager);
+
+        AbstractPutResult retval = abstractPut(key, value, computeFunction);
+        while (retval == AbstractPutResult.REBALANCED) {
+            retval = abstractPut(key, value, computeFunction);
+        }
+        return retval == AbstractPutResult.NEW_KEY_ADDED;
+    }
+
+    private enum AbstractPutResult{
+        REBALANCED,
+        NEW_KEY_ADDED,
+        NEW_KEY_NOT_ADDED
+    }
+
+    AbstractPutResult abstractPut(K key, V value, Function<Handle<V>, Boolean> operationIfFound) {
+
+        Chunk<K,V> c = findChunk(key);
         Chunk.LookUp<V> lookUp = c.lookUp(key);
         if (lookUp != null) {
-            //TODO YONIGO TEST
-            if(lookUp.handle.putIfAbsent(value, valueSerializer, memoryManager)) {
+            if (operationIfFound.apply(lookUp.handle)) {
                 c.getStatistics().incrementAddedCount();
                 size.incrementAndGet();
-                return true;
+                return AbstractPutResult.NEW_KEY_ADDED;
             }
-            return false;
+            return AbstractPutResult.NEW_KEY_NOT_ADDED;
         }
 
         // if chunk is frozen or infant, we can't add to it
@@ -376,51 +336,50 @@ class InternalOakMap<K, V> {
         if (state == Chunk.State.INFANT) {
             // the infant is already connected so rebalancer won't add this put
             rebalance(c.creator());
-            return putIfAbsent(key, value);
+            return AbstractPutResult.REBALANCED;
         }
         if (state == Chunk.State.FROZEN || state == Chunk.State.RELEASED) {
             rebalance(c);
-            return putIfAbsent(key, value);
+            return AbstractPutResult.REBALANCED;
         }
 
         int hi = c.allocateHandle();
         int ei = c.allocateEntryAndKey(key);
         if (hi == -1 || ei == -1) {
             rebalance(c);
-            return putIfAbsent(key, value);
+            return AbstractPutResult.REBALANCED;
         }
-
 
         //attache handle to entry
         c.pointToValue(ei, hi);
 
-        // publish put
-        // just put some value so that rebalance waits for this thread to finish
-        // If rebalancer gets to put an op in array then publish fails
         if (!c.publish()) {
             rebalance(c);
-            return putIfAbsent(key, value);
+            return AbstractPutResult.REBALANCED;
         }
 
         //attache entry to chunk list
         c.getHandle(ei).setValue(value, valueSerializer, memoryManager);
         Chunk.LinkEntryResult linkResult = c.linkEntry(ei, true, key);
-        boolean retVal;
+        AbstractPutResult retval;
         if(!linkResult.isNewEntry()) {
+            //another thread inserted this key so we compute
             c.getHandle(ei).remove(memoryManager);
-            retVal = c.getHandle(linkResult.getEi()).putIfAbsent(value, valueSerializer, memoryManager);
-            if (retVal) {
+            if (operationIfFound.apply(c.getHandle(linkResult.getEi()))) {
                 c.getStatistics().incrementAddedCount();
                 size.incrementAndGet();
+                retval = AbstractPutResult.NEW_KEY_ADDED;
+            } else {
+                retval = AbstractPutResult.NEW_KEY_NOT_ADDED;
             }
         } else {
             c.getStatistics().incrementAddedCount();
             size.incrementAndGet();
-            retVal = true;
+            retval = AbstractPutResult.NEW_KEY_ADDED;
         }
 
         c.unpublish();
-        return retVal;
+        return retval;
     }
 
     //return true if added a new value
@@ -429,73 +388,14 @@ class InternalOakMap<K, V> {
             throw new NullPointerException();
         }
 
-        Chunk<K,V> c = findChunk(key); // find chunk matching key
-        Chunk.LookUp<V> lookUp = c.lookUp(key);
-        if (lookUp != null) {
-            //maybe entry is deleted so must try:
-            if (lookUp.handle.putIfAbsentComputeIfPresent(value, valueSerializer, computer, memoryManager)) {
-                c.getStatistics().incrementAddedCount();
-                size.incrementAndGet();
-                return true;
-            }
-            return false;
+        Function<Handle<V>, Boolean> computeFunction = handle ->
+                handle.putIfAbsentComputeIfPresent(value, valueSerializer, computer, memoryManager);
+
+        AbstractPutResult retval = abstractPut(key, value, computeFunction);
+        while (retval == AbstractPutResult.REBALANCED) {
+            retval = abstractPut(key, value, computeFunction);
         }
-
-        // if chunk is frozen or infant, we can't add to it
-        // we need to help rebalancer first, then proceed
-        Chunk.State state = c.state();
-        if (state == Chunk.State.INFANT) {
-            // the infant is already connected so rebalancer won't add this put
-            rebalance(c.creator());
-            return putIfAbsentComputeIfPresent(key, value, computer);
-        }
-        if (state == Chunk.State.FROZEN || state == Chunk.State.RELEASED) {
-            rebalance(c);
-            return putIfAbsentComputeIfPresent(key, value, computer);
-        }
-
-        int hi = c.allocateHandle();
-        int ei = c.allocateEntryAndKey(key);
-        if (hi == -1 || ei == -1) {
-            rebalance(c);
-            return putIfAbsentComputeIfPresent(key, value, computer);
-        }
-
-
-        //attache handle to entry
-        c.pointToValue(ei, hi);
-
-
-        // publish put
-        // just put some value so that rebalance waits for this thread to finish
-        // If rebalancer gets to put an op in array then publish fails
-        if (!c.publish()) {
-            rebalance(c);
-            return putIfAbsentComputeIfPresent(key, value, computer);
-        }
-
-        //attache entry to chunk list
-        c.getHandle(ei).setValue(value, valueSerializer, memoryManager);
-        Chunk.LinkEntryResult linkResult = c.linkEntry(ei, true, key);
-        boolean retval;
-        if(!linkResult.isNewEntry()) {
-            //another thread inserted this key so we compute
-            c.getHandle(ei).remove(memoryManager);
-            if (c.getHandle(linkResult.getEi()).putIfAbsentComputeIfPresent(value, valueSerializer, computer, memoryManager)) {
-                c.getStatistics().incrementAddedCount();
-                size.incrementAndGet();
-                retval = true;
-            } else {
-                retval = false;
-            }
-        } else {
-            c.getStatistics().incrementAddedCount();
-            size.incrementAndGet();
-            retval = true;
-        }
-
-        c.unpublish();
-        return retval;
+        return retval == AbstractPutResult.NEW_KEY_ADDED;
     }
 
     void remove(K key) {
@@ -629,7 +529,7 @@ class InternalOakMap<K, V> {
     }
 
     // encapsulates finding of the chunk in the skip list and later chunk list traversal
-    private Chunk findChunk(Object key) {
+    private Chunk<K,V> findChunk(Object key) {
         Chunk c = skiplist.floorEntry(key).getValue();
         c = iterateChunks(c, key);
         return c;

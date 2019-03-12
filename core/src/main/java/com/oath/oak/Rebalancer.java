@@ -75,24 +75,6 @@ class Rebalancer<K, V> {
         this.threadIndexCalculator = threadIndexCalculator;
     }
 
-    static class RebalanceResult {
-
-        final private boolean success;
-        final private Operation helpedOp;
-
-        RebalanceResult(boolean success, Operation helpedOp) {
-            this.success = success;
-            this.helpedOp = helpedOp;
-        }
-
-        public boolean isSuccess() {
-            return success;
-        }
-
-        public Operation getHelpedOp() {
-            return helpedOp;
-        }
-    }
 
     /*-------------- Methods --------------*/
 
@@ -151,11 +133,11 @@ class Rebalancer<K, V> {
      * @return if managed to CAS to newChunk list of rebalance
      * if we did then the put was inserted
      */
-    RebalanceResult createNewChunks() {
+    boolean createNewChunks() {
 
         assert offHeap;
         if (this.newChunks.get() != null) {
-            return new RebalanceResult(false, Operation.NO_OP); // this was done by another thread already
+            return false;
         }
 
         List<Chunk> frozenChunks = engagedChunks.get();
@@ -215,13 +197,9 @@ class Rebalancer<K, V> {
 
         newChunks.add(currNewChunk);
 
-        //Operation helpOpPerformed = helpOp(newChunks, key, value, computer, operation);
-
-
         // if fail here, another thread succeeded, and op is effectively gone
-        boolean cas = this.newChunks.compareAndSet(null, newChunks);
-        return new RebalanceResult(cas, null);
-    }
+        return this.newChunks.compareAndSet(null, newChunks);
+            }
 
     private boolean canAppendSuffix(List<Chunk> frozenSuffix, int maxCount, int maxBytes) {
         Iterator<Chunk> iter = frozenSuffix.iterator();

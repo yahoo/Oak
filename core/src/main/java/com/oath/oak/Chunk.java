@@ -52,7 +52,6 @@ public class Chunk<K, V> {
     private final ThreadIndexCalculator threadIndexCalculator;
 
     private static final Unsafe unsafe;
-    private final MemoryManager memoryManager;
     ByteBuffer minKey;       // minimal key that can be put in this chunk
     AtomicMarkableReference<Chunk<K,V>> next;
     Comparator<Object> comparator;
@@ -77,7 +76,6 @@ public class Chunk<K, V> {
     AtomicInteger externalSize; // for updating oak's size
     // for writing the keys into the bytebuffers
     private final OakSerializer<K> keySerializer;
-    private final OakSerializer<V> valueSerializer;
 
     /*-------------- Constructors --------------*/
 
@@ -107,7 +105,6 @@ public class Chunk<K, V> {
           AtomicInteger externalSize,
           OakSerializer<K> keySerializer,
           OakSerializer<V> valueSerializer, ThreadIndexCalculator threadIndexCalculator) {
-        this.memoryManager = memoryManager;
         this.maxItems = maxItems;
         this.maxKeyBytes = maxItems * bytesPerItem;
         this.entries = new int[maxItems * FIELDS + FIRST_ITEM];
@@ -132,7 +129,6 @@ public class Chunk<K, V> {
         this.externalSize = externalSize;
 
         this.keySerializer = keySerializer;
-        this.valueSerializer = valueSerializer;
         this.threadIndexCalculator = threadIndexCalculator;
     }
 
@@ -602,7 +598,7 @@ public class Chunk<K, V> {
             // or save this item if it create a continuous interval with the previously saved item
             // which means it's key index is adjacent to prev's key index
             // and there is still room
-            if ((!currHandleIndex.isDeleted()) && (isFirst || (eiPrev < sortedSize)
+            if ((!currHandleIndex.unsafeIsDeleted()) && (isFirst || (eiPrev < sortedSize)
                     &&
                     (eiPrev + FIELDS == ei)
                     &&
@@ -648,7 +644,7 @@ public class Chunk<K, V> {
                 sortedKeyIndex += keyLengthToCopy; // update
             }
 
-            if (currHandleIndex.isDeleted()) { // if now this is a removed item
+            if (currHandleIndex.unsafeIsDeleted()) { // if now this is a removed item
                 // don't copy it, continue to next item
                 eiPrev = ei;
                 ei = srcChunk.get(ei, OFFSET_NEXT);

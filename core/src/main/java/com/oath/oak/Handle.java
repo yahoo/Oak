@@ -39,6 +39,11 @@ class Handle<V> {
         return retval;
     }
 
+    boolean unsafeIsDeleted() {
+        return value == null;
+    }
+
+
     boolean remove(MemoryManager memoryManager) {
         writeLock.lock();
         if (value == null) {
