@@ -243,13 +243,14 @@ public class OakMap<K, V> implements AutoCloseable {
      * @param key         key with which the specified value is to be associated
      * @param value       value to be associated with the specified key
      * @param computer    for computing the new value when the key is present
+     * @return {@code true} if there was no mapping for the key
      */
-    public void putIfAbsentComputeIfPresent(K key, V value, Consumer<ByteBuffer> computer) {
+    public boolean putIfAbsentComputeIfPresent(K key, V value, Consumer<ByteBuffer> computer) {
         if (key == null || value == null || computer == null)
             throw new IllegalArgumentException();
         if (!inBounds(key))
             throw new IllegalArgumentException("The key is out of map bounds");
-        internalOakMap.putIfAbsentComputeIfPresent(key, value, computer);
+        return internalOakMap.putIfAbsentComputeIfPresent(key, value, computer);
     }
 
     /*-------------- SubMap --------------*/

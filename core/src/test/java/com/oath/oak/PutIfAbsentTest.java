@@ -6,6 +6,7 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
@@ -27,36 +28,41 @@ public class PutIfAbsentTest {
 
         CountDownLatch startSignal = new CountDownLatch(1);
 
-        ExecutorService executor = Executors.newFixedThreadPool(4);
+        ExecutorService executor = Executors.newFixedThreadPool(8);
 
 
-        List<Future<?>> threads = new ArrayList<>();
-        Integer numThreads = 4;
+        List<Future<Integer>> threads = new ArrayList<>();
+        Integer numThreads = 8;
         int numKeys = 100000;
 
         for (int i = 0; i < numThreads; ++i ) {
-            Thread thread = new Thread(() -> {
+            Callable<Integer> operation = () -> {
+                int counter = 0;
                 try {
                     startSignal.await();
+
                     for (int j = 0; j < numKeys; ++j) {
-                        oak.putIfAbsentComputeIfPresent(j, 1, buffer -> {
+                        boolean retval = oak.putIfAbsentComputeIfPresent(j, 1, buffer -> {
                             int currentVal = buffer.getInt(buffer.position());
                             buffer.putInt(buffer.position(), currentVal + 1);
                         });
+                        if (retval) counter++;
                     }
                 } catch (InterruptedException e) {
                     e.printStackTrace();
                 }
-            });
-            Future<?> future = executor.submit(thread);
+                return counter;
+            };
+
+            Future<Integer> future = executor.submit(operation);
             threads.add(future);
         }
 
         startSignal.countDown();
-
+        final int[] returnValues = {0};
         threads.forEach(t -> {
             try {
-                t.get();
+                returnValues[0] += t.get();
             } catch (InterruptedException | ExecutionException e) {
                 e.printStackTrace();
                 fail();
@@ -71,6 +77,7 @@ public class PutIfAbsentTest {
             count2++;
         }
         assertEquals(count2, numKeys);
+        assertEquals(numKeys, returnValues[0]);
     }
 
 
@@ -91,31 +98,37 @@ public class PutIfAbsentTest {
 
         ExecutorService executor = Executors.newFixedThreadPool(8);
 
-        List<Future<?>> threads = new ArrayList<>();
+        List<Future<Integer>> futures = new ArrayList<>();
         Integer numThreads = 8;
         int numKeys = 100000;
 
         for (int i = 0; i < numThreads; ++i ) {
-            Thread thread = new Thread(() -> {
+
+            Callable<Integer> operation = () -> {
                 try {
+                    int counter = 0;
                     startSignal.await();
                     for (int j = 0; j < numKeys; ++j) {
                         ThreadKey threadKey = new ThreadKey(Thread.currentThread().getId(), j);
-                        oak.putIfAbsent(threadKey, threadKey);
+                        boolean ret = oak.putIfAbsent(threadKey, threadKey);
+                        if (ret) counter++;
                     }
+                    return counter;
                 } catch (InterruptedException e) {
                     e.printStackTrace();
                 }
-            });
-            Future<?> future = executor.submit(thread);
-            threads.add(future);
+                return 0;
+            };
+
+            Future<Integer> future = executor.submit(operation);
+            futures.add(future);
         }
 
         startSignal.countDown();
-
-        threads.forEach(t -> {
+        final int[] returnValues = {0};
+        futures.forEach(t -> {
             try {
-                t.get();
+                returnValues[0] += t.get();
             } catch (InterruptedException | ExecutionException e) {
                 e.printStackTrace();
                 fail();
@@ -134,11 +147,8 @@ public class PutIfAbsentTest {
         }
         assertEquals(numKeys, count2);
         assertEquals(numKeys, oak.entries());
+        assertEquals(numKeys, returnValues[0]);
     }
-
-
-
-
 
 
     private static class ThreadKey {
