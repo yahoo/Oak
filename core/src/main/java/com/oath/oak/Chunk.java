@@ -16,7 +16,6 @@ import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicMarkableReference;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.concurrent.atomic.AtomicReferenceArray;
 import java.util.function.Consumer;
 
 public class Chunk<K, V> {
@@ -66,7 +65,7 @@ public class Chunk<K, V> {
     private final int[] entries;    // array is initialized to 0, i.e., NONE - this is important!
     private final KeysManager<K> keysManager;
     private final Handle[] handles;
-    private AtomicInteger pendingOps2;
+    private AtomicInteger pendingOps;
     private final AtomicInteger entryIndex;    // points to next free index of entry array
     final AtomicInteger keyIndex;    // points to next free index of key array
     private final AtomicInteger handleIndex;    // points to next free index of entry array
@@ -125,7 +124,7 @@ public class Chunk<K, V> {
         else
             this.state = new AtomicReference<>(State.INFANT);
         this.next = new AtomicMarkableReference<>(null, false);
-        this.pendingOps2 = new AtomicInteger();
+        this.pendingOps = new AtomicInteger();
         this.rebalancer = new AtomicReference<>(null); // to be updated on rebalance
         this.statistics = new Statistics();
         this.comparator = comparator;
@@ -339,10 +338,10 @@ public class Chunk<K, V> {
      *
      * @return result of CAS
      **/
-    boolean publish(OpData opData) {
-        pendingOps2.incrementAndGet();
+    boolean publish() {
+        pendingOps.incrementAndGet();
         if (state.get() == State.FROZEN) {
-            pendingOps2.decrementAndGet();
+            pendingOps.decrementAndGet();
             return false;
         }
         return true;
@@ -352,8 +351,8 @@ public class Chunk<K, V> {
      * unpublish operation from thread array
      * if CAS didn't succeed then this means that a rebalancer did this already
      **/
-    void unpublish(OpData oldOpData) {
-        pendingOps2.decrementAndGet();
+    void unpublish() {
+        pendingOps.decrementAndGet();
     }
 
     /**
@@ -550,7 +549,7 @@ public class Chunk<K, V> {
      */
     void freeze() {
         setState(State.FROZEN); // prevent new puts to this chunk
-        while (pendingOps2.get() != 0);
+        while (pendingOps.get() != 0);
     }
 
     /***

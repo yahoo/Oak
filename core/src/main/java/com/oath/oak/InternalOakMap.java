@@ -296,6 +296,7 @@ class InternalOakMap<K, V> {
         if (lookUp != null) {
             if (lookUp.handle.put(value, valueSerializer, memoryManager)) {
                 c.getStatistics().incrementAddedCount();
+                size.incrementAndGet();
             }
             return;
         }
@@ -329,9 +330,7 @@ class InternalOakMap<K, V> {
         // publish put
         // just put some value so that rebalance waits for this thread to finish
         // If rebalancer gets to put an op in array then publish fails
-        //TODO YONIGO - this op is stupid
-        Chunk.OpData op = new Chunk.OpData(Operation.PUT, -1, -1, -1, null);
-        if (!c.publish(op)) {
+        if (!c.publish()) {
             rebalance(c);
             put(key, value);
             return;
@@ -345,11 +344,13 @@ class InternalOakMap<K, V> {
             c.getHandle(ei).remove(memoryManager);
             if (c.getHandle(linkResult.getEi()).put(value, valueSerializer, memoryManager)) {
                 c.getStatistics().incrementAddedCount();
+                size.incrementAndGet();
             }
         } else {
             c.getStatistics().incrementAddedCount();
+            size.incrementAndGet();
         }
-        c.unpublish(op);
+        c.unpublish();
     }
 
     boolean putIfAbsent(K key, V value) {
@@ -363,6 +364,7 @@ class InternalOakMap<K, V> {
             //TODO YONIGO TEST
             if(lookUp.handle.putIfAbsent(value, valueSerializer, memoryManager)) {
                 c.getStatistics().incrementAddedCount();
+                size.incrementAndGet();
                 return true;
             }
             return false;
@@ -395,9 +397,7 @@ class InternalOakMap<K, V> {
         // publish put
         // just put some value so that rebalance waits for this thread to finish
         // If rebalancer gets to put an op in array then publish fails
-        //TODO YONIGO - this op is stupid
-        Chunk.OpData op = new Chunk.OpData(Operation.PUT_IF_ABSENT, -1, -1, -1, null);
-        if (!c.publish(op)) {
+        if (!c.publish()) {
             rebalance(c);
             return putIfAbsent(key, value);
         }
@@ -411,13 +411,15 @@ class InternalOakMap<K, V> {
             retVal = c.getHandle(linkResult.getEi()).putIfAbsent(value, valueSerializer, memoryManager);
             if (retVal) {
                 c.getStatistics().incrementAddedCount();
+                size.incrementAndGet();
             }
         } else {
             c.getStatistics().incrementAddedCount();
+            size.incrementAndGet();
             retVal = true;
         }
 
-        c.unpublish(op);
+        c.unpublish();
         return retVal;
     }
 
@@ -433,6 +435,7 @@ class InternalOakMap<K, V> {
             //maybe entry is deleted so must try:
             if (lookUp.handle.putIfAbsentComputeIfPresent(value, valueSerializer, computer, memoryManager)) {
                 c.getStatistics().incrementAddedCount();
+                size.incrementAndGet();
                 return true;
             }
             return false;
@@ -466,9 +469,7 @@ class InternalOakMap<K, V> {
         // publish put
         // just put some value so that rebalance waits for this thread to finish
         // If rebalancer gets to put an op in array then publish fails
-        //TODO YONIGO - this op is stupid
-        Chunk.OpData op = new Chunk.OpData(Operation.PUT_IF_ABS_COMPUTE_IF_PRES, -1, -1, -1, null);
-        if (!c.publish(op)) {
+        if (!c.publish()) {
             rebalance(c);
             return putIfAbsentComputeIfPresent(key, value, computer);
         }
@@ -482,16 +483,18 @@ class InternalOakMap<K, V> {
             c.getHandle(ei).remove(memoryManager);
             if (c.getHandle(linkResult.getEi()).putIfAbsentComputeIfPresent(value, valueSerializer, computer, memoryManager)) {
                 c.getStatistics().incrementAddedCount();
+                size.incrementAndGet();
                 retval = true;
             } else {
                 retval = false;
             }
         } else {
             c.getStatistics().incrementAddedCount();
+            size.incrementAndGet();
             retval = true;
         }
 
-        c.unpublish(op);
+        c.unpublish();
         return retval;
     }
 
@@ -505,6 +508,7 @@ class InternalOakMap<K, V> {
         if (lookUp != null) {
             if (lookUp.handle.remove(memoryManager)) {
                 c.getStatistics().decrementAddedCount();
+                size.decrementAndGet();
             }
         }
         checkRebalance(c);
