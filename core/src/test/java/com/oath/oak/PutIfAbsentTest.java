@@ -28,12 +28,11 @@ public class PutIfAbsentTest {
 
         CountDownLatch startSignal = new CountDownLatch(1);
 
-        ExecutorService executor = Executors.newFixedThreadPool(8);
-
+        ExecutorService executor = Executors.newFixedThreadPool(16);
 
         List<Future<Integer>> threads = new ArrayList<>();
-        Integer numThreads = 8;
-        int numKeys = 100000;
+        Integer numThreads = 16;
+        int numKeys = 1000000;
 
         for (int i = 0; i < numThreads; ++i ) {
             Callable<Integer> operation = () -> {
@@ -43,8 +42,8 @@ public class PutIfAbsentTest {
 
                     for (int j = 0; j < numKeys; ++j) {
                         boolean retval = oak.putIfAbsentComputeIfPresent(j, 1, buffer -> {
-                            int currentVal = buffer.getInt(buffer.position());
-                            buffer.putInt(buffer.position(), currentVal + 1);
+                            int currentVal = buffer.getInt(0);
+                            buffer.putInt(0, currentVal + 1);
                         });
                         if (retval) counter++;
                     }

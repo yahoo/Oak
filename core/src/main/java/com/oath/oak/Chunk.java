@@ -336,7 +336,8 @@ public class Chunk<K, V> {
      **/
     boolean publish() {
         pendingOps.incrementAndGet();
-        if (state.get() == State.FROZEN) {
+        State currentState = state.get();
+        if (currentState == State.FROZEN || currentState == State.RELEASED) {
             pendingOps.decrementAndGet();
             return false;
         }

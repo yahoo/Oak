@@ -199,7 +199,7 @@ class Rebalancer<K, V> {
 
         // if fail here, another thread succeeded, and op is effectively gone
         return this.newChunks.compareAndSet(null, newChunks);
-            }
+    }
 
     private boolean canAppendSuffix(List<Chunk> frozenSuffix, int maxCount, int maxBytes) {
         Iterator<Chunk> iter = frozenSuffix.iterator();
