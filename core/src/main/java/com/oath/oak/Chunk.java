@@ -10,10 +10,8 @@ import sun.misc.Unsafe;
 
 import java.lang.reflect.Constructor;
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.EmptyStackException;
-import java.util.List;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicMarkableReference;
@@ -68,7 +66,7 @@ public class Chunk<K, V> {
     private final int[] entries;    // array is initialized to 0, i.e., NONE - this is important!
     private final KeysManager<K> keysManager;
     private final Handle[] handles;
-    private AtomicReferenceArray<OpData> pendingOps;
+    private AtomicInteger pendingOps2;
     private final AtomicInteger entryIndex;    // points to next free index of entry array
     final AtomicInteger keyIndex;    // points to next free index of key array
     private final AtomicInteger handleIndex;    // points to next free index of entry array
@@ -127,7 +125,7 @@ public class Chunk<K, V> {
         else
             this.state = new AtomicReference<>(State.INFANT);
         this.next = new AtomicMarkableReference<>(null, false);
-        this.pendingOps = new AtomicReferenceArray<>(ThreadIndexCalculator.MAX_THREADS);
+        this.pendingOps2 = new AtomicInteger();
         this.rebalancer = new AtomicReference<>(null); // to be updated on rebalance
         this.statistics = new Statistics();
         this.comparator = comparator;
@@ -184,15 +182,6 @@ public class Chunk<K, V> {
         return unsafe.compareAndSwapInt(entries,
                 Unsafe.ARRAY_INT_BASE_OFFSET + (item + offset) * Unsafe.ARRAY_INT_INDEX_SCALE,
                 expected, value);
-    }
-
-    /**
-     * performs CAS from 'expected' to 'value' for field at specified offset of given item in
-     * pending array
-     */
-    private boolean casPendingArray(int item, OpData expected, OpData opData) {
-        //TODO YONIGO - dont need this
-        return pendingOps.compareAndSet(item, expected, opData);
     }
 
     /**
@@ -351,9 +340,12 @@ public class Chunk<K, V> {
      * @return result of CAS
      **/
     boolean publish(OpData opData) {
-
-        int idx = threadIndexCalculator.getIndex();
-        return casPendingArray(idx, null, opData);
+        pendingOps2.incrementAndGet();
+        if (state.get() == State.FROZEN) {
+            pendingOps2.decrementAndGet();
+            return false;
+        }
+        return true;
     }
 
     /**
@@ -361,9 +353,7 @@ public class Chunk<K, V> {
      * if CAS didn't succeed then this means that a rebalancer did this already
      **/
     void unpublish(OpData oldOpData) {
-        int idx = threadIndexCalculator.getIndex();
-        //TODO YONIGO - this can be put?
-        boolean ret = casPendingArray(idx, oldOpData, null); // publish into thread array
+        pendingOps2.decrementAndGet();
     }
 
     /**
@@ -485,18 +475,6 @@ public class Chunk<K, V> {
         }
     }
 
-    /**
-     * write value in place
-     **/
-    void writeValue(int hi, V value) {
-        assert memoryManager != null;
-        assert hi >= 0 ;
-        ByteBuffer byteBuffer = memoryManager.allocate(valueSerializer.calculateSize(value));
-        // just allocated bytebuffer is ensured to have position 0
-        valueSerializer.serialize(value, byteBuffer.slice());
-        handles[hi].setValue(byteBuffer);
-    }
-
     public int getMaxItems() { return maxItems; }
     public int getBytesPerItem() { return maxKeyBytes / maxItems; }
 
@@ -572,23 +550,7 @@ public class Chunk<K, V> {
      */
     void freeze() {
         setState(State.FROZEN); // prevent new puts to this chunk
-
-        //TODO YONIGO - other thread should know that was rebalanced and  do operation again maybe?
-        int a = threadIndexCalculator.getIndex();
-        // go over pending of all threads
-        for (int i = 0; i < ThreadIndexCalculator.MAX_THREADS; ++i) {
-            if( i == a) continue;
-            while(true) {
-                if (pendingOps.compareAndSet(i, null, FROZEN_OP_DATA)) {
-                    break;
-                }
-                OpData o = pendingOps.get(i);
-                if (o != null && o.op == Operation.NO_OP) {
-                    // another rebalance did this
-                    break;
-                }
-            }
-        }
+        while (pendingOps2.get() != 0);
     }
 
     /***

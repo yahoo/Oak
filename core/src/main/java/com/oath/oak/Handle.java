@@ -26,11 +26,10 @@ class Handle<V> {
         this.writeLock = lock.writeLock();
     }
 
-    void setValue(ByteBuffer value) {
-        //TODO YONIGO - remove this function and use put/putif..
-        writeLock.lock();
-        this.value = value;
-        writeLock.unlock();
+    void setValue(V newVal, OakSerializer<V> serializer, MemoryManager memoryManager) {
+        int capacity = serializer.calculateSize(newVal);
+        this.value = memoryManager.allocate(capacity);
+        serializer.serialize(newVal, this.value.slice());
     }
 
     boolean isDeleted() {

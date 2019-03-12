@@ -141,7 +141,7 @@ class InternalOakMap<K, V> {
 
 
 
-    private Rebalancer.RebalanceResult rebalance(Chunk<K, V> c, K key, V value, Consumer<ByteBuffer> computer, Operation op) {
+    private Rebalancer.RebalanceResult rebalance(Chunk<K, V> c) {
         if (c == null) {
             return null;
         }
@@ -178,7 +178,7 @@ class InternalOakMap<K, V> {
 
     private void checkRebalance(Chunk c) {
         if (c.shouldRebalance()) {
-            rebalance(c, null, null, null, Operation.NO_OP);
+            rebalance(c);
         }
     }
 
@@ -225,7 +225,7 @@ class InternalOakMap<K, V> {
 
             // if prev chunk is marked - it is deleted, need to help split it and then continue
             if (prev.next.isMarked()) {
-                rebalance(prev, null, null, null, Operation.NO_OP);
+                rebalance(prev);
                 continue;
             }
 
@@ -296,9 +296,8 @@ class InternalOakMap<K, V> {
         if (lookUp != null) {
             if (lookUp.handle.put(value, valueSerializer, memoryManager)) {
                 c.getStatistics().incrementAddedCount();
-                return;
             }
-
+            return;
         }
 
         // if chunk is frozen or infant, we can't add to it
@@ -306,12 +305,12 @@ class InternalOakMap<K, V> {
         Chunk.State state = c.state();
         if (state == Chunk.State.INFANT) {
             // the infant is already connected so rebalancer won't add this put
-            rebalance(c.creator(), null, null, null, Operation.NO_OP);
+            rebalance(c.creator());
             put(key, value);
             return;
         }
         if (state == Chunk.State.FROZEN || state == Chunk.State.RELEASED) {
-            rebalance(c, null, null, null, Operation.NO_OP);
+            rebalance(c);
             put(key, value);
             return;
         }
@@ -319,11 +318,10 @@ class InternalOakMap<K, V> {
         int hi = c.allocateHandle();
         int ei = c.allocateEntryAndKey(key);
         if (hi == -1 || ei == -1) {
-            rebalance(c, null, null, null, Operation.NO_OP);
+            rebalance(c);
             put(key, value);
             return;
         }
-        c.writeValue(hi, value);
 
         //attache handle to entry
         c.pointToValue(ei, hi);
@@ -334,13 +332,14 @@ class InternalOakMap<K, V> {
         //TODO YONIGO - this op is stupid
         Chunk.OpData op = new Chunk.OpData(Operation.PUT, -1, -1, -1, null);
         if (!c.publish(op)) {
-            c.getHandle(ei).remove(memoryManager);
-            rebalance(c, null, null, null, Operation.NO_OP);
+            rebalance(c);
             put(key, value);
             return;
         }
 
+
         //attache entry to chunk list
+        c.getHandle(ei).setValue(value, valueSerializer, memoryManager);
         Chunk.LinkEntryResult linkResult = c.linkEntry(ei, true, key);
         if(!linkResult.isNewEntry()) {
             c.getHandle(ei).remove(memoryManager);
@@ -350,10 +349,7 @@ class InternalOakMap<K, V> {
         } else {
             c.getStatistics().incrementAddedCount();
         }
-
-
         c.unpublish(op);
-
     }
 
     boolean putIfAbsent(K key, V value) {
@@ -369,6 +365,7 @@ class InternalOakMap<K, V> {
                 c.getStatistics().incrementAddedCount();
                 return true;
             }
+            return false;
         }
 
         // if chunk is frozen or infant, we can't add to it
@@ -376,21 +373,21 @@ class InternalOakMap<K, V> {
         Chunk.State state = c.state();
         if (state == Chunk.State.INFANT) {
             // the infant is already connected so rebalancer won't add this put
-            rebalance(c.creator(), null, null, null, Operation.NO_OP);
+            rebalance(c.creator());
             return putIfAbsent(key, value);
         }
         if (state == Chunk.State.FROZEN || state == Chunk.State.RELEASED) {
-            rebalance(c, null, null, null, Operation.NO_OP);
+            rebalance(c);
             return putIfAbsent(key, value);
         }
 
         int hi = c.allocateHandle();
         int ei = c.allocateEntryAndKey(key);
         if (hi == -1 || ei == -1) {
-            rebalance(c, null, null, null, Operation.NO_OP);
+            rebalance(c);
             return putIfAbsent(key, value);
         }
-        c.writeValue(hi, value);
+
 
         //attache handle to entry
         c.pointToValue(ei, hi);
@@ -401,28 +398,27 @@ class InternalOakMap<K, V> {
         //TODO YONIGO - this op is stupid
         Chunk.OpData op = new Chunk.OpData(Operation.PUT_IF_ABSENT, -1, -1, -1, null);
         if (!c.publish(op)) {
-            c.getHandle(ei).remove(memoryManager);
-            rebalance(c, null, null, null, Operation.NO_OP);
+            rebalance(c);
             return putIfAbsent(key, value);
         }
 
         //attache entry to chunk list
+        c.getHandle(ei).setValue(value, valueSerializer, memoryManager);
         Chunk.LinkEntryResult linkResult = c.linkEntry(ei, true, key);
+        boolean retVal;
         if(!linkResult.isNewEntry()) {
             c.getHandle(ei).remove(memoryManager);
-            boolean retVal = c.getHandle(linkResult.getEi()).putIfAbsent(value, valueSerializer, memoryManager);
+            retVal = c.getHandle(linkResult.getEi()).putIfAbsent(value, valueSerializer, memoryManager);
             if (retVal) {
                 c.getStatistics().incrementAddedCount();
             }
-            c.unpublish(op);
-            checkRebalance(c);
-            return retVal;
         } else {
             c.getStatistics().incrementAddedCount();
-            c.unpublish(op);
-            checkRebalance(c);
-            return true;
+            retVal = true;
         }
+
+        c.unpublish(op);
+        return retVal;
     }
 
     //return true if added a new value
@@ -447,24 +443,25 @@ class InternalOakMap<K, V> {
         Chunk.State state = c.state();
         if (state == Chunk.State.INFANT) {
             // the infant is already connected so rebalancer won't add this put
-            rebalance(c.creator(), null, null, null, Operation.NO_OP);
+            rebalance(c.creator());
             return putIfAbsentComputeIfPresent(key, value, computer);
         }
         if (state == Chunk.State.FROZEN || state == Chunk.State.RELEASED) {
-            rebalance(c, null, null, null, Operation.NO_OP);
+            rebalance(c);
             return putIfAbsentComputeIfPresent(key, value, computer);
         }
 
-        int hi = c.allocateHandle(); // TODO YONIGO - This handler is not released if during rebalance helpOp handler gets computed
+        int hi = c.allocateHandle();
         int ei = c.allocateEntryAndKey(key);
         if (hi == -1 || ei == -1) {
-            rebalance(c, null, null, null, Operation.NO_OP);
+            rebalance(c);
             return putIfAbsentComputeIfPresent(key, value, computer);
         }
-        c.writeValue(hi, value);
+
 
         //attache handle to entry
         c.pointToValue(ei, hi);
+
 
         // publish put
         // just put some value so that rebalance waits for this thread to finish
@@ -472,30 +469,30 @@ class InternalOakMap<K, V> {
         //TODO YONIGO - this op is stupid
         Chunk.OpData op = new Chunk.OpData(Operation.PUT_IF_ABS_COMPUTE_IF_PRES, -1, -1, -1, null);
         if (!c.publish(op)) {
-            c.getHandle(ei).remove(memoryManager);
-            rebalance(c, null, null, null, Operation.NO_OP);
+            rebalance(c);
             return putIfAbsentComputeIfPresent(key, value, computer);
         }
 
         //attache entry to chunk list
+        c.getHandle(ei).setValue(value, valueSerializer, memoryManager);
         Chunk.LinkEntryResult linkResult = c.linkEntry(ei, true, key);
+        boolean retval;
         if(!linkResult.isNewEntry()) {
             //another thread inserted this key so we compute
             c.getHandle(ei).remove(memoryManager);
             if (c.getHandle(linkResult.getEi()).putIfAbsentComputeIfPresent(value, valueSerializer, computer, memoryManager)) {
                 c.getStatistics().incrementAddedCount();
-                c.unpublish(op);
-                return true;
+                retval = true;
             } else {
-                c.unpublish(op);
-                return false;
+                retval = false;
             }
-
         } else {
             c.getStatistics().incrementAddedCount();
-            c.unpublish(op);
-            return true;
+            retval = true;
         }
+
+        c.unpublish(op);
+        return retval;
     }
 
     void remove(K key) {
