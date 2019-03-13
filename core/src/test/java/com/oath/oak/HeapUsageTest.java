@@ -11,7 +11,6 @@ import org.junit.Test;
 import java.nio.ByteBuffer;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
 
 public class HeapUsageTest {
 

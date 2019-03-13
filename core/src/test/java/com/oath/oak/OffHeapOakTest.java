@@ -8,9 +8,7 @@ package com.oath.oak;
 
 import org.junit.After;
 import org.junit.Before;
-import org.junit.Rule;
 import org.junit.Test;
-import org.junit.rules.ExpectedException;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
@@ -20,7 +18,6 @@ import java.util.function.Consumer;
 
 import static junit.framework.TestCase.assertTrue;
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
 
 public class OffHeapOakTest {
     private OakMap<Integer, Integer> oak;

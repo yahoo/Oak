@@ -120,7 +120,7 @@ class Handle<V> {
         return true;
     }
 
-    public ByteBuffer getSlicedByteBuffer() {
+    private ByteBuffer getSlicedByteBuffer() {
         assert writeLock.isHeldByCurrentThread();
         return value.slice();
     }

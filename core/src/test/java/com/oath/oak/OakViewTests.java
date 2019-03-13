@@ -13,7 +13,6 @@ import java.util.function.Function;
 
 import static junit.framework.TestCase.assertEquals;
 import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.fail;
 
 public class OakViewTests {
 

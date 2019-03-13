@@ -16,7 +16,6 @@ import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicMarkableReference;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Consumer;
 
 public class Chunk<K, V> {
 
@@ -42,10 +41,6 @@ public class Chunk<K, V> {
     private static final double MAX_IDLE_ENTRIES_FACTOR = 5;
     private static final double MAX_BYTES_FACTOR = 1.25;
 
-    // when chunk is frozen, all of the elements in pending puts array will be this OpData
-    private static final OpData FROZEN_OP_DATA =
-        new OpData(Operation.NO_OP, 0, 0, 0, null);
-
     // defaults
     public static final int BYTES_PER_ITEM_DEFAULT = 256;
     public static final int MAX_ITEMS_DEFAULT = 256;
@@ -63,7 +58,7 @@ public class Chunk<K, V> {
     private AtomicReference<Rebalancer> rebalancer;
     private final int[] entries;    // array is initialized to 0, i.e., NONE - this is important!
     private final KeysManager<K> keysManager;
-    private final Handle[] handles;
+    private final Handle<V>[] handles;
     private AtomicInteger pendingOps;
     private final AtomicInteger entryIndex;    // points to next free index of entry array
     final AtomicInteger keyIndex;    // points to next free index of key array
@@ -137,22 +132,6 @@ public class Chunk<K, V> {
         NORMAL,
         FROZEN,
         RELEASED
-    }
-
-    static class OpData {
-        final Operation op;
-        final int entryIndex;
-        final int handleIndex;
-        int prevHandleIndex;
-        final Consumer<ByteBuffer> computer;
-
-        OpData(Operation op, int entryIndex, int handleIndex, int prevHandleIndex, Consumer<ByteBuffer> computer) {
-            this.op = op;
-            this.entryIndex = entryIndex;
-            this.handleIndex = handleIndex;
-            this.prevHandleIndex = prevHandleIndex;
-            this.computer = computer;
-        }
     }
 
     /*-------------- Methods --------------*/
@@ -288,7 +267,7 @@ public class Chunk<K, V> {
         final int entryIndex;
         final int handleIndex;
 
-        LookUp(Handle handle, int entryIndex, int handleIndex) {
+        LookUp(Handle<V> handle, int entryIndex, int handleIndex) {
             this.handle = handle;
             this.entryIndex = entryIndex;
             this.handleIndex = handleIndex;
@@ -389,18 +368,15 @@ public class Chunk<K, V> {
 
     public static class LinkEntryResult {
         private final int ei;
-
-        public int getEi() {
-            return ei;
-        }
-
-        public boolean isNewEntry() {
-            return newEntry;
-        }
-
         private final boolean newEntry;
 
-        public LinkEntryResult(int ei, boolean newEntry) {
+        int getEi() {
+            return ei;
+        }
+        boolean isNewEntry() {
+            return newEntry;
+        }
+        LinkEntryResult(int ei, boolean newEntry) {
             this.ei = ei;
             this.newEntry = newEntry;
         }
@@ -691,7 +667,7 @@ public class Chunk<K, V> {
             // otherwise try to mark it
             else {
                 // read chunk's current next
-                Chunk savedNext = next.getReference();
+                Chunk<K,V> savedNext = next.getReference();
 
                 // try to mark next while keeping the same next chunk - using CAS
                 // if we succeeded then the next pointer we remembered is set and will not change - return it

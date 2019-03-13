@@ -317,7 +317,7 @@ class InternalOakMap<K, V> {
         NEW_KEY_NOT_ADDED
     }
 
-    AbstractPutResult abstractPut(K key, V value, Function<Handle<V>, Boolean> operationIfFound) {
+    private AbstractPutResult abstractPut(K key, V value, Function<Handle<V>, Boolean> operationIfFound) {
 
         Chunk<K,V> c = findChunk(key);
         Chunk.LookUp<V> lookUp = c.lookUp(key);
@@ -438,8 +438,7 @@ class InternalOakMap<K, V> {
             return null;
         }
 
-        T transformation = (T) lookUp.handle.transform(transformer);
-        return transformation;
+        return (T) lookUp.handle.transform(transformer);
 
     }
 
@@ -550,10 +549,10 @@ class InternalOakMap<K, V> {
             this.index = index;
         }
 
-        private IteratorState(Chunk<K, V> nextChunk, Chunk.ChunkIter nextChunkIter, int nextIndex) {
+        private IteratorState(Chunk<K, V> nextChunk, Chunk.ChunkIter nextChunkIter) {
             this.chunk = nextChunk;
             this.chunkIter = nextChunkIter;
-            this.index = nextIndex;
+            this.index = Chunk.NONE;
         }
 
         public Chunk<K, V> getChunk() {
@@ -570,7 +569,7 @@ class InternalOakMap<K, V> {
 
 
         public static <K, V> IteratorState<K, V> newInstance(Chunk<K, V> nextChunk, Chunk.ChunkIter nextChunkIter) {
-            return new IteratorState<>(nextChunk, nextChunkIter, Chunk.NONE);
+            return new IteratorState<>(nextChunk, nextChunkIter);
         }
 
     }
