@@ -382,7 +382,7 @@ public class Chunk<K, V> {
         }
     }
 
-    public LinkEntryResult linkEntry(int ei, boolean cas, K key) {
+    public LinkEntryResult linkEntry(int ei, K key) {
         int prev, curr, cmp;
         int anchor = -1;
 
@@ -417,33 +417,29 @@ public class Chunk<K, V> {
             // link to list between next and previous
             // first change this key's next to point to curr
             set(ei, OFFSET_NEXT, curr); // no need for CAS since put is not even published yet
-            if (cas) {
-                if (casEntriesArray(prev, OFFSET_NEXT, curr, ei)) {
-                  // Here is the single place where we do enter a new entry to the chunk, meaning
-                  // there is none else simultaneously inserting the same key
-                  // (we were the first to insert this key).
-                  // If the new entry's index is exactly after the sorted count and
-                  // the entry's key is greater or equal then to the previous (sorted count)
-                  // index key. Then increase the sorted count.
-                  int sortedCount = this.sortedCount.get();
-                  if (sortedCount > 0) {
+
+            if (casEntriesArray(prev, OFFSET_NEXT, curr, ei)) {
+                // Here is the single place where we do enter a new entry to the chunk, meaning
+                // there is none else simultaneously inserting the same key
+                // (we were the first to insert this key).
+                // If the new entry's index is exactly after the sorted count and
+                // the entry's key is greater or equal then to the previous (sorted count)
+                // index key. Then increase the sorted count.
+                int sortedCount = this.sortedCount.get();
+                if (sortedCount > 0) {
                     if (ei == (sortedCount * FIELDS + 1)) {
-                      // the new entry's index is exactly after the sorted count
-                      if (compare(
-                          readKey((sortedCount - 1) * FIELDS + FIRST_ITEM), key) <= 0) {
-                        // compare with sorted count key, if inserting the "if-statement",
-                        // the sorted count key is less or equal to the key just inserted
-                          this.sortedCount.compareAndSet(sortedCount,(sortedCount+1));
-                      }
+                        // the new entry's index is exactly after the sorted count
+                        if (compare(
+                                readKey((sortedCount - 1) * FIELDS + FIRST_ITEM), key) <= 0) {
+                            // compare with sorted count key, if inserting the "if-statement",
+                            // the sorted count key is less or equal to the key just inserted
+                            this.sortedCount.compareAndSet(sortedCount,(sortedCount+1));
+                        }
                     }
-                  }
-                  return new LinkEntryResult(ei, true);
                 }
-                // CAS didn't succeed, try again
-            } else {
-                // without CAS (used by rebalance)
-                set(prev, OFFSET_NEXT, ei);
+                return new LinkEntryResult(ei, true);
             }
+            // CAS didn't succeed, try again
         }
     }
 

@@ -281,36 +281,6 @@ class InternalOakMap<K, V> {
 
     /*-------------- OakMap Methods --------------*/
 
-    void put(K key, V value) {
-        if (key == null || value == null) {
-            throw new NullPointerException();
-        }
-
-        Function<Handle<V>, Boolean> computeFunction = handle ->
-                handle.put(value, valueSerializer, memoryManager);
-
-        AbstractPutResult retval = abstractPut(key, value, computeFunction);
-        while (retval == AbstractPutResult.REBALANCED) {
-            retval = abstractPut(key, value, computeFunction);
-        }
-        return;
-    }
-
-    boolean putIfAbsent(K key, V value) {
-        if (key == null || value == null) {
-            throw new NullPointerException();
-        }
-
-        Function<Handle<V>, Boolean> computeFunction = handle ->
-                handle.putIfAbsent(value, valueSerializer, memoryManager);
-
-        AbstractPutResult retval = abstractPut(key, value, computeFunction);
-        while (retval == AbstractPutResult.REBALANCED) {
-            retval = abstractPut(key, value, computeFunction);
-        }
-        return retval == AbstractPutResult.NEW_KEY_ADDED;
-    }
-
     private enum AbstractPutResult{
         REBALANCED,
         NEW_KEY_ADDED,
@@ -360,7 +330,7 @@ class InternalOakMap<K, V> {
 
         //attache entry to chunk list
         c.getHandle(ei).setValue(value, valueSerializer, memoryManager);
-        Chunk.LinkEntryResult linkResult = c.linkEntry(ei, true, key);
+        Chunk.LinkEntryResult linkResult = c.linkEntry(ei, key);
         AbstractPutResult retval;
         if(!linkResult.isNewEntry()) {
             //another thread inserted this key so we compute
@@ -380,6 +350,37 @@ class InternalOakMap<K, V> {
 
         c.unpublish();
         return retval;
+    }
+
+
+    void put(K key, V value) {
+        if (key == null || value == null) {
+            throw new NullPointerException();
+        }
+
+        Function<Handle<V>, Boolean> computeFunction = handle ->
+                handle.put(value, valueSerializer, memoryManager);
+
+        AbstractPutResult retval = abstractPut(key, value, computeFunction);
+        while (retval == AbstractPutResult.REBALANCED) {
+            retval = abstractPut(key, value, computeFunction);
+        }
+        return;
+    }
+
+    boolean putIfAbsent(K key, V value) {
+        if (key == null || value == null) {
+            throw new NullPointerException();
+        }
+
+        Function<Handle<V>, Boolean> computeFunction = handle ->
+                handle.putIfAbsent(value, valueSerializer, memoryManager);
+
+        AbstractPutResult retval = abstractPut(key, value, computeFunction);
+        while (retval == AbstractPutResult.REBALANCED) {
+            retval = abstractPut(key, value, computeFunction);
+        }
+        return retval == AbstractPutResult.NEW_KEY_ADDED;
     }
 
     //return true if added a new value

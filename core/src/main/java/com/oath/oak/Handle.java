@@ -34,9 +34,12 @@ class Handle<V> {
 
     boolean isDeleted() {
         readLock.lock();
-        boolean retval = value == null;
-        readLock.unlock();
-        return retval;
+        try {
+            boolean retval = value == null;
+            return retval;
+        } finally {
+            readLock.unlock();
+        }
     }
 
     boolean unsafeIsDeleted() {
@@ -46,43 +49,51 @@ class Handle<V> {
 
     boolean remove(MemoryManager memoryManager) {
         writeLock.lock();
-        if (value == null) {
+        try {
+            if (value == null) {
+                return false;
+            }
+            memoryManager.release(value);
+            value = null;
+            return true;
+        } finally {
             writeLock.unlock();
-            return false;
         }
-        memoryManager.release(value);
-        value = null;
-        writeLock.unlock();
-        return true;
     }
 
     boolean put(V newVal, OakSerializer<V> serializer, MemoryManager memoryManager) {
         writeLock.lock();
-        boolean newValue = value == null;
-        int capacity = serializer.calculateSize(newVal);
-        if (newValue || this.value.remaining() < capacity) { // can not reuse the existing space
-            if (!newValue) {
-                memoryManager.release(this.value);
+        try {
+            boolean newValue = value == null;
+            int capacity = serializer.calculateSize(newVal);
+            if (newValue || this.value.remaining() < capacity) { // can not reuse the existing space
+                if (!newValue) {
+                    memoryManager.release(this.value);
+                }
+                this.value = memoryManager.allocate(capacity);
             }
-            this.value = memoryManager.allocate(capacity);
+            serializer.serialize(newVal, this.value.slice());
+            return newValue;
+        } finally {
+            writeLock.unlock();
         }
-        serializer.serialize(newVal, this.value.slice());
-        writeLock.unlock();
-        return newValue;
     }
 
 
     boolean putIfAbsent(V newVal, OakSerializer<V> serializer, MemoryManager memoryManager) {
         writeLock.lock();
-        if (value == null) {
-            int capacity = serializer.calculateSize(newVal);
-            this.value = memoryManager.allocate(capacity);
-            serializer.serialize(newVal, this.value.slice());
+        try {
+            if (value == null) {
+                int capacity = serializer.calculateSize(newVal);
+                this.value = memoryManager.allocate(capacity);
+                serializer.serialize(newVal, this.value.slice());
+                return true;
+            }
+            return false;
+        } finally {
             writeLock.unlock();
-            return true;
         }
-        writeLock.unlock();
-        return false;
+
     }
 
 
@@ -91,28 +102,30 @@ class Handle<V> {
                                         Consumer<ByteBuffer> computer,
                                         MemoryManager memoryManager) {
         writeLock.lock();
-        if (value == null) {
-            int capacity = serializer.calculateSize(newVal);
-            this.value = memoryManager.allocate(capacity);
-            serializer.serialize(newVal, this.value.slice());
+        try {
+            if (value == null) {
+                int capacity = serializer.calculateSize(newVal);
+                this.value = memoryManager.allocate(capacity);
+                serializer.serialize(newVal, this.value.slice());
+                return true;
+            } else {
+                computer.accept(getSlicedByteBuffer());
+                return false;
+            }
+        } finally {
             writeLock.unlock();
-            return true;
-        } else {
-            computer.accept(getSlicedByteBuffer());
-            writeLock.unlock();
-            return false;
         }
+
     }
 
 
     // returns false in case handle was found deleted and compute didn't take place, true otherwise
     boolean compute(Consumer<ByteBuffer> computer) {
         writeLock.lock();
-        if (value == null) {
-            writeLock.unlock();
-            return false;
-        }
         try {
+            if (value == null) {
+                return false;
+            }
             computer.accept(getSlicedByteBuffer());
         } finally {
             writeLock.unlock();
@@ -161,13 +174,15 @@ class Handle<V> {
 
     public <T> T transform(Function<ByteBuffer, T> transformer) {
         readLock.lock();
-        if (value == null) {
+        try {
+            if (value == null) {
+                return null;
+            }
+            T transformation = transformer.apply(getSlicedReadOnlyByteBuffer());
+            return transformation;
+        } finally {
             readLock.unlock();
-            return null;
         }
-        T transformation = transformer.apply(getSlicedReadOnlyByteBuffer());
-        readLock.unlock();
-        return transformation;
     }
 
 
