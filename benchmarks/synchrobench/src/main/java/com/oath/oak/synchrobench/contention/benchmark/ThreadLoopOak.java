@@ -95,9 +95,10 @@ public class ThreadLoopOak implements Runnable {
 
         MyBuffer key = new MyBuffer(Parameters.keySize);
 
+        Integer newInt = -1;
         while (!stop) {
-            Integer newInt = rand.nextInt(Parameters.range);
-            key.buffer.putInt(0,newInt);
+            newInt = (Parameters.keyDistribution == Parameters.KeyDist.RANDOM) ? rand.nextInt(Parameters.range) : newInt + 1;
+            key.buffer.putInt(0, newInt);
 
             int coin = rand.nextInt(1000);
             if (coin < cdf[0]) { // -a

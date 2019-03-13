@@ -7,7 +7,11 @@ package com.oath.oak.synchrobench.contention.benchmark;
  * @author Vincent Gramoli
  */
 public class Parameters {
-    
+	enum KeyDist {
+		RANDOM,
+		INCREASING
+	}
+
     public static int numThreads = 1,
     	numMilliseconds = 5000,
     	numWrites = 0,
@@ -24,6 +28,8 @@ public class Parameters {
 	static boolean change = false;
 
 	public static boolean bufferView = false;
+
+	public static KeyDist keyDistribution = KeyDist.RANDOM;
 
     static String benchClassName = "skiplists.lockfree.NonBlockingFriendlySkipListMap";
 }
