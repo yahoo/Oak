@@ -47,7 +47,7 @@ public class IteratorModificationTest {
             String val = generateString(i, VALUE_SIZE);
             assert (key.length() == KEY_SIZE);
             assert (val.length() == VALUE_SIZE);
-            oak.ZC().put(key, val);
+            oak.zc().put(key, val);
         }
     }
 
@@ -173,8 +173,8 @@ public class IteratorModificationTest {
                 for (int j = 0; j < 200; j++) {
                     String key = String.format("%0$" + KEY_SIZE + "s", String.valueOf(currentKey));
                     String val = String.format("%0$" + VALUE_SIZE + "s", String.valueOf(currentKey));
-                    oak.ZC().remove(key);
-                    oak.ZC().put(key, val);
+                    oak.zc().remove(key);
+                    oak.zc().put(key, val);
                 }
                 try {
                     readLock.release();
@@ -222,7 +222,7 @@ public class IteratorModificationTest {
             }
             for (int i = 0; i < ELEMENTS; i++) {
                 String key = String.format("%0$" + KEY_SIZE + "s", String.valueOf(i));
-                oak.ZC().remove(key);
+                oak.zc().remove(key);
             }
             scanLatch.countDown();
         });
@@ -240,41 +240,25 @@ public class IteratorModificationTest {
     public void valueDeleteTest() {
         Iterator<Map.Entry<String, String>> entryIterator = oak.entrySet().iterator();
         assertTrue(entryIterator.hasNext());
-        oak.ZC().remove(generateString(0, KEY_SIZE));
+        oak.zc().remove(generateString(0, KEY_SIZE));
         assertTrue(entryIterator.hasNext());
         assertNull(entryIterator.next());
 
         Iterator<String> valueIterator = oak.values().iterator();
         assertTrue(valueIterator.hasNext());
-        oak.ZC().remove(generateString(1, KEY_SIZE));
+        oak.zc().remove(generateString(1, KEY_SIZE));
         assertTrue(valueIterator.hasNext());
         assertNull(valueIterator.next());
 
-
-        // eranmeir - Stream iterators accumulate values in hasNext() so the following won't work.
-        //        Iterator<Integer> transformValuesIterator = oak.values().stream().map(entry -> 123).iterator();
-//        assertTrue(transformValuesIterator.hasNext());
-//        assertNull(transformValuesIterator.next());
-//        oak.ZC().remove(generateString(2, KEY_SIZE));
-//        assertTrue(transformValuesIterator.hasNext());
-//        assertNull(transformValuesIterator.next());
-
-//        Iterator<Integer> transformEntriesIterator = oak.entrySet().stream().map(entry -> 123).iterator();
-//        assertTrue(transformEntriesIterator.hasNext());
-//        oak.ZC().remove(generateString(3, KEY_SIZE));
-//        assertTrue(transformEntriesIterator.hasNext());
-//        assertNull(transformEntriesIterator.next());
-
-
-        Iterator<OakRBuffer> bufferValuesIterator = oak.ZC().values().iterator();
+        Iterator<OakRBuffer> bufferValuesIterator = oak.zc().values().iterator();
         assertTrue(bufferValuesIterator.hasNext());
-        oak.ZC().remove(generateString(2, KEY_SIZE));
+        oak.zc().remove(generateString(2, KEY_SIZE));
         assertTrue(bufferValuesIterator.hasNext());
         assertNull(bufferValuesIterator.next());
 
-        Iterator<Map.Entry<ByteBuffer, OakRBuffer>> bufferEntriesIterator = oak.ZC().entrySet().iterator();
+        Iterator<Map.Entry<ByteBuffer, OakRBuffer>> bufferEntriesIterator = oak.zc().entrySet().iterator();
         assertTrue(bufferEntriesIterator.hasNext());
-        oak.ZC().remove(generateString(3, KEY_SIZE));
+        oak.zc().remove(generateString(3, KEY_SIZE));
         assertTrue(bufferEntriesIterator.hasNext());
         assertNull(bufferEntriesIterator.next());
     }

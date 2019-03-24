@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2018 Oath Inc.
  * Licensed under the terms of the Apache 2.0 license.
  * Please see LICENSE file in the project root for terms.
@@ -8,45 +8,40 @@ package com.oath.oak;
 
 import org.junit.After;
 import org.junit.Before;
-import org.junit.Rule;
 import org.junit.Test;
-import org.junit.rules.ExpectedException;
 
 import java.nio.ByteBuffer;
 import java.util.Iterator;
 import java.util.Map;
 
-import static junit.framework.TestCase.assertTrue;
+import static junit.framework.TestCase.*;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 
 public class SingleThreadIteratorTest {
 
     private OakMap<Integer, Integer> oak;
-    int maxItemsPerChunk = 2048;
-    int maxBytesPerChunkItem = 100;
+    private int maxItemsPerChunk = 2048;
 
     @Before
     public void init() {
-        OakMapBuilder builder = OakMapBuilder.getDefaultBuilder()
+        int maxBytesPerChunkItem = 100;
+        OakMapBuilder<Integer, Integer> builder = OakMapBuilder.getDefaultBuilder()
                 .setChunkMaxItems(maxItemsPerChunk)
                 .setChunkBytesPerItem(maxBytesPerChunkItem);
-        oak = (OakMap<Integer, Integer>) builder.build();
+        oak = builder.build();
     }
 
     @After
-    public void finish() throws Exception{
+    public void finish() {
         oak.close();
     }
-
-    @Rule
-    public ExpectedException thrown = ExpectedException.none();
 
     @Test
     public void testIterator() {
         Integer value;
         for (Integer i = 0; i < 2 * maxItemsPerChunk; i++) {
-            oak.ZC().put(i, i);
+            oak.zc().put(i, i);
         }
         for (Integer i = 0; i < 2 * maxItemsPerChunk; i++) {
             value = oak.get(i);
@@ -64,11 +59,11 @@ public class SingleThreadIteratorTest {
             expectedVal++;
         }
         for (Integer i = 0; i < maxItemsPerChunk; i++) {
-            oak.ZC().remove(i);
+            oak.zc().remove(i);
         }
         for (Integer i = 0; i < maxItemsPerChunk; i++) {
             value = oak.get(i);
-            assertTrue(value == null);
+            assertNull(value);
         }
         for (Integer i = maxItemsPerChunk; i < 2 * maxItemsPerChunk; i++) {
             value = oak.get(i);
@@ -87,19 +82,19 @@ public class SingleThreadIteratorTest {
             expectedVal++;
         }
         for (Integer i = maxItemsPerChunk; i < 2 * maxItemsPerChunk; i++) {
-            oak.ZC().remove(i);
+            oak.zc().remove(i);
         }
         for (Integer i = maxItemsPerChunk; i < 2 * maxItemsPerChunk; i++) {
             value = oak.get(i);
-            assertTrue(value == null);
+            assertNull(value);
         }
         for (Integer i = 0; i < 2 * maxItemsPerChunk; i++) {
-            oak.ZC().put(i, i);
+            oak.zc().put(i, i);
         }
 
 
         for (Integer i = 1; i < (2 * maxItemsPerChunk - 1); i++) {
-            oak.ZC().remove(i);
+            oak.zc().remove(i);
         }
 
         expectedVal = 0;
@@ -124,24 +119,18 @@ public class SingleThreadIteratorTest {
             assertFalse(iter.hasNext());
 
             for (int i = 0; i < 12 * maxItemsPerChunk; i++) {
-                oak.ZC().put(i, i);
+                oak.zc().put(i, i);
             }
             for (int i = 0; i < 12 * maxItemsPerChunk; i++) {
                 if (i % 3 == 0) {
-                    oak.ZC().remove(i);
+                    oak.zc().remove(i);
                 }
             }
 
 
             iter = sub.values().iterator();
             Integer c = 0;
-            while (iter.hasNext()) {
-                if (c % 3 == 0) {
-                    c++;
-                }
-                assertEquals(c, iter.next());
-                c++;
-            }
+            c = checkValues(iter, c);
             assertEquals(3 * maxItemsPerChunk, c.intValue());
 
         }
@@ -149,34 +138,33 @@ public class SingleThreadIteratorTest {
         try (OakMap<Integer, Integer> sub = oak.subMap(6 * maxItemsPerChunk, true, 9 * maxItemsPerChunk, false)) {
             Iterator<Integer> iter = sub.values().iterator();
             Integer c = 6 * maxItemsPerChunk;
-            while (iter.hasNext()) {
-                if (c % 3 == 0) {
-                    c++;
-                }
-                assertEquals(c, iter.next());
-                c++;
-            }
+            c = checkValues(iter, c);
             assertEquals(9 * maxItemsPerChunk, c.intValue());
         }
 
         try (OakMap<Integer, Integer> sub = oak.subMap(9 * maxItemsPerChunk, true, 13 * maxItemsPerChunk, false)){
             Iterator<Integer> iter = sub.values().iterator();
             Integer c = 9 * maxItemsPerChunk;
-            while (iter.hasNext()) {
-                if (c % 3 == 0) {
-                    c++;
-                }
-                assertEquals(c, iter.next());
-                c++;
-            }
+            c = checkValues(iter, c);
             assertEquals(12 * maxItemsPerChunk, c.intValue());
         }
 
-        try (OakMap<Integer, Integer> sub = oak.subMap(12 * maxItemsPerChunk, true, 13 * maxItemsPerChunk, false);) {
+        try (OakMap<Integer, Integer> sub = oak.subMap(12 * maxItemsPerChunk, true, 13 * maxItemsPerChunk, false)) {
             Iterator<Integer> iter = sub.values().iterator();
             assertFalse(iter.hasNext());
         }
 
+    }
+
+    private Integer checkValues(Iterator<Integer> iter, Integer c) {
+        while (iter.hasNext()) {
+            if (c % 3 == 0) {
+                c++;
+            }
+            assertEquals(c, iter.next());
+            c++;
+        }
+        return c;
     }
 
     @Test
@@ -184,23 +172,14 @@ public class SingleThreadIteratorTest {
         Integer i;
         Integer value;
         for (i = 0; i < 5; i++) {
-            oak.ZC().put(i, i);
+            oak.zc().put(i, i);
         }
         for (i = 0; i < 5; i++) {
             value = oak.get(i);
-            assertTrue(value != null);
+            assertNotNull(value);
             assertEquals(i, value);
         }
-        try (OakMap<Integer, Integer> oakDesc = oak.descendingMap();) {
-
-            Iterator<Integer> iter = oakDesc.values().iterator();
-            i = 5;
-            while (iter.hasNext()) {
-                i--;
-                assertEquals(i, iter.next());
-            }
-            assertEquals(0, i.intValue());
-        }
+        checkDescendingIter();
 
         Iterator<Integer> iter = oak.values().iterator();
         i = 0;
@@ -217,7 +196,7 @@ public class SingleThreadIteratorTest {
             i = 5;
             while (entryIter.hasNext()) {
                 i--;
-                Map.Entry<Integer, Integer> e = (Map.Entry<Integer, Integer>) entryIter.next();
+                Map.Entry<Integer, Integer> e = entryIter.next();
                 assertEquals(i, e.getValue());
             }
             assertEquals(0, i.intValue());
@@ -231,9 +210,23 @@ public class SingleThreadIteratorTest {
             i = 5;
             while (valIter.hasNext()) {
                 i--;
-                assertEquals((int) i, valIter.next());
+                assertEquals(i, valIter.next());
             }
             assertEquals(2, i.intValue());
+        }
+    }
+
+    private void checkDescendingIter() {
+        Integer i;
+        try (OakMap<Integer, Integer> oakDesc = oak.descendingMap()) {
+
+            Iterator<Integer> iter = oakDesc.values().iterator();
+            i = 5;
+            while (iter.hasNext()) {
+                i--;
+                assertEquals(i, iter.next());
+            }
+            assertEquals(0, i.intValue());
         }
     }
 
@@ -246,11 +239,11 @@ public class SingleThreadIteratorTest {
 
             Integer i;
             for (i = 0; i < 5; i++) {
-                oak.ZC().put(i, i);
+                oak.zc().put(i, i);
             }
             for (i = 0; i < 5; i++) {
                 Integer value = oak.get(i);
-                assertTrue(value != null);
+                assertNotNull(value);
                 assertEquals(i, value);
             }
         }
@@ -266,20 +259,10 @@ public class SingleThreadIteratorTest {
         assertEquals(5, i.intValue());
 
 
-
-        try ( OakMap<Integer, Integer> oakDesc = oak.descendingMap()) {
-
-            Iterator<Integer> valueiter = oakDesc.values().iterator();
-            i = 5;
-            while (valueiter.hasNext()) {
-                i--;
-                assertEquals(i, valueiter.next());
-            }
-            assertEquals(0, i.intValue());
-        }
+        checkDescendingIter();
 
 
-        try (OakMap sub = oak.subMap(1, false, 4, true)) {
+        try (OakMap<Integer, Integer> sub = oak.subMap(1, false, 4, true)) {
             iter = sub.values().iterator();
             i = 2;
             while (iter.hasNext()) {
@@ -290,8 +273,8 @@ public class SingleThreadIteratorTest {
         }
 
 
-        try (OakMap oakSub = oak.subMap(1, false, 4, true);
-             OakMap oakDesc = oakSub.descendingMap();) {
+        try (OakMap<Integer, Integer> oakSub = oak.subMap(1, false, 4, true);
+             OakMap<Integer, Integer> oakDesc = oakSub.descendingMap()) {
 
             iter = oakDesc.values().iterator();
 
@@ -306,11 +289,11 @@ public class SingleThreadIteratorTest {
 
 
         for (i = 0; i < 3 * maxItemsPerChunk; i++) {
-            oak.ZC().put(i, i);
+            oak.zc().put(i, i);
         }
         for (i = 0; i < 3 * maxItemsPerChunk; i++) {
             Integer value = oak.get(i);
-            assertTrue(value != null);
+            assertNotNull(value);
             assertEquals(i, value);
         }
 
@@ -335,7 +318,7 @@ public class SingleThreadIteratorTest {
         }
 
 
-        try (OakMap<Integer, Integer> sub = oak.subMap(2 * maxItemsPerChunk, true, 3 * maxItemsPerChunk, false);) {
+        try (OakMap<Integer, Integer> sub = oak.subMap(2 * maxItemsPerChunk, true, 3 * maxItemsPerChunk, false)) {
             iter = sub.values().iterator();
 
             i = 2 * maxItemsPerChunk;
@@ -358,7 +341,7 @@ public class SingleThreadIteratorTest {
         }
 
 
-        try (OakMap sub = oak.subMap((int) Math.round(0.1 * maxItemsPerChunk), true, (int) Math.round(2.3 * maxItemsPerChunk), false)){
+        try (OakMap<Integer, Integer> sub = oak.subMap((int) Math.round(0.1 * maxItemsPerChunk), true, (int) Math.round(2.3 * maxItemsPerChunk), false)){
 
             iter = sub.values().iterator();
             i = (int) Math.round(0.1 * maxItemsPerChunk);
@@ -382,7 +365,7 @@ public class SingleThreadIteratorTest {
                     ByteBuffer bb = ByteBuffer.allocate(4);
                     bb.putInt(i);
                     bb.flip();
-                    sub.ZC().remove(bb);
+                    sub.zc().remove(bb);
                 }
             }
 

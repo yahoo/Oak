@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2018 Oath Inc.
  * Licensed under the terms of the Apache 2.0 license.
  * Please see LICENSE file in the project root for terms.
@@ -7,12 +7,10 @@
 package com.oath.oak;
 
 import sun.misc.Unsafe;
-
 import java.lang.reflect.Constructor;
 import java.nio.ByteBuffer;
 import java.util.Comparator;
 import java.util.EmptyStackException;
-import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicMarkableReference;
@@ -108,7 +106,8 @@ public class Chunk<K, V> {
           int bytesPerItem,
           AtomicInteger externalSize,
           OakSerializer<K> keySerializer,
-          OakSerializer<V> valueSerializer, ThreadIndexCalculator threadIndexCalculator) {
+          OakSerializer<V> valueSerializer,
+          ThreadIndexCalculator threadIndexCalculator) {
         this.memoryManager = memoryManager;
         this.maxItems = maxItems;
         this.maxKeyBytes = maxItems * bytesPerItem;
@@ -116,7 +115,7 @@ public class Chunk<K, V> {
         this.entryIndex = new AtomicInteger(FIRST_ITEM);
         this.handles = new Handle[maxItems + FIRST_ITEM];
         this.handleIndex = new AtomicInteger(FIRST_ITEM);
-        this.keysManager = new KeysManager<K>(this.maxKeyBytes, memoryManager, keySerializer);
+        this.keysManager = new KeysManager<>(this.maxKeyBytes, memoryManager, keySerializer);
         this.keyIndex = new AtomicInteger(FIRST_ITEM);
         this.sortedCount = new AtomicInteger(0);
         this.minKey = minKey;
@@ -473,7 +472,6 @@ public class Chunk<K, V> {
      * write value in place
      **/
     void writeValue(int hi, V value) {
-        assert memoryManager != null;
         assert hi >= 0 ;
         ByteBuffer byteBuffer = memoryManager.allocate(valueSerializer.calculateSize(value));
         // just allocated bytebuffer is ensured to have position 0

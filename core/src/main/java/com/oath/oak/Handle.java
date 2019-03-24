@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2018 Oath Inc.
  * Licensed under the terms of the Apache 2.0 license.
  * Please see LICENSE file in the project root for terms.
@@ -136,17 +136,17 @@ class Handle<V> {
     /**
      * Applies a transformation under writers locking
      *
-     * @param transformer
+     * @param transformer transformation to apply
      * @return Transformation result or null if value is deleted
      */
     <T> T mutatingTransform(Function<ByteBuffer, T> transformer) {
         T result;
-        writeLock.lock();
-        if (isDeleted()) {
-            writeLock.unlock();
-            return null;
-        }
         try {
+            writeLock.lock();
+            if (isDeleted()) {
+                // finally clause will handle unlock
+                return null;
+            }
             result = transformer.apply(getSlicedByteBuffer());
         } finally {
             writeLock.unlock();

@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2018 Oath Inc.
  * Licensed under the terms of the Apache 2.0 license.
  * Please see LICENSE file in the project root for terms.
@@ -111,23 +111,20 @@ public class ComputeTest {
         }
     }
 
-    static Consumer<ByteBuffer> computer = new Consumer<ByteBuffer>() {
-        @Override
-        public void accept(ByteBuffer oakWBuffer) {
-            if (oakWBuffer.getInt(0) == oakWBuffer.getInt(Integer.BYTES * keySize)) {
-                return;
+    private static Consumer<ByteBuffer> computer = oakWBuffer -> {
+        if (oakWBuffer.getInt(0) == oakWBuffer.getInt(Integer.BYTES * keySize)) {
+            return;
+        }
+        int index = 0;
+        int[] arr = new int[keySize];
+        for (int i = 0; i < 50; i++) {
+            for (int j = 0; j < keySize; j++) {
+                arr[j] = oakWBuffer.getInt(index);
+                index+=Integer.BYTES;
             }
-            int index = 0;
-            int[] arr = new int[keySize];
-            for (int i = 0; i < 50; i++) {
-                for (int j = 0; j < keySize; j++) {
-                    arr[j] = oakWBuffer.getInt(index);
-                    index+=Integer.BYTES;
-                }
-                for (int j = 0; j < keySize; j++) {
-                    oakWBuffer.putInt(index, arr[j]);
-                    index+=Integer.BYTES;
-                }
+            for (int j = 0; j < keySize; j++) {
+                oakWBuffer.putInt(index, arr[j]);
+                index+=Integer.BYTES;
             }
         }
     };
@@ -158,9 +155,9 @@ public class ComputeTest {
                 myKey.putInt(0, k);
                 myVal.putInt(0, k);
                 if (o % 2 == 0)
-                    oak.ZC().computeIfPresent(myKey, computer);
+                    oak.zc().computeIfPresent(myKey, computer);
                 else
-                    oak.ZC().putIfAbsent(myKey, myVal);
+                    oak.zc().putIfAbsent(myKey, myVal);
 
             }
 
@@ -176,7 +173,7 @@ public class ComputeTest {
         }
         minKey.position(0);
 
-        OakMapBuilder builder = new OakMapBuilder()
+        OakMapBuilder<ByteBuffer, ByteBuffer> builder = new OakMapBuilder<ByteBuffer, ByteBuffer>()
                 .setChunkMaxItems(2048)
                 .setChunkBytesPerItem(100)
                 .setKeySerializer(new ComputeTestKeySerializer())
@@ -184,7 +181,7 @@ public class ComputeTest {
                 .setMinKey(minKey)
                 .setComparator(new ComputeTestComparator());
 
-        oak = (OakMap<ByteBuffer, ByteBuffer>) builder.build();
+        oak = builder.build();
 
 
         numOfEntries = 100;
@@ -199,7 +196,7 @@ public class ComputeTest {
             ByteBuffer val = ByteBuffer.allocate(valSize * Integer.BYTES);
             key.putInt(0, i);
             val.putInt(0, i);
-            oak.ZC().putIfAbsent(key, val);
+            oak.zc().putIfAbsent(key, val);
         }
 
         for (int i = 0; i < NUM_THREADS; i++) {

@@ -9,7 +9,7 @@ import com.oath.oak.synchrobench.contention.benchmark.Parameters;
 
 import java.util.Iterator;
 
-public class OakMap<K, V> implements CompositionalOakMap<K, V> {
+public class OakMap<K extends MyBuffer, V extends MyBuffer> implements CompositionalOakMap<K, V> {
     private com.oath.oak.OakMap<MyBuffer, MyBuffer> oak;
     private OakMapBuilder<MyBuffer, MyBuffer> builder;
     private MyBuffer minKey;
@@ -36,19 +36,19 @@ public class OakMap<K, V> implements CompositionalOakMap<K, V> {
     @Override
     public boolean getOak(K key) {
         if (Parameters.zeroCopy) {
-            return oak.ZC().get(key) != null;
+            return oak.zc().get(key) != null;
         }
         return oak.get(key) != null;
     }
 
     @Override
     public void putOak(K key, V value) {
-        oak.ZC().put(key, value);
+        oak.zc().put(key, value);
     }
 
     @Override
     public boolean putIfAbsentOak(K key, V value) {
-        return oak.ZC().putIfAbsent(key, value);
+        return oak.zc().putIfAbsent(key, value);
     }
 
     @Override
@@ -68,7 +68,7 @@ public class OakMap<K, V> implements CompositionalOakMap<K, V> {
 
     @Override
     public boolean ascendOak(K from, int length) {
-        com.oath.oak.OakMap<MyBuffer, MyBuffer> sub = oak.tailMap((MyBuffer) from, true);
+        com.oath.oak.OakMap<MyBuffer, MyBuffer> sub = oak.tailMap(from, true);
 
         boolean result = createAndScanView(sub, length);
 
@@ -80,7 +80,7 @@ public class OakMap<K, V> implements CompositionalOakMap<K, V> {
     @Override
     public boolean descendOak(K from, int length) {
         com.oath.oak.OakMap<MyBuffer, MyBuffer> desc = oak.descendingMap();
-        com.oath.oak.OakMap<MyBuffer, MyBuffer> sub = desc.tailMap((MyBuffer) from, true);
+        com.oath.oak.OakMap<MyBuffer, MyBuffer> sub = desc.tailMap(from, true);
 
         boolean result = createAndScanView(sub, length);
 
@@ -93,7 +93,7 @@ public class OakMap<K, V> implements CompositionalOakMap<K, V> {
     private boolean createAndScanView(com.oath.oak.OakMap<MyBuffer, MyBuffer> subMap, int length) {
         Iterator iter;
         if (Parameters.zeroCopy) {
-            iter = subMap.ZC().keySet().iterator();
+            iter = subMap.zc().keySet().iterator();
         } else {
             iter = subMap.keySet().iterator();
         }

@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2018 Oath Inc.
  * Licensed under the terms of the Apache 2.0 license.
  * Please see LICENSE file in the project root for terms.
@@ -9,19 +9,23 @@ package com.oath.oak;
 import javafx.util.Pair;
 
 import java.nio.ByteBuffer;
-import java.util.*;
+import java.util.AbstractMap;
+import java.util.Comparator;
+import java.util.ConcurrentModificationException;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.NoSuchElementException;
 import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Function;
-import java.util.logging.Logger;
 
 class InternalOakMap<K, V> {
 
     /*-------------- Members --------------*/
 
-    Logger log = Logger.getLogger(InternalOakMap.class.getName());
     final ConcurrentSkipListMap<Object, Chunk<K, V>> skiplist;    // skiplist of chunks for fast navigation
     private final AtomicReference<Chunk<K, V>> head;
     private final ByteBuffer minKey;

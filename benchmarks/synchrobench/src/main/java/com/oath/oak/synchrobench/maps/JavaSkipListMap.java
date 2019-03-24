@@ -4,31 +4,27 @@ import com.oath.oak.synchrobench.contention.abstractions.CompositionalOakMap;
 import java.util.Iterator;
 import java.util.concurrent.ConcurrentSkipListMap;
 
-public class JavaSkipListMap<K, V> implements CompositionalOakMap<K, V> {
+public class JavaSkipListMap<K extends MyBuffer, V extends MyBuffer> implements CompositionalOakMap<K, V> {
 
-    private ConcurrentSkipListMap<MyBuffer, MyBuffer> skipListMap;
-
-    public JavaSkipListMap() {
-        skipListMap = new ConcurrentSkipListMap<>();
-    }
+    private ConcurrentSkipListMap<MyBuffer, MyBuffer> skipListMap = new ConcurrentSkipListMap<>();
 
     @Override
-    public boolean getOak(Object key) {
+    public boolean getOak(K key) {
         return skipListMap.get(key) != null;
     }
 
     @Override
-    public void putOak(Object key, Object value) {
-        skipListMap.put((MyBuffer) key, (MyBuffer) value);
+    public void putOak(K key, V value) {
+        skipListMap.put(key, value);
     }
 
     @Override
-    public boolean putIfAbsentOak(Object key, Object value) {
-        return skipListMap.putIfAbsent((MyBuffer) key, (MyBuffer) value) == null;
+    public boolean putIfAbsentOak(K key, V value) {
+        return skipListMap.putIfAbsent(key, value) == null;
     }
 
     @Override
-    public void removeOak(Object key) {
+    public void removeOak(K key) {
         skipListMap.remove(key);
     }
 
@@ -44,7 +40,7 @@ public class JavaSkipListMap<K, V> implements CompositionalOakMap<K, V> {
 
     @Override
     public boolean ascendOak(K from, int length) {
-        Iterator iter = skipListMap.tailMap((MyBuffer) from, true).keySet().iterator();
+        Iterator iter = skipListMap.tailMap(from, true).keySet().iterator();
         int i = 0;
         while (iter.hasNext() && i < length) {
             i++;
@@ -55,7 +51,7 @@ public class JavaSkipListMap<K, V> implements CompositionalOakMap<K, V> {
 
     @Override
     public boolean descendOak(K from, int length) {
-        Iterator iter = skipListMap.descendingMap().tailMap((MyBuffer) from, true).keySet().iterator();
+        Iterator iter = skipListMap.descendingMap().tailMap(from, true).keySet().iterator();
         int i = 0;
         while (iter.hasNext() && i < length) {
             i++;

@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2018 Oath Inc.
  * Licensed under the terms of the Apache 2.0 license.
  * Please see LICENSE file in the project root for terms.
@@ -67,7 +67,7 @@ public class ScanBenchmark
             String val = String.format("%0$-" + VALUE_SIZE_BYTES/Character.BYTES +"s",
                     String.valueOf(i) + Thread.currentThread().getId());
 
-            oakMap.ZC().put(key, val);
+            oakMap.zc().put(key, val);
         }
     }
 
@@ -89,7 +89,7 @@ public class ScanBenchmark
 
     @Benchmark
     public void bufferViewScan(Blackhole blackhole) {
-       Iterator<ByteBuffer> iterator = oakMap.ZC().keySet().iterator();
+       Iterator<ByteBuffer> iterator = oakMap.zc().keySet().iterator();
         while (iterator.hasNext()) {
             ByteBuffer val = iterator.next();
             blackhole.consume(val);
@@ -110,7 +110,7 @@ public class ScanBenchmark
     @Benchmark
     public void inverseBufferViewScan(Blackhole blackhole) {
         try (OakMap inverseMap = oakMap.descendingMap()) {
-            Iterator<ByteBuffer> iterator = inverseMap.ZC().keySet().iterator();
+            Iterator<ByteBuffer> iterator = inverseMap.zc().keySet().iterator();
             while (iterator.hasNext()) {
                 ByteBuffer val = iterator.next();
                 blackhole.consume(val);

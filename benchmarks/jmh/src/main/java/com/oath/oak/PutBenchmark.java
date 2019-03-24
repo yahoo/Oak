@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2018 Oath Inc.
  * Licensed under the terms of the Apache 2.0 license.
  * Please see LICENSE file in the project root for terms.
@@ -101,7 +101,7 @@ public class PutBenchmark {
     public void put(Blackhole blackhole,BenchmarkState state,ThreadState threadState) {
         for (int i = 0; i < threadState.numRows; ++i) {
             Pair<String, String> pair = threadState.rows.get(i);
-            state.oakMap.ZC().put(pair.getKey(), pair.getValue());
+            state.oakMap.zc().put(pair.getKey(), pair.getValue());
             blackhole.consume(state.oakMap);
         }
     }
@@ -116,7 +116,7 @@ public class PutBenchmark {
     public void putIfAbsent(Blackhole blackhole,BenchmarkState state,ThreadState threadState) {
         for (int i = 0; i < threadState.numRows; ++i) {
             Pair<String, String> pair = threadState.rows.get(i);
-            state.oakMap.ZC().put(pair.getKey(), pair.getValue());
+            state.oakMap.zc().put(pair.getKey(), pair.getValue());
             blackhole.consume(state.oakMap);
         }
     }

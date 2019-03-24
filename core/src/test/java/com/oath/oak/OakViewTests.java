@@ -4,7 +4,6 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
-
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.ConcurrentModificationException;
@@ -14,12 +13,22 @@ import java.util.function.Function;
 
 import static junit.framework.TestCase.assertEquals;
 import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.fail;
 
 public class OakViewTests {
 
     private OakMap<String, String> oak;
     private static final int ELEMENTS = 1000;
+
+
+    private Function<ByteBuffer, String> deserialize = (byteBuffer) -> {
+        int size = byteBuffer.getInt(0);
+        StringBuilder object = new StringBuilder(size);
+        for (int i = 0; i < size; i++) {
+            char c = byteBuffer.getChar(Integer.BYTES + byteBuffer.position() + i * Character.BYTES);
+            object.append(c);
+        }
+        return object.toString();
+    };
 
     @Before
     public void init() {
@@ -31,12 +40,12 @@ public class OakViewTests {
                 .setComparator(new StringComparator())
                 .setMinKey("");
 
-        oak =  builder.build();
+        oak = builder.build();
 
         for (int i = 0; i < ELEMENTS; i++) {
             String key = String.valueOf(i);
             String val = String.valueOf(i);
-            oak.ZC().put(key, val);
+            oak.zc().put(key, val);
         }
     }
 
@@ -46,111 +55,89 @@ public class OakViewTests {
     }
 
     @Test
-    public void uniTestOakRBuffer(){
+    public void uniTestOakRBuffer() {
 
 
-        Function<ByteBuffer, String> deserialize = (byteBuffer) -> {
-            int size = byteBuffer.getInt(0);
-            StringBuilder object = new StringBuilder(size);
-            for (int i = 0; i < size; i++) {
-                char c = byteBuffer.getChar(Integer.BYTES + byteBuffer.position() + i * Character.BYTES);
-                object.append(c);
-            }
-            return object.toString();
-        };
-
-            String testVal = String.valueOf(123);
-            ByteBuffer testValBB = ByteBuffer.allocate(Integer.BYTES + testVal.length()*Character.BYTES);
-            testValBB.putInt(0, testVal.length());
-            for (int i = 0; i< testVal.length(); ++i){
-                testValBB.putChar(Integer.BYTES + i*Character.BYTES, testVal.charAt(i));
-            }
+        String testVal = String.valueOf(123);
+        ByteBuffer testValBB = ByteBuffer.allocate(Integer.BYTES + testVal.length() * Character.BYTES);
+        testValBB.putInt(0, testVal.length());
+        for (int i = 0; i < testVal.length(); ++i) {
+            testValBB.putChar(Integer.BYTES + i * Character.BYTES, testVal.charAt(i));
+        }
 
 
-            OakRBuffer valBuffer = oak.ZC().get(testVal);
-            String transformed = valBuffer.transform(deserialize);
-            assertEquals(testVal, transformed);
+        OakRBuffer valBuffer = oak.zc().get(testVal);
+        String transformed = valBuffer.transform(deserialize);
+        assertEquals(testVal, transformed);
 
-            assertEquals(testValBB.capacity(), valBuffer.capacity());
+        assertEquals(testValBB.capacity(), valBuffer.capacity());
 
-            assertEquals(testVal.length(), valBuffer.getInt(0));
-            assertEquals(testValBB.getInt(1), valBuffer.getInt(1));
+        assertEquals(testVal.length(), valBuffer.getInt(0));
+        assertEquals(testValBB.getInt(1), valBuffer.getInt(1));
 
-            for(int i =0 ; i < testVal.length(); ++i) {
-                assertEquals(testVal.charAt(i), valBuffer.getChar(i*2 + Integer.BYTES));
-            }
+        for (int i = 0; i < testVal.length(); ++i) {
+            assertEquals(testVal.charAt(i), valBuffer.getChar(i * 2 + Integer.BYTES));
+        }
 
-            byte[] testValBytes = testVal.getBytes();
-            for(int i =0 ; i < testValBytes.length; ++i) {
-                assertEquals(testValBytes[i], valBuffer.get(i*2+1 + Integer.BYTES));
-            }
+        byte[] testValBytes = testVal.getBytes();
+        for (int i = 0; i < testValBytes.length; ++i) {
+            assertEquals(testValBytes[i], valBuffer.get(i * 2 + 1 + Integer.BYTES));
+        }
 
-            assertEquals(testValBB.getDouble(1), valBuffer.getDouble(1));
+        assertEquals(testValBB.getDouble(1), valBuffer.getDouble(1));
 
-            assertEquals(testValBB.getFloat(1), valBuffer.getFloat(1));
+        assertEquals(testValBB.getFloat(1), valBuffer.getFloat(1));
 
-            for(int i =0 ; i < testValBytes.length/Short.BYTES; ++i) {
-                assertEquals(testValBB.getShort(i), valBuffer.getShort(i));
-            }
+        for (int i = 0; i < testValBytes.length / Short.BYTES; ++i) {
+            assertEquals(testValBB.getShort(i), valBuffer.getShort(i));
+        }
 
-            for(int i =0 ; i < testValBytes.length/Long.BYTES; ++i) {
-                assertEquals(testValBB.getLong(i), valBuffer.getLong(i));
-            }
+        for (int i = 0; i < testValBytes.length / Long.BYTES; ++i) {
+            assertEquals(testValBB.getLong(i), valBuffer.getLong(i));
+        }
     }
 
     @Test(expected = ConcurrentModificationException.class)
-    public void testOakRBufferConcurrency(){
+    public void testOakRBufferConcurrency() {
         String testVal = "987";
-            OakRBuffer valBuffer = oak.ZC().get(testVal);
-            oak.ZC().remove(testVal);
-            valBuffer.get(0);
+        OakRBuffer valBuffer = oak.zc().get(testVal);
+        oak.zc().remove(testVal);
+        valBuffer.get(0);
     }
 
     @Test
-    public void testBufferViewAPIs(){
-        Function<ByteBuffer, String> deserialize = (byteBuffer) -> {
-            int size = byteBuffer.getInt(0);
-            StringBuilder object = new StringBuilder(size);
-            for (int i = 0; i < size; i++) {
-                char c = byteBuffer.getChar(Integer.BYTES + byteBuffer.position() + i * Character.BYTES);
-                object.append(c);
-            }
-            return object.toString();
-        };
+    public void testBufferViewAPIs() {
+        String[] values = new String[ELEMENTS];
+        for (int i = 0; i < ELEMENTS; i++) {
+            values[i] = String.valueOf(i);
+        }
+        Arrays.sort(values);
+
+        Iterator<ByteBuffer> keyIterator = oak.zc().keySet().iterator();
+        for (int i = 0; i < ELEMENTS; i++) {
+            ByteBuffer keyBB = keyIterator.next();
+            String key = deserialize.apply(keyBB);
+            assertEquals(values[i], key);
+        }
+
+        Iterator<OakRBuffer> valueIterator = oak.zc().values().iterator();
+        for (int i = 0; i < ELEMENTS; i++) {
+            OakRBuffer valueBB = valueIterator.next();
+            String value = valueBB.transform(deserialize);
+            assertEquals(values[i], value);
+        }
 
 
-
-            String[] values = new String[ELEMENTS];
-            for (int i = 0; i < ELEMENTS; i++) {
-                values[i] = String.valueOf(i);
-            }
-            Arrays.sort(values);
-
-            Iterator<ByteBuffer> keyIterator = oak.ZC().keySet().iterator();
-            for (int i = 0; i < ELEMENTS; i++) {
-                ByteBuffer keyBB = keyIterator.next();
-                String deserializedKey = deserialize.apply(keyBB);
-                assertEquals(values[i],deserializedKey);
-            }
-
-            Iterator<OakRBuffer> valueIterator = oak.ZC().values().iterator();
-            for (int i = 0; i < ELEMENTS; i++) {
-                OakRBuffer valueBB = valueIterator.next();
-                String deserializedValue = valueBB.transform(deserialize);
-                assertEquals(values[i],deserializedValue);
-            }
-
-
-            Iterator<Map.Entry<ByteBuffer, OakRBuffer>> entryIterator = oak.ZC().entrySet().iterator();
-            for (int i = 0; i < ELEMENTS; i++) {
-                Map.Entry<ByteBuffer, OakRBuffer> entryBB = entryIterator.next();
-                String deserializedValue = entryBB.getValue().transform(deserialize);
-                assertEquals(values[i],deserializedValue);
-            }
+        Iterator<Map.Entry<ByteBuffer, OakRBuffer>> entryIterator = oak.zc().entrySet().iterator();
+        for (int i = 0; i < ELEMENTS; i++) {
+            Map.Entry<ByteBuffer, OakRBuffer> entryBB = entryIterator.next();
+            String value = entryBB.getValue().transform(deserialize);
+            assertEquals(values[i], value);
+        }
     }
 
     @Test
-    public void testTransformViewAPIs(){
+    public void testTransformViewAPIs() {
         Function<Map.Entry<ByteBuffer, OakRBuffer>, Integer> transform = (entry) -> {
             assertNotNull(entry.getKey());
             assertNotNull(entry.getValue());
@@ -164,17 +151,16 @@ public class OakViewTests {
         };
 
 
+        String[] values = new String[ELEMENTS];
+        for (int i = 0; i < ELEMENTS; i++) {
+            values[i] = String.valueOf(i);
+        }
+        Arrays.sort(values);
 
-            String[] values = new String[ELEMENTS];
-            for (int i = 0; i < ELEMENTS; i++) {
-                values[i] = String.valueOf(i);
-            }
-            Arrays.sort(values);
-
-            Iterator<Integer> entryIterator = oak.ZC().entrySet().stream().map(transform).iterator();
-            for (int i = 0; i < ELEMENTS; i++) {
-                Integer entryT = entryIterator.next();
-                assertEquals(Integer.valueOf(values[i]),entryT);
-            }
+        Iterator<Integer> entryIterator = oak.zc().entrySet().stream().map(transform).iterator();
+        for (int i = 0; i < ELEMENTS; i++) {
+            Integer entryT = entryIterator.next();
+            assertEquals(Integer.valueOf(values[i]), entryT);
+        }
     }
 }

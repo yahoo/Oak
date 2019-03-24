@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2018 Oath Inc.
  * Licensed under the terms of the Apache 2.0 license.
  * Please see LICENSE file in the project root for terms.
@@ -7,7 +7,16 @@
 package com.oath.oak;
 
 import java.nio.ByteBuffer;
-import java.util.*;
+import java.util.AbstractCollection;
+import java.util.AbstractMap;
+import java.util.AbstractSet;
+import java.util.Collection;
+import java.util.Comparator;
+import java.util.Iterator;
+import java.util.Map;
+import java.util.NavigableSet;
+import java.util.Set;
+import java.util.SortedSet;
 import java.util.concurrent.ConcurrentNavigableMap;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
@@ -101,7 +110,10 @@ public class OakMap<K, V> extends AbstractMap<K, V> implements AutoCloseable, Co
     /* ------ Map API methods ------ */
 
     /**
-     * {@inheritDoc}
+     * Returns the current number of key-value mappings in this map.
+     * Not supported for SubMaps.
+     *
+     * @return the number of key-value mappings in this map
      * @throws UnsupportedOperationException if used on a SubMap
      */
     @Override
@@ -112,40 +124,56 @@ public class OakMap<K, V> extends AbstractMap<K, V> implements AutoCloseable, Co
     }
 
     /**
-     * Returns a read only view of the value to which the specified key is mapped,
-     * or {@code null} if this map contains no mapping for the key.
+     * Returns a deserialized copy of the value to which the specified key is
+     * mapped, or {@code null} if this map contains no mapping for the key.
      *
      * @param key the key whose associated value is to be returned
      * @return the value associated with that key, or
-     * {@code null} if this map contains no mapping for the key
-     * @throws IllegalArgumentException if the specified key is null
+     *         {@code null} if this map contains no mapping for the key
+     * @throws NullPointerException if the specified key is null
+     * @throws IllegalArgumentException if the specified key is out of bounds
      */
     @Override
     public V get(Object key) {
-        // (eranmeir) API note: this assume the map does not contains null values.
-        // This assumption should be documented. If it is changed, getOrDefault should be overridden
-        if (key == null)
-            throw new IllegalArgumentException();
-        if (!inBounds(key))
-            throw new IllegalArgumentException("The key is out of map bounds");
+        checkKey(key);
 
         return (V) internalOakMap.getValueTransformation(key, valueDeserializeTransformer);
     }
 
+    /**
+     * Associates the specified value with the specified key in this map.
+     * If the map previously contained a mapping for the key, the old
+     * value is replaced.
+     * Creates a copy of the value in the map.
+     *
+     * @param key the key whose associated value is to be returned
+     * @return the value associated with that key, or
+     *         {@code null} if this map contains no mapping for the key
+     * @throws NullPointerException if the specified key is null
+     * @throws IllegalArgumentException if the specified key is out of bounds
+     */
+    @Override
     public V put(K key, V value) {
+        checkKey(key);
+        if (value == null)
+            throw new NullPointerException();
+
         return (V) internalOakMap.put(key, value, valueDeserializeTransformer);
     }
 
     /**
      * Removes the mapping for a key from this map if it is present.
-     * @return the previous value associated with the key, or null
-     * if there was no mapping for this key
      *
      * @param key key whose mapping is to be removed from the map
-     * @throws IllegalArgumentException if the specified key is null
+     * @return the previous value associated with the provided key, or
+     *         {@code null} if this map contains no mapping for the key
+     * @throws NullPointerException if the specified key is null
+     * @throws IllegalArgumentException if the specified key is out of bounds
      */
     @Override
     public V remove(Object key) {
+        checkKey(key);
+
         return (V) internalOakMap.remove(key, null, valueDeserializeTransformer);
     }
 
@@ -160,8 +188,9 @@ public class OakMap<K, V> extends AbstractMap<K, V> implements AutoCloseable, Co
      * Returns the minimal key in the map,
      * or {@code null} if this map contains no keys.
      *
-     * @return the minimal key in the map,
-     * or {@code null} if this map contains no keys.
+     * @return the minimal key in the map, or {@code null} if this map contains
+     *         no keys.
+     * @throws UnsupportedOperationException if used on a SubMap
      */
     @Override
     public K firstKey() {
@@ -175,8 +204,9 @@ public class OakMap<K, V> extends AbstractMap<K, V> implements AutoCloseable, Co
      * Returns the maximal key in the map,
      * or {@code null} if this map contains no keys.
      *
-     * @return the maximal key in the map,
-     * or {@code null} if this map contains no keys.
+     * @return the maximal key in the map, or {@code null} if this map contains
+     *         no keys.
+     * @throws UnsupportedOperationException if used on a SubMap
      */
     @Override
     public K lastKey() {
@@ -194,8 +224,7 @@ public class OakMap<K, V> extends AbstractMap<K, V> implements AutoCloseable, Co
      */
     @Override
     public boolean remove(Object key, Object value) {
-        if (key == null)
-            throw new NullPointerException();
+        checkKey(key);
 
         return (value != null) && (internalOakMap.remove(key, value, valueDeserializeTransformer) != null);
     }
@@ -205,10 +234,12 @@ public class OakMap<K, V> extends AbstractMap<K, V> implements AutoCloseable, Co
      * {@inheritDoc}
      *
      * @throws NullPointerException if the specified key or value is null
+     * @throws IllegalArgumentException if the specified key is out of bounds
      */
     @Override
     public V replace(K key, V value) {
-        if (key == null || value == null)
+        checkKey(key);
+        if (value == null)
             throw new NullPointerException();
 
         return (V) internalOakMap.replace(key, value, valueDeserializeTransformer);
@@ -219,16 +250,33 @@ public class OakMap<K, V> extends AbstractMap<K, V> implements AutoCloseable, Co
      * {@inheritDoc}
      *
      * @throws NullPointerException if any of the arguments are null
+     * @throws IllegalArgumentException if the specified key is out of bounds
      */
     @Override
     public boolean replace(K key, V oldValue, V newValue) {
-        if (key == null || oldValue == null || newValue == null)
+        checkKey(key);
+        if (oldValue == null || newValue == null)
             throw new NullPointerException();
 
         return internalOakMap.replace(key, oldValue, newValue, valueDeserializeTransformer);
     }
 
+    /**
+     * If the specified key is not already associated
+     * with a value, associate it with the given value.
+     * Creates a copy of the value in the map.
+     *
+     * @param key   key with which the specified value is to be associated
+     * @param value value to be associated with the specified key
+     * @return {@code null} if there was no mapping for the key
+     * @throws NullPointerException if the specified key or value is null
+     * @throws IllegalArgumentException if the specified key is out of bounds
+     */
     public V putIfAbsent(K key, V value) {
+        checkKey(key);
+        if (value == null)
+            throw new NullPointerException();
+
         return (V) internalOakMap.putIfAbsent(key, value, valueDeserializeTransformer).value;
     }
 
@@ -241,18 +289,25 @@ public class OakMap<K, V> extends AbstractMap<K, V> implements AutoCloseable, Co
      * @param key         key with which the specified value is to be associated
      * @param value       value to be associated with the specified key
      * @param computer    for computing the new value when the key is present
+     * @throws NullPointerException if any of the parameters is null
+     * @throws IllegalArgumentException if the specified key is out of bounds
      */
     public void putIfAbsentComputeIfPresent(K key, V value, Consumer<ByteBuffer> computer) {
-        if (key == null || value == null || computer == null)
+        checkKey(key);
+        if (value == null || computer == null)
             throw new IllegalArgumentException();
-        if (!inBounds(key))
-            throw new IllegalArgumentException("The key is out of map bounds");
+
         internalOakMap.putIfAbsentComputeIfPresent(key, value, computer);
     }
 
 
     /* ---------------- NavigableMap API methods -------------- */
 
+    /**
+     * {@inheritDoc}
+     *
+     * @throws UnsupportedOperationException if used on a SubMap
+     */
     @Override
     public Entry<K, V> lowerEntry(K key) {
         if (this.isSubmap()) throw new UnsupportedOperationException();
@@ -262,6 +317,11 @@ public class OakMap<K, V> extends AbstractMap<K, V> implements AutoCloseable, Co
         return internalOakMap.lowerEntry(key);
     }
 
+    /**
+     * {@inheritDoc}
+     *
+     * @throws UnsupportedOperationException if used on a SubMap
+     */
     @Override
     public K lowerKey(K key) {
         if (this.isSubmap()) throw new UnsupportedOperationException();
@@ -453,83 +513,50 @@ public class OakMap<K, V> extends AbstractMap<K, V> implements AutoCloseable, Co
 
     /* ------ Zero-Copy API methods  ------ */
 
-    public ZeroCopyMap ZC() {
-        return new ZeroCopyMap(this);
+    public ZeroCopyMap<K, V> zc() {
+        return new ZeroCopyMap<>(this);
     }
 
-    public static class ZeroCopyMap<K, V>  {
+    public static class ZeroCopyMap<K, V> implements OakZeroCopyMap<K, V> {
         private OakMap<K, V> m;
 
-        public ZeroCopyMap(OakMap<K, V> kvOakMap) {
+        ZeroCopyMap(OakMap<K, V> kvOakMap) {
             this.m = kvOakMap;
         }
 
-        /**
-         * Associates the specified value with the specified key in this map.
-         * If the map previously contained a mapping for the key, the old
-         * value is replaced.
-         * Creates a copy of the value in the map.
-         *
-         * @param key   key with which the specified value is to be associated
-         * @param value value to be associated with the specified key
-         * @throws IllegalArgumentException if the specified key is null
-         */
         public void put(K key, V value) {
-            if (key == null || value == null)
-                throw new IllegalArgumentException();
-            if (!m.inBounds(key))
-                throw new IllegalArgumentException("The key is out of map bounds");
+            m.checkKey(key);
+            if (value == null)
+                throw new NullPointerException();
+
             m.internalOakMap.put(key, value, null);
         }
 
         public OakRBuffer get(K key) {
-            if (key == null)
-                throw new IllegalArgumentException();
-            if (!m.inBounds(key))
-                throw new IllegalArgumentException("The key is out of map bounds");
+            m.checkKey(key);
 
             return m.internalOakMap.get(key);
         }
 
         public void remove(Object key) {
-            if (key == null)
-                throw new IllegalArgumentException();
-            if (!m.inBounds(key))
-                throw new IllegalArgumentException("The key is out of map bounds");
+            m.checkKey(key);
+
             m.internalOakMap.remove(key, null, null);
         }
 
-        /**
-         * If the specified key is not already associated
-         * with a value, associate it with the given value.
-         * Creates a copy of the value in the map.
-         *
-         * @param key   key with which the specified value is to be associated
-         * @param value value to be associated with the specified key
-         * @return {@code true} if there was no mapping for the key
-         * @throws IllegalArgumentException if the specified key or value is null
-         */
         public boolean putIfAbsent(K key, V value) {
-            if (key == null || value == null)
-                throw new IllegalArgumentException();
-            if (!m.inBounds(key))
-                throw new IllegalArgumentException("The key is out of map bounds");
+            m.checkKey(key);
+            if (value == null)
+                throw new NullPointerException();
+
             return m.internalOakMap.putIfAbsent(key, value, null).flag;
         }
 
-        /**
-         * Updates the value for the specified key
-         *
-         * @param key      key with which the calculation is to be associated
-         * @param computer for computing the new value
-         * @return {@code false} if there was no mapping for the key
-         * @throws IllegalArgumentException if the specified key or the function is null
-         */
         public boolean computeIfPresent(K key, Consumer<ByteBuffer> computer) {
-            if (key == null || computer == null)
-                throw new IllegalArgumentException();
-            if (!m.inBounds(key))
-                throw new IllegalArgumentException("The key is out of map bounds");
+            m.checkKey(key);
+            if (computer == null)
+                throw new NullPointerException();
+
             return m.internalOakMap.computeIfPresent(key, computer);
         }
 
@@ -578,6 +605,14 @@ public class OakMap<K, V> extends AbstractMap<K, V> implements AutoCloseable, Co
 
 
     /* ---------------- Private utility methods -------------- */
+
+     void checkKey(Object key) {
+        if (key == null)
+            throw new NullPointerException();
+        if (!inBounds(key))
+            throw new IllegalArgumentException("The key is out of map bounds");
+
+    }
 
     private boolean isSubmap() {
         return (this.fromKey != null || this.toKey != null);

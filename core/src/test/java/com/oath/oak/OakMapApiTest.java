@@ -68,11 +68,11 @@ public class OakMapApiTest {
     @Test
     public void putZC() {
         int initialValue = r.nextInt();
-        oak.ZC().put(0, initialValue);
-        assertEquals("ZC insertion of new key should increase size by 1", 1, oak.size());
+        oak.zc().put(0, initialValue);
+        assertEquals("zc insertion of new key should increase size by 1", 1, oak.size());
 
-        oak.ZC().put(0, initialValue + 1);
-        assertEquals("ZC insertion of existing key should not increase size", 1, oak.size());
+        oak.zc().put(0, initialValue + 1);
+        assertEquals("zc insertion of existing key should not increase size", 1, oak.size());
     }
 
 
@@ -90,11 +90,11 @@ public class OakMapApiTest {
         int key = r.nextInt(), expectedValue = r.nextInt();
         oak.put(key, expectedValue);
 
-        OakRBuffer result = oak.ZC().get(key);
+        OakRBuffer result = oak.zc().get(key);
         assertNotNull("Looking up an existing key should return non-null OakRBuffer", result);
         int actualValue = result.getInt(0);
         assertEquals("Looking up an existing key should return the mapped value", expectedValue, actualValue);
-        assertNull("Looking up a non-existing key should return null", oak.ZC().get(key + 1));
+        assertNull("Looking up a non-existing key should return null", oak.zc().get(key + 1));
     }
 
     @Test
@@ -120,9 +120,9 @@ public class OakMapApiTest {
     public void removeZC() {
         int key = r.nextInt(), expectedValue = r.nextInt();
 
-        /* .ZC().remove(K) */
+        /* zc().remove(K) */
         oak.put(key, expectedValue);
-        oak.ZC().remove(key);
+        oak.zc().remove(key);
         assertNull("Remove should remove the mapping from the map", oak.get(key));
     }
 
@@ -156,8 +156,10 @@ public class OakMapApiTest {
 
         /* Replace(K, V) */
         assertNull("Replacing non-existing key should return null", oak.replace(key + 1, val1));
-        assertEquals("Replacing existing key should return previous value", val1, (int) oak.replace(key, val2));
-        assertEquals("Replacing existing key should replace the value", val2, (int) oak.get(key));
+        Integer result = oak.replace(key, val2);
+        assertNotNull("Replacing existing key should return a non-null value", result);
+        assertEquals("Replacing existing key should return previous value", val1, result.intValue());
+        assertEquals("Replacing existing key should replace the value", val2, oak.get(key).intValue());
 
         /* Replace(K, V, V) */
         assertFalse("Replacing non-matching value should return false", oak.replace(key, val1, val2));
@@ -182,9 +184,7 @@ public class OakMapApiTest {
     @Test
     public void keySet() {
         int numKyes = 10;
-        List<Integer> keys = new ArrayList<>(numKyes);
         for (int i = 0; i < numKyes; i++) {
-            keys.add(i);
             oak.put(i, i);
         }
         NavigableSet<Integer> keySet = oak.keySet();
@@ -205,9 +205,7 @@ public class OakMapApiTest {
     @Test
     public void entrySet() {
         int numKyes = 10;
-        List<Integer> keys = new ArrayList<>(numKyes);
         for (int i = 0; i < numKyes; i++) {
-            keys.add(i);
             oak.put(i, i);
         }
 
@@ -225,24 +223,24 @@ public class OakMapApiTest {
         assertFalse(entries.contains(new AbstractMap.SimpleImmutableEntry<>(0, 0)));
         assertFalse(entries.contains(new AbstractMap.SimpleImmutableEntry<>(8, 8)));
 
-        entries.forEach(e -> {
-            assertEquals(e.getKey(), e.getValue());
-        });
+        entries.forEach(e -> assertEquals(e.getKey(), e.getValue()));
     }
 
     @Test
     public void putIfAbsent() {
         assertNull("putIfAbsent should return null if mapping doesn't exist", oak.putIfAbsent(0, 0));
         assertEquals("putIfAbsent should insert an item if mapping doesn't exist", 1, oak.size());
-        assertEquals("putIfAbsent should return previous value if mapping exists", 0, (int) oak.putIfAbsent(0, 1));
+        Integer result = oak.putIfAbsent(0, 1);
+        assertNotNull("putIfAbsent should return a non-null value if mapping exists", result);
+        assertEquals("putIfAbsent should return previous value if mapping exists", 0, result.intValue());
         assertEquals("putIfAbsent should not insert an item if mapping doesn't exist", 1, oak.size());
     }
 
     @Test
     public void putIfAbsentZC() {
-        assertTrue("putIfAbsentZC should return true if mapping doesn't exist", oak.ZC().putIfAbsent(0, 0));
+        assertTrue("putIfAbsentZC should return true if mapping doesn't exist", oak.zc().putIfAbsent(0, 0));
         assertEquals("putIfAbsent should insert an item if mapping doesn't exist", 1, oak.size());
-        assertFalse("putIfAbsent should return previous value if mapping exists", oak.ZC().putIfAbsent(0, 1));
+        assertFalse("putIfAbsent should return previous value if mapping exists", oak.zc().putIfAbsent(0, 1));
         assertEquals("putIfAbsent should not insert an item if mapping doesn't exist", 1, oak.size());
     }
 }
