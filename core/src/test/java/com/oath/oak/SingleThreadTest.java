@@ -191,10 +191,10 @@ public class SingleThreadTest {
         };
         Integer key = 0;
         assertFalse(oak.zc().computeIfPresent(key, computer));
-        oak.putIfAbsentComputeIfPresent(key, key, computer);
+        oak.zc().putIfAbsentComputeIfPresent(key, key, computer);
         value = oak.get(key);
         assertEquals(key, value);
-        oak.putIfAbsentComputeIfPresent(key, key, computer);
+        oak.zc().putIfAbsentComputeIfPresent(key, key, computer);
         value = oak.get(key);
         assertEquals((Integer) 1, value);
         Integer two = 2;
@@ -206,7 +206,7 @@ public class SingleThreadTest {
         oak.zc().put(key, key);
         value = oak.get(key);
         assertEquals(key, value);
-        oak.putIfAbsentComputeIfPresent(key, key, computer);
+        oak.zc().putIfAbsentComputeIfPresent(key, key, computer);
         value = oak.get(key);
         assertEquals((Integer) 1, value);
         oak.zc().remove(key);

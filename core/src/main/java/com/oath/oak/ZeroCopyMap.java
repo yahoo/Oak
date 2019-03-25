@@ -71,6 +71,20 @@ public interface ZeroCopyMap<K, V> {
      */
     boolean computeIfPresent(K key, Consumer<ByteBuffer> computer);
 
+
+    /**
+     * If the specified key is not already associated
+     * with a value, associate it with a constructed value.
+     * Else, updates the value for the specified key.
+     *
+     * @param key         key with which the specified value is to be associated
+     * @param value       value to be associated with the specified key
+     * @param computer    for computing the new value when the key is present
+     * @throws NullPointerException if any of the parameters is null
+     * @throws IllegalArgumentException if the specified key is out of bounds
+     */
+    void putIfAbsentComputeIfPresent(K key, V value, Consumer<ByteBuffer> computer);
+
     /**
      * Returns a {@link Set} view of ByteBuffers containing the serialized keys
      * stored in this map.

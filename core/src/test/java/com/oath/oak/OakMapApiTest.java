@@ -4,7 +4,10 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
+import java.nio.ByteBuffer;
 import java.util.*;
+import java.util.function.BiFunction;
+import java.util.function.Consumer;
 
 import static org.junit.Assert.*;
 
@@ -183,14 +186,14 @@ public class OakMapApiTest {
 
     @Test
     public void keySet() {
-        int numKyes = 10;
-        for (int i = 0; i < numKyes; i++) {
+        int numKeys = 10;
+        for (int i = 0; i < numKeys; i++) {
             oak.put(i, i);
         }
         NavigableSet<Integer> keySet = oak.keySet();
 
-        assertEquals(numKyes, keySet.size());
-        for (int i = 0; i < numKyes; i++) {
+        assertEquals(numKeys, keySet.size());
+        for (int i = 0; i < numKeys; i++) {
             assertTrue(keySet.contains(i));
         }
 
@@ -204,14 +207,14 @@ public class OakMapApiTest {
 
     @Test
     public void entrySet() {
-        int numKyes = 10;
-        for (int i = 0; i < numKyes; i++) {
+        int numKeys = 10;
+        for (int i = 0; i < numKeys; i++) {
             oak.put(i, i);
         }
 
         Set<Map.Entry<Integer, Integer>> entries = oak.entrySet();
-        assertEquals(numKyes, entries.size());
-        for (int i = 0; i < numKyes; i++) {
+        assertEquals(numKeys, entries.size());
+        for (int i = 0; i < numKeys; i++) {
             assertTrue(entries.contains(new AbstractMap.SimpleImmutableEntry<>(i, i)));
         }
 
@@ -242,5 +245,53 @@ public class OakMapApiTest {
         assertEquals("putIfAbsent should insert an item if mapping doesn't exist", 1, oak.size());
         assertFalse("putIfAbsent should return previous value if mapping exists", oak.zc().putIfAbsent(0, 1));
         assertEquals("putIfAbsent should not insert an item if mapping doesn't exist", 1, oak.size());
+    }
+
+    @Test
+    public void computeIfPresent() {
+        BiFunction<? super Integer, ? super Integer, ? extends Integer> func = (k , v) -> v * 2;
+
+        assertNull("computeIfPresent should return null if mapping doesn't exist", oak.computeIfPresent(0, func));
+        oak.put(0, 1);
+        Integer result = oak.computeIfPresent(0, func);
+        assertNotNull("computeIfPresent should return a non-null value if mapping exists", result);
+        assertEquals("computeIfPresent should return the new value if mapping exists", 2, result.intValue());
+
+        result = oak.get(0);
+        assertNotNull("computeIfPresent should not remove an existing mapping", result);
+        assertEquals("computeIfPresent should modify the existing mapping", 2, result.intValue());
+    }
+
+    @Test
+    public void computeIfPresentZC() {
+        Consumer<ByteBuffer> func = bb -> bb.putInt(0, bb.getInt(0) * 2);
+
+        assertFalse("computeIfPresentZC should return false if mapping doesn't exist", oak.zc().computeIfPresent(0, func));
+        oak.put(0, 1);
+        assertTrue("computeIfPresent should return a non-null value if mapping exists", oak.zc().computeIfPresent(0, func));
+        Integer result = oak.get(0);
+        assertNotNull("computeIfPresent should not remove an existing mapping", result);
+        assertEquals("computeIfPresent should modify the existing mapping", 2, result.intValue());
+    }
+
+    @Test
+    public void iterTest() {
+        int numKeys = 10;
+        for (int i = 0; i < numKeys; i++) {
+            oak.put(i, i);
+        }
+
+        Integer from = 4;
+        Integer to = 6;
+
+        Integer expected = from + 1;
+        try (OakMap sub = oak.subMap(from, false, to, true)) {
+            Iterator<Integer>  iter = sub.values().iterator();
+            while (iter.hasNext()) {
+                Integer i = iter.next();
+                assertEquals(expected.intValue(), i.intValue());
+                expected++;
+            }
+        }
     }
 }

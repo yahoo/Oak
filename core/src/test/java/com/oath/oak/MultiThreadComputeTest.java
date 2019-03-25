@@ -73,7 +73,7 @@ public class MultiThreadComputeTest {
             }
 
             for (Integer i = 0; i < 4 * maxItemsPerChunk; i++) {
-                oak.putIfAbsentComputeIfPresent(i, i, emptyComputer);
+                oak.zc().putIfAbsentComputeIfPresent(i, i, emptyComputer);
             }
 
             for (int i = 3 * maxItemsPerChunk; i < 4 * maxItemsPerChunk; i++) {
@@ -87,7 +87,7 @@ public class MultiThreadComputeTest {
             }
 
             for (int i = 0; i < maxItemsPerChunk; i++) {
-                oak.putIfAbsentComputeIfPresent(i, i, computer);
+                oak.zc().putIfAbsentComputeIfPresent(i, i, computer);
             }
 
             Integer value = oak.get(0);
@@ -111,7 +111,7 @@ public class MultiThreadComputeTest {
             }
 
             for (int i = 3 * maxItemsPerChunk; i < 4 * maxItemsPerChunk; i++) {
-                oak.putIfAbsentComputeIfPresent(i, i, emptyComputer);
+                oak.zc().putIfAbsentComputeIfPresent(i, i, emptyComputer);
             }
 
             for (int i = 3 * maxItemsPerChunk; i < 4 * maxItemsPerChunk; i++) {

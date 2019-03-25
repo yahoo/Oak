@@ -281,26 +281,6 @@ public class OakMap<K, V> extends AbstractMap<K, V> implements AutoCloseable, Co
     }
 
 
-    /**
-     * If the specified key is not already associated
-     * with a value, associate it with a constructed value.
-     * Else, updates the value for the specified key.
-     *
-     * @param key         key with which the specified value is to be associated
-     * @param value       value to be associated with the specified key
-     * @param computer    for computing the new value when the key is present
-     * @throws NullPointerException if any of the parameters is null
-     * @throws IllegalArgumentException if the specified key is out of bounds
-     */
-    public void putIfAbsentComputeIfPresent(K key, V value, Consumer<ByteBuffer> computer) {
-        checkKey(key);
-        if (value == null || computer == null)
-            throw new IllegalArgumentException();
-
-        internalOakMap.putIfAbsentComputeIfPresent(key, value, computer);
-    }
-
-
     /* ---------------- NavigableMap API methods -------------- */
 
     /**
@@ -559,6 +539,16 @@ public class OakMap<K, V> extends AbstractMap<K, V> implements AutoCloseable, Co
 
             return m.internalOakMap.computeIfPresent(key, computer);
         }
+
+        public void putIfAbsentComputeIfPresent(K key, V value, Consumer<ByteBuffer> computer) {
+            m.checkKey(key);
+            if (value == null || computer == null)
+                throw new IllegalArgumentException();
+
+            m.internalOakMap.putIfAbsentComputeIfPresent(key, value, computer);
+        }
+
+
 
         public Set<ByteBuffer> keySet() {
             return new KeyBufferSet<>(m);
