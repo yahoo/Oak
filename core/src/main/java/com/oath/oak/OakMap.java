@@ -514,13 +514,13 @@ public class OakMap<K, V> extends AbstractMap<K, V> implements AutoCloseable, Co
     /* ------ Zero-Copy API methods  ------ */
 
     public ZeroCopyMap<K, V> zc() {
-        return new ZeroCopyMap<>(this);
+        return new OakZeroCopyMap<>(this);
     }
 
-    public static class ZeroCopyMap<K, V> implements OakZeroCopyMap<K, V> {
+    public static class OakZeroCopyMap<K, V> implements ZeroCopyMap<K, V> {
         private OakMap<K, V> m;
 
-        ZeroCopyMap(OakMap<K, V> kvOakMap) {
+        OakZeroCopyMap(OakMap<K, V> kvOakMap) {
             this.m = kvOakMap;
         }
 

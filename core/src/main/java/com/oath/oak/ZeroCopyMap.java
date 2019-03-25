@@ -12,7 +12,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
 
-public interface OakZeroCopyMap<K, V> {
+public interface ZeroCopyMap<K, V> {
     /**
      * Associates the specified value with the specified key in this map.
      * If the map previously contained a mapping for the key, the old
