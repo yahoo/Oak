@@ -1,4 +1,4 @@
-4# Oak
+# Oak
 > Oak (Off-heap Allocated Keys) is a scalable, concurrent, in-memory Key Value (KV) map.
 
 OakMap is a concurrent Key-Value Map that may keep all keys and values off-heap. This enables working with bigger heap sizes than JVM's managed heap.
@@ -134,7 +134,7 @@ OakMap provides read-only memory buffers, *OakRBuffer*` that support the standar
 OakMap buffers allow the user direct access to the underlying serialized key-value pairs, without needing to worry about  concurrent accesses and memory management. This access reduces unnecessary copies and deserialization of the underlying mappings.
 Note, however, that since OakMap's get method avoids copying the value and instead returns access to the same underlying memory buffer that compute operations update in-place, the reader may encounter different values -- and even value deletions -- when accessing the buffer returned from get multiple times. This is of course normal behavior for a concurrent map that avoids copying.
 
-The OakRBuffer's user can use the standard interface of a *read-only* ByteBuffer, for example, `int getInt(int index)`, `char getChar(int index)`, `limit()`, etc. Notice that ConcurrentModificationException can be thrown as a result of any OakRBuffer method in case the mapping is concurrently deleted.
+The OakRBuffer's user can use the standard interface of a *read-only* ByteBuffer, for example, `int getInt(int index)`, `char getChar(int index)`, `limit()`, etc. Note that ConcurrentModificationException can be thrown as a result of any OakRBuffer method in case the mapping is concurrently deleted.
 
 For backward compatibility with applications that are already based on the use of ByteBuffers, OakRBuffer provides the transform method that atomically applies a transformation to the underlying ByteBuffer. For a more comprehensive code example please refer to the [Usage](#usage) section. 
 
