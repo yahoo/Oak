@@ -86,7 +86,7 @@ public interface ZeroCopyMap<K, V> {
     void putIfAbsentComputeIfPresent(K key, V value, Consumer<ByteBuffer> computer);
 
     /**
-     * Returns a {@link Set} view of ByteBuffers containing the serialized keys
+     * Returns a {@link Set} view of read only ByteBuffers containing the serialized keys
      * stored in this map.
      *
      * @return a set view of the serialized keys contained in this map
@@ -103,7 +103,7 @@ public interface ZeroCopyMap<K, V> {
 
     /**
      * Returns a {@link Set} view of the serialized mappings contained in this
-     * map.
+     * map. Note that the key ByteBuffer is read only.
      *
      * @return a set view of the serialized mappings contained in this map
      */

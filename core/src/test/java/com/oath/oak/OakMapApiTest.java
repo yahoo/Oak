@@ -5,6 +5,7 @@ import org.junit.Before;
 import org.junit.Test;
 
 import java.nio.ByteBuffer;
+import java.nio.ReadOnlyBufferException;
 import java.util.*;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
@@ -285,13 +286,22 @@ public class OakMapApiTest {
         Integer to = 6;
 
         Integer expected = from + 1;
-        try (OakMap sub = oak.subMap(from, false, to, true)) {
-            Iterator<Integer>  iter = sub.values().iterator();
-            while (iter.hasNext()) {
-                Integer i = iter.next();
+        try (OakMap<Integer, Integer> sub = oak.subMap(from, false, to, true)) {
+            for (Integer i : sub.values()) {
                 assertEquals(expected.intValue(), i.intValue());
                 expected++;
             }
         }
+    }
+
+    @Test(expected = ReadOnlyBufferException.class)
+    public void immutableKeyBuffers() {
+        oak.put(0, 0);
+
+        ByteBuffer buffer = oak.zc().keySet().iterator().next();
+
+        buffer.putInt(0, 1);
+
+        fail("ByteBuffer should be read only");
     }
 }
