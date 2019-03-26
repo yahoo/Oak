@@ -1,8 +1,8 @@
-# Oak
+4# Oak
 > Oak (Off-heap Allocated Keys) is a scalable, concurrent, in-memory Key Value (KV) map.
 
 OakMap is a concurrent Key-Value Map that may keep all keys and values off-heap. This enables working with bigger heap sizes than JVM's managed heap.
-OakMap implements an API similar to the industry standard Java8 ConcurrentNavigableMap API. It provides strong (atomic) semantics for read, write, and read-modify-write, as well as (non-atomic) range query (scan) operations, both forward and backward.
+OakMap implements the industry standard Java8 ConcurrentNavigableMap API. It provides strong (atomic) semantics for read, write, and read-modify-write, as well as (non-atomic) range query (scan) operations, both forward and backward.
 OakMap is optimized for big keys and values, in particular, for incremental maintenance of objects (update in-place).
 It is faster and scales better with additional CPU cores than the popular Java ConcurrentNavigableMap [ConcurrentSkipListMap](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/ConcurrentSkipListMap.html).
 
@@ -20,7 +20,6 @@ It is faster and scales better with additional CPU cores than the popular Java C
 - [Builder](#builder)
 - [API](#api)
 - [Usage](#usage)
-- [Transformations](#transformations)
 - [Contribute](#contribute)
 - [License](#license)
 
@@ -127,52 +126,58 @@ OakMap<K,V> oak = builder.build();
 
 ### OakMap Methods
 You are welcome to take a look on the OakMap's [full API](https://github.com/yahoo/Oak/wiki/Full-API).
-OakMap's API is similar to the ConcurrentNavigableMap API; some non-standard API methods and special cases are discussed below.
+OakMap's API implements the ConcurrentNavigableMap interface. For improved performance, it offers additional non-standard zero-copy API methods that are discussed below.
 
-### OakBuffers
-OakMap provides two types of memory buffers: *OakRBuffer* (read-only) and *OakWBuffer* (read and write). These buffers support the standard Java API for read-only Java ByteBuffers and writable Java ByteBuffers, respectively.
+### OakRBuffers
+OakMap provides read-only memory buffers, *OakRBuffer*` that support the standard Java API for read-only Java ByteBuffers.
 
 OakMap buffers allow the user direct access to the underlying serialized key-value pairs, without needing to worry about  concurrent accesses and memory management. This access reduces unnecessary copies and deserialization of the underlying mappings.
 Note, however, that since OakMap's get method avoids copying the value and instead returns access to the same underlying memory buffer that compute operations update in-place, the reader may encounter different values -- and even value deletions -- when accessing the buffer returned from get multiple times. This is of course normal behavior for a concurrent map that avoids copying.
 
-An OakRBuffer can represent either a key or a value. The OakRBuffer's user can use the standard interface of a *read-only* ByteBuffer, for example, `int getInt(int index)`, `char getChar(int index)`, `limit()`, etc. Notice that ConcurrentModificationException can be thrown as a result of any OakRBuffer method in case the mapping is concurrently deleted.
+The OakRBuffer's user can use the standard interface of a *read-only* ByteBuffer, for example, `int getInt(int index)`, `char getChar(int index)`, `limit()`, etc. Notice that ConcurrentModificationException can be thrown as a result of any OakRBuffer method in case the mapping is concurrently deleted.
+
+For backward compatibility with applications that are already based on the use of ByteBuffers, OakRBuffer provides the transform method that atomically applies a transformation to the underlying ByteBuffer. For a more comprehensive code example please refer to the [Usage](#usage) section. 
+
 
 ### Notes on data retrieval
-1. For better performance of data retrieval, OakMap supplies an OakBufferView of the OakMap. The OakBufferView provides the following four methods for data retrieval, whose result is presented as an OakRBuffer:
+1. For better performance of data retrieval, OakMap supplies a ZeroCopyMap interface of the OakMap:
+    `ZeroCopyMap<K, V> zc()` 
+    
+    The ZeroCopyMap interface provides the following four methods for data retrieval, whose result is presented as an OakRBuffer:
 	- `OakRBuffer get(K key)`
-	- `OakCloseableIterator<OakRBuffer> valuesIterator()`
-	- `OakCloseableIterator<Map.Entry<OakRBuffer, OakRBuffer>> entriesIterator()`
-	- `OakCloseableIterator<OakRBuffer> keysIterator()`
-2. Without the OakBufferView, OakMap's data can be directly retrieved via the following four methods:
-	- `V get(K key)`
-	- `OakCloseableIterator<V> valuesIterator()`
-	- `OakCloseableIterator<Map.Entry<K, V>> entriesIterator()`
-	- `OakCloseableIterator<K> keysIterator()`
+	- `Collection<OakRBuffer> values()`
+	- `Set<Map.Entry<ByteBuffer, OakRBuffer>> entrySet()`
+	- `Set<ByteBuffer> keySet()`
+2. Without ZeroCopyMap, OakMap's data can be directly retrieved via the following four methods:
+	- `V get(Object key)`
+	- `Collection<V> values()`
+	- `Set<Map.Entry<K, V>> entrySet()`
+	- `NavigableSet<K> keySet()`
 	
-	However, these direct methods return keys and/or values as Objects by applying deseriliazation (copy). This is costly,  and we strongly advice to use OakBufferView or OakTransformView to operate directly on the internal data representation.
-3. For further understanding of data retrieval via OakTransformView, please refer to the [Transformations](#transformations) section.
-4. Note that OakMap's iterators are `OakCloseableIterator` (extend AutoCloseable) so it is possible to reuse the memory previously referred by iterator. Be sure to use it within try-statement or call its close() method explicitly when iterator is no longer in use.
+	However, these direct methods return keys and/or values as Objects by applying deseriliazation (copy). This is costly,  and we strongly advice to use ZeroCopyMap to operate directly on the internal data representation.
+3. For examples of direct data manipulations, please refer to the [Usage](#usage) section.
 
 ### Notes on data ingestion
-1. Data can be ingested and updated via the following five methods:
+1. Data can be ingested via the standard ConcurrentNavigableMap API.
+2. For improved performance, data can be also ingested and updated via the following five methods provided by the ZeroCopyMap interface:
  	- `void put(K key, V value)`
  	- `boolean putIfAbsent(K key, V value)`
  	- `void remove(K key)`
- 	- `boolean computeIfPresent(K key, Consumer<OakWBuffer> computer)`
- 	- `void putIfAbsentComputeIfPresent(K key, V value, Consumer<OakWBuffer> computer)`
-2. In contrast to the ConcurrentNavigableMap API, `void put(K key, V value)` does not return the value previously associated with the key, if key existed. Likewise, `void remove(K key)` does not return a boolean indicating whether key was actually deleted, if key existed.
-3. `boolean computeIfPresent(K key, Consumer<OakWBuffer> computer)` gets the user-defined computer function. The computer is invoked in case the key exists.
-The computer is provided with OakWBuffer, representing the serialized value associated with the key. The computer's effect is atomic, meaning that either all updates are seen by concurrent readers, or none are.
+ 	- `boolean computeIfPresent(K key, Consumer<ByteBuffer> computer)`
+ 	- `void putIfAbsentComputeIfPresent(K key, V value, Consumer<ByteBuffer> computer)`
+3. In contrast to the ConcurrentNavigableMap API, `void put(K key, V value)` does not return the value previously associated with the key, if key existed. Likewise, `void remove(K key)` does not return a boolean indicating whether key was actually deleted, if key existed.
+4. `boolean computeIfPresent(K key, Consumer<ByteBuffer> computer)` gets the user-defined computer function. The computer is invoked in case the key exists.
+The computer is provided with a mutable ByteBuffer, representing the serialized value associated with the key. The computer's effect is atomic, meaning that either all updates are seen by concurrent readers, or none are.
 The compute functionality offers the OakMap user an efficient zero-copy update-in-place, which allows OakMap users to focus on business logic without dealing with the hard problems that data layout and concurrency control present.
-5. OakMap additionally supports an atomic `void putIfAbsentComputeIfPresent(K key, V value, Consumer<OakWBuffer> computer)` interface, (which is not part of ConcurrentNavigableMap).
+5. OakMap additionally supports an atomic `void putIfAbsentComputeIfPresent(K key, V value, Consumer<ByteBuffer> computer)` interface, (which is not part of ConcurrentNavigableMap).
 This API looks for a key. If the key does not exist, it adds a new Serialized key --> Serialized value mapping. Otherwise, the value associated with the key is updated with computer(old value). This interface works concurrently with other updates and requires only one search traversal.
 
 ## Memory Management
 As explained above, when constructing off-heap OakMap, the memory capacity (per OakMap instance) needs to be specified. OakMap allocates the off-heap memory with the requested capacity at construction time, and later manages this memory.
 This memory (the entire given capacity) needs to be released later, thus OakMap implements AutoClosable. Be sure to use it within try-statement or better invoke OakMap's close() method when OakMap is no longer in use.
 
-Please pay attention that multiple views can be defined to the same underlying memory of OakMap. That is when other sub-maps and views (OakBufferView/OakTransformView) are created. Do not worry, the true memory release will happen only when last of those views is closed.
-However, note that each sub-map is in particular an OakMap and thus AutoCloseable and needs to be closed (explicitly or implicitly). Similarly, OakBufferView and OakTransformView are AutoCloseable objects and need to be closed. Again, close() can be invoked on different objects referring to the same underlying memory, but the final release will happen only once.
+Please pay attention that multiple views can be defined to the same underlying memory of OakMap. That is when other sub-maps are created. Do not worry, the true memory release will happen only when last of those views is closed.
+However, note that each sub-map is in particular an OakMap and thus AutoCloseable and needs to be closed (explicitly or implicitly). Again, close() can be invoked on different objects referring to the same underlying memory, but the final release will happen only once.
 
 ## Usage
 
@@ -180,39 +185,34 @@ An Integer to Integer build example can be seen in [Code Examples](https://githu
 
 ### Code Examples
 
+We show some examples of Oak ZeroCopyMap interface usage below. These examples assume `OakMap<Integer, Integer> oak` is defined and constructed as described in the [Builder](#builder) section.
+
 ##### Simple Put and Get
 ```java
-oak.put((Integer)10,(Integer)100);
-Integer i = oak.get((Integer)10);
-```
-
-##### PutIfAbsent
-```java
-boolean res = oak.putIfAbsent((Integer)11,(Integer)110);
+oak.put(10,100);
+Integer i = oak.get(10);
 ```
 
 ##### Remove
 ```java
-oak.remove((Integer)11);
+oak.zc().remove(11);
 ```
 
 ##### Get OakRBuffer
 ```java
-OakBufferView oakView = oak.createBufferView();
-OakRBuffer buffer = oakView.get((Integer)10);
+OakRBuffer buffer = oak.zc().get(10);
 if(buffer != null) {
     try {
         int get = buffer.getInt(0);
-    } catch (ConcurrentModificationException e){
+    } catch (ConcurrentModificationException e) {
     }
 }
 ```
 
-##### Scan&Copy with OakRBuffer
+##### Scan&Copy
 ```java
-Integer targetBuffer[] = new Integer[oak.entries()]; // might not be correct with multiple threads
-OakBufferView oakView = oak.createBufferView();
-try (OakCloseableIterator<Integer>  iter = oakView.valuesIterator()) {
+Integer targetBuffer[] = new Integer[oak.size()]; // might not be correct with multiple threads
+Iterator<Integer> iter = oak.values().iterator();
 		int i = 0;
 		while (iter.hasNext()) {
             targetBuffer[i++] = iter.next();
@@ -222,36 +222,36 @@ try (OakCloseableIterator<Integer>  iter = oakView.valuesIterator()) {
 
 ##### Compute
 ```java
-Consumer<OakWBuffer> func = buf -> {
-    Integer cnt = buf.getInt(0); // read integer from position 0
-    buf.putInt(0, (cnt+1));			 // accumulate counter, position back to 0
+Consumer<ByteBuffer> func = buf -> {
+    Integer cnt = buf.getInt(0);    // read integer from position 0
+    buf.putInt(0, (cnt+1));			// accumulate counter, position back to 0
 };
-oak.computeIfPresent((Integer)10, func);
+oak.zc().computeIfPresent(10, func);
 ```
 
 ##### Conditional Compute
 ```java
-Consumer<OakWBuffer> func = buf -> {
-    if (buf.getInt(0) == 0) {	// check integer at position 0
+Consumer<ByteBuffer> func = buf -> {
+    if (buf.getInt(0) == 0) {	    // check integer at position 0
         buf.putInt(1);				// position in the buffer is promoted
         buf.putInt(1);
     }
 };
-oak.computeIfPresent((Integer)10, func);
+oak.zc().computeIfPresent(10, func);
 ```
 
 ##### Simple Iterator
 ```java
-try (OakCloseableIterator<Integer> iterator = oak.keysIterator()) {
-    while (iter.hasNext()) {
-        Integer i = iter.next();
-    }
+Iterator<Integer> iterator = oak.keySet().iterator();
+while (iter.hasNext()) {
+    Integer i = iter.next();
 }
 ```
 
 ##### Simple Descending Iterator
 ```java
-try (OakCloseableIterator<Integer, Integer> iter = oak.descendingMap().entriesIterator()) {
+try (OakMap<Integer, Integer> oakDesc = oak.descendingMap()) {
+    Iterator<Integer, Integer>> iter = oakDesc.entrySet().iterator();
     while (iter.hasNext()) {
         Map.Entry<Integer, Integer> e = iter.next();
     }
@@ -263,43 +263,22 @@ try (OakCloseableIterator<Integer, Integer> iter = oak.descendingMap().entriesIt
 Integer from = (Integer)4;
 Integer to = (Integer)6;
 
-OakMap sub = oak.subMap(from, false, to, true);
-try (OakCloseableIterator<Integer>  iter = sub.valuesIterator()) {
+try (OakMap sub = oak.subMap(from, false, to, true)) {
+    Iterator<Integer>  iter = sub.values().iterator();
     while (iter.hasNext()) {
         Integer i = iter.next();
     }
 }
 ```
 
-## Transformations
-
-In addition to the OakBufferView explained above, OakMap provides the OakTransformView, which allows manipulating ByteBuffers instead of OakRBuffers. This abstraction is for backward compatibility with applications that are already based on the use of ByteBuffers. The OakTransformView might be useful for directly retrieving modified (transformed) data from the OakMap.
-
-Transform view is created via `OakTransformView createTransformView(Function<Map.Entry<ByteBuffer, ByteBuffer>, T> transformer)`.
-It requires a transform function `Function<Map.Entry<ByteBuffer, ByteBuffer>, T> transformer` that transforms key-value pairs given as **read-only** ByteBuffers into arbitrary `T` objects. The first ByteBuffer parameter (of the Entry) is the key and the second is the value. The API of OakTransformView is the same as that of OakBufferView, except that the return value type is `T`; namely:
-
-	- T get(K key)
-	- OakCloseableIterator<T> valuesIterator()
-	- OakCloseableIterator<Map.Entry<T, T>> entriesIterator()
-	- OakCloseableIterator<T> keysIterator()
-
-### Code example
+##### Direct ByteBuffer Transformations
 
 ```java
-Function<Map.Entry<ByteBuffer, ByteBuffer>, Integer> func = (e) -> {
-    if (e.getKey().getInt(0) == 1) {
-        return e.getKey().getInt(0)*e.getValue().getInt(0);
-    } else return 0;
-};
+Function<ByteBuffer, String> toStrings = e -> String.valueOf(e.getInt(0));
 
-try (OakTransformView oakView = oak.createTransformView(func)) {
-
-	try (OakCloseableIterator<Integer> iter = oakView.entriesIterator()) {
-  	  while (iter.hasNext()) {
-    	    Integer i = iter.next();
-    	}
-	}
-
+Iterator<String> iter = oak.zc().values().stream().map(v -> v.transform(toStrings)).iterator();
+while (iter.hasNext()) {
+    String s = iter.next();
 }
 ```
 
