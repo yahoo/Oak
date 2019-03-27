@@ -149,9 +149,9 @@ public class Chunk<K, V> {
         final int entryIndex;
         final int handleIndex;
         int prevHandleIndex;
-        final Consumer<ByteBuffer> computer;
+        final Consumer<OakWBuffer> computer;
 
-        OpData(Operation op, int entryIndex, int handleIndex, int prevHandleIndex, Consumer<ByteBuffer> computer) {
+        OpData(Operation op, int entryIndex, int handleIndex, int prevHandleIndex, Consumer<OakWBuffer> computer) {
             this.op = op;
             this.entryIndex = entryIndex;
             this.handleIndex = handleIndex;

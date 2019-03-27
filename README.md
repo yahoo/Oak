@@ -128,15 +128,15 @@ OakMap<K,V> oak = builder.build();
 You are welcome to take a look on the OakMap's [full API](https://github.com/yahoo/Oak/wiki/Full-API).
 OakMap's API implements the ConcurrentNavigableMap interface. For improved performance, it offers additional non-standard zero-copy API methods that are discussed below.
 
-### OakRBuffers
-OakMap provides read-only memory buffers, *OakRBuffer*` that support the standard Java API for read-only Java ByteBuffers.
+### OakBuffers
+OakMap provides two types of memory buffers: *OakRBuffer* (read-only) and *OakWBuffer* (read and write). These buffers support a similar API for read-only Java ByteBuffers and writable Java ByteBuffers, respectively.
 
 OakMap buffers allow the user direct access to the underlying serialized key-value pairs, without needing to worry about  concurrent accesses and memory management. This access reduces unnecessary copies and deserialization of the underlying mappings.
 Note, however, that since OakMap's get method avoids copying the value and instead returns access to the same underlying memory buffer that compute operations update in-place, the reader may encounter different values -- and even value deletions -- when accessing the buffer returned from get multiple times. This is of course normal behavior for a concurrent map that avoids copying.
 
-The OakRBuffer's user can use the standard interface of a *read-only* ByteBuffer, for example, `int getInt(int index)`, `char getChar(int index)`, `limit()`, etc. Note that ConcurrentModificationException can be thrown as a result of any OakRBuffer method in case the mapping is concurrently deleted.
+An OakRBuffer can represent either a key or a value. The OakRBuffer's user can use the standard interface of a *read-only* ByteBuffer, for example, `int getInt(int index)`, `char getChar(int index)`, `limit()`, etc. Note that ConcurrentModificationException can be thrown as a result of any OakRBuffer method in case the mapping is concurrently deleted.
 
-For backward compatibility with applications that are already based on the use of ByteBuffers, OakRBuffer provides the transform method that atomically applies a transformation to the underlying ByteBuffer. For a more comprehensive code example please refer to the [Usage](#usage) section. 
+For backward compatibility with applications that are already based on the use of ByteBuffers, Oak Buffers provide the transform method that atomically applies a transformation to the underlying ByteBuffer. For a more comprehensive code example please refer to the [usage](#usage) section. 
 
 
 ### Notes on data retrieval
@@ -146,8 +146,8 @@ For backward compatibility with applications that are already based on the use o
     The ZeroCopyMap interface provides the following four methods for data retrieval, whose result is presented as an OakRBuffer:
 	- `OakRBuffer get(K key)`
 	- `Collection<OakRBuffer> values()`
-	- `Set<Map.Entry<ByteBuffer, OakRBuffer>> entrySet()`
-	- `Set<ByteBuffer> keySet()`
+	- `Set<Map.Entry<OakRBuffer, OakRBuffer>> entrySet()`
+	- `Set<OakRBuffer> keySet()`
 2. Without ZeroCopyMap, OakMap's data can be directly retrieved via the following four methods:
 	- `V get(Object key)`
 	- `Collection<V> values()`
@@ -155,7 +155,7 @@ For backward compatibility with applications that are already based on the use o
 	- `NavigableSet<K> keySet()`
 	
 	However, these direct methods return keys and/or values as Objects by applying deseriliazation (copy). This is costly,  and we strongly advice to use ZeroCopyMap to operate directly on the internal data representation.
-3. For examples of direct data manipulations, please refer to the [Usage](#usage) section.
+3. For examples of direct data manipulations, please refer to the [usage](#usage) section.
 
 ### Notes on data ingestion
 1. Data can be ingested via the standard ConcurrentNavigableMap API.
@@ -163,13 +163,13 @@ For backward compatibility with applications that are already based on the use o
  	- `void put(K key, V value)`
  	- `boolean putIfAbsent(K key, V value)`
  	- `void remove(K key)`
- 	- `boolean computeIfPresent(K key, Consumer<ByteBuffer> computer)`
- 	- `void putIfAbsentComputeIfPresent(K key, V value, Consumer<ByteBuffer> computer)`
+ 	- `boolean computeIfPresent(K key, Consumer<OakWBuffer> computer)`
+ 	- `void putIfAbsentComputeIfPresent(K key, V value, Consumer<OakWBuffer> computer)`
 3. In contrast to the ConcurrentNavigableMap API, `void put(K key, V value)` does not return the value previously associated with the key, if key existed. Likewise, `void remove(K key)` does not return a boolean indicating whether key was actually deleted, if key existed.
-4. `boolean computeIfPresent(K key, Consumer<ByteBuffer> computer)` gets the user-defined computer function. The computer is invoked in case the key exists.
-The computer is provided with a mutable ByteBuffer, representing the serialized value associated with the key. The computer's effect is atomic, meaning that either all updates are seen by concurrent readers, or none are.
+4. `boolean computeIfPresent(K key, Consumer<OakWBuffer> computer)` gets the user-defined computer function. The computer is invoked in case the key exists.
+The computer is provided with a mutable OakWBuffer, representing the serialized value associated with the key. The computer's effect is atomic, meaning that either all updates are seen by concurrent readers, or none are.
 The compute functionality offers the OakMap user an efficient zero-copy update-in-place, which allows OakMap users to focus on business logic without dealing with the hard problems that data layout and concurrency control present.
-5. OakMap additionally supports an atomic `void putIfAbsentComputeIfPresent(K key, V value, Consumer<ByteBuffer> computer)` interface, (which is not part of ConcurrentNavigableMap).
+5. OakMap additionally supports an atomic `void putIfAbsentComputeIfPresent(K key, V value, Consumer<OakWBuffer> computer)` interface, (which is not part of ConcurrentNavigableMap).
 This API looks for a key. If the key does not exist, it adds a new Serialized key --> Serialized value mapping. Otherwise, the value associated with the key is updated with computer(old value). This interface works concurrently with other updates and requires only one search traversal.
 
 ## Memory Management
@@ -222,7 +222,7 @@ Iterator<Integer> iter = oak.values().iterator();
 
 ##### Compute
 ```java
-Consumer<ByteBuffer> func = buf -> {
+Consumer<OakWBuffer> func = buf -> {
     Integer cnt = buf.getInt(0);    // read integer from position 0
     buf.putInt(0, (cnt+1));			// accumulate counter, position back to 0
 };
@@ -231,7 +231,7 @@ oak.zc().computeIfPresent(10, func);
 
 ##### Conditional Compute
 ```java
-Consumer<ByteBuffer> func = buf -> {
+Consumer<OakWBuffer> func = buf -> {
     if (buf.getInt(0) == 0) {	    // check integer at position 0
         buf.putInt(1);				// position in the buffer is promoted
         buf.putInt(1);

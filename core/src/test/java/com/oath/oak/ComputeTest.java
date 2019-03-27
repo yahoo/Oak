@@ -111,7 +111,7 @@ public class ComputeTest {
         }
     }
 
-    private static Consumer<ByteBuffer> computer = oakWBuffer -> {
+    private static Consumer<OakWBuffer> computer = oakWBuffer -> {
         if (oakWBuffer.getInt(0) == oakWBuffer.getInt(Integer.BYTES * keySize)) {
             return;
         }

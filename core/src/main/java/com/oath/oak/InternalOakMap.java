@@ -92,7 +92,7 @@ class InternalOakMap<K, V> {
 
     // yet another object started to refer to this internal map
     void open() {
-        while(true) {
+        while (true) {
             int res = referenceCount.get();
             // once reference count is zeroed, the map meant to be deleted and should not be used.
             // reference count should never grow again and the referral is not allowed
@@ -116,7 +116,9 @@ class InternalOakMap<K, V> {
         return memoryManager.allocated();
     }
 
-    int entries() { return size.get(); }
+    int entries() {
+        return size.get();
+    }
 
     /*-------------- Methods --------------*/
 
@@ -138,8 +140,7 @@ class InternalOakMap<K, V> {
     }
 
 
-
-    private Rebalancer.RebalanceResult  rebalance(Chunk<K, V> c, K key, V value, Consumer<ByteBuffer> computer, Operation op) {
+    private Rebalancer.RebalanceResult rebalance(Chunk<K, V> c, K key, V value, Consumer<OakWBuffer> computer, Operation op) {
         if (c == null) {
             assert op == Operation.NO_OP;
             return null;
@@ -192,7 +193,7 @@ class InternalOakMap<K, V> {
         // since prev might be marked (in compact itself) - we need to repeat this until successful
         while (true) {
             countIterations++;
-            assert (countIterations<10000); // this loop is not supposed to be infinite
+            assert (countIterations < 10000); // this loop is not supposed to be infinite
 
             // start with first chunk (i.e., head)
             Map.Entry<Object, Chunk<K, V>> lowerEntry = skiplist.lowerEntry(firstEngaged.minKey);
@@ -301,7 +302,7 @@ class InternalOakMap<K, V> {
         put(key, value, null);
     }
 
-    private void rebalanceCompute(Chunk<K, V> c, K key, V value, Consumer<ByteBuffer> computer) {
+    private void rebalanceCompute(Chunk<K, V> c, K key, V value, Consumer<OakWBuffer> computer) {
         Rebalancer.RebalanceResult result = rebalance(c, key, value, computer, Operation.COMPUTE);
         assert result != null;
         if (result.success) { // rebalance helped compute
@@ -317,7 +318,7 @@ class InternalOakMap<K, V> {
     }
 
     // Returns old handle if someone helped before pointToValue happened, or null if
-    private Handle finishAfterPublishing(Chunk.OpData opData, Chunk<K, V> c){
+    private Handle finishAfterPublishing(Chunk.OpData opData, Chunk<K, V> c) {
         // set pointer to value
         Handle oldHandle = c.pointToValue(opData);
         c.unpublish(opData);
@@ -468,7 +469,7 @@ class InternalOakMap<K, V> {
         return Result.withValue((oldHandle != null) ? oldHandle.transform(transformer) : null);
     }
 
-    void putIfAbsentComputeIfPresent(K key, V value, Consumer<ByteBuffer> computer) {
+    void putIfAbsentComputeIfPresent(K key, V value, Consumer<OakWBuffer> computer) {
         if (key == null || value == null || computer == null) {
             throw new NullPointerException();
         }
@@ -636,7 +637,7 @@ class InternalOakMap<K, V> {
         return new OakRValueBufferImpl(lookUp.handle);
     }
 
-    <T> T getValueTransformation(K key, Function<ByteBuffer,T> transformer) {
+    <T> T getValueTransformation(K key, Function<ByteBuffer, T> transformer) {
         if (key == null || transformer == null) {
             throw new NullPointerException();
         }
@@ -652,7 +653,7 @@ class InternalOakMap<K, V> {
 
     }
 
-    <T> T getKeyTransformation(K key, Function<ByteBuffer,T> transformer) {
+    <T> T getKeyTransformation(K key, Function<ByteBuffer, T> transformer) {
         if (key == null || transformer == null) {
             throw new NullPointerException();
         }
@@ -684,7 +685,7 @@ class InternalOakMap<K, V> {
         return c.readMinKey().slice();
     }
 
-    <T> T getMinKeyTransformation(Function<ByteBuffer,T> transformer) {
+    <T> T getMinKeyTransformation(Function<ByteBuffer, T> transformer) {
         if (transformer == null) {
             throw new NullPointerException();
         }
@@ -708,7 +709,7 @@ class InternalOakMap<K, V> {
         return c.readMaxKey().slice();
     }
 
-    <T> T getMaxKeyTransformation(Function<ByteBuffer,T> transformer) {
+    <T> T getMaxKeyTransformation(Function<ByteBuffer, T> transformer) {
         if (transformer == null) {
             throw new NullPointerException();
         }
@@ -726,7 +727,7 @@ class InternalOakMap<K, V> {
         return (serializedMaxKey != null) ? transformer.apply(serializedMaxKey) : null;
     }
 
-    boolean computeIfPresent(K key, Consumer<ByteBuffer> computer) {
+    boolean computeIfPresent(K key, Consumer<OakWBuffer> computer) {
         if (key == null || computer == null) {
             throw new NullPointerException();
         }
@@ -745,7 +746,7 @@ class InternalOakMap<K, V> {
         return c;
     }
 
-    V replace(K key, V value, Function<ByteBuffer,V> valueDeserializeTransformer) {
+    V replace(K key, V value, Function<ByteBuffer, V> valueDeserializeTransformer) {
         Chunk<K, V> c = findChunk(key); // find chunk matching key
         Chunk.LookUp lookUp = c.lookUp(key);
         if (lookUp == null || lookUp.handle == null)
@@ -831,7 +832,7 @@ class InternalOakMap<K, V> {
 
         public void set(Chunk<K, V> chunk, Chunk.ChunkIter chunkIter, int index) {
             this.chunk = chunk;
-            this.chunkIter=chunkIter;
+            this.chunkIter = chunkIter;
             this.index = index;
         }
 
@@ -863,7 +864,7 @@ class InternalOakMap<K, V> {
     /**
      * Base of iterator classes:
      */
-    abstract class Iter<T> implements OakIterator<T> {
+    abstract class Iter<T> implements Iterator<T> {
 
         private K lo;
 
@@ -887,7 +888,7 @@ class InternalOakMap<K, V> {
         /**
          * the next node to return from next();
          */
-        private IteratorState<K,V> state;
+        private IteratorState<K, V> state;
 
         /**
          * Initializes ascending iterator for entire range.
@@ -940,8 +941,7 @@ class InternalOakMap<K, V> {
             if (isDescending) {
                 hiInclusive = true;
                 hi = nextKey;
-            }
-            else {
+            } else {
                 loInclusive = true;
                 lo = nextKey;
             }
@@ -981,7 +981,7 @@ class InternalOakMap<K, V> {
         }
 
         private void initState(boolean isDescending, K lowerBound, boolean lowerInclusive,
-                                        K upperBound, boolean upperInclusive) {
+                               K upperBound, boolean upperInclusive) {
 
             Chunk.ChunkIter nextChunkIter = null;
             Chunk<K, V> nextChunk;
@@ -1094,22 +1094,23 @@ class InternalOakMap<K, V> {
             if (handle == null) {
                 return null;
             }
-            return (T)handle.transform(transformer);
+            return (T) handle.transform(transformer);
         }
     }
 
-    class EntryIterator extends Iter<Map.Entry<ByteBuffer, OakRBuffer>> {
+    class EntryIterator extends Iter<Map.Entry<OakRBuffer, OakRBuffer>> {
 
         EntryIterator(K lo, boolean loInclusive, K hi, boolean hiInclusive, boolean isDescending) {
             super(lo, loInclusive, hi, hiInclusive, isDescending);
         }
 
-        public Map.Entry<ByteBuffer, OakRBuffer> next() {
+        public Map.Entry<OakRBuffer, OakRBuffer> next() {
             Pair<ByteBuffer, Handle> pair = advance();
             if (pair.getValue() == null) {
                 return null;
             }
-            return new AbstractMap.SimpleImmutableEntry<>(pair.getKey(),
+            return new AbstractMap.SimpleImmutableEntry<>(
+                    new OakRKeyBufferImpl(pair.getKey()),
                     new OakRValueBufferImpl(pair.getValue()));
         }
     }
@@ -1121,7 +1122,7 @@ class InternalOakMap<K, V> {
         EntryTransformIterator(K lo, boolean loInclusive, K hi, boolean hiInclusive, boolean isDescending,
                                Function<Map.Entry<ByteBuffer, ByteBuffer>, T> transformer) {
             super(lo, loInclusive, hi, hiInclusive, isDescending);
-            assert(transformer!=null);
+            assert (transformer != null);
             this.transformer = transformer;
         }
 
@@ -1147,17 +1148,17 @@ class InternalOakMap<K, V> {
         }
     }
 
-    class KeyIterator extends Iter<ByteBuffer> {
+    class KeyIterator extends Iter<OakRBuffer> {
 
         KeyIterator(K lo, boolean loInclusive, K hi, boolean hiInclusive, boolean isDescending) {
             super(lo, loInclusive, hi, hiInclusive, isDescending);
         }
 
         @Override
-        public ByteBuffer next() {
+        public OakRBuffer next() {
 
             Pair<ByteBuffer, Handle> pair = advance();
-            return pair.getKey();
+            return new OakRKeyBufferImpl(pair.getKey());
 
         }
     }
@@ -1181,27 +1182,27 @@ class InternalOakMap<K, V> {
 
     // Factory methods for iterators
 
-    OakIterator<OakRBuffer> valuesBufferViewIterator(K lo, boolean loInclusive, K hi, boolean hiInclusive, boolean isDescending) {
+    Iterator<OakRBuffer> valuesBufferViewIterator(K lo, boolean loInclusive, K hi, boolean hiInclusive, boolean isDescending) {
         return new ValueIterator(lo, loInclusive, hi, hiInclusive, isDescending);
     }
 
-    OakIterator<Map.Entry<ByteBuffer, OakRBuffer>> entriesBufferViewIterator(K lo, boolean loInclusive, K hi, boolean hiInclusive, boolean isDescending) {
+    Iterator<Map.Entry<OakRBuffer, OakRBuffer>> entriesBufferViewIterator(K lo, boolean loInclusive, K hi, boolean hiInclusive, boolean isDescending) {
         return new EntryIterator(lo, loInclusive, hi, hiInclusive, isDescending);
     }
 
-    OakIterator<ByteBuffer> keysBufferViewIterator(K lo, boolean loInclusive, K hi, boolean hiInclusive, boolean isDescending) {
+    Iterator<OakRBuffer> keysBufferViewIterator(K lo, boolean loInclusive, K hi, boolean hiInclusive, boolean isDescending) {
         return new KeyIterator(lo, loInclusive, hi, hiInclusive, isDescending);
     }
 
-    <T> OakIterator<T> valuesTransformIterator(K lo, boolean loInclusive, K hi, boolean hiInclusive, boolean isDescending, Function<ByteBuffer, T> transformer) {
+    <T> Iterator<T> valuesTransformIterator(K lo, boolean loInclusive, K hi, boolean hiInclusive, boolean isDescending, Function<ByteBuffer, T> transformer) {
         return new ValueTransformIterator<>(lo, loInclusive, hi, hiInclusive, isDescending, transformer);
     }
 
-    <T> OakIterator<T> entriesTransformIterator(K lo, boolean loInclusive, K hi, boolean hiInclusive, boolean isDescending, Function<Map.Entry<ByteBuffer, ByteBuffer>, T> transformer) {
+    <T> Iterator<T> entriesTransformIterator(K lo, boolean loInclusive, K hi, boolean hiInclusive, boolean isDescending, Function<Map.Entry<ByteBuffer, ByteBuffer>, T> transformer) {
         return new EntryTransformIterator<>(lo, loInclusive, hi, hiInclusive, isDescending, transformer);
     }
 
-    <T> OakIterator<T> keysTransformIterator(K lo, boolean loInclusive, K hi, boolean hiInclusive, boolean isDescending, Function<ByteBuffer, T> transformer) {
+    <T> Iterator<T> keysTransformIterator(K lo, boolean loInclusive, K hi, boolean hiInclusive, boolean isDescending, Function<ByteBuffer, T> transformer) {
         return new KeyTransformIterator<>(lo, loInclusive, hi, hiInclusive, isDescending, transformer);
     }
 
@@ -1211,13 +1212,19 @@ class InternalOakMap<K, V> {
         final boolean hasValue;
 
         private Result(V value, boolean flag, boolean hasValue) {
-            this.value = value; this.flag = flag; this.hasValue = hasValue;
+            this.value = value;
+            this.flag = flag;
+            this.hasValue = hasValue;
 
         }
 
-        static Result withValue(Object value) { return new Result(value, false, true); }
+        static Result withValue(Object value) {
+            return new Result(value, false, true);
+        }
 
-        static Result withFlag(boolean flag) { return new Result(null, flag, false); }
+        static Result withFlag(boolean flag) {
+            return new Result(null, flag, false);
+        }
 
     }
 }

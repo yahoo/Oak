@@ -25,7 +25,7 @@ import java.util.function.Function;
 /**
  * A concurrent map implementation which supports off-heap memory.
  */
-public class OakMap<K, V> extends AbstractMap<K, V> implements AutoCloseable, ConcurrentNavigableMap<K,V> {
+public class OakMap<K, V> extends AbstractMap<K, V> implements AutoCloseable, ConcurrentNavigableMap<K, V> {
 
     private final InternalOakMap internalOakMap;
     /*
@@ -129,8 +129,8 @@ public class OakMap<K, V> extends AbstractMap<K, V> implements AutoCloseable, Co
      *
      * @param key the key whose associated value is to be returned
      * @return the value associated with that key, or
-     *         {@code null} if this map contains no mapping for the key
-     * @throws NullPointerException if the specified key is null
+     * {@code null} if this map contains no mapping for the key
+     * @throws NullPointerException     if the specified key is null
      * @throws IllegalArgumentException if the specified key is out of bounds
      */
     @Override
@@ -148,8 +148,8 @@ public class OakMap<K, V> extends AbstractMap<K, V> implements AutoCloseable, Co
      *
      * @param key the key whose associated value is to be returned
      * @return the value associated with that key, or
-     *         {@code null} if this map contains no mapping for the key
-     * @throws NullPointerException if the specified key is null
+     * {@code null} if this map contains no mapping for the key
+     * @throws NullPointerException     if the specified key is null
      * @throws IllegalArgumentException if the specified key is out of bounds
      */
     @Override
@@ -166,8 +166,8 @@ public class OakMap<K, V> extends AbstractMap<K, V> implements AutoCloseable, Co
      *
      * @param key key whose mapping is to be removed from the map
      * @return the previous value associated with the provided key, or
-     *         {@code null} if this map contains no mapping for the key
-     * @throws NullPointerException if the specified key is null
+     * {@code null} if this map contains no mapping for the key
+     * @throws NullPointerException     if the specified key is null
      * @throws IllegalArgumentException if the specified key is out of bounds
      */
     @Override
@@ -189,7 +189,7 @@ public class OakMap<K, V> extends AbstractMap<K, V> implements AutoCloseable, Co
      * or {@code null} if this map contains no keys.
      *
      * @return the minimal key in the map, or {@code null} if this map contains
-     *         no keys.
+     * no keys.
      * @throws UnsupportedOperationException if used on a SubMap
      */
     @Override
@@ -205,7 +205,7 @@ public class OakMap<K, V> extends AbstractMap<K, V> implements AutoCloseable, Co
      * or {@code null} if this map contains no keys.
      *
      * @return the maximal key in the map, or {@code null} if this map contains
-     *         no keys.
+     * no keys.
      * @throws UnsupportedOperationException if used on a SubMap
      */
     @Override
@@ -220,7 +220,6 @@ public class OakMap<K, V> extends AbstractMap<K, V> implements AutoCloseable, Co
 
     /**
      * {@inheritDoc}
-     *
      */
     @Override
     public boolean remove(Object key, Object value) {
@@ -233,7 +232,7 @@ public class OakMap<K, V> extends AbstractMap<K, V> implements AutoCloseable, Co
     /**
      * {@inheritDoc}
      *
-     * @throws NullPointerException if the specified key or value is null
+     * @throws NullPointerException     if the specified key or value is null
      * @throws IllegalArgumentException if the specified key is out of bounds
      */
     @Override
@@ -249,7 +248,7 @@ public class OakMap<K, V> extends AbstractMap<K, V> implements AutoCloseable, Co
     /**
      * {@inheritDoc}
      *
-     * @throws NullPointerException if any of the arguments are null
+     * @throws NullPointerException     if any of the arguments are null
      * @throws IllegalArgumentException if the specified key is out of bounds
      */
     @Override
@@ -269,7 +268,7 @@ public class OakMap<K, V> extends AbstractMap<K, V> implements AutoCloseable, Co
      * @param key   key with which the specified value is to be associated
      * @param value value to be associated with the specified key
      * @return {@code null} if there was no mapping for the key
-     * @throws NullPointerException if the specified key or value is null
+     * @throws NullPointerException     if the specified key or value is null
      * @throws IllegalArgumentException if the specified key is out of bounds
      */
     public V putIfAbsent(K key, V value) {
@@ -399,7 +398,7 @@ public class OakMap<K, V> extends AbstractMap<K, V> implements AutoCloseable, Co
      *                                  restricted range, and {@code toKey} lies outside the
      *                                  bounds of the range
      */
-    public OakMap<K,V> headMap(K toKey, boolean inclusive) {
+    public OakMap<K, V> headMap(K toKey, boolean inclusive) {
         if (this.fromKey != null && this.comparator.compare(this.fromKey, toKey) > 0) {
             throw new IllegalArgumentException();
         }
@@ -532,7 +531,7 @@ public class OakMap<K, V> extends AbstractMap<K, V> implements AutoCloseable, Co
             return m.internalOakMap.putIfAbsent(key, value, null).flag;
         }
 
-        public boolean computeIfPresent(K key, Consumer<ByteBuffer> computer) {
+        public boolean computeIfPresent(K key, Consumer<OakWBuffer> computer) {
             m.checkKey(key);
             if (computer == null)
                 throw new NullPointerException();
@@ -540,7 +539,7 @@ public class OakMap<K, V> extends AbstractMap<K, V> implements AutoCloseable, Co
             return m.internalOakMap.computeIfPresent(key, computer);
         }
 
-        public void putIfAbsentComputeIfPresent(K key, V value, Consumer<ByteBuffer> computer) {
+        public void putIfAbsentComputeIfPresent(K key, V value, Consumer<OakWBuffer> computer) {
             m.checkKey(key);
             if (value == null || computer == null)
                 throw new IllegalArgumentException();
@@ -549,8 +548,7 @@ public class OakMap<K, V> extends AbstractMap<K, V> implements AutoCloseable, Co
         }
 
 
-
-        public Set<ByteBuffer> keySet() {
+        public Set<OakRBuffer> keySet() {
             return new KeyBufferSet<>(m);
         }
 
@@ -558,7 +556,7 @@ public class OakMap<K, V> extends AbstractMap<K, V> implements AutoCloseable, Co
             return new ValueBuffers<>(m);
         }
 
-        public Set<Entry<ByteBuffer, OakRBuffer>> entrySet() {
+        public Set<Entry<OakRBuffer, OakRBuffer>> entrySet() {
             return new EntryBufferSet<>(m);
         }
     }
@@ -575,9 +573,11 @@ public class OakMap<K, V> extends AbstractMap<K, V> implements AutoCloseable, Co
 
 
     /* ---------------- Package visibility getters for the views methods -------------- */
-    MemoryManager getMemoryManager() { return memoryManager; }
+    MemoryManager getMemoryManager() {
+        return memoryManager;
+    }
 
-    boolean getIsDescending(){
+    boolean getIsDescending() {
         return isDescending;
     }
 
@@ -589,14 +589,15 @@ public class OakMap<K, V> extends AbstractMap<K, V> implements AutoCloseable, Co
         return toInclusive;
     }
 
-    @Override public void close() {
+    @Override
+    public void close() {
         internalOakMap.close();
     }
 
 
     /* ---------------- Private utility methods -------------- */
 
-     void checkKey(Object key) {
+    void checkKey(Object key) {
         if (key == null)
             throw new NullPointerException();
         if (!inBounds(key))
@@ -609,37 +610,37 @@ public class OakMap<K, V> extends AbstractMap<K, V> implements AutoCloseable, Co
     }
 
     /**
-     * Returns a {@link OakIterator} of the values contained in this map
+     * Returns a {@link Iterator} of the values contained in this map
      * in ascending order of the corresponding keys.
      */
-    private OakIterator<V> valuesIterator() {
+    private Iterator<V> valuesIterator() {
         return internalOakMap.valuesTransformIterator(fromKey, fromInclusive, toKey, toInclusive, isDescending, valueDeserializeTransformer);
     }
 
     /**
-     * Returns a {@link OakIterator} of the mappings contained in this map in ascending key order.
+     * Returns a {@link Iterator} of the mappings contained in this map in ascending key order.
      */
-    private OakIterator<Map.Entry<K, V>> entriesIterator() {
+    private Iterator<Map.Entry<K, V>> entriesIterator() {
         return internalOakMap.entriesTransformIterator(fromKey, fromInclusive, toKey, toInclusive, isDescending, entryDeserializeTransformer);
     }
 
     /**
-     * Returns a {@link OakIterator} of the keys contained in this map in ascending order.
+     * Returns a {@link Iterator} of the keys contained in this map in ascending order.
      */
-    private OakIterator<K> keysIterator() {
+    private Iterator<K> keysIterator() {
         return internalOakMap.keysTransformIterator(fromKey, fromInclusive, toKey, toInclusive, isDescending, keyDeserializeTransformer);
     }
 
-    private OakIterator<ByteBuffer> keysBufferIterator() {
+    private Iterator<OakRBuffer> keysBufferIterator() {
         return internalOakMap.keysBufferViewIterator(fromKey, fromInclusive, toKey, toInclusive, isDescending);
     }
 
 
-    private OakIterator<OakRBuffer> valuesBufferIterator() {
+    private Iterator<OakRBuffer> valuesBufferIterator() {
         return internalOakMap.valuesBufferViewIterator(fromKey, fromInclusive, toKey, toInclusive, isDescending);
     }
 
-    private OakIterator<Map.Entry<ByteBuffer, OakRBuffer>> entriesBufferIterator() {
+    private Iterator<Map.Entry<OakRBuffer, OakRBuffer>> entriesBufferIterator() {
         return internalOakMap.entriesBufferViewIterator(fromKey, fromInclusive, toKey, toInclusive, isDescending);
     }
 
@@ -748,13 +749,13 @@ public class OakMap<K, V> extends AbstractMap<K, V> implements AutoCloseable, Co
 
         @Override
         public K pollFirst() {
-            Map.Entry<K,?> e = m.pollFirstEntry();
+            Map.Entry<K, ?> e = m.pollFirstEntry();
             return (e == null) ? null : e.getKey();
         }
 
         @Override
         public K pollLast() {
-            Map.Entry<K,?> e = m.pollLastEntry();
+            Map.Entry<K, ?> e = m.pollLastEntry();
             return (e == null) ? null : e.getKey();
         }
 
@@ -824,7 +825,7 @@ public class OakMap<K, V> extends AbstractMap<K, V> implements AutoCloseable, Co
         }
     }
 
-    static class EntrySet<K, V> extends AbstractSet<Map.Entry<K,V>> {
+    static class EntrySet<K, V> extends AbstractSet<Map.Entry<K, V>> {
         private final OakMap<K, V> m;
 
         EntrySet(OakMap<K, V> m) {
@@ -861,7 +862,7 @@ public class OakMap<K, V> extends AbstractMap<K, V> implements AutoCloseable, Co
         }
     }
 
-    static final class KeyBufferSet<K, V> extends AbstractSet<ByteBuffer> {
+    static final class KeyBufferSet<K, V> extends AbstractSet<OakRBuffer> {
 
         private final OakMap<K, V> m;
 
@@ -870,7 +871,7 @@ public class OakMap<K, V> extends AbstractMap<K, V> implements AutoCloseable, Co
         }
 
         @Override
-        public Iterator<ByteBuffer> iterator() {
+        public Iterator<OakRBuffer> iterator() {
             return m.keysBufferIterator();
         }
 
@@ -880,7 +881,7 @@ public class OakMap<K, V> extends AbstractMap<K, V> implements AutoCloseable, Co
         }
     }
 
-    static class EntryBufferSet<K, V> extends AbstractSet<Entry<ByteBuffer,OakRBuffer>> {
+    static class EntryBufferSet<K, V> extends AbstractSet<Entry<OakRBuffer, OakRBuffer>> {
         private final OakMap<K, V> m;
 
         EntryBufferSet(OakMap<K, V> m) {
@@ -888,7 +889,7 @@ public class OakMap<K, V> extends AbstractMap<K, V> implements AutoCloseable, Co
         }
 
         @Override
-        public Iterator<Entry<ByteBuffer,OakRBuffer>> iterator() {
+        public Iterator<Entry<OakRBuffer, OakRBuffer>> iterator() {
             return m.entriesBufferIterator();
         }
 
@@ -917,4 +918,4 @@ public class OakMap<K, V> extends AbstractMap<K, V> implements AutoCloseable, Co
         }
     }
 
-    }
+}

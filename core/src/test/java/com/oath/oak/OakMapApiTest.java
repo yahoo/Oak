@@ -4,7 +4,6 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
-import java.nio.ByteBuffer;
 import java.nio.ReadOnlyBufferException;
 import java.util.*;
 import java.util.function.BiFunction;
@@ -250,7 +249,7 @@ public class OakMapApiTest {
 
     @Test
     public void computeIfPresent() {
-        BiFunction<? super Integer, ? super Integer, ? extends Integer> func = (k , v) -> v * 2;
+        BiFunction<? super Integer, ? super Integer, ? extends Integer> func = (k, v) -> v * 2;
 
         assertNull("computeIfPresent should return null if mapping doesn't exist", oak.computeIfPresent(0, func));
         oak.put(0, 1);
@@ -265,7 +264,7 @@ public class OakMapApiTest {
 
     @Test
     public void computeIfPresentZC() {
-        Consumer<ByteBuffer> func = bb -> bb.putInt(0, bb.getInt(0) * 2);
+        Consumer<OakWBuffer> func = oakWBuffer -> oakWBuffer.putInt(0, oakWBuffer.getInt(0) * 2);
 
         assertFalse("computeIfPresentZC should return false if mapping doesn't exist", oak.zc().computeIfPresent(0, func));
         oak.put(0, 1);
@@ -298,10 +297,21 @@ public class OakMapApiTest {
     public void immutableKeyBuffers() {
         oak.put(0, 0);
 
-        ByteBuffer buffer = oak.zc().keySet().iterator().next();
+        OakRBuffer buffer = oak.zc().keySet().iterator().next();
 
-        buffer.putInt(0, 1);
+        buffer.transform(b -> b.putInt(0, 1));
 
-        fail("ByteBuffer should be read only");
+        fail("Key Buffer should be read only");
+    }
+
+    @Test(expected = ReadOnlyBufferException.class)
+    public void immutableValueBuffers() {
+        oak.put(0, 0);
+
+        OakRBuffer buffer = oak.zc().values().iterator().next();
+
+        buffer.transform(b -> b.putInt(0, 1));
+
+        fail("Value Buffer should be read only");
     }
 }

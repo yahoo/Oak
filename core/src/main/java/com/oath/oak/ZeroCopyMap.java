@@ -6,7 +6,6 @@
 
 package com.oath.oak;
 
-import java.nio.ByteBuffer;
 import java.util.Collection;
 import java.util.Map;
 import java.util.Set;
@@ -21,7 +20,7 @@ public interface ZeroCopyMap<K, V> {
      *
      * @param key   key with which the specified value is to be associated
      * @param value value to be associated with the specified key
-     * @throws NullPointerException if the specified key is null
+     * @throws NullPointerException     if the specified key is null
      * @throws IllegalArgumentException if the specified key is out of bounds
      */
     void put(K key, V value);
@@ -32,8 +31,8 @@ public interface ZeroCopyMap<K, V> {
      *
      * @param key the key whose associated value is to be returned
      * @return the value associated with that key, or
-     *         {@code null} if this map contains no mapping for the key
-     * @throws NullPointerException if the specified key is null
+     * {@code null} if this map contains no mapping for the key
+     * @throws NullPointerException     if the specified key is null
      * @throws IllegalArgumentException if the specified key is out of bounds
      */
     OakRBuffer get(K key);
@@ -42,7 +41,7 @@ public interface ZeroCopyMap<K, V> {
      * Removes the mapping for a key from this map if it is present.
      *
      * @param key key whose mapping is to be removed from the map
-     * @throws NullPointerException if the specified key is null
+     * @throws NullPointerException     if the specified key is null
      * @throws IllegalArgumentException if the specified key is out of bounds
      */
     void remove(Object key);
@@ -55,7 +54,7 @@ public interface ZeroCopyMap<K, V> {
      * @param key   key with which the specified value is to be associated
      * @param value value to be associated with the specified key
      * @return {@code true} if there was no mapping for the key
-     * @throws NullPointerException if the specified key or value is null
+     * @throws NullPointerException     if the specified key or value is null
      * @throws IllegalArgumentException if the specified key is out of bounds
      */
     boolean putIfAbsent(K key, V value);
@@ -66,10 +65,10 @@ public interface ZeroCopyMap<K, V> {
      * @param key      key with which the calculation is to be associated
      * @param computer for computing the new value
      * @return {@code false} if there was no mapping for the key
-     * @throws NullPointerException if the specified key or the function is null
+     * @throws NullPointerException     if the specified key or the function is null
      * @throws IllegalArgumentException if the specified key is out of bounds
      */
-    boolean computeIfPresent(K key, Consumer<ByteBuffer> computer);
+    boolean computeIfPresent(K key, Consumer<OakWBuffer> computer);
 
 
     /**
@@ -77,21 +76,21 @@ public interface ZeroCopyMap<K, V> {
      * with a value, associate it with a constructed value.
      * Else, updates the value for the specified key.
      *
-     * @param key         key with which the specified value is to be associated
-     * @param value       value to be associated with the specified key
-     * @param computer    for computing the new value when the key is present
-     * @throws NullPointerException if any of the parameters is null
+     * @param key      key with which the specified value is to be associated
+     * @param value    value to be associated with the specified key
+     * @param computer for computing the new value when the key is present
+     * @throws NullPointerException     if any of the parameters is null
      * @throws IllegalArgumentException if the specified key is out of bounds
      */
-    void putIfAbsentComputeIfPresent(K key, V value, Consumer<ByteBuffer> computer);
+    void putIfAbsentComputeIfPresent(K key, V value, Consumer<OakWBuffer> computer);
 
     /**
-     * Returns a {@link Set} view of read only ByteBuffers containing the serialized keys
-     * stored in this map.
+     * Returns a {@link Set} view of read only ByteBuffers containing the
+     * serialized keys stored in this map.
      *
      * @return a set view of the serialized keys contained in this map
      */
-    Set<ByteBuffer> keySet();
+    Set<OakRBuffer> keySet();
 
     /**
      * Returns a {@link Collection} view of read only buffers containing the
@@ -103,9 +102,9 @@ public interface ZeroCopyMap<K, V> {
 
     /**
      * Returns a {@link Set} view of the serialized mappings contained in this
-     * map. Note that the key ByteBuffer is read only.
+     * map.
      *
      * @return a set view of the serialized mappings contained in this map
      */
-    Set<Map.Entry<ByteBuffer, OakRBuffer>> entrySet();
+    Set<Map.Entry<OakRBuffer, OakRBuffer>> entrySet();
 }

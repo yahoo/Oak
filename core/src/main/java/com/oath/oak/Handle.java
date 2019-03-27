@@ -14,7 +14,7 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
-class Handle<V> {
+class Handle<V> implements OakWBuffer {
 
     private final ReentrantReadWriteLock.ReadLock readLock;
     private final ReentrantReadWriteLock.WriteLock writeLock;
@@ -69,55 +69,118 @@ class Handle<V> {
     }
 
     // returns false in case handle was found deleted and compute didn't take place, true otherwise
-    boolean compute(Consumer<ByteBuffer> computer) {
+    boolean compute(Consumer<OakWBuffer> computer) {
         writeLock.lock();
         if (isDeleted()) {
             writeLock.unlock();
             return false;
         }
         try {
-            computer.accept(getSlicedByteBuffer());
+            OakWBuffer wBuffer = new OakWBufferImpl(this);
+            computer.accept(wBuffer);
         } finally {
             writeLock.unlock();
         }
         return true;
     }
 
-    public ByteBuffer getSlicedByteBuffer() {
+    ByteBuffer getSlicedByteBuffer() {
         assert writeLock.isHeldByCurrentThread();
         return value.slice();
     }
 
-    public ByteBuffer getSlicedReadOnlyByteBuffer() {
+    ByteBuffer getSlicedReadOnlyByteBuffer() {
         //TODO: check that the read lock is held by the current thread
         return value.asReadOnlyBuffer().slice();
     }
+
+    /* OakWBuffer interface */
 
     public int capacity() {
         return value.remaining();
     }
 
+    @Override
+    public ByteBuffer getByteBuffer() {
+        return getSlicedByteBuffer();
+    }
+
     public byte get(int index) {
         return value.get(value.position() + index);
     }
+
+    public OakWBuffer put(int index, byte b) {
+        assert writeLock.isHeldByCurrentThread();
+        value.put(this.value.position() + index, b);
+        return this;
+    }
+
     public char getChar(int index) {
         return value.getChar(value.position() + index);
     }
+
+    @Override
+    public OakWBuffer putChar(int index, char value) {
+        assert writeLock.isHeldByCurrentThread();
+        this.value.putChar(this.value.position() + index, value);
+        return this;
+    }
+
     public short getShort(int index) {
         return value.getShort(value.position() + index);
     }
+
+    @Override
+    public OakWBuffer putShort(int index, short value) {
+        assert writeLock.isHeldByCurrentThread();
+        this.value.putShort(this.value.position() + index, value);
+        return this;
+    }
+
     public int getInt(int index) {
         return value.getInt(value.position() + index);
     }
+
+    @Override
+    public OakWBuffer putInt(int index, int value) {
+        assert writeLock.isHeldByCurrentThread();
+        this.value.putInt(this.value.position() + index, value);
+        return this;
+    }
+
     public long getLong(int index) {
         return value.getLong(value.position() + index);
     }
+
+    @Override
+    public OakWBuffer putLong(int index, long value) {
+        assert writeLock.isHeldByCurrentThread();
+        this.value.putLong(this.value.position() + index, value);
+        return this;
+    }
+
     public float getFloat(int index) {
         return value.getFloat(value.position() + index);
     }
+
+    @Override
+    public OakWBuffer putFloat(int index, float value) {
+        assert writeLock.isHeldByCurrentThread();
+        this.value.putFloat(this.value.position() + index, value);
+        return this;
+    }
+
     public double getDouble(int index) {
         return value.getDouble(value.position() + index);
     }
+
+    @Override
+    public OakWBuffer putDouble(int index, double value) {
+        assert writeLock.isHeldByCurrentThread();
+        this.value.putDouble(this.value.position() + index, value);
+        return this;
+    }
+
     public ByteOrder order() {
         return value.order();
     }
@@ -155,12 +218,11 @@ class Handle<V> {
     }
 
 
-
-    public void readLock() {
+    void readLock() {
         readLock.lock();
     }
 
-    public void readUnLock() {
+    void readUnLock() {
         readLock.unlock();
     }
 }

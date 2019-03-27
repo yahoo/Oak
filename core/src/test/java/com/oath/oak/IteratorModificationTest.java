@@ -256,7 +256,7 @@ public class IteratorModificationTest {
         assertTrue(bufferValuesIterator.hasNext());
         assertNull(bufferValuesIterator.next());
 
-        Iterator<Map.Entry<ByteBuffer, OakRBuffer>> bufferEntriesIterator = oak.zc().entrySet().iterator();
+        Iterator<Map.Entry<OakRBuffer, OakRBuffer>> bufferEntriesIterator = oak.zc().entrySet().iterator();
         assertTrue(bufferEntriesIterator.hasNext());
         oak.zc().remove(generateString(3, KEY_SIZE));
         assertTrue(bufferEntriesIterator.hasNext());

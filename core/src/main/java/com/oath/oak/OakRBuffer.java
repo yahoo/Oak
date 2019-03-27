@@ -12,7 +12,7 @@ import java.util.function.Function;
 
 /**
  * A similar to read-only ByteBuffer interface that allows internal Oak data read access
- *
+ * <p>
  * Pay attention! There is no need to wrap each OakRBuffer interface implementation
  * with attach/detach thread, because OakRKeyBufferImpl is used only within keyIterator, which
  * has attach/detach thread on its own. For the same reason here is no transform() method.
@@ -130,9 +130,9 @@ public interface OakRBuffer {
 
     /**
      * Perform a transformation on the inner ByteBuffer atomically.
+     *
      * @param transformer The function to apply on the ByteBuffer
      * @return The return value of the transform
      */
-
     <T> T transform(Function<ByteBuffer, T> transformer);
 }

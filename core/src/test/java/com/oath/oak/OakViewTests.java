@@ -113,10 +113,10 @@ public class OakViewTests {
         }
         Arrays.sort(values);
 
-        Iterator<ByteBuffer> keyIterator = oak.zc().keySet().iterator();
+        Iterator<OakRBuffer> keyIterator = oak.zc().keySet().iterator();
         for (int i = 0; i < ELEMENTS; i++) {
-            ByteBuffer keyBB = keyIterator.next();
-            String key = deserialize.apply(keyBB);
+            OakRBuffer keyBB = keyIterator.next();
+            String key = keyBB.transform(deserialize);
             assertEquals(values[i], key);
         }
 
@@ -128,9 +128,9 @@ public class OakViewTests {
         }
 
 
-        Iterator<Map.Entry<ByteBuffer, OakRBuffer>> entryIterator = oak.zc().entrySet().iterator();
+        Iterator<Map.Entry<OakRBuffer, OakRBuffer>> entryIterator = oak.zc().entrySet().iterator();
         for (int i = 0; i < ELEMENTS; i++) {
-            Map.Entry<ByteBuffer, OakRBuffer> entryBB = entryIterator.next();
+            Map.Entry<OakRBuffer, OakRBuffer> entryBB = entryIterator.next();
             String value = entryBB.getValue().transform(deserialize);
             assertEquals(values[i], value);
         }
@@ -138,7 +138,7 @@ public class OakViewTests {
 
     @Test
     public void testTransformViewAPIs() {
-        Function<Map.Entry<ByteBuffer, OakRBuffer>, Integer> transform = (entry) -> {
+        Function<Map.Entry<OakRBuffer, OakRBuffer>, Integer> transformer = (entry) -> {
             assertNotNull(entry.getKey());
             assertNotNull(entry.getValue());
             int size = entry.getValue().getInt(0);
@@ -157,7 +157,7 @@ public class OakViewTests {
         }
         Arrays.sort(values);
 
-        Iterator<Integer> entryIterator = oak.zc().entrySet().stream().map(transform).iterator();
+        Iterator<Integer> entryIterator = oak.zc().entrySet().stream().map(transformer).iterator();
         for (int i = 0; i < ELEMENTS; i++) {
             Integer entryT = entryIterator.next();
             assertEquals(Integer.valueOf(values[i]), entryT);
