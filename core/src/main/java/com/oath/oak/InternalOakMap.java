@@ -29,7 +29,7 @@ class InternalOakMap<K, V> {
     final ConcurrentSkipListMap<Object, Chunk<K, V>> skiplist;    // skiplist of chunks for fast navigation
     private final AtomicReference<Chunk<K, V>> head;
     private final ByteBuffer minKey;
-    private final Comparator comparator;
+    private final Comparator<Object> comparator;
     private final MemoryManager memoryManager;
     private final AtomicInteger size;
     private final OakSerializer<K> keySerializer;
@@ -140,12 +140,14 @@ class InternalOakMap<K, V> {
     }
 
 
-    private Rebalancer.RebalanceResult rebalance(Chunk<K, V> c, K key, V value, Consumer<OakWBuffer> computer, Operation op) {
+
+
+    private Rebalancer.RebalanceResult rebalance(Chunk<K, V> c) {
+
         if (c == null) {
-            assert op == Operation.NO_OP;
             return null;
         }
-        Rebalancer rebalancer = new Rebalancer(c, comparator, true, memoryManager, keySerializer,
+        Rebalancer<K,V> rebalancer = new Rebalancer<>(c, comparator, true, memoryManager, keySerializer,
                 valueSerializer, threadIndexCalculator);
 
         rebalancer = rebalancer.engageChunks(); // maybe we encountered a different rebalancer
@@ -155,7 +157,7 @@ class InternalOakMap<K, V> {
         // will be redirected to help the rebalance procedure
         rebalancer.freeze();
 
-        Rebalancer.RebalanceResult result = rebalancer.createNewChunks(key, value, computer, op); // split or compact
+        Rebalancer.RebalanceResult result = rebalancer.createNewChunks(); // split or compact
         // if returned true then this thread was responsible for the creation of the new chunks
         // and it inserted the put
 
@@ -169,16 +171,12 @@ class InternalOakMap<K, V> {
 
         engaged.forEach(Chunk::release);
 
-        if (result.success && (result.oldHandle == null)) {
-            size.incrementAndGet();
-        }
-
         return result;
     }
 
     private void checkRebalance(Chunk c) {
         if (c.shouldRebalance()) {
-            rebalance(c, null, null, null, Operation.NO_OP);
+            rebalance(c);
         }
     }
 
@@ -225,7 +223,7 @@ class InternalOakMap<K, V> {
 
             // if prev chunk is marked - it is deleted, need to help split it and then continue
             if (prev.next.isMarked()) {
-                rebalance(prev, null, null, null, Operation.NO_OP);
+                rebalance(prev);
                 continue;
             }
 
@@ -284,36 +282,24 @@ class InternalOakMap<K, V> {
     }
 
     private Result<V> rebalancePutIfAbsent(Chunk<K, V> c, K key, V value, Function<ByteBuffer, V> transformer) {
-        Rebalancer.RebalanceResult result = rebalance(c, key, value, null, Operation.PUT_IF_ABSENT);
-        assert result != null;
-        if (!result.success) { // rebalance helped put
-            return putIfAbsent(key, value, transformer);
-        }
-        if (transformer == null) return Result.withFlag(result.oldHandle == null);
-        return Result.withValue((result.oldHandle != null) ? result.oldHandle.transform(transformer) : null);
+        Rebalancer.RebalanceResult result = rebalance(c);
+        return putIfAbsent(key, value, transformer);
     }
 
     private void rebalancePut(Chunk<K, V> c, K key, V value) {
-        Rebalancer.RebalanceResult result = rebalance(c, key, value, null, Operation.PUT);
-        assert result != null;
-        if (result.success) { // rebalance helped put
-            return;
-        }
+        Rebalancer.RebalanceResult result = rebalance(c);
         put(key, value, null);
     }
 
+
     private void rebalanceCompute(Chunk<K, V> c, K key, V value, Consumer<OakWBuffer> computer) {
-        Rebalancer.RebalanceResult result = rebalance(c, key, value, computer, Operation.COMPUTE);
-        assert result != null;
-        if (result.success) { // rebalance helped compute
-            return;
-        }
+        Rebalancer.RebalanceResult result = rebalance(c);
         putIfAbsentComputeIfPresent(key, value, computer);
     }
 
     private boolean rebalanceRemove(Chunk<K, V> c, K key) {
-        Rebalancer.RebalanceResult result = rebalance(c, key, null, null, Operation.REMOVE);
-        assert result != null;
+        Rebalancer.RebalanceResult result = rebalance(c);
+        //TODO YONIGO - is it ok?
         return result.success;
     }
 
@@ -321,7 +307,7 @@ class InternalOakMap<K, V> {
     private Handle finishAfterPublishing(Chunk.OpData opData, Chunk<K, V> c) {
         // set pointer to value
         Handle oldHandle = c.pointToValue(opData);
-        c.unpublish(opData);
+        c.unpublish();
         checkRebalance(c);
         return oldHandle;
     }
@@ -346,7 +332,7 @@ class InternalOakMap<K, V> {
         Chunk.State state = c.state();
         if (state == Chunk.State.INFANT) {
             // the infant is already connected so rebalancer won't add this put
-            rebalance(c.creator(), null, null, null, Operation.NO_OP);
+            rebalance(c.creator());
             put(key, value, transformer);
             return null;
         }
@@ -387,7 +373,7 @@ class InternalOakMap<K, V> {
         Chunk.OpData opData = new Chunk.OpData(Operation.PUT, ei, hi, prevHi, null);
 
         // publish put
-        if (!c.publish(opData)) {
+        if (!c.publish()) {
             rebalancePut(c, key, value);
             return null;
         }
@@ -414,7 +400,7 @@ class InternalOakMap<K, V> {
         Chunk.State state = c.state();
         if (state == Chunk.State.INFANT) {
             // the infant is already connected so rebalancer won't add this put
-            rebalance(c.creator(), null, null, null, Operation.NO_OP);
+            rebalance(c.creator());
             return putIfAbsent(key, value, transformer);
         }
         if (state == Chunk.State.FROZEN || state == Chunk.State.RELEASED) {
@@ -459,7 +445,7 @@ class InternalOakMap<K, V> {
         Chunk.OpData opData = new Chunk.OpData(Operation.PUT_IF_ABSENT, ei, hi, prevHi, null);
 
         // publish put
-        if (!c.publish(opData)) {
+        if (!c.publish()) {
             return rebalancePutIfAbsent(c, key, value, transformer);
         }
 
@@ -489,7 +475,7 @@ class InternalOakMap<K, V> {
         Chunk.State state = c.state();
         if (state == Chunk.State.INFANT) {
             // the infant is already connected so rebalancer won't add this put
-            rebalance(c.creator(), null, null, null, Operation.NO_OP);
+            rebalance(c.creator());
             putIfAbsentComputeIfPresent(key, value, computer);
             return;
         }
@@ -518,22 +504,22 @@ class InternalOakMap<K, V> {
             }
             int prevEi = c.linkEntry(ei, true, key);
             if (prevEi != ei) {
-                Handle handle = c.getHandle(prevEi);
-                if (handle == null) {
-                    ei = prevEi;
-                    prevHi = c.getHandleIndex(prevEi);
-                } else {
-                    if (handle.compute(computer)) {
+                prevHi = c.getHandleIndex(prevEi);
+                if (prevHi != -1) {
+                    if (c.getHandle(prevEi).compute(computer)) {
                         // compute was successful and handle wasn't found deleted; in case
                         // this handle was already found as deleted, continue to construct another handle
                         return;
                     }
+                } else {
+                    ei = prevEi;
                 }
             }
         }
 
         int hi = c.allocateHandle();
         if (hi == -1) {
+            //TODO YONIGO - free handle
             rebalanceCompute(c, key, value, computer);
             return;
         }
@@ -543,7 +529,8 @@ class InternalOakMap<K, V> {
         Chunk.OpData opData = new Chunk.OpData(Operation.COMPUTE, ei, hi, prevHi, computer);
 
         // publish put
-        if (!c.publish(opData)) {
+        if (!c.publish()) {
+            //TODO YONIGO - free handle
             rebalanceCompute(c, key, value, computer);
             return;
         }
@@ -594,7 +581,7 @@ class InternalOakMap<K, V> {
             Chunk.State state = c.state();
             if (state == Chunk.State.INFANT) {
                 // the infant is already connected so rebalancer won't add this put
-                rebalance(c.creator(), null, null, null, Operation.NO_OP);
+                rebalance(c.creator());
                 logical = false;
                 continue;
             }
@@ -612,7 +599,7 @@ class InternalOakMap<K, V> {
             Chunk.OpData opData = new Chunk.OpData(Operation.REMOVE, lookUp.entryIndex, -1, lookUp.handleIndex, null);
 
             // publish
-            if (!c.publish(opData)) {
+            if (!c.publish()) {
                 if (!rebalanceRemove(c, key)) {
                     logical = false;
                     continue;

@@ -13,8 +13,11 @@ import org.junit.Test;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.ConcurrentModificationException;
 import java.util.Iterator;
+import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.CyclicBarrier;
 import java.util.function.Consumer;
 
 import static junit.framework.TestCase.*;
@@ -185,9 +188,11 @@ public class MultiThreadTest {
 
     class RunThreadsDescend implements Runnable {
         CountDownLatch latch;
+        CyclicBarrier barrier;
 
-        RunThreadsDescend(CountDownLatch latch) {
+        RunThreadsDescend(CountDownLatch latch, CyclicBarrier barrier) {
             this.latch = latch;
+            this.barrier = barrier;
         }
 
         @Override
@@ -225,6 +230,13 @@ public class MultiThreadTest {
                 assertEquals(0, value.intValue());
             }
 
+            try {
+                barrier.await();
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            } catch (BrokenBarrierException e) {
+                e.printStackTrace();
+            }
 
             for (i = 2 * maxItemsPerChunk; i < 3 * maxItemsPerChunk; i++) {
                 oak.zc().remove(i);
@@ -277,8 +289,10 @@ public class MultiThreadTest {
 
     @Test
     public void testThreadsDescend() throws InterruptedException {
+        CyclicBarrier barrier = new CyclicBarrier(NUM_THREADS);
+
         for (int i = 0; i < NUM_THREADS; i++) {
-            threads.add(new Thread(new MultiThreadTest.RunThreadsDescend(latch)));
+            threads.add(new Thread(new MultiThreadTest.RunThreadsDescend(latch, barrier)));
         }
         for (int i = 0; i < NUM_THREADS; i++) {
             threads.get(i).start();
