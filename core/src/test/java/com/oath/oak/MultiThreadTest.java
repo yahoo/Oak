@@ -232,9 +232,7 @@ public class MultiThreadTest {
 
             try {
                 barrier.await();
-            } catch (InterruptedException e) {
-                e.printStackTrace();
-            } catch (BrokenBarrierException e) {
+            } catch (InterruptedException | BrokenBarrierException e) {
                 e.printStackTrace();
             }
 
@@ -256,6 +254,12 @@ public class MultiThreadTest {
 
             for (i = 2 * maxItemsPerChunk; i < 3 * maxItemsPerChunk; i++) {
                 oak.zc().computeIfPresent(i, computer);
+            }
+
+            try {
+                barrier.await();
+            } catch (InterruptedException | BrokenBarrierException e) {
+                e.printStackTrace();
             }
 
             for (i = 5 * maxItemsPerChunk; i < 6 * maxItemsPerChunk; i++) {
