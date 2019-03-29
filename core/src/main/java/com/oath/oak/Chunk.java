@@ -504,7 +504,6 @@ public class Chunk<K, V> {
         int foundHandleIdx = get(opData.entryIndex, OFFSET_HANDLE_INDEX);
 
         if (foundHandleIdx == expectedHandleIdx) {
-            //TODO YONIGO - can we get here?
             return null; // someone helped
         } else if (foundHandleIdx < 0) {
             // the handle was deleted, retry the attach
@@ -524,7 +523,7 @@ public class Chunk<K, V> {
                     return pointToValue(opData);
                 }
             }
-            return null;
+            return h;
         }
         // this is a put, try again
         opData.prevHandleIndex = foundHandleIdx;

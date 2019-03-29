@@ -291,12 +291,6 @@ class InternalOakMap<K, V> {
         put(key, value, null);
     }
 
-
-    private void rebalanceCompute(Chunk<K, V> c, K key, V value, Consumer<OakWBuffer> computer) {
-        Rebalancer.RebalanceResult result = rebalance(c);
-        putIfAbsentComputeIfPresent(key, value, computer);
-    }
-
     private boolean rebalanceRemove(Chunk<K, V> c, K key) {
         Rebalancer.RebalanceResult result = rebalance(c);
         //TODO YONIGO - is it ok?
@@ -424,13 +418,13 @@ class InternalOakMap<K, V> {
             }
             int prevEi = c.linkEntry(ei, true, key);
             if (prevEi != ei) {
-                Handle handle = c.getHandle(prevEi);
-                if (handle == null) {
-                    ei = prevEi;
-                    prevHi = c.getHandleIndex(prevEi);
-                } else {
+
+                prevHi = c.getHandleIndex(prevEi);
+                if (prevHi != -1 ) {
                     if (transformer == null) return Result.withFlag(false);
-                    return Result.withValue(handle.transform(transformer));
+                    return Result.withValue(c.getHandle(prevEi).transform(transformer));
+                } else {
+                    ei = prevEi;
                 }
             }
         }
@@ -455,7 +449,9 @@ class InternalOakMap<K, V> {
         return Result.withValue((oldHandle != null) ? oldHandle.transform(transformer) : null);
     }
 
-    void putIfAbsentComputeIfPresent(K key, V value, Consumer<OakWBuffer> computer) {
+
+    boolean putIfAbsentComputeIfPresent(K key, V value, Consumer<OakWBuffer> computer) {
+
         if (key == null || value == null || computer == null) {
             throw new NullPointerException();
         }
@@ -466,7 +462,7 @@ class InternalOakMap<K, V> {
             if (lookUp.handle.compute(computer)) {
                 // compute was successful and handle wasn't found deleted; in case
                 // this handle was already found as deleted, continue to construct another handle
-                return;
+                return false;
             }
         }
 
@@ -476,12 +472,11 @@ class InternalOakMap<K, V> {
         if (state == Chunk.State.INFANT) {
             // the infant is already connected so rebalancer won't add this put
             rebalance(c.creator());
-            putIfAbsentComputeIfPresent(key, value, computer);
-            return;
+            return putIfAbsentComputeIfPresent(key, value, computer);
         }
         if (state == Chunk.State.FROZEN || state == Chunk.State.RELEASED) {
-            rebalanceCompute(c, key, value, computer);
-            return;
+            rebalance(c);
+            return putIfAbsentComputeIfPresent(key, value, computer);
         }
 
         // we come here when no key was found, which can be in 3 cases:
@@ -499,8 +494,8 @@ class InternalOakMap<K, V> {
         if (ei == -1) {
             ei = c.allocateEntryAndKey(key);
             if (ei == -1) {
-                rebalanceCompute(c, key, value, computer);
-                return;
+                rebalance(c);
+                return putIfAbsentComputeIfPresent(key, value, computer);
             }
             int prevEi = c.linkEntry(ei, true, key);
             if (prevEi != ei) {
@@ -509,7 +504,7 @@ class InternalOakMap<K, V> {
                     if (c.getHandle(prevEi).compute(computer)) {
                         // compute was successful and handle wasn't found deleted; in case
                         // this handle was already found as deleted, continue to construct another handle
-                        return;
+                        return false;
                     }
                 } else {
                     ei = prevEi;
@@ -519,9 +514,8 @@ class InternalOakMap<K, V> {
 
         int hi = c.allocateHandle();
         if (hi == -1) {
-            //TODO YONIGO - free handle
-            rebalanceCompute(c, key, value, computer);
-            return;
+            rebalance(c);
+            return putIfAbsentComputeIfPresent(key, value, computer);
         }
 
         c.writeValue(hi, value); // write value in place
@@ -531,11 +525,11 @@ class InternalOakMap<K, V> {
         // publish put
         if (!c.publish()) {
             //TODO YONIGO - free handle
-            rebalanceCompute(c, key, value, computer);
-            return;
+            rebalance(c);
+            return putIfAbsentComputeIfPresent(key, value, computer);
         }
 
-        finishAfterPublishing(opData, c);
+        return finishAfterPublishing(opData, c) == null;
     }
 
     V remove(K key, V oldValue, Function<ByteBuffer, V> transformer) {

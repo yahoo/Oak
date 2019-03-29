@@ -157,8 +157,7 @@ public class FillTest {
         }
 
         long elapsedTime = stopTime - startTime;
-        System.out.println(elapsedTime);
-
+//        System.out.println(elapsedTime);
         oak.close();
 
     }
