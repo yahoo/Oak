@@ -89,9 +89,9 @@ public class ScanBenchmark
 
     @Benchmark
     public void bufferViewScan(Blackhole blackhole) {
-       Iterator<ByteBuffer> iterator = oakMap.zc().keySet().iterator();
+       Iterator<OakRBuffer> iterator = oakMap.zc().keySet().iterator();
         while (iterator.hasNext()) {
-            ByteBuffer val = iterator.next();
+            OakRBuffer val = iterator.next();
             blackhole.consume(val);
         }
     }
