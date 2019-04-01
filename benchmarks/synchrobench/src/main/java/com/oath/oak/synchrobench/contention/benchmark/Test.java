@@ -279,7 +279,7 @@ public class Test {
                             || currentArg.equals("-c")) {
                         Parameters.change = true;
                 } else if (currentArg.equals("--buffer")) {
-                        Parameters.bufferView = true;
+                        Parameters.zeroCopy = true;
                 } else if (currentArg.equals("--inc")) {
                         Parameters.keyDistribution = Parameters.KeyDist.INCREASING;
 				} else {
@@ -458,7 +458,7 @@ public class Test {
                 + Parameters.change
                 + "\n"
                 + "  Buffer view:            \t"
-                + Parameters.bufferView
+                + Parameters.zeroCopy
                 + "\n"
 				+ "  Benchmark:               \t"
 				+ Parameters.benchClassName;

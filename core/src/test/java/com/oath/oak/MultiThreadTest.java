@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2018 Oath Inc.
  * Licensed under the terms of the Apache 2.0 license.
  * Please see LICENSE file in the project root for terms.
@@ -17,7 +17,7 @@ import java.util.Iterator;
 import java.util.concurrent.CountDownLatch;
 import java.util.function.Consumer;
 
-import static junit.framework.TestCase.assertTrue;
+import static junit.framework.TestCase.*;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 
@@ -27,22 +27,22 @@ public class MultiThreadTest {
     private final int NUM_THREADS = 31;
     private ArrayList<Thread> threads;
     private CountDownLatch latch;
-    int maxItemsPerChunk = 2048;
-    int maxBytesPerChunkItem = Integer.BYTES;
+    private int maxItemsPerChunk = 2048;
 
 
     @Before
     public void init() {
-        OakMapBuilder builder = OakMapBuilder.getDefaultBuilder()
+        int maxBytesPerChunkItem = Integer.BYTES;
+        OakMapBuilder<Integer, Integer> builder = OakMapBuilder.getDefaultBuilder()
                 .setChunkMaxItems(maxItemsPerChunk)
                 .setChunkBytesPerItem(maxBytesPerChunkItem);
-        oak = (OakMap<Integer, Integer>) builder.build();
+        oak = builder.build();
         latch = new CountDownLatch(1);
         threads = new ArrayList<>(NUM_THREADS);
     }
 
     @After
-    public void finish() throws Exception{
+    public void finish() {
         oak.close();
     }
 
@@ -65,10 +65,10 @@ public class MultiThreadTest {
 
             for (Integer i = 0; i < (int) Math.round(0.5 * maxItemsPerChunk); i++) {
                 value = oak.get(i);
-                assertTrue(value == null);
+                assertNull(value);
             }
             for (Integer i = maxItemsPerChunk; i < 2 * maxItemsPerChunk; i++) {
-                oak.putIfAbsent(i, i);
+                oak.zc().putIfAbsent(i, i);
             }
             for (Integer i = maxItemsPerChunk; i < 2 * maxItemsPerChunk; i++) {
                 value = oak.get(i);
@@ -76,20 +76,20 @@ public class MultiThreadTest {
             }
             for (Integer i = 0; i < (int) Math.round(0.5 * maxItemsPerChunk); i++) {
                 value = oak.get(i);
-                assertTrue(value == null);
+                assertNull(value);
             }
             for (Integer i = 2 * maxItemsPerChunk; i < 3 * maxItemsPerChunk; i++) {
-                oak.putIfAbsent(i, i);
+                oak.zc().putIfAbsent(i, i);
             }
             for (Integer i = 2 * maxItemsPerChunk; i < 3 * maxItemsPerChunk; i++) {
-                oak.remove(i);
+                oak.zc().remove(i);
             }
             for (Integer i = maxItemsPerChunk; i < 2 * maxItemsPerChunk; i++) {
                 value = oak.get(i);
                 assertEquals(i, value);
             }
             for (Integer i = (int) Math.round(0.5 * maxItemsPerChunk); i < maxItemsPerChunk; i++) {
-                oak.putIfAbsent(i, i);
+                oak.zc().putIfAbsent(i, i);
             }
             for (Integer i = (int) Math.round(0.5 * maxItemsPerChunk); i < maxItemsPerChunk; i++) {
                 value = oak.get(i);
@@ -97,13 +97,13 @@ public class MultiThreadTest {
             }
             for (Integer i = 3 * maxItemsPerChunk; i < 4 * maxItemsPerChunk; i++) {
                 value = oak.get(i);
-                assertTrue(value == null);
+                assertNull(value);
             }
             for (Integer i = 3 * maxItemsPerChunk; i < 4 * maxItemsPerChunk; i++) {
-                oak.remove(i);
+                oak.zc().remove(i);
             }
 
-            Iterator valIter = oak.valuesIterator();
+            Iterator valIter = oak.values().iterator();
             Integer twiceMaxItemsPerChunk = 2 * maxItemsPerChunk;
             Integer c = (int) Math.round(0.5 * maxItemsPerChunk);
             while (valIter.hasNext() && c < twiceMaxItemsPerChunk) {
@@ -117,7 +117,7 @@ public class MultiThreadTest {
             Integer from = 0;
             Integer to = twiceMaxItemsPerChunk;
             try (OakMap sub = oak.subMap(from, true, to, false)) {
-                valIter = sub.valuesIterator();
+                valIter = sub.values().iterator();
                 c = (int) Math.round(0.5 * maxItemsPerChunk);
                 while (valIter.hasNext()) {
                     value = oak.get(c);
@@ -132,13 +132,13 @@ public class MultiThreadTest {
             from = 1;
             to = (int) Math.round(0.5 * maxItemsPerChunk);
             try (OakMap sub = oak.subMap(from, true, to, false)) {
-                valIter = sub.valuesIterator();
+                valIter = sub.values().iterator();
                 assertFalse(valIter.hasNext());
             }
             from = 4 * maxItemsPerChunk;
             to = 5 * maxItemsPerChunk;
             try (OakMap sub = oak.subMap(from, true, to, false)) {
-                valIter = sub.valuesIterator();
+                valIter = sub.values().iterator();
                 assertFalse(valIter.hasNext());
             }
 
@@ -150,7 +150,7 @@ public class MultiThreadTest {
                 ByteBuffer bb1 = ByteBuffer.allocate(4);
                 bb1.putInt(i + 1);
                 bb1.flip();
-                oak.putIfAbsent(i, i + 1);
+                oak.zc().putIfAbsent(i, i + 1);
             }
 
 
@@ -175,11 +175,11 @@ public class MultiThreadTest {
         }
         for (Integer i = 2 * maxItemsPerChunk; i < 4 * maxItemsPerChunk; i++) {
             Integer value = oak.get(i);
-            assertTrue(value == null);
+            assertNull(value);
         }
         for (Integer i = 0; i < (int) Math.round(0.5 * maxItemsPerChunk); i++) {
             Integer value = oak.get(i);
-            assertTrue(value == null);
+            assertNull(value);
         }
     }
 
@@ -203,13 +203,13 @@ public class MultiThreadTest {
             Iterator<Integer> iter;
 
             for (i = 0; i < 6 * maxItemsPerChunk; i++) {
-                oak.putIfAbsent(i, i);
+                oak.zc().putIfAbsent(i, i);
                 value = oak.get(i);
                 //TODO YONIGO - value can be null because of remove
                 assertEquals(i, value);
             }
 
-            iter = oak.valuesIterator();
+            iter = oak.values().iterator();
             i = 0;
             while (iter.hasNext() && i < 2 * maxItemsPerChunk) {
                 value = iter.next();
@@ -217,83 +217,59 @@ public class MultiThreadTest {
                 i++;
             }
 
-            try(OakMap oakDesc = oak.descendingMap()) {
-                iter = oakDesc.valuesIterator();
+            try(OakMap<Integer, Integer> oakDesc = oak.descendingMap()) {
+                iter = oakDesc.values().iterator();
                 while (iter.hasNext()) {
                     value = iter.next();
-                    if (value == null) {
-                        continue;
-                    }
                 }
                 assertEquals(0, value.intValue());
             }
 
 
             for (i = 2 * maxItemsPerChunk; i < 3 * maxItemsPerChunk; i++) {
-                oak.remove(i);
+                oak.zc().remove(i);
             }
-            iter = oak.valuesIterator();
+            iter = oak.values().iterator();
             i = 0;
             while (iter.hasNext()) {
                 i = iter.next();
-                if (i == null) {
-                    continue;
-                }
             }
             Assert.assertTrue(i > maxItemsPerChunk);
-            try(OakMap oakDesc = oak.descendingMap()) {
-                iter = oakDesc.valuesIterator();
-                while (iter.hasNext()) {
-                    i = iter.next();
-                    if (i == null) {
-                        continue;
-                    }
-                }
-            }
 
-            Consumer<ByteBuffer> computer = new Consumer<ByteBuffer>() {
-                @Override
-                public void accept(ByteBuffer oakWBuffer) {
-                    if (oakWBuffer.getInt(0) == 0) {
-                        oakWBuffer.putInt(0, 1);
-                    }
+            Consumer<OakWBuffer> computer = oakWBuffer -> {
+                if (oakWBuffer.getInt(0) == 0) {
+                    oakWBuffer.putInt(0, 1);
                 }
             };
 
             for (i = 2 * maxItemsPerChunk; i < 3 * maxItemsPerChunk; i++) {
-                oak.computeIfPresent(i, computer);
+                oak.zc().computeIfPresent(i, computer);
             }
 
             for (i = 5 * maxItemsPerChunk; i < 6 * maxItemsPerChunk; i++) {
-                oak.remove(i);
+                oak.zc().remove(i);
             }
 
-            iter = oak.valuesIterator();
+            iter = oak.values().iterator();
             i = 0;
             while (iter.hasNext()) {
                 i = iter.next();
-                if (i == null) {
-                    continue;
-                }
             }
 
-            try(OakMap oakDesc = oak.descendingMap()) {
-                iter = oakDesc.valuesIterator();
+            try(OakMap<Integer, Integer> oakDesc = oak.descendingMap()) {
+                iter = oakDesc.values().iterator();
                 while (iter.hasNext()) {
                     i = iter.next();
-                    if (i == null) {
-                        continue;
-                    }
                 }
                 assertTrue(i <= 1);
             }
 
             for (i = 0; i < 6 * maxItemsPerChunk; i++) {
-                oak.putIfAbsent(i, i);
+                oak.zc().putIfAbsent(i, i);
             }
 
             for (i = 0; i < maxItemsPerChunk; i++) {
-                oak.computeIfPresent(i, computer);
+                oak.zc().computeIfPresent(i, computer);
             }
 
         }
@@ -314,7 +290,7 @@ public class MultiThreadTest {
 
         for (Integer i = 0; i < 2 * maxItemsPerChunk; i++) {
             Integer value = oak.get(i);
-            assertTrue(value != null);
+            assertNotNull(value);
             if (i > 0)
                 assertEquals(i, value);
         }

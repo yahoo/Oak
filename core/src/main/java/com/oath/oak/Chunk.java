@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2018 Oath Inc.
  * Licensed under the terms of the Apache 2.0 license.
  * Please see LICENSE file in the project root for terms.
@@ -7,12 +7,10 @@
 package com.oath.oak;
 
 import sun.misc.Unsafe;
-
 import java.lang.reflect.Constructor;
 import java.nio.ByteBuffer;
 import java.util.Comparator;
 import java.util.EmptyStackException;
-import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicMarkableReference;
@@ -108,7 +106,8 @@ public class Chunk<K, V> {
           int bytesPerItem,
           AtomicInteger externalSize,
           OakSerializer<K> keySerializer,
-          OakSerializer<V> valueSerializer, ThreadIndexCalculator threadIndexCalculator) {
+          OakSerializer<V> valueSerializer,
+          ThreadIndexCalculator threadIndexCalculator) {
         this.memoryManager = memoryManager;
         this.maxItems = maxItems;
         this.maxKeyBytes = maxItems * bytesPerItem;
@@ -116,7 +115,7 @@ public class Chunk<K, V> {
         this.entryIndex = new AtomicInteger(FIRST_ITEM);
         this.handles = new Handle[maxItems + FIRST_ITEM];
         this.handleIndex = new AtomicInteger(FIRST_ITEM);
-        this.keysManager = new KeysManager<K>(this.maxKeyBytes, memoryManager, keySerializer);
+        this.keysManager = new KeysManager<>(this.maxKeyBytes, memoryManager, keySerializer);
         this.keyIndex = new AtomicInteger(FIRST_ITEM);
         this.sortedCount = new AtomicInteger(0);
         this.minKey = minKey;
@@ -150,9 +149,9 @@ public class Chunk<K, V> {
         final int entryIndex;
         final int handleIndex;
         int prevHandleIndex;
-        final Consumer<ByteBuffer> computer;
+        final Consumer<OakWBuffer> computer;
 
-        OpData(Operation op, int entryIndex, int handleIndex, int prevHandleIndex, Consumer<ByteBuffer> computer) {
+        OpData(Operation op, int entryIndex, int handleIndex, int prevHandleIndex, Consumer<OakWBuffer> computer) {
             this.op = op;
             this.entryIndex = entryIndex;
             this.handleIndex = handleIndex;
@@ -473,7 +472,6 @@ public class Chunk<K, V> {
      * write value in place
      **/
     void writeValue(int hi, V value) {
-        assert memoryManager != null;
         assert hi >= 0 ;
         ByteBuffer byteBuffer = memoryManager.allocate(valueSerializer.calculateSize(value));
         // just allocated bytebuffer is ensured to have position 0
@@ -489,14 +487,13 @@ public class Chunk<K, V> {
      * turn has the value. For linkage this is an insert linearization point.
      * All the relevant data can be found inside opData.
      *
-     * point to value
-     * if unsuccessful this means someone else got to it first (helping rebalancer or other operation)
+     * if someone else got to it first (helping rebalancer or other operation), returns the old handle
      */
-    boolean pointToValue(OpData opData) {
+    Handle pointToValue(OpData opData) {
 
         // try to perform the CAS according to operation data (opData)
         if (pointToValueCAS(opData, true)) {
-            return true;
+            return null;
         }
 
         // the straight forward helping didn't work, check why
@@ -505,7 +502,7 @@ public class Chunk<K, V> {
         // the operation is remove, means we tried to change the handle index we knew about to -1
         // the old handle index is no longer there so we have nothing to do
         if (operation == Operation.REMOVE) {
-            return true; // this is a remove, no need to try again and return doesn't matter
+            return null; // this is a remove, no need to try again and return doesn't matter
         }
 
         // the operation is either NO_OP, PUT, PUT_IF_ABSENT, COMPUTE
@@ -513,13 +510,13 @@ public class Chunk<K, V> {
         int foundHandleIdx = get(opData.entryIndex, OFFSET_HANDLE_INDEX);
 
         if (foundHandleIdx == expectedHandleIdx) {
-            return true; // someone helped
+            return null; // someone helped
         } else if (foundHandleIdx < 0) {
             // the handle was deleted, retry the attach
             opData.prevHandleIndex = -1;
             return pointToValue(opData); // remove completed, try again
         } else if (operation == Operation.PUT_IF_ABSENT) {
-            return false; // too late
+            return handles[foundHandleIdx]; // too late
         } else if (operation == Operation.COMPUTE){
             Handle h = handles[foundHandleIdx];
             if(h != null){
@@ -532,7 +529,7 @@ public class Chunk<K, V> {
                     return pointToValue(opData);
                 }
             }
-            return true;
+            return null;
         }
         // this is a put, try again
         opData.prevHandleIndex = foundHandleIdx;

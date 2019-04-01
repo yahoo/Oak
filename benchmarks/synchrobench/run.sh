@@ -66,7 +66,7 @@ for scenario in ${!scenarios[@]}; do
             for i in ${size}; do
               r=`echo "2*${i}" | bc`
               out=${output}/oak-${scenario}-${bench}-xmx${heapLimit}-DirectMeM${directMemSize}-t${t}-${gcAlg}.log
-              cmd="${java} ${javaopt} -jar ${jarfile} -b ${benchClassPrefix}.${bench} ${scenarios[$scenario]} -k ${keysize} -v ${valuesize} -i ${i} -r ${r} -n ${iterations} -t ${t} -d ${duration} -W ${warmup} --inc"
+              cmd="${java} ${javaopt} -jar ${jarfile} -b ${benchClassPrefix}.${bench} ${scenarios[$scenario]} -k ${keysize} -v ${valuesize} -i ${i} -r ${r} -n ${iterations} -t ${t} -d ${duration} -W ${warmup}"
               echo ${cmd}
               echo ${cmd} >> ${out}
               ${cmd} >> ${out} 2>&1

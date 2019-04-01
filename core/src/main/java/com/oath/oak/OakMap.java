@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2018 Oath Inc.
  * Licensed under the terms of the Apache 2.0 license.
  * Please see LICENSE file in the project root for terms.
@@ -7,16 +7,25 @@
 package com.oath.oak;
 
 import java.nio.ByteBuffer;
+import java.util.AbstractCollection;
 import java.util.AbstractMap;
+import java.util.AbstractSet;
+import java.util.Collection;
 import java.util.Comparator;
+import java.util.Iterator;
 import java.util.Map;
+import java.util.NavigableSet;
+import java.util.Set;
+import java.util.SortedSet;
+import java.util.concurrent.ConcurrentNavigableMap;
+import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
 /**
  * A concurrent map implementation which supports off-heap memory.
  */
-public class OakMap<K, V> implements AutoCloseable {
+public class OakMap<K, V> extends AbstractMap<K, V> implements AutoCloseable, ConcurrentNavigableMap<K, V> {
 
     private final InternalOakMap internalOakMap;
     /*
@@ -98,29 +107,38 @@ public class OakMap<K, V> implements AutoCloseable {
         this.isDescending = isDescending;
     }
 
-    /*-------------- size --------------*/
+    /* ------ Map API methods ------ */
 
     /**
-     * @return current off heap memory usage in bytes
+     * Returns the current number of key-value mappings in this map.
+     * Not supported for SubMaps.
+     *
+     * @return the number of key-value mappings in this map
+     * @throws UnsupportedOperationException if used on a SubMap
      */
-    public long memorySize() {
-        return internalOakMap.memorySize();
-    }
-
-    /**
-     * @return the current number of keys in the map.
-     * Isn't supported for SubMaps
-     */
-    public int entries() {
-        if (this.fromKey != null || this.toKey != null) {
-            // this is a SubMap, for SubMap number of keys can not be counted
-            throw new UnsupportedOperationException();
-        }
+    @Override
+    public int size() {
+        if (this.isSubmap()) throw new UnsupportedOperationException();
 
         return internalOakMap.entries();
     }
 
-    /* ------ Map API methods ------ */
+    /**
+     * Returns a deserialized copy of the value to which the specified key is
+     * mapped, or {@code null} if this map contains no mapping for the key.
+     *
+     * @param key the key whose associated value is to be returned
+     * @return the value associated with that key, or
+     * {@code null} if this map contains no mapping for the key
+     * @throws NullPointerException     if the specified key is null
+     * @throws IllegalArgumentException if the specified key is out of bounds
+     */
+    @Override
+    public V get(Object key) {
+        checkKey(key);
+
+        return (V) internalOakMap.getValueTransformation(key, valueDeserializeTransformer);
+    }
 
     /**
      * Associates the specified value with the specified key in this map.
@@ -128,16 +146,118 @@ public class OakMap<K, V> implements AutoCloseable {
      * value is replaced.
      * Creates a copy of the value in the map.
      *
-     * @param key   key with which the specified value is to be associated
-     * @param value value to be associated with the specified key
-     * @throws IllegalArgumentException if the specified key is null
+     * @param key the key whose associated value is to be returned
+     * @return the value associated with that key, or
+     * {@code null} if this map contains no mapping for the key
+     * @throws NullPointerException     if the specified key is null
+     * @throws IllegalArgumentException if the specified key is out of bounds
      */
-    public void put(K key, V value) {
-        if (key == null || value == null)
-            throw new IllegalArgumentException();
-        if (!inBounds(key))
-            throw new IllegalArgumentException("The key is out of map bounds");
-        internalOakMap.put(key, value);
+    @Override
+    public V put(K key, V value) {
+        checkKey(key);
+        if (value == null)
+            throw new NullPointerException();
+
+        return (V) internalOakMap.put(key, value, valueDeserializeTransformer);
+    }
+
+    /**
+     * Removes the mapping for a key from this map if it is present.
+     *
+     * @param key key whose mapping is to be removed from the map
+     * @return the previous value associated with the provided key, or
+     * {@code null} if this map contains no mapping for the key
+     * @throws NullPointerException     if the specified key is null
+     * @throws IllegalArgumentException if the specified key is out of bounds
+     */
+    @Override
+    public V remove(Object key) {
+        checkKey(key);
+
+        return (V) internalOakMap.remove(key, null, valueDeserializeTransformer);
+    }
+
+    /* ------ SortedMap API methods ------ */
+
+    @Override
+    public Comparator<? super K> comparator() {
+        return comparator;
+    }
+
+    /**
+     * Returns the minimal key in the map,
+     * or {@code null} if this map contains no keys.
+     *
+     * @return the minimal key in the map, or {@code null} if this map contains
+     * no keys.
+     * @throws UnsupportedOperationException if used on a SubMap
+     */
+    @Override
+    public K firstKey() {
+        // this interface shouldn't be used with subMap
+        if (this.isSubmap()) throw new UnsupportedOperationException();
+
+        return (K) internalOakMap.getMinKeyTransformation(keyDeserializeTransformer);
+    }
+
+    /**
+     * Returns the maximal key in the map,
+     * or {@code null} if this map contains no keys.
+     *
+     * @return the maximal key in the map, or {@code null} if this map contains
+     * no keys.
+     * @throws UnsupportedOperationException if used on a SubMap
+     */
+    @Override
+    public K lastKey() {
+        // this interface shouldn't be used with subMap
+        if (this.isSubmap()) throw new UnsupportedOperationException();
+
+        return (K) internalOakMap.getMaxKeyTransformation(keyDeserializeTransformer);
+    }
+
+    /* ------ ConcurrentMap API methods ------ */
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public boolean remove(Object key, Object value) {
+        checkKey(key);
+
+        return (value != null) && (internalOakMap.remove(key, value, valueDeserializeTransformer) != null);
+    }
+
+
+    /**
+     * {@inheritDoc}
+     *
+     * @throws NullPointerException     if the specified key or value is null
+     * @throws IllegalArgumentException if the specified key is out of bounds
+     */
+    @Override
+    public V replace(K key, V value) {
+        checkKey(key);
+        if (value == null)
+            throw new NullPointerException();
+
+        return (V) internalOakMap.replace(key, value, valueDeserializeTransformer);
+    }
+
+
+    /**
+     * {@inheritDoc}
+     *
+     * @throws NullPointerException     if any of the arguments are null
+     * @throws IllegalArgumentException if the specified key is out of bounds
+     */
+    @Override
+    public boolean replace(K key, V oldValue, V newValue) {
+        checkKey(key);
+        if (oldValue == null || newValue == null)
+            throw new NullPointerException();
+
+        return internalOakMap.replace(key, oldValue, newValue, valueDeserializeTransformer);
     }
 
     /**
@@ -147,114 +267,55 @@ public class OakMap<K, V> implements AutoCloseable {
      *
      * @param key   key with which the specified value is to be associated
      * @param value value to be associated with the specified key
-     * @return {@code true} if there was no mapping for the key
-     * @throws IllegalArgumentException if the specified key or value is null
+     * @return {@code null} if there was no mapping for the key
+     * @throws NullPointerException     if the specified key or value is null
+     * @throws IllegalArgumentException if the specified key is out of bounds
      */
-    public boolean putIfAbsent(K key, V value) {
-        if (key == null || value == null)
-            throw new IllegalArgumentException();
-        if (!inBounds(key))
-            throw new IllegalArgumentException("The key is out of map bounds");
-        return internalOakMap.putIfAbsent(key, value);
+    public V putIfAbsent(K key, V value) {
+        checkKey(key);
+        if (value == null)
+            throw new NullPointerException();
+
+        return (V) internalOakMap.putIfAbsent(key, value, valueDeserializeTransformer).value;
+    }
+
+
+    /* ---------------- NavigableMap API methods -------------- */
+
+    /**
+     * {@inheritDoc}
+     *
+     * @throws UnsupportedOperationException if used on a SubMap
+     */
+    @Override
+    public Entry<K, V> lowerEntry(K key) {
+        if (this.isSubmap()) throw new UnsupportedOperationException();
+
+        if (key == null) throw new NullPointerException();
+
+        return internalOakMap.lowerEntry(key);
     }
 
     /**
-     * Removes the mapping for a key from this map if it is present.
+     * {@inheritDoc}
      *
-     * @param key key whose mapping is to be removed from the map
-     * @throws IllegalArgumentException if the specified key is null
+     * @throws UnsupportedOperationException if used on a SubMap
      */
-    public void remove(K key) {
-        if (key == null)
-            throw new IllegalArgumentException();
-        if (!inBounds(key))
-            throw new IllegalArgumentException("The key is out of map bounds");
-        internalOakMap.remove(key);
+    @Override
+    public K lowerKey(K key) {
+        if (this.isSubmap()) throw new UnsupportedOperationException();
+
+        if (key == null) throw new NullPointerException();
+
+        return (K) internalOakMap.lowerEntry(key).getKey();
     }
 
-    /**
-     * Returns a read only view of the value to which the specified key is mapped,
-     * or {@code null} if this map contains no mapping for the key.
-     *
-     * @param key the key whose associated value is to be returned
-     * @return the value associated with that key, or
-     * {@code null} if this map contains no mapping for the key
-     * @throws IllegalArgumentException if the specified key is null
-     */
-    public V get(K key) {
-        if (key == null)
-            throw new IllegalArgumentException();
-        if (!inBounds(key))
-            throw new IllegalArgumentException("The key is out of map bounds");
-        return (V) internalOakMap.getValueTransformation(key, valueDeserializeTransformer);
-    }
 
-    /**
-     * Returns the minimal key in the map,
-     * or {@code null} if this map contains no keys.
-     *
-     * @return the minimal key in the map,
-     * or {@code null} if this map contains no keys.
-     */
-    public K getMinKey() {
-        if (this.fromKey != null || this.toKey != null) {
-            // this interface shouldn't be used with subMap
-            throw new UnsupportedOperationException();
-        }
-        return (K) internalOakMap.getMinKeyTransformation(keyDeserializeTransformer);
-    }
-
-    /**
-     * Returns the maximal key in the map,
-     * or {@code null} if this map contains no keys.
-     *
-     * @return the maximal key in the map,
-     * or {@code null} if this map contains no keys.
-     */
-    public K getMaxKey() {
-        if (this.fromKey != null || this.toKey != null) {
-            // this interface shouldn't be used with subMap
-            throw new UnsupportedOperationException();
-        }
-        return (K) internalOakMap.getMaxKeyTransformation(keyDeserializeTransformer);
-    }
-
-    /**
-     * Updates the value for the specified key
-     *
-     * @param key      key with which the calculation is to be associated
-     * @param computer for computing the new value
-     * @return {@code false} if there was no mapping for the key
-     * @throws IllegalArgumentException if the specified key or the function is null
-     */
-    public boolean computeIfPresent(K key, Consumer<ByteBuffer> computer) {
-        if (key == null || computer == null)
-            throw new IllegalArgumentException();
-        if (!inBounds(key))
-            throw new IllegalArgumentException("The key is out of map bounds");
-        return internalOakMap.computeIfPresent(key, computer);
-    }
-
-    /**
-     * If the specified key is not already associated
-     * with a value, associate it with a constructed value.
-     * Else, updates the value for the specified key.
-     *
-     * @param key         key with which the specified value is to be associated
-     * @param value       value to be associated with the specified key
-     * @param computer    for computing the new value when the key is present
-     */
-    public void putIfAbsentComputeIfPresent(K key, V value, Consumer<ByteBuffer> computer) {
-        if (key == null || value == null || computer == null)
-            throw new IllegalArgumentException();
-        if (!inBounds(key))
-            throw new IllegalArgumentException("The key is out of map bounds");
-        internalOakMap.putIfAbsentComputeIfPresent(key, value, computer);
-    }
+    /* ---------------- ConcurrentNavigableMap API methods -------------- */
 
     /*-------------- SubMap --------------*/
-    // package visibility to be used by the views
-    public boolean inBounds(K key) {
+
+    boolean inBounds(Object key) {
         int res;
         if (fromKey != null) {
             res = comparator.compare(key, fromKey);
@@ -301,6 +362,10 @@ public class OakMap<K, V> implements AutoCloseable {
         return subMap(fromKey, fromInclusive, toKey, toInclusive, this.isDescending);
     }
 
+    @Override
+    public OakMap<K, V> subMap(K fromKey, K toKey) {
+        return subMap(fromKey, true, toKey, false, this.isDescending);
+    }
 
     public OakMap<K, V> subMap(K fromKey, boolean fromInclusive, K toKey, boolean toInclusive, boolean descending) {
 
@@ -333,7 +398,7 @@ public class OakMap<K, V> implements AutoCloseable {
      *                                  restricted range, and {@code toKey} lies outside the
      *                                  bounds of the range
      */
-    public OakMap<K,V> headMap(K toKey, boolean inclusive) {
+    public OakMap<K, V> headMap(K toKey, boolean inclusive) {
         if (this.fromKey != null && this.comparator.compare(this.fromKey, toKey) > 0) {
             throw new IllegalArgumentException();
         }
@@ -341,6 +406,12 @@ public class OakMap<K, V> implements AutoCloseable {
         return new OakMap<K, V>(this.internalOakMap, this.memoryManager, this.keyDeserializeTransformer,
                 this.valueDeserializeTransformer, this.entryDeserializeTransformer, this.comparator, this.fromKey,
                 this.fromInclusive, toKey, inclusive, this.isDescending, threadIndexCalculator);
+    }
+
+
+    @Override
+    public ConcurrentNavigableMap<K, V> headMap(K toKey) {
+        return headMap(toKey, false);
     }
 
     /**
@@ -373,7 +444,10 @@ public class OakMap<K, V> implements AutoCloseable {
                 inclusive, this.toKey, this.toInclusive, this.isDescending, threadIndexCalculator);
     }
 
-    /* ---------------- Retrieval methods -------------- */
+    @Override
+    public ConcurrentNavigableMap<K, V> tailMap(K fromKey) {
+        return tailMap(fromKey, true);
+    }
 
     /**
      * Returns a reverse order view of the mappings contained in this map.
@@ -391,47 +465,119 @@ public class OakMap<K, V> implements AutoCloseable {
                 this.fromKey, this.fromInclusive, this.toKey, this.toInclusive, true, threadIndexCalculator);
     }
 
-    /**
-     * Returns a {@link OakIterator} of the values contained in this map
-     * in ascending order of the corresponding keys.
-     */
-    public OakIterator<V> valuesIterator() {
-        return internalOakMap.valuesTransformIterator(fromKey, fromInclusive, toKey, toInclusive, isDescending, valueDeserializeTransformer);
+    @Override
+    public NavigableSet<K> navigableKeySet() {
+        return new KeySet<>(this);
     }
 
-    /**
-     * Returns a {@link OakIterator} of the mappings contained in this map in ascending key order.
-     */
-    public OakIterator<Map.Entry<K, V>> entriesIterator() {
-        return internalOakMap.entriesTransformIterator(fromKey, fromInclusive, toKey, toInclusive, isDescending, entryDeserializeTransformer);
+    @Override
+    public NavigableSet<K> keySet() {
+        return new KeySet<>(this);
     }
 
-    /**
-     * Returns a {@link OakIterator} of the keys contained in this map in ascending order.
-     */
-    public OakIterator<K> keysIterator() {
-        return internalOakMap.keysTransformIterator(fromKey, fromInclusive, toKey, toInclusive, isDescending, keyDeserializeTransformer);
+    @Override
+    public NavigableSet<K> descendingKeySet() {
+        return descendingMap().navigableKeySet();
     }
 
-    /* ---------------- View methods -------------- */
-    /**
-     * Return the OakMap view, where the mappings are presented as OakBuffers without costly deserialization
-     */
-    public OakBufferView<K> createBufferView(){
-        return new OakBufferView(internalOakMap,this, fromKey, toKey);
+    @Override
+    public Set<Entry<K, V>> entrySet() {
+        return new EntrySet<>(this);
     }
 
-    /**
-     * Return the OakMap view, where the mappings are presented as OakBuffers without costly deserialization
-     */
-    public <T> OakTransformView<K, T> createTransformView(Function<Map.Entry<ByteBuffer, ByteBuffer>, T> transformer){
-        return new OakTransformView<K, T>(internalOakMap,this, fromKey, toKey, transformer);
+    @Override
+    public Collection<V> values() {
+        return new Values<>(this);
     }
+
+    /* ------ Zero-Copy API methods  ------ */
+
+    public ZeroCopyMap<K, V> zc() {
+        return new OakZeroCopyMap<>(this);
+    }
+
+    public static class OakZeroCopyMap<K, V> implements ZeroCopyMap<K, V> {
+        private OakMap<K, V> m;
+
+        OakZeroCopyMap(OakMap<K, V> kvOakMap) {
+            this.m = kvOakMap;
+        }
+
+        public void put(K key, V value) {
+            m.checkKey(key);
+            if (value == null)
+                throw new NullPointerException();
+
+            m.internalOakMap.put(key, value, null);
+        }
+
+        public OakRBuffer get(K key) {
+            m.checkKey(key);
+
+            return m.internalOakMap.get(key);
+        }
+
+        public void remove(Object key) {
+            m.checkKey(key);
+
+            m.internalOakMap.remove(key, null, null);
+        }
+
+        public boolean putIfAbsent(K key, V value) {
+            m.checkKey(key);
+            if (value == null)
+                throw new NullPointerException();
+
+            return m.internalOakMap.putIfAbsent(key, value, null).flag;
+        }
+
+        public boolean computeIfPresent(K key, Consumer<OakWBuffer> computer) {
+            m.checkKey(key);
+            if (computer == null)
+                throw new NullPointerException();
+
+            return m.internalOakMap.computeIfPresent(key, computer);
+        }
+
+        public void putIfAbsentComputeIfPresent(K key, V value, Consumer<OakWBuffer> computer) {
+            m.checkKey(key);
+            if (value == null || computer == null)
+                throw new IllegalArgumentException();
+
+            m.internalOakMap.putIfAbsentComputeIfPresent(key, value, computer);
+        }
+
+
+        public Set<OakRBuffer> keySet() {
+            return new KeyBufferSet<>(m);
+        }
+
+        public Collection<OakRBuffer> values() {
+            return new ValueBuffers<>(m);
+        }
+
+        public Set<Entry<OakRBuffer, OakRBuffer>> entrySet() {
+            return new EntryBufferSet<>(m);
+        }
+    }
+
+
+    /* ----------- Oak misc methods ----------- */
+
+    /**
+     * @return current off heap memory usage in bytes
+     */
+    public long memorySize() {
+        return internalOakMap.memorySize();
+    }
+
 
     /* ---------------- Package visibility getters for the views methods -------------- */
-    MemoryManager getMemoryManager() { return memoryManager; }
+    MemoryManager getMemoryManager() {
+        return memoryManager;
+    }
 
-    boolean getIsDescending(){
+    boolean getIsDescending() {
         return isDescending;
     }
 
@@ -443,7 +589,333 @@ public class OakMap<K, V> implements AutoCloseable {
         return toInclusive;
     }
 
-    @Override public void close() {
+    @Override
+    public void close() {
         internalOakMap.close();
     }
+
+
+    /* ---------------- Private utility methods -------------- */
+
+    void checkKey(Object key) {
+        if (key == null)
+            throw new NullPointerException();
+        if (!inBounds(key))
+            throw new IllegalArgumentException("The key is out of map bounds");
+
+    }
+
+    private boolean isSubmap() {
+        return (this.fromKey != null || this.toKey != null);
+    }
+
+    /**
+     * Returns a {@link Iterator} of the values contained in this map
+     * in ascending order of the corresponding keys.
+     */
+    private Iterator<V> valuesIterator() {
+        return internalOakMap.valuesTransformIterator(fromKey, fromInclusive, toKey, toInclusive, isDescending, valueDeserializeTransformer);
+    }
+
+    /**
+     * Returns a {@link Iterator} of the mappings contained in this map in ascending key order.
+     */
+    private Iterator<Map.Entry<K, V>> entriesIterator() {
+        return internalOakMap.entriesTransformIterator(fromKey, fromInclusive, toKey, toInclusive, isDescending, entryDeserializeTransformer);
+    }
+
+    /**
+     * Returns a {@link Iterator} of the keys contained in this map in ascending order.
+     */
+    private Iterator<K> keysIterator() {
+        return internalOakMap.keysTransformIterator(fromKey, fromInclusive, toKey, toInclusive, isDescending, keyDeserializeTransformer);
+    }
+
+    private Iterator<OakRBuffer> keysBufferIterator() {
+        return internalOakMap.keysBufferViewIterator(fromKey, fromInclusive, toKey, toInclusive, isDescending);
+    }
+
+
+    private Iterator<OakRBuffer> valuesBufferIterator() {
+        return internalOakMap.valuesBufferViewIterator(fromKey, fromInclusive, toKey, toInclusive, isDescending);
+    }
+
+    private Iterator<Map.Entry<OakRBuffer, OakRBuffer>> entriesBufferIterator() {
+        return internalOakMap.entriesBufferViewIterator(fromKey, fromInclusive, toKey, toInclusive, isDescending);
+    }
+
+    /* ---------------- TODO: Move methods below to their proper place as they are implemented -------------- */
+
+
+    @Override
+    public void replaceAll(BiFunction<? super K, ? super V, ? extends V> function) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public V computeIfAbsent(K key, Function<? super K, ? extends V> mappingFunction) {
+        return null;
+    }
+
+    @Override
+    public V compute(K key, BiFunction<? super K, ? super V, ? extends V> remappingFunction) {
+        return null;
+    }
+
+    @Override
+    public V merge(K key, V value, BiFunction<? super V, ? super V, ? extends V> remappingFunction) {
+        return null;
+    }
+
+    @Override
+    public Entry<K, V> floorEntry(K key) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public K floorKey(K key) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public Entry<K, V> ceilingEntry(K key) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public K ceilingKey(K key) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public Entry<K, V> higherEntry(K key) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public K higherKey(K key) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public Entry<K, V> firstEntry() {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public Entry<K, V> lastEntry() {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public Entry<K, V> pollFirstEntry() {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public Entry<K, V> pollLastEntry() {
+        throw new UnsupportedOperationException();
+    }
+
+    /* ---------------- View Classes -------------- */
+
+    static class KeySet<K> extends AbstractSet<K> implements NavigableSet<K> {
+
+        private final OakMap<K, ?> m;
+
+        KeySet(OakMap<K, ?> m) {
+            this.m = m;
+        }
+
+        @Override
+        public K lower(K k) {
+            return m.lowerKey(k);
+        }
+
+        @Override
+        public K floor(K k) {
+            return m.floorKey(k);
+        }
+
+        @Override
+        public K ceiling(K k) {
+            return m.ceilingKey(k);
+        }
+
+        @Override
+        public K higher(K k) {
+            return m.higherKey(k);
+        }
+
+        @Override
+        public K pollFirst() {
+            Map.Entry<K, ?> e = m.pollFirstEntry();
+            return (e == null) ? null : e.getKey();
+        }
+
+        @Override
+        public K pollLast() {
+            Map.Entry<K, ?> e = m.pollLastEntry();
+            return (e == null) ? null : e.getKey();
+        }
+
+        @Override
+        public Iterator<K> iterator() {
+            return m.keysIterator();
+        }
+
+        @Override
+        public NavigableSet<K> descendingSet() {
+            return new KeySet<>(m.descendingMap());
+        }
+
+        @Override
+        public Iterator<K> descendingIterator() {
+            return descendingSet().iterator();
+        }
+
+        @Override
+        public NavigableSet<K> subSet(K fromElement, boolean fromInclusive, K toElement, boolean toInclusive) {
+            return new KeySet<>(m.subMap(fromElement, fromInclusive, toElement, toInclusive));
+        }
+
+        @Override
+        public NavigableSet<K> headSet(K toElement, boolean inclusive) {
+            return new KeySet<>(m.headMap(toElement, inclusive));
+        }
+
+        @Override
+        public NavigableSet<K> tailSet(K fromElement, boolean inclusive) {
+            return new KeySet<>(m.tailMap(fromElement, inclusive));
+        }
+
+        @Override
+        public Comparator<? super K> comparator() {
+            return m.comparator();
+        }
+
+        @Override
+        public SortedSet<K> subSet(K fromElement, K toElement) {
+            return subSet(fromElement, true, toElement, false);
+        }
+
+        @Override
+        public SortedSet<K> headSet(K toElement) {
+            return headSet(toElement, false);
+        }
+
+        @Override
+        public SortedSet<K> tailSet(K fromElement) {
+            return tailSet(fromElement, true);
+        }
+
+        @Override
+        public K first() {
+            return m.firstKey();
+        }
+
+        @Override
+        public K last() {
+            return m.lastKey();
+        }
+
+        @Override
+        public int size() {
+            return m.size();
+        }
+    }
+
+    static class EntrySet<K, V> extends AbstractSet<Map.Entry<K, V>> {
+        private final OakMap<K, V> m;
+
+        EntrySet(OakMap<K, V> m) {
+            this.m = m;
+        }
+
+        @Override
+        public Iterator<Entry<K, V>> iterator() {
+            return m.entriesIterator();
+        }
+
+        @Override
+        public int size() {
+            return m.size();
+        }
+    }
+
+    static final class Values<V> extends AbstractCollection<V> {
+
+        private final OakMap<?, V> m;
+
+        public Values(OakMap<?, V> oakMap) {
+            this.m = oakMap;
+        }
+
+        @Override
+        public Iterator<V> iterator() {
+            return m.valuesIterator();
+        }
+
+        @Override
+        public int size() {
+            return m.size();
+        }
+    }
+
+    static final class KeyBufferSet<K, V> extends AbstractSet<OakRBuffer> {
+
+        private final OakMap<K, V> m;
+
+        public KeyBufferSet(OakMap<K, V> oakMap) {
+            this.m = oakMap;
+        }
+
+        @Override
+        public Iterator<OakRBuffer> iterator() {
+            return m.keysBufferIterator();
+        }
+
+        @Override
+        public int size() {
+            return m.size();
+        }
+    }
+
+    static class EntryBufferSet<K, V> extends AbstractSet<Entry<OakRBuffer, OakRBuffer>> {
+        private final OakMap<K, V> m;
+
+        EntryBufferSet(OakMap<K, V> m) {
+            this.m = m;
+        }
+
+        @Override
+        public Iterator<Entry<OakRBuffer, OakRBuffer>> iterator() {
+            return m.entriesBufferIterator();
+        }
+
+        @Override
+        public int size() {
+            return m.size();
+        }
+    }
+
+    static final class ValueBuffers<K, V> extends AbstractCollection<OakRBuffer> {
+
+        private final OakMap<K, V> m;
+
+        public ValueBuffers(OakMap<K, V> oakMap) {
+            this.m = oakMap;
+        }
+
+        @Override
+        public Iterator<OakRBuffer> iterator() {
+            return m.valuesBufferIterator();
+        }
+
+        @Override
+        public int size() {
+            return m.size();
+        }
+    }
+
 }

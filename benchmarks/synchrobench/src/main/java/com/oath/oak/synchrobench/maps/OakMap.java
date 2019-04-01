@@ -1,18 +1,18 @@
 package com.oath.oak.synchrobench.maps;
 
 
-import com.oath.oak.*;
+import com.oath.oak.Chunk;
 import com.oath.oak.NativeAllocator.OakNativeMemoryAllocator;
+import com.oath.oak.OakMapBuilder;
 import com.oath.oak.synchrobench.contention.abstractions.CompositionalOakMap;
 import com.oath.oak.synchrobench.contention.benchmark.Parameters;
 
-import java.nio.ByteBuffer;
+import java.util.Iterator;
 
-public class OakMap<K, V> implements CompositionalOakMap<K, V> {
+public class OakMap<K extends MyBuffer, V extends MyBuffer> implements CompositionalOakMap<K, V> {
     private com.oath.oak.OakMap<MyBuffer, MyBuffer> oak;
     private OakMapBuilder<MyBuffer, MyBuffer> builder;
     private MyBuffer minKey;
-    private OakBufferView oakView;
     private OakNativeMemoryAllocator ma;
 
     public OakMap() {
@@ -31,31 +31,29 @@ public class OakMap<K, V> implements CompositionalOakMap<K, V> {
                 .setChunkMaxItems(Chunk.MAX_ITEMS_DEFAULT)
                 .setMemoryAllocator(ma);
         oak = builder.build();
-        oakView = oak.createBufferView();
     }
 
     @Override
     public boolean getOak(K key) {
-        if (Parameters.bufferView) {
-            OakBufferView<MyBuffer> bufferView = oak.createBufferView();
-            return bufferView.get((MyBuffer) key) != null;
+        if (Parameters.zeroCopy) {
+            return oak.zc().get(key) != null;
         }
-        return oak.get((MyBuffer) key) != null;
+        return oak.get(key) != null;
     }
 
     @Override
     public void putOak(K key, V value) {
-        oak.put((MyBuffer) key, (MyBuffer) value);
+        oak.zc().put(key, value);
     }
 
     @Override
     public boolean putIfAbsentOak(K key, V value) {
-        return oak.putIfAbsent((MyBuffer) key, (MyBuffer) value);
+        return oak.zc().putIfAbsent(key, value);
     }
 
     @Override
     public void removeOak(K key) {
-        oak.remove((MyBuffer) key);
+        oak.remove(key);
     }
 
     @Override
@@ -70,7 +68,7 @@ public class OakMap<K, V> implements CompositionalOakMap<K, V> {
 
     @Override
     public boolean ascendOak(K from, int length) {
-        com.oath.oak.OakMap<MyBuffer, MyBuffer> sub = oak.tailMap((MyBuffer) from, true);
+        com.oath.oak.OakMap<MyBuffer, MyBuffer> sub = oak.tailMap(from, true);
 
         boolean result = createAndScanView(sub, length);
 
@@ -82,7 +80,7 @@ public class OakMap<K, V> implements CompositionalOakMap<K, V> {
     @Override
     public boolean descendOak(K from, int length) {
         com.oath.oak.OakMap<MyBuffer, MyBuffer> desc = oak.descendingMap();
-        com.oath.oak.OakMap<MyBuffer, MyBuffer> sub = desc.tailMap((MyBuffer) from, true);
+        com.oath.oak.OakMap<MyBuffer, MyBuffer> sub = desc.tailMap(from, true);
 
         boolean result = createAndScanView(sub, length);
 
@@ -93,28 +91,17 @@ public class OakMap<K, V> implements CompositionalOakMap<K, V> {
     }
 
     private boolean createAndScanView(com.oath.oak.OakMap<MyBuffer, MyBuffer> subMap, int length) {
-        OakIterator<ByteBuffer> iter;
-        Runnable closeView;
-        if (Parameters.bufferView) {
-            OakBufferView<MyBuffer> oakView = subMap.createBufferView();
-            iter = oakView.keysIterator();
-            closeView = () -> oakView.close();
+        Iterator iter;
+        if (Parameters.zeroCopy) {
+            iter = subMap.zc().keySet().iterator();
         } else {
-            OakTransformView<MyBuffer, ByteBuffer> transformView = subMap.createTransformView(e -> MyBufferOak.serializer.deserialize(e.getKey()).buffer);
-            iter = transformView.keysIterator();
-            closeView = () -> transformView.close();
+            iter = subMap.keySet().iterator();
         }
 
-        boolean result = iterate(iter, length);
-        try {
-            closeView.run();
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-        return result;
+        return iterate(iter, length);
     }
 
-    private boolean iterate(OakIterator<ByteBuffer> iter, int length) {
+    private boolean iterate(Iterator iter, int length) {
         int i = 0;
         while (iter.hasNext() && i < length) {
             i++;
@@ -125,11 +112,6 @@ public class OakMap<K, V> implements CompositionalOakMap<K, V> {
 
     @Override
     public void clear() {
-        try {
-            oakView.close();
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
         oak.close();
 
         ma = new OakNativeMemoryAllocator(Integer.MAX_VALUE);
@@ -147,12 +129,11 @@ public class OakMap<K, V> implements CompositionalOakMap<K, V> {
                 .setChunkMaxItems(Chunk.MAX_ITEMS_DEFAULT)
                 .setMemoryAllocator(ma);
         oak = builder.build();
-        oakView = oak.createBufferView();
     }
 
     @Override
     public int size() {
-        return oak.entries();
+        return oak.size();
     }
 
     public void printMemStats() {

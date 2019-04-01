@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2018 Oath Inc.
  * Licensed under the terms of the Apache 2.0 license.
  * Please see LICENSE file in the project root for terms.
@@ -23,21 +23,21 @@ public class MultiThreadRangeTest {
     private final int NUM_THREADS = 1;
     private ArrayList<Thread> threads;
     private CountDownLatch latch;
-    int maxItemsPerChunk = 2048;
-    int maxBytesPerChunkItem = 100;
+    private int maxItemsPerChunk = 2048;
 
     @Before
     public void init() {
-        OakMapBuilder builder = OakMapBuilder.getDefaultBuilder()
+        int maxBytesPerChunkItem = 100;
+        OakMapBuilder<Integer, Integer>builder = OakMapBuilder.getDefaultBuilder()
                 .setChunkMaxItems(maxItemsPerChunk)
                 .setChunkBytesPerItem(maxBytesPerChunkItem);
-        oak = (OakMap<Integer, Integer>) builder.build();
+        oak = builder.build();
         latch = new CountDownLatch(1);
         threads = new ArrayList<>(NUM_THREADS);
     }
 
     @After
-    public void finish() throws Exception{
+    public void finish() {
         oak.close();
     }
 
@@ -56,11 +56,9 @@ public class MultiThreadRangeTest {
                 e.printStackTrace();
             }
 
-            Random r = new Random();
-
-            Integer from = new Integer(10 * maxItemsPerChunk);
+            Integer from = 10 * maxItemsPerChunk;
             try (OakMap<Integer, Integer> tailMap = oak.tailMap(from, true)) {
-                Iterator valIter = tailMap.valuesIterator();
+                Iterator valIter = tailMap.values().iterator();
                 int i = 0;
                 while (valIter.hasNext() && i < 100) {
                     valIter.next();
@@ -80,7 +78,7 @@ public class MultiThreadRangeTest {
         Random r = new Random();
         for (int i = 5 * maxItemsPerChunk; i > 0; ) {
             Integer j = r.nextInt(10 * maxItemsPerChunk);
-            if (oak.putIfAbsent(j, j)) i--;
+            if (oak.zc().putIfAbsent(j, j)) i--;
         }
 
         for (int i = 0; i < NUM_THREADS; i++) {

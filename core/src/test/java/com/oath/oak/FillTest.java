@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2018 Oath Inc.
  * Licensed under the terms of the Apache 2.0 license.
  * Please see LICENSE file in the project root for terms.
@@ -11,7 +11,6 @@ import org.junit.Test;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Random;
-import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.CountDownLatch;
 
 import static org.junit.Assert.assertEquals;
@@ -22,7 +21,6 @@ public class FillTest {
     private static final int NUM_THREADS = 1;
 
     static OakMap<Integer, Integer> oak;
-    static ConcurrentSkipListMap<ByteBuffer, ByteBuffer> skiplist;
     private static final long K = 1024;
 
     private static final int KEY_SIZE = 10;
@@ -107,7 +105,7 @@ public class FillTest {
                 arr[nextIdx] = tmp;
                 usedIdx--;
 
-                oak.putIfAbsent(next, next);
+                oak.zc().putIfAbsent(next, next);
             }
 
             for (Integer i = end-1; i >= start; i--) {
@@ -120,14 +118,14 @@ public class FillTest {
     @Test
     public void testMain() throws InterruptedException {
 
-        OakMapBuilder builder = OakMapBuilder
+        OakMapBuilder<Integer, Integer> builder = OakMapBuilder
                 .getDefaultBuilder()
                 .setChunkMaxItems(2048)
                 .setChunkBytesPerItem(100)
                 .setKeySerializer(new FillTestKeySerializer())
                 .setValueSerializer(new FillTestValueSerializer());
 
-        oak = (OakMap<Integer, Integer>) builder.build();
+        oak = builder.build();
 
 
 
@@ -136,7 +134,7 @@ public class FillTest {
         }
 
         for (int i = 0; i < (int) Math.round(NUM_OF_ENTRIES*0.5); i++) {
-            oak.putIfAbsent(i, i);
+            oak.zc().putIfAbsent(i, i);
         }
 
         for (int i = 0; i < NUM_THREADS; i++) {
@@ -159,7 +157,7 @@ public class FillTest {
         }
 
         long elapsedTime = stopTime - startTime;
-//        System.out.println(elapsedTime);
+        System.out.println(elapsedTime);
 
         oak.close();
 

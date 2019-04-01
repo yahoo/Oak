@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2018 Oath Inc.
  * Licensed under the terms of the Apache 2.0 license.
  * Please see LICENSE file in the project root for terms.
@@ -24,8 +24,8 @@ public class MultiThreadComputeTest {
     private final int NUM_THREADS = 31;
     private ArrayList<Thread> threads;
     private CountDownLatch latch;
-    private Consumer<ByteBuffer> computer;
-    private Consumer<ByteBuffer> emptyComputer;
+    private Consumer<OakWBuffer> computer;
+    private Consumer<OakWBuffer> emptyComputer;
     private int maxItemsPerChunk = 1024;
 
     @Before
@@ -69,25 +69,25 @@ public class MultiThreadComputeTest {
             }
 
             for (Integer i = 0; i < 4 * maxItemsPerChunk; i++) {
-                oak.putIfAbsent(i, i);
+                oak.zc().putIfAbsent(i, i);
             }
 
             for (Integer i = 0; i < 4 * maxItemsPerChunk; i++) {
-                oak.putIfAbsentComputeIfPresent(i, i, emptyComputer);
+                oak.zc().putIfAbsentComputeIfPresent(i, i, emptyComputer);
             }
 
             for (int i = 3 * maxItemsPerChunk; i < 4 * maxItemsPerChunk; i++) {
-                oak.remove(i);
+                oak.zc().remove(i);
             }
 
-            oak.put(1, 2);
+            oak.zc().put(1, 2);
 
             for (int i = 0; i < 4 * maxItemsPerChunk; i++) {
-                oak.computeIfPresent(i, computer);
+                oak.zc().computeIfPresent(i, computer);
             }
 
             for (int i = 0; i < maxItemsPerChunk; i++) {
-                oak.putIfAbsentComputeIfPresent(i, i, computer);
+                oak.zc().putIfAbsentComputeIfPresent(i, i, computer);
             }
 
             Integer value = oak.get(0);
@@ -95,43 +95,43 @@ public class MultiThreadComputeTest {
             assertEquals((Integer) 1, value);
 
             for (int i = maxItemsPerChunk; i < 2 * maxItemsPerChunk; i++) {
-                oak.remove(i);
+                oak.zc().remove(i);
             }
 
             for (int i = 5 * maxItemsPerChunk; i < 6 * maxItemsPerChunk; i++) {
-                oak.putIfAbsent(i, i);
+                oak.zc().putIfAbsent(i, i);
             }
 
             for (int i = 5 * maxItemsPerChunk; i < 6 * maxItemsPerChunk; i++) {
-                oak.remove(i);
+                oak.zc().remove(i);
             }
 
             for (int i = 3 * maxItemsPerChunk; i < 4 * maxItemsPerChunk; i++) {
-                oak.putIfAbsent(i, i);
+                oak.zc().putIfAbsent(i, i);
             }
 
             for (int i = 3 * maxItemsPerChunk; i < 4 * maxItemsPerChunk; i++) {
-                oak.putIfAbsentComputeIfPresent(i, i, emptyComputer);
+                oak.zc().putIfAbsentComputeIfPresent(i, i, emptyComputer);
             }
 
             for (int i = 3 * maxItemsPerChunk; i < 4 * maxItemsPerChunk; i++) {
-                oak.remove(i);
+                oak.zc().remove(i);
             }
 
             for (int i = 2 * maxItemsPerChunk; i < 3 * maxItemsPerChunk; i++) {
-                oak.put(i, i);
+                oak.zc().put(i, i);
             }
 
             for (int i = 3 * maxItemsPerChunk; i < 4 * maxItemsPerChunk; i++) {
-                oak.remove(i);
+                oak.zc().remove(i);
             }
 
             for (int i = maxItemsPerChunk; i < 2 * maxItemsPerChunk; i++) {
-                oak.remove(i);
+                oak.zc().remove(i);
             }
 
             for (int i = 4 * maxItemsPerChunk; i < 6 * maxItemsPerChunk; i++) {
-                oak.putIfAbsent(i, i);
+                oak.zc().putIfAbsent(i, i);
             }
 
         }
