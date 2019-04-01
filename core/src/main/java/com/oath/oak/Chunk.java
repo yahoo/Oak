@@ -615,6 +615,11 @@ public class Chunk<K, V> {
         return entryIndex;
     }
 
+
+    public void freeHandle(int handleIndex) {
+        handles[handleIndex].remove(memoryManager);
+    }
+
     /**
      * freezes chunk so no more changes can be done to it (marks pending items as frozen)
      */

@@ -281,16 +281,6 @@ class InternalOakMap<K, V> {
         }
     }
 
-    private Result<V> rebalancePutIfAbsent(Chunk<K, V> c, K key, V value, Function<ByteBuffer, V> transformer) {
-        Rebalancer.RebalanceResult result = rebalance(c);
-        return putIfAbsent(key, value, transformer);
-    }
-
-    private void rebalancePut(Chunk<K, V> c, K key, V value) {
-        Rebalancer.RebalanceResult result = rebalance(c);
-        put(key, value, null);
-    }
-
     private boolean rebalanceRemove(Chunk<K, V> c, K key) {
         Rebalancer.RebalanceResult result = rebalance(c);
         //TODO YONIGO - is it ok?
@@ -331,7 +321,8 @@ class InternalOakMap<K, V> {
             return null;
         }
         if (state == Chunk.State.FROZEN || state == Chunk.State.RELEASED) {
-            rebalancePut(c, key, value);
+            rebalance(c);
+            put(key, value, transformer);
             return null;
         }
 
@@ -346,7 +337,8 @@ class InternalOakMap<K, V> {
         if (ei == -1) {
             ei = c.allocateEntryAndKey(key);
             if (ei == -1) {
-                rebalancePut(c, key, value);
+                rebalance(c);
+                put(key, value, transformer);
                 return null;
             }
             int prevEi = c.linkEntry(ei, true, key);
@@ -358,7 +350,8 @@ class InternalOakMap<K, V> {
 
         int hi = c.allocateHandle();
         if (hi == -1) {
-            rebalancePut(c, key, value);
+            rebalance(c);
+            put(key, value, transformer);
             return null;
         }
 
@@ -368,7 +361,9 @@ class InternalOakMap<K, V> {
 
         // publish put
         if (!c.publish()) {
-            rebalancePut(c, key, value);
+            c.freeHandle(hi);
+            rebalance(c);
+            put(key, value, transformer);
             return null;
         }
 
@@ -398,7 +393,8 @@ class InternalOakMap<K, V> {
             return putIfAbsent(key, value, transformer);
         }
         if (state == Chunk.State.FROZEN || state == Chunk.State.RELEASED) {
-            return rebalancePutIfAbsent(c, key, value, transformer);
+            rebalance(c);
+            return putIfAbsent(key, value, transformer);
         }
 
 
@@ -414,7 +410,8 @@ class InternalOakMap<K, V> {
         if (ei == -1) {
             ei = c.allocateEntryAndKey(key);
             if (ei == -1) {
-                return rebalancePutIfAbsent(c, key, value, transformer);
+                rebalance(c);
+                return putIfAbsent(key, value, transformer);
             }
             int prevEi = c.linkEntry(ei, true, key);
             if (prevEi != ei) {
@@ -431,7 +428,8 @@ class InternalOakMap<K, V> {
 
         int hi = c.allocateHandle();
         if (hi == -1) {
-            return rebalancePutIfAbsent(c, key, value, transformer);
+            rebalance(c);
+            return putIfAbsent(key, value, transformer);
         }
 
         c.writeValue(hi, value); // write value in place
@@ -440,10 +438,15 @@ class InternalOakMap<K, V> {
 
         // publish put
         if (!c.publish()) {
-            return rebalancePutIfAbsent(c, key, value, transformer);
+            c.freeHandle(hi);
+            rebalance(c);
+            return putIfAbsent(key, value, transformer);
         }
 
         Handle oldHandle = finishAfterPublishing(opData, c);
+        if (oldHandle != null) {
+            c.freeHandle(hi);
+        }
 
         if (transformer == null) return Result.withFlag(oldHandle == null);
         return Result.withValue((oldHandle != null) ? oldHandle.transform(transformer) : null);
@@ -524,12 +527,19 @@ class InternalOakMap<K, V> {
 
         // publish put
         if (!c.publish()) {
-            //TODO YONIGO - free handle
+            c.freeHandle(hi);
             rebalance(c);
             return putIfAbsentComputeIfPresent(key, value, computer);
         }
 
-        return finishAfterPublishing(opData, c) == null;
+        Handle ret = finishAfterPublishing(opData, c);
+        if (ret == null) {
+            return true;
+        } else {
+            // lost a race
+            c.freeHandle(hi);
+            return false;
+        }
     }
 
     V remove(K key, V oldValue, Function<ByteBuffer, V> transformer) {
