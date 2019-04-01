@@ -136,7 +136,7 @@ Note, however, that since OakMap's get method avoids copying the value and inste
 
 An OakRBuffer can represent either a key or a value. The OakRBuffer's user can use the standard interface of a *read-only* ByteBuffer, for example, `int getInt(int index)`, `char getChar(int index)`, `limit()`, etc. Note that ConcurrentModificationException can be thrown as a result of any OakRBuffer method in case the mapping is concurrently deleted.
 
-For backward compatibility with applications that are already based on the use of ByteBuffers, Oak Buffers provide the transform method that atomically applies a transformation to the underlying ByteBuffer. For a more comprehensive code example please refer to the [usage](#usage) section. 
+For backward compatibility with applications that are already based on the use of ByteBuffers, Oak Buffers provide the transform method that atomically applies a transformation to a *read-only* instance of the underlying ByteBuffer. For a more comprehensive code example please refer to the [usage](#usage) section. 
 
 
 ### Notes on data retrieval
@@ -165,7 +165,7 @@ For backward compatibility with applications that are already based on the use o
  	- `void remove(K key)`
  	- `boolean computeIfPresent(K key, Consumer<OakWBuffer> computer)`
  	- `void putIfAbsentComputeIfPresent(K key, V value, Consumer<OakWBuffer> computer)`
-3. In contrast to the ConcurrentNavigableMap API, `void put(K key, V value)` does not return the value previously associated with the key, if key existed. Likewise, `void remove(K key)` does not return a boolean indicating whether key was actually deleted, if key existed.
+3. In contrast to the ConcurrentNavigableMap API, the zero-copy method `void put(K key, V value)` does not return the value previously associated with the key, if key existed. Likewise, `void remove(K key)` does not return a boolean indicating whether key was actually deleted, if key existed.
 4. `boolean computeIfPresent(K key, Consumer<OakWBuffer> computer)` gets the user-defined computer function. The computer is invoked in case the key exists.
 The computer is provided with a mutable OakWBuffer, representing the serialized value associated with the key. The computer's effect is atomic, meaning that either all updates are seen by concurrent readers, or none are.
 The compute functionality offers the OakMap user an efficient zero-copy update-in-place, which allows OakMap users to focus on business logic without dealing with the hard problems that data layout and concurrency control present.
@@ -176,7 +176,7 @@ This API looks for a key. If the key does not exist, it adds a new Serialized ke
 As explained above, when constructing off-heap OakMap, the memory capacity (per OakMap instance) needs to be specified. OakMap allocates the off-heap memory with the requested capacity at construction time, and later manages this memory.
 This memory (the entire given capacity) needs to be released later, thus OakMap implements AutoClosable. Be sure to use it within try-statement or better invoke OakMap's close() method when OakMap is no longer in use.
 
-Please pay attention that multiple views can be defined to the same underlying memory of OakMap. That is when other sub-maps are created. Do not worry, the true memory release will happen only when last of those views is closed.
+Please pay attention that multiple Oak sub-maps can reference the same underlying memory of OakMap. The memory will be released only when last of those sub-maps is closed.
 However, note that each sub-map is in particular an OakMap and thus AutoCloseable and needs to be closed (explicitly or implicitly). Again, close() can be invoked on different objects referring to the same underlying memory, but the final release will happen only once.
 
 ## Usage
