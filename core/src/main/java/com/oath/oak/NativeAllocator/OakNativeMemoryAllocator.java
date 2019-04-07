@@ -26,10 +26,10 @@ public class OakNativeMemoryAllocator implements OakMemoryAllocator {
     private final ConcurrentLinkedQueue<Block> blocks = new ConcurrentLinkedQueue<>();
 
     // free list of ByteBuffers which can be reused - sorted by buffer size, then by unique hash
-    private Comparator<Pair<Integer, ByteBuffer>> comparator =
-            Comparator.<Pair<Integer, ByteBuffer>, Integer>comparing(p -> p.getValue().remaining())
+    private Comparator<Pair<Long, ByteBuffer>> comparator =
+            Comparator.<Pair<Long, ByteBuffer>, Integer>comparing(p -> p.getValue().remaining())
             .thenComparing(Pair::getKey);
-    private final ConcurrentSkipListSet<Pair<Integer,ByteBuffer>> freeList = new ConcurrentSkipListSet<>(comparator);
+    private final ConcurrentSkipListSet<Pair<Long,ByteBuffer>> freeList = new ConcurrentSkipListSet<>(comparator);
     private final BlocksProvider blocksProvider;
     private Block currentBlock;
 
@@ -41,7 +41,7 @@ public class OakNativeMemoryAllocator implements OakMemoryAllocator {
     // number of bytes allocated for this Oak among different Blocks
     // can be calculated, but kept for easy access
     private final AtomicLong allocated = new AtomicLong(0);
-
+    private final AtomicLong freeCounter = new AtomicLong(0);
     // constructor
     // input param: memory capacity given to this Oak. Uses default BlocksPool
     public OakNativeMemoryAllocator(long capacity) {
@@ -66,7 +66,7 @@ public class OakNativeMemoryAllocator implements OakMemoryAllocator {
     public ByteBuffer allocate(int size) {
 
         if (!freeList.isEmpty()) {
-            for (Pair<Integer, ByteBuffer> kv : freeList) {
+            for (Pair<Long, ByteBuffer> kv : freeList) {
                 ByteBuffer bb = kv.getValue();
                 if (bb.remaining() > (RECLAIM_FACTOR * size)) break;     // all remaining buffers are too big
 
@@ -115,7 +115,7 @@ public class OakNativeMemoryAllocator implements OakMemoryAllocator {
     public void free(ByteBuffer bb) {
         allocated.addAndGet(-(bb.remaining()));
         if (stats != null) stats.release(bb);
-        freeList.add(new Pair<>(System.identityHashCode(bb), bb));
+        freeList.add(new Pair<>(freeCounter.getAndIncrement(), bb));
     }
 
     // Releases all memory allocated for this Oak (should be used as part of the Oak destruction)

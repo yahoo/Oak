@@ -31,8 +31,8 @@ class Rebalancer<K, V> {
     /*-------------- Members --------------*/
     private final ThreadIndexCalculator threadIndexCalculator;
     private final AtomicReference<Chunk> nextToEngage;
-    private final AtomicReference<List<Chunk>> newChunks = new AtomicReference<>(null);
-    private final AtomicReference<List<Chunk>> engagedChunks = new AtomicReference<>(null);
+    private final AtomicReference<List<Chunk<K,V>>> newChunks = new AtomicReference<>(null);
+    private final AtomicReference<List<Chunk<K,V>>> engagedChunks = new AtomicReference<>(null);
     private final AtomicBoolean frozen = new AtomicBoolean(false);
     private final Chunk<K, V> first;
     private Chunk<K, V> last;
@@ -94,7 +94,7 @@ class Rebalancer<K, V> {
         return comparator.compare(k1, k2);
     }
 
-    Rebalancer engageChunks() {
+    Rebalancer<K,V> engageChunks() {
         while (true) {
             Chunk next = nextToEngage.get();
             if (next == null) {
@@ -115,7 +115,7 @@ class Rebalancer<K, V> {
         }
         updateRangeView();
 
-        List<Chunk> engaged = createEngagedList();
+        List<Chunk<K,V>> engaged = createEngagedList();
 
         engagedChunks.compareAndSet(null, engaged); // if CAS fails here - another thread has updated it
 
@@ -142,26 +142,26 @@ class Rebalancer<K, V> {
      * @return if managed to CAS to newChunk list of rebalance
      * if we did then the put was inserted
      */
-    RebalanceResult createNewChunks(K key, V value, Consumer<ByteBuffer> computer, Operation operation) {
+    RebalanceResult createNewChunks() {
 
         assert offHeap;
         if (this.newChunks.get() != null) {
             return new RebalanceResult(false, null); // this was done by another thread already
         }
 
-        List<Chunk> frozenChunks = engagedChunks.get();
+        List<Chunk<K,V>> frozenChunks = engagedChunks.get();
 
-        ListIterator<Chunk> iterFrozen = frozenChunks.listIterator();
+        ListIterator<Chunk<K,V>> iterFrozen = frozenChunks.listIterator();
 
-        Chunk firstFrozen = iterFrozen.next();
-        Chunk currFrozen = firstFrozen;
-        Chunk currNewChunk = new Chunk<K, V>(firstFrozen.minKey, firstFrozen, firstFrozen.comparator, memoryManager,
+        Chunk<K,V> firstFrozen = iterFrozen.next();
+        Chunk<K,V> currFrozen = firstFrozen;
+        Chunk<K,V> currNewChunk = new Chunk<K, V>(firstFrozen.minKey, firstFrozen, firstFrozen.comparator, memoryManager,
                 currFrozen.getMaxItems(), currFrozen.getBytesPerItem(), currFrozen.externalSize,
                 keySerializer, valueSerializer, threadIndexCalculator);
 
         int ei = firstFrozen.getFirstItemEntryIndex();
 
-        List<Chunk> newChunks = new LinkedList<>();
+        List<Chunk<K,V>> newChunks = new LinkedList<>();
 
         while (true) {
             ei = currNewChunk.copyPart(currFrozen, ei, entriesLowThreshold, keyBytesLowThreshold);
@@ -175,7 +175,7 @@ class Rebalancer<K, V> {
 
             } else { // filled new chunk up to ENETRIES_LOW_THRESHOLD
 
-                List<Chunk> frozenSuffix = frozenChunks.subList(iterFrozen.previousIndex(), frozenChunks.size());
+                List<Chunk<K,V>> frozenSuffix = frozenChunks.subList(iterFrozen.previousIndex(), frozenChunks.size());
                 // try to look ahead and add frozen suffix
                 if (canAppendSuffix(frozenSuffix, maxRangeToAppend, maxBytesToAppend)) {
                     // maybe there is just a little bit copying left
@@ -207,32 +207,27 @@ class Rebalancer<K, V> {
 
         newChunks.add(currNewChunk);
 
-        Handle oldHandle = null;
-        if (operation != Operation.NO_OP) { // help this op (for lock freedom)
-            oldHandle = helpOp(newChunks, key, value, computer, operation);
-        }
-
         // if fail here, another thread succeeded, and op is effectively gone
         boolean cas = this.newChunks.compareAndSet(null, newChunks);
-        return new RebalanceResult(cas, oldHandle);
+        return new RebalanceResult(cas, null);
     }
 
-    private boolean canAppendSuffix(List<Chunk> frozenSuffix, int maxCount, int maxBytes) {
-        Iterator<Chunk> iter = frozenSuffix.iterator();
+    private boolean canAppendSuffix(List<Chunk<K,V>> frozenSuffix, int maxCount, int maxBytes) {
+        Iterator<Chunk<K,V>> iter = frozenSuffix.iterator();
         int counter = 0;
         int bytesSum = 0;
         // use statistics to find out how much is left to copy
         while (iter.hasNext() && counter < maxCount && bytesSum < maxBytes) {
-            Chunk c = iter.next();
+            Chunk<K,V> c = iter.next();
             counter += c.getStatistics().getCompactedCount();
             bytesSum += c.keyIndex.get();
         }
         return counter < maxCount && bytesSum < maxBytes;
     }
 
-    private void completeCopy(Chunk dest, int ei, List<Chunk> srcChunks) {
-        Iterator<Chunk> iter = srcChunks.iterator();
-        Chunk src = iter.next();
+    private void completeCopy(Chunk<K,V> dest, int ei, List<Chunk<K,V>> srcChunks) {
+        Iterator<Chunk<K,V>> iter = srcChunks.iterator();
+        Chunk<K,V> src = iter.next();
         int maxItems = src.getMaxItems();
         int maxKeyBytes = maxItems * src.getBytesPerItem();
         dest.copyPart(src, ei, maxItems, maxKeyBytes);
@@ -243,14 +238,14 @@ class Rebalancer<K, V> {
         }
     }
 
-    private Chunk findNextCandidate() {
+    private Chunk<K,V> findNextCandidate() {
 
         updateRangeView();
 
         // allow up to RebalanceSize chunks to be engaged
         if (chunksInRange >= rebalanceSize) return null;
 
-        Chunk candidate = last.next.getReference();
+        Chunk<K,V> candidate = last.next.getReference();
 
         if (!isCandidate(candidate)) return null;
 
@@ -285,90 +280,6 @@ class Rebalancer<K, V> {
         bytesInRange += chunk.keyIndex.get();
     }
 
-    /**
-     * insert/remove this key and value to one of the newChunks
-     * the key is guaranteed to be in the range of keys in the new chunk
-     * Returns old handle if it existed
-     */
-    private Handle helpOp(List<Chunk> newChunks, K key, V value, Consumer<ByteBuffer> computer, Operation operation) {
-        assert offHeap;
-        assert key != null;
-        assert operation == Operation.REMOVE || value != null;
-        assert operation != Operation.REMOVE || value == null;
-
-        Chunk c = findChunkInList(newChunks, key);
-        Handle oldHandle = null;
-
-        // look for key
-        Chunk.LookUp lookUp = c.lookUp(key);
-
-        if (lookUp != null && lookUp.handle != null) {
-            oldHandle = lookUp.handle;
-            if(operation == Operation.PUT_IF_ABSENT) {
-                return oldHandle;
-            } else if(operation == Operation.PUT) {
-                lookUp.handle.put(value, valueSerializer, memoryManager);
-                return oldHandle;
-            } else if (operation == Operation.COMPUTE) {
-                lookUp.handle.compute(computer);
-                return oldHandle;
-            }
-        }
-        // TODO handle.put or handle.compute
-
-        int ei;
-        if (lookUp == null) { // no entry
-            if (operation == Operation.REMOVE) return null;
-            ei = c.allocateEntryAndKey(key);
-            if (ei <= 0)
-                throw new NullPointerException("Chunk was full during helpOp");
-            int eiLink = c.linkEntry(ei, false, key);
-            assert eiLink == ei; // no one else can insert
-        } else {
-            ei = lookUp.entryIndex;
-        }
-
-        int hi = -1;
-        if (operation != Operation.REMOVE) {
-            hi = c.allocateHandle();
-            assert hi > 0; // chunk can't be full
-
-            c.writeValue(hi, value); // write value in place
-
-        }
-
-        // set pointer to value
-        Chunk.OpData opData = new Chunk.OpData(Operation.NO_OP, ei, hi, -1, null);  // prev and op don't matter
-        c.pointToValueCAS(opData, false);
-
-        return (operation != Operation.REMOVE) ? oldHandle : null;
-    }
-
-
-    /**
-     * @return a chunk from the list that can hold the given key
-     */
-    private Chunk findChunkInList(List<Chunk> newChunks, Object key) {
-        Iterator<Chunk> iter = newChunks.iterator();
-        assert iter.hasNext();
-        Chunk next = iter.next();
-        Chunk prev = next;
-        assert compare(prev.minKey, key) <= 0;
-
-        while (iter.hasNext()) {
-            next = iter.next();
-            if (compare(next.minKey, key) > 0) {
-                // if we went to far
-                break;
-            } else {
-                // check next chunk
-                prev = next; // maybe there won't be any next, so set this here
-            }
-        }
-
-        return prev;
-    }
-
     /***
      * verifies that the chunk is not engaged and not null
      * @param chunk candidate chunk for range extension
@@ -379,9 +290,9 @@ class Rebalancer<K, V> {
         return chunk != null && chunk.isEngaged(null) && (chunk.state() != Chunk.State.INFANT) && (chunk.state() != Chunk.State.RELEASED);
     }
 
-    private List<Chunk> createEngagedList() {
+    private List<Chunk<K,V>> createEngagedList() {
         Chunk<K, V> current = first;
-        List<Chunk> engaged = new LinkedList<>();
+        List<Chunk<K,V>> engaged = new LinkedList<>();
 
         while (current != null && current.isEngaged(this)) {
             engaged.add(current);
@@ -393,14 +304,14 @@ class Rebalancer<K, V> {
         return engaged;
     }
 
-    List<Chunk> getEngagedChunks() {
-        List<Chunk> engaged = engagedChunks.get();
+    List<Chunk<K,V>> getEngagedChunks() {
+        List<Chunk<K,V>> engaged = engagedChunks.get();
         if (engaged == null) throw new IllegalStateException("Trying to get engaged before engagement stage completed");
         return engaged;
     }
 
-    List<Chunk> getNewChunks() {
-        List<Chunk> newChunks = this.newChunks.get();
+    List<Chunk<K,V>> getNewChunks() {
+        List<Chunk<K,V>> newChunks = this.newChunks.get();
         if (newChunks == null)
             throw new IllegalStateException("Trying to get new chunks before creating stage completed");
         return newChunks;

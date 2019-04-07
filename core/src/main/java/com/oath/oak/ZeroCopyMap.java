@@ -76,13 +76,15 @@ public interface ZeroCopyMap<K, V> {
      * with a value, associate it with a constructed value.
      * Else, updates the value for the specified key.
      *
-     * @param key      key with which the specified value is to be associated
-     * @param value    value to be associated with the specified key
-     * @param computer for computing the new value when the key is present
-     * @throws NullPointerException     if any of the parameters is null
+     * @param key         key with which the specified value is to be associated
+     * @param value       value to be associated with the specified key
+     * @param computer    for computing the new value when the key is present
+     * @return {@code true} if there was no mapping for the key
+     * @throws NullPointerException if any of the parameters is null
      * @throws IllegalArgumentException if the specified key is out of bounds
      */
-    void putIfAbsentComputeIfPresent(K key, V value, Consumer<OakWBuffer> computer);
+    boolean putIfAbsentComputeIfPresent(K key, V value, Consumer<OakWBuffer> computer);
+
 
     /**
      * Returns a {@link Set} view of read only ByteBuffers containing the

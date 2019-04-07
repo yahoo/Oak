@@ -64,8 +64,8 @@ public class Chunk<K, V> {
     private AtomicReference<Rebalancer> rebalancer;
     private final int[] entries;    // array is initialized to 0, i.e., NONE - this is important!
     private final KeysManager<K> keysManager;
-    private final Handle[] handles;
-    private AtomicReferenceArray<OpData> pendingOps;
+    private final Handle<V>[] handles;
+    private AtomicInteger pendingOps;
     private final AtomicInteger entryIndex;    // points to next free index of entry array
     final AtomicInteger keyIndex;    // points to next free index of key array
     private final AtomicInteger handleIndex;    // points to next free index of entry array
@@ -115,7 +115,7 @@ public class Chunk<K, V> {
         this.entryIndex = new AtomicInteger(FIRST_ITEM);
         this.handles = new Handle[maxItems + FIRST_ITEM];
         this.handleIndex = new AtomicInteger(FIRST_ITEM);
-        this.keysManager = new KeysManager<>(this.maxKeyBytes, memoryManager, keySerializer);
+        this.keysManager = new KeysManager<K>(this.maxKeyBytes, memoryManager, keySerializer);
         this.keyIndex = new AtomicInteger(FIRST_ITEM);
         this.sortedCount = new AtomicInteger(0);
         this.minKey = minKey;
@@ -125,7 +125,7 @@ public class Chunk<K, V> {
         else
             this.state = new AtomicReference<>(State.INFANT);
         this.next = new AtomicMarkableReference<>(null, false);
-        this.pendingOps = new AtomicReferenceArray<>(ThreadIndexCalculator.MAX_THREADS);
+        this.pendingOps = new AtomicInteger();
         this.rebalancer = new AtomicReference<>(null); // to be updated on rebalance
         this.statistics = new Statistics();
         this.comparator = comparator;
@@ -182,14 +182,6 @@ public class Chunk<K, V> {
         return unsafe.compareAndSwapInt(entries,
                 Unsafe.ARRAY_INT_BASE_OFFSET + (item + offset) * Unsafe.ARRAY_INT_INDEX_SCALE,
                 expected, value);
-    }
-
-    /**
-     * performs CAS from 'expected' to 'value' for field at specified offset of given item in
-     * pending array
-     */
-    private boolean casPendingArray(int item, OpData expected, OpData opData) {
-        return pendingOps.compareAndSet(item, expected, opData);
     }
 
     /**
@@ -252,7 +244,7 @@ public class Chunk<K, V> {
     /**
      * gets the value for the given item, or 'null' if it doesn't exist
      */
-    Handle getHandle(int entryIndex) {
+    Handle<V> getHandle(int entryIndex) {
 
         int hi = get(entryIndex, OFFSET_HANDLE_INDEX);
 
@@ -300,13 +292,13 @@ public class Chunk<K, V> {
         return null;
     }
 
-    static class LookUp {
+    static class LookUp<V> {
 
-        final Handle handle;
+        final Handle<V> handle;
         final int entryIndex;
         final int handleIndex;
 
-        LookUp(Handle handle, int entryIndex, int handleIndex) {
+        LookUp(Handle<V> handle, int entryIndex, int handleIndex) {
             this.handle = handle;
             this.entryIndex = entryIndex;
             this.handleIndex = handleIndex;
@@ -352,20 +344,22 @@ public class Chunk<K, V> {
      *
      * @return result of CAS
      **/
-    boolean publish(OpData opData) {
-
-        int idx = threadIndexCalculator.getIndex();
-        // publish into thread array
-        return casPendingArray(idx, null, opData);
+    boolean publish() {
+        pendingOps.incrementAndGet();
+        State currentState = state.get();
+        if (currentState == State.FROZEN || currentState == State.RELEASED) {
+            pendingOps.decrementAndGet();
+            return false;
+        }
+        return true;
     }
 
     /**
      * unpublish operation from thread array
      * if CAS didn't succeed then this means that a rebalancer did this already
      **/
-    void unpublish(OpData oldOpData) {
-        int idx = threadIndexCalculator.getIndex();
-        casPendingArray(idx, oldOpData, null); // publish into thread array
+    void unpublish() {
+        pendingOps.decrementAndGet();
     }
 
     /**
@@ -378,7 +372,7 @@ public class Chunk<K, V> {
         if (hi + 1 > handles.length) {
             return -1;
         }
-        handles[hi] = new Handle();
+        handles[hi] = new Handle<>();
         return hi;
     }
 
@@ -529,7 +523,7 @@ public class Chunk<K, V> {
                     return pointToValue(opData);
                 }
             }
-            return null;
+            return h;
         }
         // this is a put, try again
         opData.prevHandleIndex = foundHandleIdx;
@@ -599,7 +593,7 @@ public class Chunk<K, V> {
     }
 
     void normalize() {
-        setState(State.NORMAL);
+        state.compareAndSet(State.INFANT, State.NORMAL);
         creator.set(null);
         // using fence so other puts can continue working immediately on this chunk
         Chunk.unsafe.storeFence();
@@ -621,51 +615,18 @@ public class Chunk<K, V> {
         return entryIndex;
     }
 
+
+    public void freeHandle(int handleIndex) {
+        handles[handleIndex].remove(memoryManager);
+        handles[handleIndex] = null;
+    }
+
     /**
      * freezes chunk so no more changes can be done to it (marks pending items as frozen)
      */
     void freeze() {
         setState(State.FROZEN); // prevent new puts to this chunk
-
-        // go over pending of all threads
-        for (int i = 0; i < ThreadIndexCalculator.MAX_THREADS; ++i) {
-            OpData opData = pendingOps.get(i);
-            if (opData == FROZEN_OP_DATA) {
-                // frozen already
-                continue;
-            }
-            boolean casSuccess;
-            if (opData == null) {
-                casSuccess = casPendingArray(i, null, FROZEN_OP_DATA);
-                // can fail if there is a new pending op or some other thread froze it already
-            } else { // need to help this op
-                pointToValue(opData); // this is the helping part
-                casSuccess = casPendingArray(i, opData, FROZEN_OP_DATA);
-                // can fail if unpublished or some other thread froze it already
-            }
-
-            if (!casSuccess) { // try again
-                opData = pendingOps.get(i);
-                if (opData == FROZEN_OP_DATA) {
-                    // frozen already
-                    continue;
-                }
-                if (opData == null) {
-                    casSuccess = casPendingArray(i, null, FROZEN_OP_DATA);
-                } else { // need to help this put
-                    pointToValue(opData); // this is the helping part
-                    casPendingArray(i, opData, null);
-                    // a thread can unpublish here
-                    // so we make sure we this will freeze even if a thread did unpublish here
-                    casSuccess = casPendingArray(i, null, FROZEN_OP_DATA);
-                }
-                // the frozen was set beforehand
-                // therefor a put could not publish or unpublish again
-                opData = pendingOps.get(i);
-                assert (casSuccess || opData == FROZEN_OP_DATA);
-            }
-
-        }
+        while (pendingOps.get() != 0);
     }
 
     /***

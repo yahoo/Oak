@@ -539,12 +539,13 @@ public class OakMap<K, V> extends AbstractMap<K, V> implements AutoCloseable, Co
             return m.internalOakMap.computeIfPresent(key, computer);
         }
 
-        public void putIfAbsentComputeIfPresent(K key, V value, Consumer<OakWBuffer> computer) {
+
+        public boolean putIfAbsentComputeIfPresent(K key, V value, Consumer<OakWBuffer> computer) {
             m.checkKey(key);
             if (value == null || computer == null)
                 throw new IllegalArgumentException();
 
-            m.internalOakMap.putIfAbsentComputeIfPresent(key, value, computer);
+            return m.internalOakMap.putIfAbsentComputeIfPresent(key, value, computer);
         }
 
 
