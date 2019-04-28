@@ -29,7 +29,7 @@ public final class UnsafeUtils {
 
     private UnsafeUtils(){};
 
-    public static void unsafeBufferToArrayCopy(ByteBuffer srcByteBuffer, int position, int[] dstArray, int countInts) {
+    public static void unsafeCopyBufferToIntArray(ByteBuffer srcByteBuffer, int position, int[] dstArray, int countInts) {
         if (srcByteBuffer.isDirect()) {
             long bbAddress = ((DirectBuffer) srcByteBuffer).address();
             unsafe.copyMemory(null, bbAddress + position, dstArray, INT_ARRAY_OFFSET, countInts * Integer.BYTES);
@@ -40,7 +40,7 @@ public final class UnsafeUtils {
 
     }
 
-    public static void unsafeArrayToBufferCopy(int[] srcArray, ByteBuffer dstByteBuffer, int position, int countInts) {
+    public static void unsafeCopyIntArrayToBuffer(int[] srcArray, ByteBuffer dstByteBuffer, int position, int countInts) {
 
         if (dstByteBuffer.isDirect()) {
             long bbAddress = ((DirectBuffer) dstByteBuffer).address();
@@ -48,8 +48,5 @@ public final class UnsafeUtils {
         } else {
             unsafe.copyMemory(srcArray, INT_ARRAY_OFFSET, dstByteBuffer.array(), BYTE_ARRAY_OFFSET + position, countInts * Integer.BYTES);
         }
-
-
-
     }
 }

@@ -69,8 +69,8 @@ public class OakRKeyBufferImpl implements OakRBuffer {
     }
 
     @Override
-    public void unsafeBufferToIntArrayCopy(int srcPosition, int[] dstArray, int countInts) {
-        UnsafeUtils.unsafeBufferToArrayCopy(byteBuffer, srcPosition, dstArray, countInts);
+    public void unsafeCopyBufferToIntArray(int srcPosition, int[] dstArray, int countInts) {
+        UnsafeUtils.unsafeCopyBufferToIntArray(byteBuffer, srcPosition, dstArray, countInts);
     }
 
 }

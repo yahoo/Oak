@@ -54,8 +54,8 @@ public class UnsafeUtilsTest {
             int size = entry.getKey().getInt(0);
             int[] dstArrayValue = new int[size];
             int[] dstArrayKey = new int[size];
-            entry.getKey().unsafeBufferToIntArrayCopy(Integer.BYTES, dstArrayKey, size);
-            entry.getValue().unsafeBufferToIntArrayCopy(Integer.BYTES, dstArrayValue, size);
+            entry.getKey().unsafeCopyBufferToIntArray(Integer.BYTES, dstArrayKey, size);
+            entry.getValue().unsafeCopyBufferToIntArray(Integer.BYTES, dstArrayValue, size);
             if (size == 5) {
                 //value1
                 Arrays.equals(value1.array, dstArrayKey);
@@ -95,14 +95,14 @@ public class UnsafeUtilsTest {
         @Override
         public void serialize(IntHolder object, ByteBuffer targetBuffer) {
             targetBuffer.putInt(targetBuffer.position(), object.size);
-            UnsafeUtils.unsafeArrayToBufferCopy(object.array, targetBuffer, targetBuffer.position() + Integer.BYTES, object.size);
+            UnsafeUtils.unsafeCopyIntArrayToBuffer(object.array, targetBuffer, targetBuffer.position() + Integer.BYTES, object.size);
         }
 
         @Override
         public IntHolder deserialize(ByteBuffer byteBuffer) {
             int size = byteBuffer.getInt(byteBuffer.position());
             int[] array = new int[size];
-            UnsafeUtils.unsafeBufferToArrayCopy(byteBuffer, byteBuffer.position() + Integer.BYTES, array, size);
+            UnsafeUtils.unsafeCopyBufferToIntArray(byteBuffer, byteBuffer.position() + Integer.BYTES, array, size);
             return new IntHolder(size, array);
         }
 

@@ -142,5 +142,5 @@ public interface OakRBuffer {
      * @param dstArray The int array to copy to.
      * @param countInts The number of ints to copy.
      */
-    void unsafeBufferToIntArrayCopy(int srcPosition, int[] dstArray, int countInts);
+    void unsafeCopyBufferToIntArray(int srcPosition, int[] dstArray, int countInts);
 }
