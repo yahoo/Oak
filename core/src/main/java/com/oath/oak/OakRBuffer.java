@@ -135,4 +135,12 @@ public interface OakRBuffer {
      * @return The return value of the transform
      */
     <T> T transform(Function<ByteBuffer, T> transformer);
+
+    /**
+     * Perform an unsafe memcopy from the underlying buffer to the dst int array.
+     * @param srcPosition The position in the underlying buffer.
+     * @param dstArray The int array to copy to.
+     * @param countInts The number of ints to copy.
+     */
+    void unsafeBufferToIntArrayCopy(int srcPosition, int[] dstArray, int countInts);
 }

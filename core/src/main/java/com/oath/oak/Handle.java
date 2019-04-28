@@ -85,7 +85,6 @@ class Handle<V> implements OakWBuffer {
     }
 
     ByteBuffer getSlicedByteBuffer() {
-        assert writeLock.isHeldByCurrentThread();
         return value.slice();
     }
 
@@ -224,5 +223,9 @@ class Handle<V> implements OakWBuffer {
 
     void readUnLock() {
         readLock.unlock();
+    }
+
+    public void unsafeBufferToIntArrayCopy(int srcPosition, int[] dstArray, int countInts) {
+        UnsafeUtils.unsafeBufferToArrayCopy(getByteBuffer(), srcPosition, dstArray, countInts);
     }
 }

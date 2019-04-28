@@ -117,6 +117,11 @@ public class OakRValueBufferImpl implements OakRBuffer {
         return retVal;
     }
 
+    @Override
+    public void unsafeBufferToIntArrayCopy(int srcPosition, int[] dstArray, int countInts) {
+        handle.unsafeBufferToIntArrayCopy(srcPosition, dstArray, countInts);
+    }
+
     private void start() {
         handle.readLock();
         if (handle.isDeleted()) {
