@@ -5,7 +5,7 @@
     <groupId>com.yahoo.oak</groupId>
     <artifactId>root</artifactId>
     <packaging>pom</packaging>
-    <version>0.1.4</version>
+    <version>0.1.5-SNAPSHOT</version>
     <modules>
         <module>core</module>
     </modules>
@@ -91,7 +91,7 @@
     <scm>
         <developerConnection>scm:git:ssh://git@github.com/yahoo/Oak.git</developerConnection>
         <url>https://github.com/yahoo/Oak.git</url>
-        <tag>root-0.1.4</tag>
+        <tag>oak-0.1.1</tag>
     </scm>
 
     <distributionManagement>
@@ -249,7 +249,7 @@
             <dependency>
                 <groupId>com.yahoo.oak</groupId>
                 <artifactId>oak</artifactId>
-                <version>0.1.4</version>
+                <version>0.1.5-SNAPSHOT</version>
             </dependency>
         </dependencies>
     </dependencyManagement>
