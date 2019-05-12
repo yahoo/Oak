@@ -7,8 +7,6 @@
     <packaging>pom</packaging>
     <version>0.1.4-SNAPSHOT</version>
     <modules>
-        <module>benchmarks/jmh</module>
-        <module>benchmarks/synchrobench</module>
         <module>core</module>
     </modules>
 
@@ -172,11 +170,20 @@
 
     <profiles>
         <profile>
-            <id>release</id>
+            <id>development</id>
+            <activation>
+                <activeByDefault>true</activeByDefault>
+            </activation>
+            <modules>
+                <module>benchmarks/jmh</module>
+                <module>benchmarks/synchrobench</module>
+            </modules>
+        </profile>
 
+        <profile>
+            <id>release</id>
             <build>
                 <plugins>
-
                     <plugin>
                         <groupId>org.apache.maven.plugins</groupId>
                         <artifactId>maven-gpg-plugin</artifactId>
@@ -223,10 +230,8 @@
                             </execution>
                         </executions>
                     </plugin>
-
                 </plugins>
             </build>
-
         </profile>
     </profiles>
 
