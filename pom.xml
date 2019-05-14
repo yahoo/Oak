@@ -8,6 +8,9 @@
     <version>0.1.5-SNAPSHOT</version>
     <modules>
         <module>core</module>
+        <module>benchmarks/jmh</module>
+        <module>benchmarks/synchrobench</module>
+        <module>benchmarks/stub</module>
     </modules>
 
     <!--<name>Oak: Off-heap Allocated Keys</name>-->
@@ -169,17 +172,6 @@
     </build>
 
     <profiles>
-        <profile>
-            <id>development</id>
-            <activation>
-                <activeByDefault>true</activeByDefault>
-            </activation>
-            <modules>
-                <module>benchmarks/jmh</module>
-                <module>benchmarks/synchrobench</module>
-            </modules>
-        </profile>
-
         <profile>
             <id>release</id>
             <build>
