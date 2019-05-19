@@ -22,7 +22,7 @@ class BlocksPool implements BlocksProvider {
     // TODO change BLOCK_SIZE and NUMBER_OF_BLOCKS to be pre-configurable
     private final static int BLOCK_SIZE = 104857600; // currently 100MB, the one block size
     // Number of memory blocks to be pre-allocated (currently gives us 2GB). When it is not enough,
-    // another such amount of memory will be allocated at once.
+    // another half such amount of memory (1GB) will be allocated at once.
     private final static int NUMBER_OF_BLOCKS = 20;
 
     // not thread safe, private constructor; should be called only once
