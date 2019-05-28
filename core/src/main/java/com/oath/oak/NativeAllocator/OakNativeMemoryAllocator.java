@@ -14,6 +14,7 @@ import java.nio.ByteBuffer;
 import java.util.Comparator;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ConcurrentSkipListSet;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
 public class OakNativeMemoryAllocator implements OakMemoryAllocator {
@@ -42,6 +43,10 @@ public class OakNativeMemoryAllocator implements OakMemoryAllocator {
     // can be calculated, but kept for easy access
     private final AtomicLong allocated = new AtomicLong(0);
     private final AtomicLong freeCounter = new AtomicLong(0);
+
+    // flag allowing not to close the same allocator twice
+    private AtomicBoolean closed = new AtomicBoolean(false);
+
     // constructor
     // input param: memory capacity given to this Oak. Uses default BlocksPool
     public OakNativeMemoryAllocator(long capacity) {
@@ -122,6 +127,7 @@ public class OakNativeMemoryAllocator implements OakMemoryAllocator {
     // Not thread safe, should be a single thread call. (?)
     @Override
     public void close() {
+        if (!closed.compareAndSet(false,true)) return;
         for (Block b : blocks) {
             blocksProvider.returnBlock(b);
         }
