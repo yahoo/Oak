@@ -65,17 +65,17 @@ public class OakNativeMemoryAllocator implements OakMemoryAllocator {
     @Override
     public ByteBuffer allocate(int size) {
 
-        if (!freeList.isEmpty()) {
-            for (Pair<Long, ByteBuffer> kv : freeList) {
-                ByteBuffer bb = kv.getValue();
-                if (bb.remaining() > (RECLAIM_FACTOR * size)) break;     // all remaining buffers are too big
-
-                if (bb.remaining() >= size && freeList.remove(kv)) {
-                    if (stats != null) stats.reclaim(size);
-                    return bb;
-                }
-            }
-        }
+//        if (!freeList.isEmpty()) {
+//            for (Pair<Long, ByteBuffer> kv : freeList) {
+//                ByteBuffer bb = kv.getValue();
+//                if (bb.remaining() > (RECLAIM_FACTOR * size)) break;     // all remaining buffers are too big
+//
+//                if (bb.remaining() >= size && freeList.remove(kv)) {
+//                    if (stats != null) stats.reclaim(size);
+//                    return bb;
+//                }
+//            }
+//        }
 
         ByteBuffer bb = null;
         // freeList is empty or there is no suitable slice
