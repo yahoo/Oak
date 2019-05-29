@@ -6,6 +6,8 @@
 
 package com.oath.oak;
 
+import io.netty.buffer.ByteBuf;
+
 import java.nio.ByteBuffer;
 
 import java.nio.ByteOrder;
@@ -18,7 +20,7 @@ class Handle<V> implements OakWBuffer {
 
     private final ReentrantReadWriteLock.ReadLock readLock;
     private final ReentrantReadWriteLock.WriteLock writeLock;
-    private ByteBuffer value;
+    private ByteBuf value;
     private final AtomicBoolean deleted;
 
     Handle() {
@@ -29,7 +31,7 @@ class Handle<V> implements OakWBuffer {
         this.deleted = new AtomicBoolean(false);
     }
 
-    void setValue(ByteBuffer value) {
+    void setValue(ByteBuf value) {
         writeLock.lock();
         this.value = value;
         writeLock.unlock();
@@ -58,11 +60,11 @@ class Handle<V> implements OakWBuffer {
             return false;
         }
         int capacity = serializer.calculateSize(newVal);
-        if (this.value.remaining() < capacity) { // can not reuse the existing space
+        if (this.value.capacity() < capacity) { // can not reuse the existing space
             memoryManager.release(this.value);
             this.value = memoryManager.allocate(capacity);
         }
-        serializer.serialize(newVal, this.value.slice());
+        serializer.serialize(newVal, this.value.nioBuffer());
         writeLock.unlock();
 
         return true;
@@ -86,18 +88,18 @@ class Handle<V> implements OakWBuffer {
 
     ByteBuffer getSlicedByteBuffer() {
         assert writeLock.isHeldByCurrentThread();
-        return value.slice();
+        return value.nioBuffer();
     }
 
     ByteBuffer getSlicedReadOnlyByteBuffer() {
         //TODO: check that the read lock is held by the current thread
-        return value.asReadOnlyBuffer().slice();
+        return value.nioBuffer().asReadOnlyBuffer();
     }
 
     /* OakWBuffer interface */
 
     public int capacity() {
-        return value.remaining();
+        return value.capacity();
     }
 
     @Override
@@ -106,78 +108,78 @@ class Handle<V> implements OakWBuffer {
     }
 
     public byte get(int index) {
-        return value.get(value.position() + index);
+        return value.getByte(index);
     }
 
     public OakWBuffer put(int index, byte b) {
         assert writeLock.isHeldByCurrentThread();
-        value.put(this.value.position() + index, b);
+        value.nioBuffer().put(index, b);
         return this;
     }
 
     public char getChar(int index) {
-        return value.getChar(value.position() + index);
+        return value.getChar(index);
     }
 
     @Override
     public OakWBuffer putChar(int index, char value) {
         assert writeLock.isHeldByCurrentThread();
-        this.value.putChar(this.value.position() + index, value);
+        this.value.nioBuffer().putChar(index, value);
         return this;
     }
 
     public short getShort(int index) {
-        return value.getShort(value.position() + index);
+        return value.getShort(index);
     }
 
     @Override
     public OakWBuffer putShort(int index, short value) {
         assert writeLock.isHeldByCurrentThread();
-        this.value.putShort(this.value.position() + index, value);
+        this.value.nioBuffer().putShort(index, value);
         return this;
     }
 
     public int getInt(int index) {
-        return value.getInt(value.position() + index);
+        return value.getInt(index);
     }
 
     @Override
     public OakWBuffer putInt(int index, int value) {
         assert writeLock.isHeldByCurrentThread();
-        this.value.putInt(this.value.position() + index, value);
+        this.value.nioBuffer().putInt(index, value);
         return this;
     }
 
     public long getLong(int index) {
-        return value.getLong(value.position() + index);
+        return value.getLong(index);
     }
 
     @Override
     public OakWBuffer putLong(int index, long value) {
         assert writeLock.isHeldByCurrentThread();
-        this.value.putLong(this.value.position() + index, value);
+        this.value.nioBuffer().putLong(index, value);
         return this;
     }
 
     public float getFloat(int index) {
-        return value.getFloat(value.position() + index);
+        return value.getFloat(index);
     }
 
     @Override
     public OakWBuffer putFloat(int index, float value) {
         assert writeLock.isHeldByCurrentThread();
-        this.value.putFloat(this.value.position() + index, value);
+        this.value.nioBuffer().putFloat(index, value);
         return this;
     }
 
     public double getDouble(int index) {
-        return value.getDouble(value.position() + index);
+        return value.getDouble(index);
     }
 
     @Override
     public OakWBuffer putDouble(int index, double value) {
         assert writeLock.isHeldByCurrentThread();
-        this.value.putDouble(this.value.position() + index, value);
+        this.value.nioBuffer().putDouble(index, value);
         return this;
     }
 

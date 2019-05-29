@@ -6,6 +6,7 @@
 
 package com.oath.oak;
 
+import io.netty.buffer.ByteBuf;
 import sun.misc.Unsafe;
 import java.lang.reflect.Constructor;
 import java.nio.ByteBuffer;
@@ -467,9 +468,9 @@ public class Chunk<K, V> {
      **/
     void writeValue(int hi, V value) {
         assert hi >= 0 ;
-        ByteBuffer byteBuffer = memoryManager.allocate(valueSerializer.calculateSize(value));
+        ByteBuf byteBuffer = memoryManager.allocate(valueSerializer.calculateSize(value));
         // just allocated bytebuffer is ensured to have position 0
-        valueSerializer.serialize(value, byteBuffer.slice());
+        valueSerializer.serialize(value, byteBuffer.nioBuffer());
         handles[hi].setValue(byteBuffer);
     }
 

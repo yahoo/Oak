@@ -8,32 +8,31 @@ package com.oath.oak;
 
 
 
+import com.oath.oak.NativeAllocator.NettyMemoryAllocator;
+import io.netty.buffer.ByteBuf;
+
 import java.nio.ByteBuffer;
 
 
 public class MemoryManager {
     private final OakMemoryAllocator keysMemoryAllocator;
-    private final OakMemoryAllocator valuesMemoryAllocator;
+    private final NettyMemoryAllocator valuesMemoryAllocator;
 
-    public MemoryManager(OakMemoryAllocator valuesMemoryAllocator, OakMemoryAllocator keysMemoryAllocator) {
-        assert valuesMemoryAllocator != null;
-        assert keysMemoryAllocator != null;
-
-        this.valuesMemoryAllocator = valuesMemoryAllocator;
+    public MemoryManager(OakMemoryAllocator keysMemoryAllocator) {
+        this.valuesMemoryAllocator = new NettyMemoryAllocator();
         this.keysMemoryAllocator = keysMemoryAllocator;
     }
 
-    public ByteBuffer allocate(int size) {
+    public ByteBuf allocate(int size) {
         return valuesMemoryAllocator.allocate(size);
     }
 
     public void close() {
-        valuesMemoryAllocator.close();
         keysMemoryAllocator.close();
     }
 
-    void release(ByteBuffer bb) {
-        valuesMemoryAllocator.free(bb);
+    void release(ByteBuf bb) {
+        bb.release();
     }
 
     // how many memory is allocated for this OakMap
