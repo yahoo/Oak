@@ -194,9 +194,12 @@ class Handle<V> implements OakWBuffer {
             readLock.unlock();
             return null;
         }
-        T transformation = transformer.apply(getSlicedReadOnlyByteBuffer());
-        readLock.unlock();
-        return transformation;
+        try {
+            T transformation = transformer.apply(getSlicedReadOnlyByteBuffer());
+            return transformation;
+        } finally {
+            readLock.unlock();
+        }
     }
 
     /**

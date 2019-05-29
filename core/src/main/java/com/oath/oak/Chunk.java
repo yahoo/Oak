@@ -138,6 +138,14 @@ public class Chunk<K, V> {
         this.threadIndexCalculator = threadIndexCalculator;
     }
 
+    public void releaseValues() {
+        for (Handle<V> handle :handles) {
+            if (handle != null) {
+                handle.remove(memoryManager);
+            }
+        }
+    }
+
     enum State {
         INFANT,
         NORMAL,
