@@ -97,7 +97,7 @@ public class OakMapBuilder<K,V> {
     }
 
     MemoryManager memoryManager = new MemoryManager(memoryAllocator, memoryAllocator/*new DirectMemoryAllocator()*/);
-    System.out.println("---- OAK NATIVE MEMORY ALLOCATOR was assigned both for keys and for values! ----");
+
     return new OakMap<>(
             minKey,
             keySerializer,

@@ -86,7 +86,6 @@ class InternalOakMap<K, V> {
         // once reference count is zeroed, the map meant to be deleted and should not be used.
         // reference count will never grow again
         if (res == 0) {
-            System.out.println("---- OAK MAP is closed! ----");
             memoryManager.close();
         }
     }
