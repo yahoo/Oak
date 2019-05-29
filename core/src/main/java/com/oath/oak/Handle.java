@@ -34,6 +34,7 @@ class Handle<V> implements OakWBuffer {
     void setValue(ByteBuf value) {
         writeLock.lock();
         this.value = value;
+        value.writerIndex(value.capacity());
         writeLock.unlock();
     }
 

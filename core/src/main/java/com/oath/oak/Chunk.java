@@ -470,7 +470,7 @@ public class Chunk<K, V> {
         assert hi >= 0 ;
         ByteBuf byteBuffer = memoryManager.allocate(valueSerializer.calculateSize(value));
         // just allocated bytebuffer is ensured to have position 0
-        valueSerializer.serialize(value, byteBuffer.nioBuffer());
+        valueSerializer.serialize(value, byteBuffer.nioBuffer(0, byteBuffer.capacity()));
         handles[hi].setValue(byteBuffer);
     }
 

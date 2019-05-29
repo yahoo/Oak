@@ -8,7 +8,6 @@ package com.oath.oak;
 
 
 
-import com.oath.oak.NativeAllocator.NettyMemoryAllocator;
 import io.netty.buffer.ByteBuf;
 
 import java.nio.ByteBuffer;

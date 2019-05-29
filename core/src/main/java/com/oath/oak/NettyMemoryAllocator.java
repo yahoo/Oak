@@ -1,4 +1,4 @@
-package com.oath.oak.NativeAllocator;
+package com.oath.oak;
 
 import com.oath.oak.OakMemoryAllocator;
 import io.netty.buffer.ByteBuf;

@@ -6,7 +6,6 @@
 
 package com.oath.oak;
 
-import com.oath.oak.NativeAllocator.OakNativeMemoryAllocator;
 
 import java.nio.ByteBuffer;
 
@@ -33,7 +32,6 @@ public class OakMapBuilder<K,V> {
   private int chunkMaxItems;
   private int chunkBytesPerItem;
   private int memoryCapacity;
-  private OakMemoryAllocator memoryAllocator;
 
   public OakMapBuilder() {
     this.keySerializer = null;
@@ -46,7 +44,6 @@ public class OakMapBuilder<K,V> {
     this.chunkMaxItems = Chunk.MAX_ITEMS_DEFAULT;
     this.chunkBytesPerItem = Chunk.BYTES_PER_ITEM_DEFAULT;
     this.memoryCapacity = MAX_MEM_CAPACITY;
-    this.memoryAllocator = null;
   }
 
   public OakMapBuilder<K, V> setKeySerializer(OakSerializer<K> keySerializer) {
@@ -84,17 +81,10 @@ public class OakMapBuilder<K,V> {
     return this;
   }
 
-  public OakMapBuilder<K, V> setMemoryAllocator(OakMemoryAllocator ma) {
-    this.memoryAllocator = ma;
-    return this;
-  }
 
   public OakMap<K, V> build() {
     ThreadIndexCalculator threadIndexCalculator = ThreadIndexCalculator.newInstance();
 
-    if (memoryAllocator == null) {
-      this.memoryAllocator = new OakNativeMemoryAllocator(memoryCapacity);
-    }
 
     MemoryManager memoryManager = new MemoryManager(new DirectMemoryAllocator());
 
