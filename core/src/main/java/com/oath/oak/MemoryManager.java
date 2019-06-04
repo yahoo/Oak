@@ -10,16 +10,14 @@ package com.oath.oak;
 
 import io.netty.buffer.ByteBuf;
 
-import java.nio.ByteBuffer;
-
-
 public class MemoryManager {
-    private final OakMemoryAllocator keysMemoryAllocator;
+    private final NettyMemoryAllocator keysMemoryAllocator;
     private final NettyMemoryAllocator valuesMemoryAllocator;
 
     public MemoryManager(OakMemoryAllocator keysMemoryAllocator) {
-        this.valuesMemoryAllocator = new NettyMemoryAllocator();
-        this.keysMemoryAllocator = keysMemoryAllocator;
+        NettyMemoryAllocator memoryManager = new NettyMemoryAllocator();
+        this.valuesMemoryAllocator =memoryManager;
+        this.keysMemoryAllocator = memoryManager;
     }
 
     public ByteBuf allocate(int size) {
@@ -27,7 +25,7 @@ public class MemoryManager {
     }
 
     public void close() {
-        keysMemoryAllocator.close();
+
     }
 
     void release(ByteBuf bb) {
@@ -39,11 +37,11 @@ public class MemoryManager {
         return valuesMemoryAllocator.allocated();
     }
 
-    public ByteBuffer allocateKeys(int bytes) {
+    public ByteBuf allocateKeys(int bytes) {
         return keysMemoryAllocator.allocate(bytes);
     }
 
-    public void releaseKeys(ByteBuffer keys) {
-        keysMemoryAllocator.free(keys);
+    public void releaseKeys(ByteBuf keys) {
+        keys.release();
     }
 }

@@ -1,11 +1,8 @@
 package com.oath.oak;
 
-import com.oath.oak.OakMemoryAllocator;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.PooledByteBufAllocator;
-
-import java.nio.ByteBuffer;
 
 public class NettyMemoryAllocator{
     private final ByteBufAllocator allocator;

@@ -144,6 +144,7 @@ public class Chunk<K, V> {
                 handle.remove(memoryManager);
             }
         }
+        keysManager.release();
     }
 
     enum State {
@@ -207,14 +208,17 @@ public class Chunk<K, V> {
         int ki = get(entryIndex, OFFSET_KEY_INDEX);
         int length = get(entryIndex, OFFSET_KEY_LENGTH);
 
-        int idx = threadIndexCalculator.getIndex();
-        if (byteBufferPerThread[idx] == null) {
-            byteBufferPerThread[idx] = keysManager.getKeys().asReadOnlyBuffer();
-        }
-        ByteBuffer bbThread = byteBufferPerThread[idx];
-        int pos = keysManager.getPosition();
-        bbThread.limit(pos + ki + length);
-        bbThread.position(pos + ki);
+//        int idx = threadIndexCalculator.getIndex();
+//        if (byteBufferPerThread[idx] == null) {
+//            byteBufferPerThread[idx] = keysManager.getKeys().asReadOnlyBuffer();
+//        }
+//        ByteBuffer bbThread = byteBufferPerThread[idx];
+//        int pos = keysManager.getPosition();
+//        bbThread.limit(pos + ki + length);
+//        bbThread.position(pos + ki);
+
+        ByteBuffer bbThread = keysManager.getKeys().nioBuffer(ki, length);
+
         return bbThread;
     }
 
