@@ -12,9 +12,11 @@ import javafx.util.Pair;
 
 import java.nio.ByteBuffer;
 import java.util.Comparator;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
 public class OakNativeMemoryAllocator implements OakMemoryAllocator {
@@ -23,8 +25,9 @@ public class OakNativeMemoryAllocator implements OakMemoryAllocator {
     // This parameter may be tuned for performance vs off-heap memory utilization
     private static final int RECLAIM_FACTOR = 2;
 
-    // blocks allocated solely to this Allocator
-    private final ConcurrentLinkedQueue<Block> blocks = new ConcurrentLinkedQueue<>();
+    // mapping IDs to blocks allocated solely to this Allocator
+    private final ConcurrentHashMap<Integer,Block> blocks = new ConcurrentHashMap<>();
+    private final AtomicInteger idGenerator = new AtomicInteger(0);
 
     // free list of ByteBuffers which can be reused - sorted by buffer size, then by unique hash
     private Comparator<Pair<Long, ByteBuffer>> comparator =
@@ -59,7 +62,7 @@ public class OakNativeMemoryAllocator implements OakMemoryAllocator {
         // initially allocate one single block from pool
         // this may lazy initialize the pool and take time if this is the first call for the pool
         Block b = blocksProvider.getBlock();
-        this.blocks.add(b);
+        this.blocks.put(idGenerator.getAndIncrement(), b);
         this.currentBlock = b;
         this.capacity = capacity;
     }
@@ -97,10 +100,13 @@ public class OakNativeMemoryAllocator implements OakMemoryAllocator {
                 if ((blocks.size() + 1) * blocksProvider.blockSize() > capacity) {
                     throw new OakOutOfMemoryException();
                 } else {
+                    // going to allocate additional block (big chunk of memory)
+                    // need to be thread-safe, so not many blocks are allocated
+                    // locking is actually the most reasonable way of synchronization here
                     synchronized (this) {
                         if (currentBlock.allocated() + size > currentBlock.getCapacity()) {
                             Block b = blocksProvider.getBlock();
-                            this.blocks.add(b);
+                            this.blocks.put(idGenerator.getAndIncrement(), b);
                             this.currentBlock = b;
                         }
                     }
@@ -128,7 +134,7 @@ public class OakNativeMemoryAllocator implements OakMemoryAllocator {
     @Override
     public void close() {
         if (!closed.compareAndSet(false,true)) return;
-        for (Block b : blocks) {
+        for (Block b : blocks.values()) {
             blocksProvider.returnBlock(b);
         }
         // no need to do anything with the free list,
@@ -138,6 +144,13 @@ public class OakNativeMemoryAllocator implements OakMemoryAllocator {
     // Returns the off-heap allocation of this OakMap
     @Override
     public long allocated() { return allocated.get(); }
+
+    // When some buffer need to be read from random block
+    public ByteBuffer readByteBufferFromBlockID(Integer id, int pos, int length) {
+        Block b = blocks.get(id);
+        return b.getBuffer(pos,length);
+    }
+
 
     // used only for testing
     Block getCurrentBlock() {

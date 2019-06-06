@@ -15,7 +15,6 @@ import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicMarkableReference;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.concurrent.atomic.AtomicReferenceArray;
 import java.util.function.Consumer;
 
 public class Chunk<K, V> {
@@ -34,6 +33,7 @@ public class Chunk<K, V> {
     private static final int OFFSET_KEY_INDEX = 1;
     private static final int OFFSET_KEY_LENGTH = 2;
     private static final int OFFSET_HANDLE_INDEX = 3;
+    private static final int OFFSET_KEY_BLOCK = 4;
 
     // used for checking if rebalance is needed
     private static final double REBALANCE_PROB_PERC = 30;
@@ -195,8 +195,8 @@ public class Chunk<K, V> {
         if (entryIndex == Chunk.NONE) {
             return null;
         }
-        int ki = get(entryIndex, OFFSET_KEY_INDEX);
-        int length = get(entryIndex, OFFSET_KEY_LENGTH);
+        int ki = getEntryField(entryIndex, OFFSET_KEY_INDEX);
+        int length = getEntryField(entryIndex, OFFSET_KEY_LENGTH);
 
         int idx = threadIndexCalculator.getIndex();
         if (byteBufferPerThread[idx] == null) {
@@ -222,8 +222,18 @@ public class Chunk<K, V> {
     /**
      * gets the field of specified offset for given item in entry array
      */
-    private int get(int item, int offset) {
-        return entries[item + offset];
+    private int getEntryField(int item, int offset) {
+        if (OFFSET_KEY_BLOCK != offset && OFFSET_NEXT != offset) {
+            return entries[item + offset];
+        }
+        if (OFFSET_NEXT != offset) {
+            // return two low bytes of the int
+            return (entries[item + OFFSET_NEXT] & 0xffffffff);
+        }
+        else {
+            // offset must be OFFSET_KEY_BLOCK, return 2 high bytes of the int inside OFFSET_NEXT
+            return (entries[item + OFFSET_NEXT] >> 16);
+        }
     }
 
     /**
@@ -246,7 +256,7 @@ public class Chunk<K, V> {
      */
     Handle<V> getHandle(int entryIndex) {
 
-        int hi = get(entryIndex, OFFSET_HANDLE_INDEX);
+        int hi = getEntryField(entryIndex, OFFSET_HANDLE_INDEX);
 
         // if no value for item - return null
         assert hi != 0; // because we got to it from linked list
@@ -258,7 +268,7 @@ public class Chunk<K, V> {
     }
 
     int getHandleIndex(int entryIndex) {
-        return get(entryIndex, OFFSET_HANDLE_INDEX);
+        return getEntryField(entryIndex, OFFSET_HANDLE_INDEX);
     }
 
     /**
@@ -267,7 +277,7 @@ public class Chunk<K, V> {
     LookUp lookUp(K key) {
         // binary search sorted part of key array to quickly find node to start search at
         // it finds previous-to-key so start with its next
-        int curr = get(binaryFind(key), OFFSET_NEXT);
+        int curr = getEntryField(binaryFind(key), OFFSET_NEXT);
         int cmp;
         // iterate until end of list (or key is found)
         while (curr != NONE) {
@@ -279,7 +289,7 @@ public class Chunk<K, V> {
                 return null;
                 // if keys are equal - we've found the item
             else if (cmp == 0) {
-                int hi = get(curr, OFFSET_HANDLE_INDEX);
+                int hi = getEntryField(curr, OFFSET_HANDLE_INDEX);
                 if (hi < 0) return new LookUp(null, curr, -1);
                 Handle h = handles[hi];
                 if (h.isDeleted()) return new LookUp(null, curr, hi);
@@ -287,7 +297,7 @@ public class Chunk<K, V> {
             }
             // otherwise- proceed to next item
             else
-                curr = get(curr, OFFSET_NEXT);
+                curr = getEntryField(curr, OFFSET_NEXT);
         }
         return null;
     }
@@ -409,7 +419,7 @@ public class Chunk<K, V> {
             // iterate items until key's position is found
             while (true) {
                 prev = curr;
-                curr = get(prev, OFFSET_NEXT);    // index of next item in list
+                curr = getEntryField(prev, OFFSET_NEXT);    // index of next item in list
 
                 // if no item, done searching - add to end of list
                 if (curr == NONE) {
@@ -501,7 +511,7 @@ public class Chunk<K, V> {
 
         // the operation is either NO_OP, PUT, PUT_IF_ABSENT, COMPUTE
         int expectedHandleIdx = opData.handleIndex;
-        int foundHandleIdx = get(opData.entryIndex, OFFSET_HANDLE_INDEX);
+        int foundHandleIdx = getEntryField(opData.entryIndex, OFFSET_HANDLE_INDEX);
 
         if (foundHandleIdx == expectedHandleIdx) {
             return null; // someone helped
@@ -600,17 +610,17 @@ public class Chunk<K, V> {
     }
 
     final int getFirstItemEntryIndex() {
-        return get(HEAD_NODE, OFFSET_NEXT);
+        return getEntryField(HEAD_NODE, OFFSET_NEXT);
     }
 
     private int getLastItemEntryIndex() {
         // find the last sorted entry
         int sortedCount = this.sortedCount.get();
         int entryIndex = sortedCount == 0 ? HEAD_NODE : (sortedCount - 1) * (FIELDS) + 1;
-        int nextEntryIndex = get(entryIndex, OFFSET_NEXT);
+        int nextEntryIndex = getEntryField(entryIndex, OFFSET_NEXT);
         while (nextEntryIndex != Chunk.NONE) {
             entryIndex = nextEntryIndex;
-            nextEntryIndex = get(entryIndex, OFFSET_NEXT);
+            nextEntryIndex = getEntryField(entryIndex, OFFSET_NEXT);
         }
         return entryIndex;
     }
@@ -669,8 +679,8 @@ public class Chunk<K, V> {
         boolean isFirst = true;
 
         while (true) {
-            currHandleIndex = srcChunk.get(ei, OFFSET_HANDLE_INDEX);
-            currKeyIndex = srcChunk.get(ei, OFFSET_KEY_INDEX);
+            currHandleIndex = srcChunk.getEntryField(ei, OFFSET_HANDLE_INDEX);
+            currKeyIndex = srcChunk.getEntryField(ei, OFFSET_KEY_INDEX);
             int itemsToCopy = entryIndexEnd - entryIndexStart + 1;
 
             // try to find a continuous interval to copy
@@ -692,9 +702,9 @@ public class Chunk<K, V> {
                 entryIndexEnd++;
                 isFirst = false;
                 eiPrev = ei;
-                ei = srcChunk.get(ei, OFFSET_NEXT);
+                ei = srcChunk.getEntryField(ei, OFFSET_NEXT);
                 prevKeyIndex = currKeyIndex;
-                prevKeyLength = srcChunk.get(eiPrev, OFFSET_KEY_LENGTH);
+                prevKeyLength = srcChunk.getEntryField(eiPrev, OFFSET_KEY_LENGTH);
                 keyLengthToCopy += prevKeyLength;
                 if (ei != NONE) continue;
             }
@@ -719,7 +729,7 @@ public class Chunk<K, V> {
                 sortedEntryIndex += itemsToCopy * FIELDS; // update
 
                 // now copy key array
-                int keyIdx = srcChunk.get(entryIndexStart, OFFSET_KEY_INDEX);
+                int keyIdx = srcChunk.getEntryField(entryIndexStart, OFFSET_KEY_INDEX);
                 keysManager.copyKeys(srcChunk.keysManager, keyIdx, sortedKeyIndex, keyLengthToCopy);
 
                 sortedKeyIndex += keyLengthToCopy; // update
@@ -728,7 +738,7 @@ public class Chunk<K, V> {
             if (currHandleIndex < 0) { // if now this is a removed item
                 // don't copy it, continue to next item
                 eiPrev = ei;
-                ei = srcChunk.get(ei, OFFSET_NEXT);
+                ei = srcChunk.getEntryField(ei, OFFSET_NEXT);
             }
 
             if (ei == NONE || sortedEntryIndex > maxIdx || sortedKeyIndex > maxBytes)
@@ -840,18 +850,18 @@ public class Chunk<K, V> {
         private int next;
 
         AscendingIter() {
-            next = get(HEAD_NODE, OFFSET_NEXT);
-            int handle = get(next, OFFSET_HANDLE_INDEX);
+            next = getEntryField(HEAD_NODE, OFFSET_NEXT);
+            int handle = getEntryField(next, OFFSET_HANDLE_INDEX);
             while (next != Chunk.NONE && handle < 0) {
-                next = get(next, OFFSET_NEXT);
-                handle = get(next, OFFSET_HANDLE_INDEX);
+                next = getEntryField(next, OFFSET_NEXT);
+                handle = getEntryField(next, OFFSET_HANDLE_INDEX);
             }
         }
 
         AscendingIter(K from, boolean inclusive) {
-            next = get(binaryFind(from), OFFSET_NEXT);
+            next = getEntryField(binaryFind(from), OFFSET_NEXT);
 
-            int handle = get(next, OFFSET_HANDLE_INDEX);
+            int handle = getEntryField(next, OFFSET_HANDLE_INDEX);
 
             int compare=-1;
             if (next != Chunk.NONE)
@@ -861,19 +871,19 @@ public class Chunk<K, V> {
                     (compare > 0 ||
                     (compare >= 0 && !inclusive)||
                     handle < 0)) {
-                next = get(next, OFFSET_NEXT);
-                handle = get(next, OFFSET_HANDLE_INDEX);
+                next = getEntryField(next, OFFSET_NEXT);
+                handle = getEntryField(next, OFFSET_HANDLE_INDEX);
                 if (next != Chunk.NONE)
                     compare = compare(from, readKey(next));
             }
         }
 
         private void advance() {
-            next = get(next, OFFSET_NEXT);
-            int handle = get(next, OFFSET_HANDLE_INDEX);
+            next = getEntryField(next, OFFSET_NEXT);
+            int handle = getEntryField(next, OFFSET_HANDLE_INDEX);
             while (next != Chunk.NONE && handle < 0) {
-                next = get(next, OFFSET_NEXT);
-                handle = get(next, OFFSET_HANDLE_INDEX);
+                next = getEntryField(next, OFFSET_NEXT);
+                handle = getEntryField(next, OFFSET_HANDLE_INDEX);
             }
         }
 
@@ -931,12 +941,12 @@ public class Chunk<K, V> {
                 return;
             }
             next = stack.pop();
-            int handle = get(next, OFFSET_HANDLE_INDEX);
+            int handle = getEntryField(next, OFFSET_HANDLE_INDEX);
             while (next != Chunk.NONE && handle < 0) {
 //            while (next != Chunk.NONE && (handle < 0 || (handle > 0 && handles[handle].isDeleted()))) {
                 if (!stack.empty()) {
                     next = stack.pop();
-                    handle = get(next, OFFSET_HANDLE_INDEX);
+                    handle = getEntryField(next, OFFSET_HANDLE_INDEX);
                 } else {
                     next = Chunk.NONE;
                     return;
@@ -949,27 +959,27 @@ public class Chunk<K, V> {
          */
         private void traverseLinkedList() {
             assert stack.size() == 1; // ancor is in the stack
-            if (prevAnchor == get(anchor, OFFSET_NEXT)) {
+            if (prevAnchor == getEntryField(anchor, OFFSET_NEXT)) {
                 // there is no next;
                 next = Chunk.NONE;
                 return;
             }
-            next = get(anchor, OFFSET_NEXT);
+            next = getEntryField(anchor, OFFSET_NEXT);
             if (from == null) {
                 while (next != Chunk.NONE) {
                     stack.push(next);
-                    next = get(next, OFFSET_NEXT);
+                    next = getEntryField(next, OFFSET_NEXT);
                 }
             } else {
                 if (inclusive) {
                     while (next != Chunk.NONE && compare(readKey(next), from) <= 0) {
                         stack.push(next);
-                        next = get(next, OFFSET_NEXT);
+                        next = getEntryField(next, OFFSET_NEXT);
                     }
                 } else {
                     while (next != Chunk.NONE && compare(readKey(next), from) < 0) {
                         stack.push(next);
-                        next = get(next, OFFSET_NEXT);
+                        next = getEntryField(next, OFFSET_NEXT);
                     }
                 }
             }

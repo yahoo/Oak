@@ -35,6 +35,12 @@ class KeysManager<K> {
         keySerializer.serialize(key, byteBuffer);
     }
 
+    public void writeSeparateKey(K key) {
+        ByteBuffer b = memoryManager.allocate(keySerializer.calculateSize(key));
+        // byteBuffer.slice() is set so it protects us from the overwrites of the serializer
+        keySerializer.serialize(key, b.slice());
+    }
+
     public ByteBuffer getKeys() {
         return keys;
     }
