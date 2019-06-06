@@ -75,6 +75,18 @@ class Block {
         cleaner.clean();
     }
 
+    public ByteBuffer getBuffer(int position, int length) {
+        // the duplicate is needed for thread safeness, otherwise (in single threaded environment)
+        // the setting of position and limit could happen on the main buffer itself
+        ByteBuffer bb = buffer.duplicate();
+        bb.position(position);
+        bb.limit(position + length);
+        // on purpose not creating a ByteBuffer slice() here,
+        // it will be used only per demand when buffer is passed to the serializer
+        return bb;
+    }
+
+    // how many bytes a block may include, regardless allocated/free
     public int getCapacity() {
         return capacity;
     }
