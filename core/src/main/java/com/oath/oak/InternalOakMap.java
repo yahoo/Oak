@@ -1101,7 +1101,7 @@ class InternalOakMap<K, V> {
                 return null;
             }
             return new AbstractMap.SimpleImmutableEntry<>(
-                    new OakRKeyBufferImpl(pair.getKey(), pair.getValue()),
+                    new OakRKeyBufferImpl(pair.getKey()),
                     new OakRValueBufferImpl(pair.getValue()));
         }
     }
@@ -1149,7 +1149,7 @@ class InternalOakMap<K, V> {
         public OakRBuffer next() {
 
             Pair<ByteBuffer, Handle> pair = advance();
-            return new OakRKeyBufferImpl(pair.getKey(), pair.getValue());
+            return new OakRKeyBufferImpl(pair.getKey());
 
         }
     }
