@@ -209,6 +209,21 @@ public class Chunk<K, V> {
         return bbThread;
     }
 
+    ByteBuffer readSeparateKey(int entryIndex) {
+        if (entryIndex == Chunk.NONE) {
+            return null;
+        }
+        int blockID = getEntryField(entryIndex, OFFSET_KEY_BLOCK);
+        int ki = getEntryField(entryIndex, OFFSET_KEY_INDEX);
+        int length = getEntryField(entryIndex, OFFSET_KEY_LENGTH);
+
+        ByteBuffer bbThread =
+            memoryManager.readByteBufferFromBlockID(blockID,ki,length).asReadOnlyBuffer();
+
+
+        return bbThread;
+    }
+
     ByteBuffer readMinKey() {
         int minEntry = getFirstItemEntryIndex();
         return readKey(minEntry);
