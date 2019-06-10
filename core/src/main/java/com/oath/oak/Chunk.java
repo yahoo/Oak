@@ -238,19 +238,19 @@ public class Chunk<K, V> {
      * gets the field of specified offset for given item in entry array
      */
     private int getEntryField(int item, int offset) {
-        return entries[item + offset];
+//        return entries[item + offset];
 
-//        if (OFFSET_KEY_BLOCK != offset && OFFSET_NEXT != offset) {
-//            return entries[item + offset];
-//        }
-//        if (OFFSET_NEXT == offset) {
-//            // return two low bytes of the int
-//            return (entries[item + OFFSET_NEXT] & 0xffffffff);
-//        }
-//        else {
-//            // offset must be OFFSET_KEY_BLOCK, return 2 high bytes of the int inside OFFSET_NEXT
-//            return (entries[item + OFFSET_NEXT] >> 16);
-//        }
+        if (OFFSET_KEY_BLOCK != offset && OFFSET_NEXT != offset) {
+            return entries[item + offset];
+        }
+        if (OFFSET_NEXT == offset) {
+            // return two low bytes of the int
+            return (entries[item + OFFSET_NEXT] & 0xffffffff);
+        }
+        else {
+            // offset must be OFFSET_KEY_BLOCK, return 2 high bytes of the int inside OFFSET_NEXT
+            return (entries[item + OFFSET_NEXT] >> 16);
+        }
     }
 
     /**
