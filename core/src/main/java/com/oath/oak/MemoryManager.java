@@ -48,7 +48,7 @@ public class MemoryManager {
     }
 
     public void releaseKeys(ByteBuffer keys) {
-        keysMemoryAllocator.free(keys);
+        // keys aren't going to be released until GC part is taken care for
     }
 
     // When some buffer need to be read from a random block
