@@ -13,64 +13,98 @@ import java.util.function.Function;
 public class OakRKeyBufferImpl implements OakRBuffer {
 
     private final ByteBuffer byteBuffer;
+    private final Handle handle;
 
-    OakRKeyBufferImpl(ByteBuffer byteBuffer) {
+    OakRKeyBufferImpl(ByteBuffer byteBuffer, Handle handle) {
+        this.handle = handle;
         this.byteBuffer = byteBuffer;
     }
 
     @Override
     public int capacity() {
-        return byteBuffer.capacity();
+        handle.start();
+        int i = byteBuffer.capacity();
+        handle.end();
+        return i;
     }
 
     @Override
     public byte get(int index) {
-        return byteBuffer.get(index);
+        handle.start();
+        byte b = byteBuffer.get(index);
+        handle.end();
+        return b;
     }
 
     @Override
     public ByteOrder order() {
-        return byteBuffer.order();
+        handle.start();
+        ByteOrder bo = byteBuffer.order();
+        handle.end();
+        return bo;
     }
 
     @Override
     public char getChar(int index) {
-        return byteBuffer.getChar(index);
+        handle.start();
+        char c = byteBuffer.getChar(index);
+        handle.end();
+        return c;
     }
 
     @Override
     public short getShort(int index) {
-        return byteBuffer.getShort(index);
+        handle.start();
+        short s = byteBuffer.getShort(index);
+        handle.end();
+        return s;
     }
 
     @Override
     public int getInt(int index) {
-        return byteBuffer.getInt(index);
+        handle.start();
+        int i = byteBuffer.getInt(index);
+        handle.end();
+        return i;
     }
 
     @Override
     public long getLong(int index) {
-        return byteBuffer.getLong(index);
+        handle.start();
+        long l = byteBuffer.getLong(index);
+        handle.end();
+        return l;
     }
 
     @Override
     public float getFloat(int index) {
-        return byteBuffer.getFloat(index);
+        handle.start();
+        float f = byteBuffer.getFloat(index);
+        handle.end();
+        return f;
     }
 
     @Override
     public double getDouble(int index) {
-        return byteBuffer.getChar(index);
+        handle.start();
+        double d = byteBuffer.getChar(index);
+        handle.end();
+        return d;
     }
 
     @Override
     public <T> T transform(Function<ByteBuffer, T> transformer) {
-        return transformer.apply(byteBuffer);
+        handle.start();
+        T t = transformer.apply(byteBuffer);
+        handle.end();
+        return t;
     }
 
     @Override
     public void unsafeCopyBufferToIntArray(int srcPosition, int[] dstArray, int countInts) {
+        handle.start();
         UnsafeUtils.unsafeCopyBufferToIntArray(byteBuffer, srcPosition, dstArray, countInts);
+        handle.end();
     }
 
 }

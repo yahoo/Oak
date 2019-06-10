@@ -9,6 +9,7 @@ package com.oath.oak;
 import java.nio.ByteBuffer;
 
 import java.nio.ByteOrder;
+import java.util.ConcurrentModificationException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Consumer;
@@ -228,5 +229,17 @@ class Handle<V> implements OakWBuffer {
 
     public void unsafeBufferToIntArrayCopy(int srcPosition, int[] dstArray, int countInts) {
         UnsafeUtils.unsafeCopyBufferToIntArray(getSlicedReadOnlyByteBuffer(), srcPosition, dstArray, countInts);
+    }
+
+    void start() {
+        readLock();
+        if (isDeleted()) {
+            readUnLock();
+            throw new ConcurrentModificationException();
+        }
+    }
+
+    void end() {
+        readUnLock();
     }
 }
