@@ -8,10 +8,11 @@ package com.oath.oak.NativeAllocator;
 
 import com.oath.oak.OakMemoryAllocator;
 import com.oath.oak.OakOutOfMemoryException;
-import javafx.util.Pair;
 
 import java.nio.ByteBuffer;
+import java.util.AbstractMap;
 import java.util.Comparator;
+import java.util.Map;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.atomic.AtomicLong;
@@ -26,10 +27,10 @@ public class OakNativeMemoryAllocator implements OakMemoryAllocator {
     private final ConcurrentLinkedQueue<Block> blocks = new ConcurrentLinkedQueue<>();
 
     // free list of ByteBuffers which can be reused - sorted by buffer size, then by unique hash
-    private Comparator<Pair<Long, ByteBuffer>> comparator =
-            Comparator.<Pair<Long, ByteBuffer>, Integer>comparing(p -> p.getValue().remaining())
-            .thenComparing(Pair::getKey);
-    private final ConcurrentSkipListSet<Pair<Long,ByteBuffer>> freeList = new ConcurrentSkipListSet<>(comparator);
+    private Comparator<Map.Entry<Long, ByteBuffer>> comparator =
+            Comparator.<Map.Entry<Long, ByteBuffer>, Integer>comparing(p -> p.getValue().remaining())
+            .thenComparing(Map.Entry::getKey);
+    private final ConcurrentSkipListSet<Map.Entry<Long,ByteBuffer>> freeList = new ConcurrentSkipListSet<>(comparator);
     private final BlocksProvider blocksProvider;
     private Block currentBlock;
 
@@ -66,7 +67,7 @@ public class OakNativeMemoryAllocator implements OakMemoryAllocator {
     public ByteBuffer allocate(int size) {
 
         if (!freeList.isEmpty()) {
-            for (Pair<Long, ByteBuffer> kv : freeList) {
+            for (Map.Entry<Long, ByteBuffer> kv : freeList) {
                 ByteBuffer bb = kv.getValue();
                 if (bb.remaining() > (RECLAIM_FACTOR * size)) break;     // all remaining buffers are too big
 
@@ -115,7 +116,7 @@ public class OakNativeMemoryAllocator implements OakMemoryAllocator {
     public void free(ByteBuffer bb) {
         allocated.addAndGet(-(bb.remaining()));
         if (stats != null) stats.release(bb);
-        freeList.add(new Pair<>(freeCounter.getAndIncrement(), bb));
+        freeList.add(new AbstractMap.SimpleImmutableEntry<>(freeCounter.getAndIncrement(), bb));
     }
 
     // Releases all memory allocated for this Oak (should be used as part of the Oak destruction)

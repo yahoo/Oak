@@ -6,7 +6,6 @@
 
 package com.oath.oak;
 
-import javafx.util.Pair;
 
 import java.nio.ByteBuffer;
 import java.util.AbstractMap;
@@ -953,7 +952,7 @@ class InternalOakMap<K, V> {
          * Advances next to higher entry.
          * Return previous index
          */
-        Pair<ByteBuffer, Handle> advance() {
+        Map.Entry<ByteBuffer, Handle> advance() {
 
             if (state == null) {
                 throw new NoSuchElementException();
@@ -968,7 +967,7 @@ class InternalOakMap<K, V> {
             ByteBuffer bb = state.getChunk().readKey(state.getIndex()).slice();
             Handle currentHandle = state.getChunk().getHandle(state.getIndex());
             advanceState();
-            return new Pair<>(bb, currentHandle);
+            return new AbstractMap.SimpleImmutableEntry<>(bb, currentHandle);
         }
 
         private void initState(boolean isDescending, K lowerBound, boolean lowerInclusive,
@@ -1096,7 +1095,7 @@ class InternalOakMap<K, V> {
         }
 
         public Map.Entry<OakRBuffer, OakRBuffer> next() {
-            Pair<ByteBuffer, Handle> pair = advance();
+            Map.Entry<ByteBuffer, Handle> pair = advance();
             if (pair.getValue() == null) {
                 return null;
             }
@@ -1119,7 +1118,7 @@ class InternalOakMap<K, V> {
 
         public T next() {
 
-            Pair<ByteBuffer, Handle> pair = advance();
+            Map.Entry<ByteBuffer, Handle> pair = advance();
             Handle handle = pair.getValue();
             ByteBuffer serializedKey = pair.getKey();
             if (handle == null) {
@@ -1148,7 +1147,7 @@ class InternalOakMap<K, V> {
         @Override
         public OakRBuffer next() {
 
-            Pair<ByteBuffer, Handle> pair = advance();
+            Map.Entry<ByteBuffer, Handle> pair = advance();
             return new OakRKeyBufferImpl(pair.getKey());
 
         }
@@ -1165,7 +1164,7 @@ class InternalOakMap<K, V> {
         }
 
         public T next() {
-            Pair<ByteBuffer, Handle> pair = advance();
+            Map.Entry<ByteBuffer, Handle> pair = advance();
             ByteBuffer serializedKey = pair.getKey();
             return transformer.apply(serializedKey);
         }

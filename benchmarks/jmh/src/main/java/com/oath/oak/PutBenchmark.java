@@ -6,7 +6,6 @@
 
 package com.oath.oak;
 
-import javafx.util.Pair;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -28,7 +27,9 @@ import org.openjdk.jmh.runner.options.Options;
 import org.openjdk.jmh.runner.options.OptionsBuilder;
 
 
+import java.util.AbstractMap;
 import java.util.ArrayList;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 public class PutBenchmark {
@@ -72,7 +73,7 @@ public class PutBenchmark {
         @Param({"500000"})
         private int numRows;
 
-        private ArrayList<Pair<String, String>> rows;
+        private ArrayList<Map.Entry<String, String>> rows;
 
         @Setup
         public void setup() {
@@ -85,7 +86,7 @@ public class PutBenchmark {
                 String val = String.format("%0$-" + VALUE_SIZE_BYTES/Character.BYTES +"s",
                         String.valueOf(i) + Thread.currentThread().getId());
 
-                rows.add(new Pair<>(key, val));
+                rows.add(new AbstractMap.SimpleImmutableEntry<>(key, val));
             }
         }
     }
@@ -100,7 +101,7 @@ public class PutBenchmark {
     @Benchmark
     public void put(Blackhole blackhole,BenchmarkState state,ThreadState threadState) {
         for (int i = 0; i < threadState.numRows; ++i) {
-            Pair<String, String> pair = threadState.rows.get(i);
+            Map.Entry<String, String> pair = threadState.rows.get(i);
             state.oakMap.zc().put(pair.getKey(), pair.getValue());
             blackhole.consume(state.oakMap);
         }
@@ -115,7 +116,7 @@ public class PutBenchmark {
     @Benchmark
     public void putIfAbsent(Blackhole blackhole,BenchmarkState state,ThreadState threadState) {
         for (int i = 0; i < threadState.numRows; ++i) {
-            Pair<String, String> pair = threadState.rows.get(i);
+            Map.Entry<String, String> pair = threadState.rows.get(i);
             state.oakMap.zc().put(pair.getKey(), pair.getValue());
             blackhole.consume(state.oakMap);
         }
