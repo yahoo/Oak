@@ -164,7 +164,7 @@ class Rebalancer<K, V> {
         List<Chunk<K,V>> newChunks = new LinkedList<>();
 
         while (true) {
-            ei = currNewChunk.copyPart(currFrozen, ei, entriesLowThreshold, keyBytesLowThreshold);
+            ei = currNewChunk.copyPartNoKeys(currFrozen, ei, entriesLowThreshold, keyBytesLowThreshold);
             // if completed reading curr frozen chunk
             if (ei == Chunk.NONE) {
                 if (!iterFrozen.hasNext())
@@ -184,7 +184,9 @@ class Rebalancer<K, V> {
                     break;
                 } else {
                     // we have to open an new chunk
-                    // TODO do we want to use slice here?
+                    // here we create a new on-heap minimal key for the second new chunk,
+                    // created by the split. The new min key is on-heap copy of the one off-heap
+                    // TODO do we want to use slice here? yes we need!
                     ByteBuffer bb = currFrozen.readKey(ei).slice();
                     int remaining = bb.remaining();
                     int position = bb.position();
@@ -194,6 +196,9 @@ class Rebalancer<K, V> {
                         newMinKey.put(myPos + i, bb.get(i + position));
                     }
                     newMinKey.rewind();
+
+
+
                     Chunk c = new Chunk<K, V>(newMinKey, firstFrozen, currFrozen.comparator, memoryManager,
                             currFrozen.getMaxItems(), currFrozen.getBytesPerItem(), currFrozen.externalSize,
                             keySerializer, valueSerializer, threadIndexCalculator);
@@ -214,15 +219,19 @@ class Rebalancer<K, V> {
 
     private boolean canAppendSuffix(List<Chunk<K,V>> frozenSuffix, int maxCount, int maxBytes) {
         Iterator<Chunk<K,V>> iter = frozenSuffix.iterator();
+        // first of frozen chunks already have entriesLowThreshold copied into new one
+        boolean firstChunk = true;
         int counter = 0;
-        int bytesSum = 0;
         // use statistics to find out how much is left to copy
-        while (iter.hasNext() && counter < maxCount && bytesSum < maxBytes) {
+        while (iter.hasNext() && counter < maxCount) {
             Chunk<K,V> c = iter.next();
             counter += c.getStatistics().getCompactedCount();
-            bytesSum += c.keyIndex.get();
+            if (firstChunk) {
+                counter -= entriesLowThreshold;
+                firstChunk = false;
+            }
         }
-        return counter < maxCount && bytesSum < maxBytes;
+        return counter < maxCount;
     }
 
     private void completeCopy(Chunk<K,V> dest, int ei, List<Chunk<K,V>> srcChunks) {
@@ -230,11 +239,11 @@ class Rebalancer<K, V> {
         Chunk<K,V> src = iter.next();
         int maxItems = src.getMaxItems();
         int maxKeyBytes = maxItems * src.getBytesPerItem();
-        dest.copyPart(src, ei, maxItems, maxKeyBytes);
+        dest.copyPartNoKeys(src, ei, maxItems, maxKeyBytes);
         while (iter.hasNext()) {
             src = iter.next();
             ei = src.getFirstItemEntryIndex();
-            dest.copyPart(src, ei, maxItems, maxKeyBytes);
+            dest.copyPartNoKeys(src, ei, maxItems, maxKeyBytes);
         }
     }
 

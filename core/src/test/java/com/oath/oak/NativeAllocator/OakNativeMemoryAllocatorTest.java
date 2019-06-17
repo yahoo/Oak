@@ -160,7 +160,7 @@ public class OakNativeMemoryAllocatorTest {
 
         // (2) check the one block in the allocator
         assertEquals(ma.numOfAllocatedBlocks(), 1);
-        assertEquals(valueSizeAfterSerialization, ma.allocated());   // check the newest block allocation
+        assertEquals(valueSizeAfterSerialization+4 /*size of integer key*/ , ma.allocated());   // check the newest block allocation
         // check that what you read is the same that you wrote
         Integer resultForKey = oak.firstKey();
         Integer resultForValue = oak.get(key);
@@ -176,8 +176,9 @@ public class OakNativeMemoryAllocatorTest {
 
         // (2) check the two blocks in the allocator
         assertEquals(ma.numOfAllocatedBlocks(), 2);
-        assertEquals(valueSizeAfterSerialization, ma.getCurrentBlock().allocated());   // check the newest block allocation
-        assertEquals(valueSizeAfterSerialization * 2, ma.allocated());   // check the total allocation
+        // mind no addition of the size of integer key, as it was allocated in the previous block
+        assertEquals(valueSizeAfterSerialization , ma.getCurrentBlock().allocated());   // check the newest block allocation
+        assertEquals(valueSizeAfterSerialization * 2+4*2 /*size of two integer keys*/, ma.allocated());   // check the total allocation
         // check that what you read is the same that you wrote
         resultForKey = oak.lastKey();
         resultForValue = oak.get(key);
@@ -193,8 +194,9 @@ public class OakNativeMemoryAllocatorTest {
 
         // (2) check the 3 blocks in the allocator
         assertEquals(ma.numOfAllocatedBlocks(), 3);
+        // mind no addition of the size of integer key, as it was allocated in the previous block
         assertEquals(valueSizeAfterSerialization, ma.getCurrentBlock().allocated());   // check the newest block allocation
-        assertEquals(valueSizeAfterSerialization * 3, ma.allocated());   // check the total allocation
+        assertEquals(valueSizeAfterSerialization * 3 +4*3 /*size of three integer keys*/, ma.allocated());   // check the total allocation
         // check that what you read is the same that you wrote
         resultForKey = oak.lastKey();
         resultForValue = oak.get(key);

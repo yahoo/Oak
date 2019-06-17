@@ -137,7 +137,9 @@ public class IteratorModificationTest {
                     String expectedKey = generateString(currentKey.get(), KEY_SIZE);
                     String expectedVal = generateString(currentKey.get(), VALUE_SIZE);
                     Map.Entry<String, String> entry = iterator.next();
-                    assertEquals(expectedKey, entry.getKey());
+                    if (expectedKey != entry.getKey()) {
+                        assertEquals(expectedKey, entry.getKey());
+                    }
                     assertEquals(expectedVal, entry.getValue());
                     writeLock.release();
                     if (!isDescending)

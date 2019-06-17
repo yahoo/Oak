@@ -47,6 +47,10 @@ public class MemoryManager {
         return keysMemoryAllocator.allocate(bytes);
     }
 
+    public OakNativeMemoryAllocator.Slice allocateSlice(int bytes) {
+        return ((OakNativeMemoryAllocator)keysMemoryAllocator).allocateSlice(bytes);
+    }
+
     public void releaseKeys(ByteBuffer keys) {
         // keys aren't going to be released until GC part is taken care for
     }

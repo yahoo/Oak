@@ -96,7 +96,7 @@ public class OakMapBuilder<K,V> {
       this.memoryAllocator = new OakNativeMemoryAllocator(memoryCapacity);
     }
 
-    MemoryManager memoryManager = new MemoryManager(memoryAllocator, new DirectMemoryAllocator());
+    MemoryManager memoryManager = new MemoryManager(memoryAllocator, memoryAllocator);
 
     return new OakMap<>(
             minKey,
