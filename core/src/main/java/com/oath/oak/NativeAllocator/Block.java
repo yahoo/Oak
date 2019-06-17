@@ -17,14 +17,26 @@ class Block {
     private final ByteBuffer buffer;
     private final int capacity;
     private final AtomicInteger allocated = new AtomicInteger(0);
+    private final int id;
 
     Block(long capacity) {
         assert capacity > 0;
         assert capacity <= Integer.MAX_VALUE; // This is exactly 2GB
         this.capacity = (int) capacity;
+        this.id = 0;
         // Pay attention in allocateDirect the data is *zero'd out*
         // which has an overhead in clearing and you end up touching every page
         this.buffer = ByteBuffer.allocateDirect(this.capacity);
+    }
+
+    Block(long capacity, int id) {
+      assert capacity > 0;
+      assert capacity <= Integer.MAX_VALUE; // This is exactly 2GB
+      this.capacity = (int) capacity;
+      this.id = id;
+      // Pay attention in allocateDirect the data is *zero'd out*
+      // which has an overhead in clearing and you end up touching every page
+      this.buffer = ByteBuffer.allocateDirect(this.capacity);
     }
 
     // Block manages its linear allocation. Thread safe.
@@ -90,4 +102,6 @@ class Block {
     public int getCapacity() {
         return capacity;
     }
+
+    public int getID() {return id;}
 }
