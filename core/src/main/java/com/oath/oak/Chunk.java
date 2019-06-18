@@ -898,26 +898,32 @@ public class Chunk<K, V> {
                     // next should point to the next item
                     entries[sortedEntryIndex + offset + OFFSET_NEXT]
                         = sortedEntryIndex + offset + FIELDS;
-                    entries[sortedEntryIndex + offset + OFFSET_KEY_INDEX]
-                        = srcChunk.entries[entryIndexStart + offset + OFFSET_KEY_INDEX];
-                    // key block ID is copied implicitly as part of key length
-                    entries[sortedEntryIndex + offset + OFFSET_KEY_LENGTH]
-                        = srcChunk.entries[entryIndexStart + offset + OFFSET_KEY_LENGTH];
+
+//                    entries[sortedEntryIndex + offset + OFFSET_KEY_INDEX]
+//                        = srcChunk.entries[entryIndexStart + offset + OFFSET_KEY_INDEX];
+//                    // key block ID is copied implicitly as part of key length
+//                    entries[sortedEntryIndex + offset + OFFSET_KEY_LENGTH]
+//                        = srcChunk.entries[entryIndexStart + offset + OFFSET_KEY_LENGTH];
+
+                    // copy the values of key position, key block index + key length => 2 integers via array copy
+                    System.arraycopy(srcChunk.entries,  // source array
+                        entryIndexStart + offset + OFFSET_KEY_INDEX,
+                        entries,                        // destination aray
+                        sortedEntryIndex + offset + OFFSET_KEY_INDEX, (FIELDS-2));
+
+
                     // copy handle
                     int srcChunkHandleIdx = srcChunk.entries[entryIndexStart + offset + OFFSET_HANDLE_INDEX];
-//                    assert srcChunk.handles.length > srcChunkHandleIdx;
-//                    assert srcChunkHandleIdx > 0;
-//                    assert handles.length > currentHandleIdx;
-//                    assert currentHandleIdx > 0;
-                    if ((handles.length <= currentHandleIdx) ||
-                        (srcChunk.handles.length <= srcChunkHandleIdx) || (currentHandleIdx < 0) ||
-                        (srcChunkHandleIdx < 0)) {
-                        System.out.println("Got it!");
-                    }
-                    handles[currentHandleIdx] = srcChunk.handles[srcChunkHandleIdx];
+                    assert srcChunk.handles.length > srcChunkHandleIdx;
+                    assert srcChunkHandleIdx > 0;
+                    assert handles.length > currentHandleIdx;
+                    assert currentHandleIdx > 0;
                     entries[sortedEntryIndex + offset + OFFSET_HANDLE_INDEX] = currentHandleIdx;
+                    handles[currentHandleIdx] = srcChunk.handles[srcChunkHandleIdx];
                     currentHandleIdx++;
                 }
+
+
                 sortedEntryIndex += entriesToCopy * FIELDS; // update
             }
 
