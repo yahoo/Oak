@@ -162,7 +162,9 @@ class Rebalancer<K, V> {
         int ei = firstFrozen.getFirstItemEntryIndex();
 
         List<Chunk<K,V>> newChunks = new LinkedList<>();
-        System.out.println("--- Doing new type of rebalance! ---");
+
+        //System.out.println("--- Doing new type of rebalance! ---");
+
         while (true) {
             ei = currNewChunk.copyPartNoKeys(currFrozen, ei, entriesLowThreshold, keyBytesLowThreshold);
             // if completed reading curr frozen chunk
