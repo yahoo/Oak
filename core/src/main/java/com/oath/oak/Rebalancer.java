@@ -164,12 +164,14 @@ class Rebalancer<K, V> {
         List<Chunk<K,V>> newChunks = new LinkedList<>();
 
         Random rand = new Random();
-        // Obtain a number between [0 - 49].
-        int n = rand.nextInt(60);
+        // Obtain a number between [0 - 69].
+        int n = rand.nextInt(70);
         if (n==25) {
             System.out.println("--- Doing new type of rebalance! Chunk max items: "
                 + currFrozen.getMaxItems() + "  entriesLowThreshold: "
-                + entriesLowThreshold + ", sorted count: " + currFrozen.getStatistics().getInitialSortedCount() + " ---");
+                + entriesLowThreshold + ", sorted count: "
+                + currFrozen.getStatistics().getInitialSortedCount() + ", total count: "
+                + currFrozen.getStatistics().getCompactedCount() + " ---");
         }
 
         while (true) {
