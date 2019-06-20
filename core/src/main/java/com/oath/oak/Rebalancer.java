@@ -165,11 +165,11 @@ class Rebalancer<K, V> {
 
         Random rand = new Random();
         // Obtain a number between [0 - 49].
-        int n = rand.nextInt(50);
+        int n = rand.nextInt(60);
         if (n==25) {
             System.out.println("--- Doing new type of rebalance! Chunk max items: "
                 + currFrozen.getMaxItems() + "  entriesLowThreshold: "
-                + entriesLowThreshold + " ---");
+                + entriesLowThreshold + ", sorted count: " + currFrozen.getStatistics().getInitialSortedCount() + " ---");
         }
 
         while (true) {

@@ -1305,6 +1305,7 @@ public class Chunk<K, V> {
         int getAddedCount() {
             return addedCount.get();
         }
+        int getInitialSortedCount() { return initialSortedCount; }
     }
 
     /**
