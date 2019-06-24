@@ -165,7 +165,7 @@ class Rebalancer<K, V> {
 
         Random rand = new Random();
                 // Obtain a number between [0 - 99].
-                int n = rand.nextInt(100);
+                int n = rand.nextInt(200);
                 if (n==25) {
                     System.out.println("--- Doing new type of rebalance! Chunk max items: "
                         + currFrozen.getMaxItems() + "  entriesLowThreshold: "

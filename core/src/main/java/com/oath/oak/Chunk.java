@@ -41,7 +41,7 @@ public class Chunk<K, V> {
 
     // used for checking if rebalance is needed
     private static final double REBALANCE_PROB_PERC = 30;
-    private static final double SORTED_REBALANCE_RATIO = 2;
+    private static final double SORTED_REBALANCE_RATIO = 1.2;
     private static final double MAX_ENTRIES_FACTOR = 2;
     private static final double MAX_IDLE_ENTRIES_FACTOR = 5;
     private static final double MAX_BYTES_FACTOR = 1.25;
@@ -52,7 +52,7 @@ public class Chunk<K, V> {
 
     // defaults
     public static final int BYTES_PER_ITEM_DEFAULT = 256;
-    public static final int MAX_ITEMS_DEFAULT = 256;
+    public static final int MAX_ITEMS_DEFAULT = 4096;
     private final ThreadIndexCalculator threadIndexCalculator;
 
     private static final Unsafe unsafe;
