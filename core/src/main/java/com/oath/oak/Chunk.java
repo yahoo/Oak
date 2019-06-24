@@ -52,7 +52,7 @@ public class Chunk<K, V> {
 
     // defaults
     public static final int BYTES_PER_ITEM_DEFAULT = 256;
-    public static final int MAX_ITEMS_DEFAULT = 2048;
+    public static final int MAX_ITEMS_DEFAULT = 256;
     private final ThreadIndexCalculator threadIndexCalculator;
 
     private static final Unsafe unsafe;
