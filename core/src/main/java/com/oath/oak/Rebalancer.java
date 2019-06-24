@@ -163,16 +163,16 @@ class Rebalancer<K, V> {
 
         List<Chunk<K,V>> newChunks = new LinkedList<>();
 
-        Random rand = new Random();
-                // Obtain a number between [0 - 99].
-                int n = rand.nextInt(200);
-                if (n==25) {
-                    System.out.println("--- Doing new type of rebalance! Chunk max items: "
-                        + currFrozen.getMaxItems() + "  entriesLowThreshold: "
-                        + entriesLowThreshold + ", sorted count: "
-                        + currFrozen.getStatistics().getInitialSortedCount() + ", total count: "
-                        + currFrozen.getStatistics().getCompactedCount() + " ---");
-                }
+//        Random rand = new Random();
+//                // Obtain a number between [0 - 99].
+//                int n = rand.nextInt(200);
+//                if (n==25) {
+//                    System.out.println("--- Doing new type of rebalance! Chunk max items: "
+//                        + currFrozen.getMaxItems() + "  entriesLowThreshold: "
+//                        + entriesLowThreshold + ", sorted count: "
+//                        + currFrozen.getStatistics().getInitialSortedCount() + ", total count: "
+//                        + currFrozen.getStatistics().getCompactedCount() + " ---");
+//                }
 
         while (true) {
             ei = currNewChunk.copyPartNoKeys(currFrozen, ei, entriesLowThreshold, keyBytesLowThreshold);
