@@ -44,7 +44,6 @@ public class OakMapBuilder<K,V> {
     this.comparator = null;
 
     this.chunkMaxItems = Chunk.MAX_ITEMS_DEFAULT;
-    this.chunkBytesPerItem = Chunk.BYTES_PER_ITEM_DEFAULT;
     this.memoryCapacity = MAX_MEM_CAPACITY;
     this.memoryAllocator = null;
   }

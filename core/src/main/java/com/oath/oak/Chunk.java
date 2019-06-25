@@ -31,11 +31,11 @@ public class Chunk<K, V> {
 
     private static final int FIELDS = 4;  // # of fields in each item of key array
     private static final int OFFSET_NEXT = 0;
-    private static final int OFFSET_KEY_INDEX = 1;
+    private static final int OFFSET_KEY_POSITION = 1;
     private static final int OFFSET_KEY_LENGTH = 2;
     private static final int OFFSET_HANDLE_INDEX = 3;
-    // key block is not used as a number, key block is part of key length integer
-    // thus key length is limited to 65KB
+    // key block is not used as an offset, rather as request differentiation,
+    // key block is part of key length integer, thus key length is limited to 65KB
     private static final int OFFSET_KEY_BLOCK = 4;
     private static final int KEY_LENGTH_MASK = 0xffff; // 16 lower bits
 
@@ -44,14 +44,12 @@ public class Chunk<K, V> {
     private static final double SORTED_REBALANCE_RATIO = 1.6;
     private static final double MAX_ENTRIES_FACTOR = 2;
     private static final double MAX_IDLE_ENTRIES_FACTOR = 5;
-    private static final double MAX_BYTES_FACTOR = 1.25;
 
     // when chunk is frozen, all of the elements in pending puts array will be this OpData
     private static final OpData FROZEN_OP_DATA =
         new OpData(Operation.NO_OP, 0, 0, 0, null);
 
     // defaults
-    public static final int BYTES_PER_ITEM_DEFAULT = 256;
     public static final int MAX_ITEMS_DEFAULT = 256;
     private final ThreadIndexCalculator threadIndexCalculator;
 
@@ -71,13 +69,11 @@ public class Chunk<K, V> {
     private final Handle<V>[] handles;
     private AtomicInteger pendingOps;
     private final AtomicInteger entryIndex;    // points to next free index of entry array
-    final AtomicInteger keyIndex;    // points to next free index of key array
-    private final AtomicInteger handleIndex;    // points to next free index of entry array
+    private final AtomicInteger handleIndex;   // points to next free index of entry array
     private final Statistics statistics;
     // # of sorted items at entry-array's beginning (resulting from split)
     private AtomicInteger sortedCount;
     private final int maxItems;
-    private final int maxKeyBytes;
     AtomicInteger externalSize; // for updating oak's size
     // for writing the keys into the bytebuffers
     private final OakSerializer<K> keySerializer;
@@ -98,29 +94,20 @@ public class Chunk<K, V> {
 
     /**
      * Create a new chunk
-     *  @param minKey  minimal key to be placed in chunk
+     * @param minKey  minimal key to be placed in chunk
      * @param creator the chunk that is responsible for this chunk creation
      * @param threadIndexCalculator
      */
-    Chunk(ByteBuffer minKey,
-          Chunk creator,
-          Comparator<Object> comparator,
-          MemoryManager memoryManager,
-          int maxItems,
-          int bytesPerItem,
-          AtomicInteger externalSize,
-          OakSerializer<K> keySerializer,
-          OakSerializer<V> valueSerializer,
-          ThreadIndexCalculator threadIndexCalculator) {
+    Chunk(ByteBuffer minKey, Chunk creator, Comparator<Object> comparator, MemoryManager memoryManager,
+        int maxItems, AtomicInteger externalSize, OakSerializer<K> keySerializer, OakSerializer<V> valueSerializer,
+        ThreadIndexCalculator threadIndexCalculator) {
         this.memoryManager = memoryManager;
         this.maxItems = maxItems;
-        this.maxKeyBytes = maxItems * bytesPerItem;
         this.entries = new int[maxItems * FIELDS + FIRST_ITEM];
         this.entryIndex = new AtomicInteger(FIRST_ITEM);
         this.handles = new Handle[maxItems + FIRST_ITEM];
         this.handleIndex = new AtomicInteger(FIRST_ITEM);
-        this.keysManager = new KeysManager<K>(this.maxKeyBytes, memoryManager, keySerializer);
-        this.keyIndex = new AtomicInteger(FIRST_ITEM);
+        this.keysManager = new KeysManager<K>(memoryManager, keySerializer);
         this.sortedCount = new AtomicInteger(0);
         this.minKey = minKey;
         this.creator = new AtomicReference<>(creator);
@@ -206,7 +193,7 @@ public class Chunk<K, V> {
         assert false;
         return null;
 
-//        int ki = getEntryField(entryIndex, OFFSET_KEY_INDEX);
+//        int ki = getEntryField(entryIndex, OFFSET_KEY_POSITION);
 //        int length = getEntryField(entryIndex, OFFSET_KEY_LENGTH);
 //
 //        int idx = threadIndexCalculator.getIndex();
@@ -225,7 +212,7 @@ public class Chunk<K, V> {
             return null;
         }
         int blockID = getEntryField(entryIndex, OFFSET_KEY_BLOCK);
-        int ki = getEntryField(entryIndex, OFFSET_KEY_INDEX);
+        int ki = getEntryField(entryIndex, OFFSET_KEY_POSITION);
         int length = getEntryField(entryIndex, OFFSET_KEY_LENGTH);
 
         ByteBuffer bbThread =
@@ -301,7 +288,7 @@ public class Chunk<K, V> {
     private void writeSeparateKey(K key, int ei) {
         OakNativeMemoryAllocator.Slice slice = keysManager.writeSeparateKey(key);
         setEntryField(ei, OFFSET_KEY_BLOCK, slice.getBlockID());
-        setEntryField(ei, OFFSET_KEY_INDEX, slice.getByteBuffer().position());
+        setEntryField(ei, OFFSET_KEY_POSITION, slice.getByteBuffer().position());
         setEntryField(ei, OFFSET_KEY_LENGTH, keySerializer.calculateSize(key));
     }
 
@@ -440,27 +427,6 @@ public class Chunk<K, V> {
         return hi;
     }
 
-//    int allocateEntryAndKey(K key) {
-//        int ei = entryIndex.getAndAdd(FIELDS);
-//        if (ei + FIELDS > entries.length) {
-//            return -1;
-//        }
-//
-//        int length = keySerializer.calculateSize(key);
-//        int ki = keyIndex.getAndAdd(length);
-//        if (ki + length >= keysManager.length()) {
-//            return -1;
-//        }
-//
-//        // key and value must be set before linking to the list so it will make sense when reached before put is done
-//        setEntryField(ei, OFFSET_HANDLE_INDEX, -1); // set value index to -1, value is init to null
-//        writeKey(key, ki);
-//        setEntryField(ei, OFFSET_KEY_INDEX, ki);
-//        setEntryField(ei, OFFSET_KEY_LENGTH, length);
-//
-//        return ei;
-//    }
-
     int allocateEntryAndSeparateKey(K key) {
         int ei = entryIndex.getAndAdd(FIELDS);
         if (ei + FIELDS > entries.length) {
@@ -550,7 +516,6 @@ public class Chunk<K, V> {
     }
 
     public int getMaxItems() { return maxItems; }
-    public int getBytesPerItem() { return maxKeyBytes / maxItems; }
 
     /**
      * Updates a linked entry to point to handle or otherwise removes such a link. The handle in
@@ -705,143 +670,15 @@ public class Chunk<K, V> {
         while (pendingOps.get() != 0);
     }
 
-//    /***
-//     * Copies items from srcChunk performing compaction on the fly.
-//     * @param srcChunk -- chunk to copy from
-//     * @param ei -- start position for copying
-//     * @param maxCapacity -- max number of items "this" chunk can contain after copy
-//     * @param maxBytes -- max number of key bytes "this" chunk's key manager can contain after copy
-//     * @return key index of next to the last copied item, NONE if all items were copied
-//     */
-//    final int copyPart(Chunk srcChunk, int ei, int maxCapacity, int maxBytes) {
-//
-//        if (ei == HEAD_NODE)
-//            return NONE;
-//
-//        // use local variables and just set the atomic variables once at the end
-//        int sortedEntryIndex = entryIndex.get();
-//        int sortedKeyIndex = keyIndex.get();
-//        int sortedHandleIndex = handleIndex.get();
-//
-//
-//        int maxIdx = maxCapacity * FIELDS + 1;
-//        if (sortedEntryIndex >= maxIdx || sortedKeyIndex >= maxBytes) return ei;
-//        assert ei <= entries.length - FIELDS;
-//        if (sortedEntryIndex != FIRST_ITEM) {
-//            setEntryField(sortedEntryIndex - FIELDS, OFFSET_NEXT, sortedEntryIndex);
-//        } else {
-//            setEntryField(HEAD_NODE, OFFSET_NEXT, FIRST_ITEM);
-//        }
-//
-//        int sortedSize = srcChunk.sortedCount.get() * FIELDS + 1;
-//        int entryIndexStart = ei;
-//        int entryIndexEnd = entryIndexStart - 1;
-//        int eiPrev = NONE;
-//        int currHandleIndex;
-//        int currKeyIndex;
-//        int prevKeyIndex = NONE;
-//        int prevKeyLength = 0;
-//        int keyLengthToCopy = 0;
-//        boolean isFirst = true;
-//
-//        while (true) {
-//            currHandleIndex = srcChunk.getEntryField(ei, OFFSET_HANDLE_INDEX);
-//            currKeyIndex = srcChunk.getEntryField(ei, OFFSET_KEY_INDEX);
-//            int itemsToCopy = entryIndexEnd - entryIndexStart + 1;
-//
-//            // try to find a continuous interval to copy
-//            // first check that this key is not a removed key
-//            // save this item if this will be the first in the continuous interval
-//            // or save this item if it create a continuous interval with the previously saved item
-//            // which means it's key index is adjacent to prev's key index
-//            // and there is still room
-//            if ((currHandleIndex > 0) && (isFirst || (eiPrev < sortedSize)
-//                    &&
-//                    (eiPrev + FIELDS == ei)
-//                    &&
-//                    (sortedEntryIndex + itemsToCopy * FIELDS <= maxIdx)
-//                    &&
-//                    (sortedKeyIndex + keyLengthToCopy <= maxBytes)
-//                    &&
-//                    (prevKeyIndex + prevKeyLength == currKeyIndex))) {
-//
-//                entryIndexEnd++;
-//                isFirst = false;
-//                eiPrev = ei;
-//                ei = srcChunk.getEntryField(ei, OFFSET_NEXT);
-//                prevKeyIndex = currKeyIndex;
-//                prevKeyLength = srcChunk.getEntryField(eiPrev, OFFSET_KEY_LENGTH);
-//                keyLengthToCopy += prevKeyLength;
-//                if (ei != NONE) continue;
-//            }
-//
-//            itemsToCopy = entryIndexEnd - entryIndexStart + 1;
-//            if (itemsToCopy > 0) { // copy continuous interval (with arraycopy)
-//                // first copy key array
-//                int sortedKI = sortedKeyIndex;
-//                for (int i = 0; i < itemsToCopy; ++i) {
-//                    int offset = i * FIELDS;
-//                    // next should point to the next item
-//                    entries[sortedEntryIndex + offset + OFFSET_NEXT] = sortedEntryIndex + offset + FIELDS;
-//                    entries[sortedEntryIndex + offset + OFFSET_KEY_INDEX] = sortedKI;
-//                    int keyLength = srcChunk.entries[entryIndexStart + offset + OFFSET_KEY_LENGTH];
-//                    entries[sortedEntryIndex + offset + OFFSET_KEY_LENGTH] = keyLength;
-//                    sortedKI += keyLength;
-//                    // copy handle
-//                    handles[sortedHandleIndex] = srcChunk.handles[srcChunk.entries[entryIndexStart + offset + OFFSET_HANDLE_INDEX]];
-//                    entries[sortedEntryIndex + offset + OFFSET_HANDLE_INDEX] = sortedHandleIndex;
-//                    sortedHandleIndex++;
-//                }
-//                sortedEntryIndex += itemsToCopy * FIELDS; // update
-//
-//                // now copy key array
-//                int keyIdx = srcChunk.getEntryField(entryIndexStart, OFFSET_KEY_INDEX);
-//                keysManager.copyKeys(srcChunk.keysManager, keyIdx, sortedKeyIndex, keyLengthToCopy);
-//
-//                sortedKeyIndex += keyLengthToCopy; // update
-//            }
-//
-//            if (currHandleIndex < 0) { // if now this is a removed item
-//                // don't copy it, continue to next item
-//                eiPrev = ei;
-//                ei = srcChunk.getEntryField(ei, OFFSET_NEXT);
-//            }
-//
-//            if (ei == NONE || sortedEntryIndex > maxIdx || sortedKeyIndex > maxBytes)
-//                break; // if we are done
-//
-//            // reset and continue
-//            entryIndexStart = ei;
-//            entryIndexEnd = entryIndexStart - 1;
-//            keyLengthToCopy = 0;
-//            isFirst = true;
-//
-//        }
-//
-//        // next of last item in serial should point to null
-//        int setIdx = sortedEntryIndex > FIRST_ITEM ? sortedEntryIndex - FIELDS : HEAD_NODE;
-//        setEntryField(setIdx, OFFSET_NEXT, NONE);
-//        // update index and counter
-//        entryIndex.set(sortedEntryIndex);
-//        keyIndex.set(sortedKeyIndex);
-//        handleIndex.set(sortedHandleIndex);
-//        sortedCount.set(sortedEntryIndex / FIELDS);
-//        statistics.updateInitialSortedCount(sortedCount.get());
-//        return ei; // if NONE then we finished copying old chunk, else we reached max in new chunk
-//    }
-//
-
-
     /***
      * Copies entries from srcChunk performing only entries sorting on the fly
      * (deleted entries are removed as well).
      * @param srcChunk -- chunk to copy from
      * @param srcEntryIdx -- start position for copying
      * @param maxCapacity -- max number of entries "this" chunk can contain after copy
-     * @param maxBytes -- max number of key bytes "this" chunk's key manager can contain after copy
      * @return key index of next to the last copied item, NONE if all items were copied
      */
-    final int copyPartNoKeys(Chunk srcChunk, int srcEntryIdx, int maxCapacity, int maxBytes) {
+    final int copyPartNoKeys(Chunk srcChunk, int srcEntryIdx, int maxCapacity) {
 
         if (srcEntryIdx == HEAD_NODE)
             return NONE;
@@ -899,17 +736,17 @@ public class Chunk<K, V> {
                     entries[sortedEntryIndex + offset + OFFSET_NEXT]
                         = sortedEntryIndex + offset + FIELDS;
 
-//                    entries[sortedEntryIndex + offset + OFFSET_KEY_INDEX]
-//                        = srcChunk.entries[entryIndexStart + offset + OFFSET_KEY_INDEX];
+//                    entries[sortedEntryIndex + offset + OFFSET_KEY_POSITION]
+//                        = srcChunk.entries[entryIndexStart + offset + OFFSET_KEY_POSITION];
 //                    // key block ID is copied implicitly as part of key length
 //                    entries[sortedEntryIndex + offset + OFFSET_KEY_LENGTH]
 //                        = srcChunk.entries[entryIndexStart + offset + OFFSET_KEY_LENGTH];
 
                     // copy the values of key position, key block index + key length => 2 integers via array copy
                     System.arraycopy(srcChunk.entries,  // source array
-                        entryIndexStart + offset + OFFSET_KEY_INDEX,
+                        entryIndexStart + offset + OFFSET_KEY_POSITION,
                         entries,                        // destination aray
-                        sortedEntryIndex + offset + OFFSET_KEY_INDEX, (FIELDS-2));
+                        sortedEntryIndex + offset + OFFSET_KEY_POSITION, (FIELDS-2));
 
 
                     // copy handle
@@ -993,7 +830,6 @@ public class Chunk<K, V> {
         if (!isEngaged(null)) return false;
         int numOfEntries = entryIndex.get() / FIELDS;
         int numOfItems = statistics.getCompactedCount();
-     //   int usedBytes = keyIndex.get();
         int sortedCount = this.sortedCount.get();
         // Reasons for executing a rebalance:
         // 1. There are no sorted keys and the total number of entries is above a certain threshold.
@@ -1003,7 +839,6 @@ public class Chunk<K, V> {
         return (sortedCount == 0 && numOfEntries * MAX_ENTRIES_FACTOR > maxItems) ||
                 (sortedCount > 0 && (sortedCount * SORTED_REBALANCE_RATIO) < numOfEntries) ||
                 (numOfEntries * MAX_IDLE_ENTRIES_FACTOR > maxItems && numOfItems * MAX_IDLE_ENTRIES_FACTOR < numOfEntries);
-             //   (usedBytes * MAX_BYTES_FACTOR > maxKeyBytes);
     }
 
     int getNumOfItems() {

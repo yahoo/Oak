@@ -10,7 +10,6 @@ import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Consumer;
 
 class Rebalancer<K, V> {
 
@@ -22,11 +21,8 @@ class Rebalancer<K, V> {
     private final double lowThreshold;
     private final double appendThreshold;
     private final int entriesLowThreshold;
-    private final int keyBytesLowThreshold;
     private final int maxRangeToAppend;
-    private final int maxBytesToAppend;
     private final int maxAfterMergeItems;
-    private final int maxAfterMergeBytes;
 
     /*-------------- Members --------------*/
     private final ThreadIndexCalculator threadIndexCalculator;
@@ -38,7 +34,6 @@ class Rebalancer<K, V> {
     private Chunk<K, V> last;
     private int chunksInRange;
     private int itemsInRange;
-    private int bytesInRange;
     private final Comparator<Object> comparator;
     private final boolean offHeap;
     private final MemoryManager memoryManager;
@@ -55,12 +50,8 @@ class Rebalancer<K, V> {
         this.lowThreshold = 0.5;
         this.appendThreshold = 0.2;
         this.entriesLowThreshold = (int) (chunk.getMaxItems() * this.lowThreshold);
-        this.keyBytesLowThreshold = (int) (chunk.getMaxItems() * chunk.getBytesPerItem() * this.lowThreshold);
         this.maxRangeToAppend = (int) (chunk.getMaxItems() * this.appendThreshold);
-        this.maxBytesToAppend = (int) (chunk.getMaxItems() * chunk.getBytesPerItem() * this.appendThreshold);
         this.maxAfterMergeItems = (int) (chunk.getMaxItems() * this.maxAfterMergePart);
-        this.maxAfterMergeBytes = (int) (chunk.getMaxItems() * chunk.getBytesPerItem() * this.maxAfterMergePart);
-
         this.comparator = comparator;
         this.offHeap = offHeap;
         this.memoryManager = memoryManager;
@@ -69,7 +60,6 @@ class Rebalancer<K, V> {
         last = chunk;
         chunksInRange = 1;
         itemsInRange = first.getStatistics().getCompactedCount();
-        bytesInRange = first.keyIndex.get();
         this.keySerializer = keySerializer;
         this.valueSerializer = valueSerializer;
         this.threadIndexCalculator = threadIndexCalculator;
@@ -156,7 +146,7 @@ class Rebalancer<K, V> {
         Chunk<K,V> firstFrozen = iterFrozen.next();
         Chunk<K,V> currFrozen = firstFrozen;
         Chunk<K,V> currNewChunk = new Chunk<K, V>(firstFrozen.minKey, firstFrozen, firstFrozen.comparator, memoryManager,
-                currFrozen.getMaxItems(), currFrozen.getBytesPerItem(), currFrozen.externalSize,
+                currFrozen.getMaxItems(), currFrozen.externalSize,
                 keySerializer, valueSerializer, threadIndexCalculator);
 
         int ei = firstFrozen.getFirstItemEntryIndex();
@@ -175,7 +165,7 @@ class Rebalancer<K, V> {
 //                }
 
         while (true) {
-            ei = currNewChunk.copyPartNoKeys(currFrozen, ei, entriesLowThreshold, keyBytesLowThreshold);
+            ei = currNewChunk.copyPartNoKeys(currFrozen, ei, entriesLowThreshold);
             // if completed reading curr frozen chunk
             if (ei == Chunk.NONE) {
                 if (!iterFrozen.hasNext())
@@ -188,7 +178,7 @@ class Rebalancer<K, V> {
 
                 List<Chunk<K,V>> frozenSuffix = frozenChunks.subList(iterFrozen.previousIndex(), frozenChunks.size());
                 // try to look ahead and add frozen suffix
-                if (canAppendSuffix(frozenSuffix, maxRangeToAppend, maxBytesToAppend)) {
+                if (canAppendSuffix(frozenSuffix, maxRangeToAppend)) {
                     // maybe there is just a little bit copying left
                     // and we don't want to open a whole new chunk just for it
                     completeCopy(currNewChunk, ei, frozenSuffix);
@@ -211,7 +201,7 @@ class Rebalancer<K, V> {
 
 
                     Chunk c = new Chunk<K, V>(newMinKey, firstFrozen, currFrozen.comparator, memoryManager,
-                            currFrozen.getMaxItems(), currFrozen.getBytesPerItem(), currFrozen.externalSize,
+                            currFrozen.getMaxItems(), currFrozen.externalSize,
                             keySerializer, valueSerializer, threadIndexCalculator);
                     currNewChunk.next.set(c, false);
                     newChunks.add(currNewChunk);
@@ -228,7 +218,7 @@ class Rebalancer<K, V> {
         return new RebalanceResult(cas, null);
     }
 
-    private boolean canAppendSuffix(List<Chunk<K,V>> frozenSuffix, int maxCount, int maxBytes) {
+    private boolean canAppendSuffix(List<Chunk<K, V>> frozenSuffix, int maxCount) {
         Iterator<Chunk<K,V>> iter = frozenSuffix.iterator();
         // first of frozen chunks already have entriesLowThreshold copied into new one
         boolean firstChunk = true;
@@ -249,12 +239,11 @@ class Rebalancer<K, V> {
         Iterator<Chunk<K,V>> iter = srcChunks.iterator();
         Chunk<K,V> src = iter.next();
         int maxItems = src.getMaxItems();
-        int maxKeyBytes = maxItems * src.getBytesPerItem();
-        dest.copyPartNoKeys(src, ei, maxItems, maxKeyBytes);
+        dest.copyPartNoKeys(src, ei, maxItems);
         while (iter.hasNext()) {
             src = iter.next();
             ei = src.getFirstItemEntryIndex();
-            dest.copyPartNoKeys(src, ei, maxItems, maxKeyBytes);
+            dest.copyPartNoKeys(src, ei, maxItems);
         }
     }
 
@@ -270,12 +259,9 @@ class Rebalancer<K, V> {
         if (!isCandidate(candidate)) return null;
 
         int newItems = candidate.getStatistics().getCompactedCount();
-        int newBytes = candidate.keyIndex.get();
         int totalItems = itemsInRange + newItems;
-        int totalBytes = bytesInRange + newBytes;
         // TODO think if this makes sense
-        int chunksAfterMerge = Math.max((int) Math.ceil(((double) totalItems) / maxAfterMergeItems),
-                (int) Math.ceil(((double) totalBytes) / maxAfterMergeBytes));
+        int chunksAfterMerge = (int) Math.ceil(((double) totalItems) / maxAfterMergeItems);
 
         // if the chosen chunk may reduce the number of chunks -- return it as candidate
         if (chunksAfterMerge < chunksInRange + 1) {
@@ -297,7 +283,6 @@ class Rebalancer<K, V> {
     private void addToCounters(Chunk chunk) {
         itemsInRange += chunk.getStatistics().getCompactedCount();
         chunksInRange++;
-        bytesInRange += chunk.keyIndex.get();
     }
 
     /***

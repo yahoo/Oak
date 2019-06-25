@@ -8,7 +8,6 @@ package com.oath.oak;
 
 import com.oath.oak.NativeAllocator.OakNativeMemoryAllocator;
 
-import java.nio.ByteBuffer;
 import java.util.logging.Logger;
 
 class KeysManager<K> {
@@ -18,7 +17,7 @@ class KeysManager<K> {
     private final OakSerializer<K> keySerializer;
     private final Logger log = Logger.getLogger(KeysManager.class.getName());
 
-    KeysManager(int bytes, MemoryManager memoryManager, OakSerializer<K> keySerializer) {
+    KeysManager(MemoryManager memoryManager, OakSerializer<K> keySerializer) {
       //  keys = memoryManager.allocateKeys(bytes);
         this.keySerializer = keySerializer;
         this.memoryManager = memoryManager;
