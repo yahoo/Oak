@@ -17,14 +17,26 @@ class Block {
     private final ByteBuffer buffer;
     private final int capacity;
     private final AtomicInteger allocated = new AtomicInteger(0);
+    private final int id;
 
     Block(long capacity) {
         assert capacity > 0;
         assert capacity <= Integer.MAX_VALUE; // This is exactly 2GB
         this.capacity = (int) capacity;
+        this.id = 0;
         // Pay attention in allocateDirect the data is *zero'd out*
         // which has an overhead in clearing and you end up touching every page
         this.buffer = ByteBuffer.allocateDirect(this.capacity);
+    }
+
+    Block(long capacity, int id) {
+      assert capacity > 0;
+      assert capacity <= Integer.MAX_VALUE; // This is exactly 2GB
+      this.capacity = (int) capacity;
+      this.id = id;
+      // Pay attention in allocateDirect the data is *zero'd out*
+      // which has an overhead in clearing and you end up touching every page
+      this.buffer = ByteBuffer.allocateDirect(this.capacity);
     }
 
     // Block manages its linear allocation. Thread safe.
@@ -75,7 +87,21 @@ class Block {
         cleaner.clean();
     }
 
+    public ByteBuffer getBuffer(int position, int length) {
+        // the duplicate is needed for thread safeness, otherwise (in single threaded environment)
+        // the setting of position and limit could happen on the main buffer itself
+        ByteBuffer bb = buffer.duplicate();
+        bb.position(position);
+        bb.limit(position + length);
+        // on purpose not creating a ByteBuffer slice() here,
+        // it will be used only per demand when buffer is passed to the serializer
+        return bb;
+    }
+
+    // how many bytes a block may include, regardless allocated/free
     public int getCapacity() {
         return capacity;
     }
+
+    public int getID() {return id;}
 }
