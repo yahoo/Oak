@@ -1100,7 +1100,6 @@ class InternalOakMap<K, V> {
             if (pair.getKey() == null) {
                 return null;
             }
-
             if (pair.getValue() == null) {
                 return null;
             }

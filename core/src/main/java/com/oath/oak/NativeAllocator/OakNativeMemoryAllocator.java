@@ -14,6 +14,7 @@ import java.util.AbstractMap;
 import java.util.Comparator;
 import java.util.Map;
 
+
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -75,9 +76,6 @@ public class OakNativeMemoryAllocator implements OakMemoryAllocator {
     public ByteBuffer allocate(int size) {
 
         if (!freeList.isEmpty()) {
-
-//            for (Map.Entry<Long, ByteBuffer> kv : freeList) {
-//                ByteBuffer bb = kv.getValue();
 
             for (Map.Entry<Long, Slice> kv : freeList) {
                 ByteBuffer bb = kv.getValue().getByteBuffer();
@@ -176,7 +174,6 @@ public class OakNativeMemoryAllocator implements OakMemoryAllocator {
     public void free(ByteBuffer bb) {
         allocated.addAndGet(-(bb.remaining()));
         if (stats != null) stats.release(bb);
-
         freeList.add(new AbstractMap.SimpleImmutableEntry<>(freeCounter.getAndIncrement(), new Slice(0,bb)));
 
     }
@@ -185,6 +182,7 @@ public class OakNativeMemoryAllocator implements OakMemoryAllocator {
     allocated.addAndGet(-(bb.remaining()));
     if (stats != null) stats.release(bb);
     freeList.add(new AbstractMap.SimpleImmutableEntry<>(freeCounter.getAndIncrement(), new Slice(blockID,bb)));
+
   }
 
     // Releases all memory allocated for this Oak (should be used as part of the Oak destruction)
