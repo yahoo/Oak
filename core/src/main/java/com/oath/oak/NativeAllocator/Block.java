@@ -98,6 +98,12 @@ class Block {
         return bb;
     }
 
+    public ByteBuffer getFullByteBuffer() {
+        // this is dangerous for thread safety, better to use .asReadOnlyBuffer(), but this is done
+        // to avoid new object, and used only internally
+        return buffer;
+    }
+
     // how many bytes a block may include, regardless allocated/free
     public int getCapacity() {
         return capacity;

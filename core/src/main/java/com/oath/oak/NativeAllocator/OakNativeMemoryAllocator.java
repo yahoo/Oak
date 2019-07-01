@@ -202,6 +202,11 @@ public class OakNativeMemoryAllocator implements OakMemoryAllocator {
         return b.getBuffer(pos,length);
     }
 
+  // Return the entire byte buffer of a given block, then a smaller byte buffer will be created
+  public ByteBuffer getByteBufferOfBlockID(Integer id) {
+    Block b = blocks.get(id);
+    return b.getFullByteBuffer();
+  }
 
     // used only for testing
     Block getCurrentBlock() {

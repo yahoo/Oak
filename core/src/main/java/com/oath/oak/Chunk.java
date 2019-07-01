@@ -30,14 +30,14 @@ public class Chunk<K, V> {
     private static final int FIRST_ITEM = 1;
 
     private static final int FIELDS = 4;  // # of fields in each item of key array
-    private static final int OFFSET_NEXT = 0;
-    private static final int OFFSET_KEY_POSITION = 1;
-    private static final int OFFSET_KEY_LENGTH = 2;
-    private static final int OFFSET_HANDLE_INDEX = 3;
+    public static final int OFFSET_NEXT = 0;
+    public static final int OFFSET_KEY_POSITION = 1;
+    public static final int OFFSET_KEY_LENGTH = 2;
+    public static final int OFFSET_HANDLE_INDEX = 3;
     // key block is not used as an offset, rather as request differentiation,
     // key block is part of key length integer, thus key length is limited to 65KB
-    private static final int OFFSET_KEY_BLOCK = 4;
-    private static final int KEY_LENGTH_MASK = 0xffff; // 16 lower bits
+    public static final int OFFSET_KEY_BLOCK = 4;
+    public static final int KEY_LENGTH_MASK = 0xffff; // 16 lower bits
 
     // used for checking if rebalance is needed
     private static final double REBALANCE_PROB_PERC = 30;
@@ -51,14 +51,13 @@ public class Chunk<K, V> {
 
     // defaults
     public static final int MAX_ITEMS_DEFAULT = 256;
-    private final ThreadIndexCalculator threadIndexCalculator;
 
     private static final Unsafe unsafe;
     private final MemoryManager memoryManager;
     ByteBuffer minKey;       // minimal key that can be put in this chunk
     AtomicMarkableReference<Chunk<K,V>> next;
     Comparator<Object> comparator;
-    private ByteBuffer[] byteBufferPerThread;
+
     // in split/compact process, represents parent of split (can be null!)
     private AtomicReference<Chunk> creator;
     // chunk can be in the following states: normal, frozen or infant(has a creator)
@@ -107,7 +106,7 @@ public class Chunk<K, V> {
         this.entryIndex = new AtomicInteger(FIRST_ITEM);
         this.handles = new Handle[maxItems + FIRST_ITEM];
         this.handleIndex = new AtomicInteger(FIRST_ITEM);
-        this.keysManager = new KeysManager<K>(memoryManager, keySerializer);
+        this.keysManager = new KeysManager<K>(memoryManager, keySerializer, threadIndexCalculator);
         this.sortedCount = new AtomicInteger(0);
         this.minKey = minKey;
         this.creator = new AtomicReference<>(creator);
@@ -120,12 +119,10 @@ public class Chunk<K, V> {
         this.rebalancer = new AtomicReference<>(null); // to be updated on rebalance
         this.statistics = new Statistics();
         this.comparator = comparator;
-        this.byteBufferPerThread = new ByteBuffer[ThreadIndexCalculator.MAX_THREADS];
         this.externalSize = externalSize;
 
         this.keySerializer = keySerializer;
         this.valueSerializer = valueSerializer;
-        this.threadIndexCalculator = threadIndexCalculator;
     }
 
     enum State {
@@ -216,7 +213,7 @@ public class Chunk<K, V> {
         int length = getEntryField(entryIndex, OFFSET_KEY_LENGTH);
 
         ByteBuffer bbThread =
-            memoryManager.readByteBufferFromBlockID(blockID,ki,length).asReadOnlyBuffer();
+            memoryManager.getByteBufferOfBlockID(blockID).asReadOnlyBuffer();
 
 
         return bbThread;
@@ -236,6 +233,24 @@ public class Chunk<K, V> {
      * gets the field of specified offset for given item in entry array
      */
     private int getEntryField(int item, int offset) {
+
+        if (OFFSET_KEY_BLOCK != offset && OFFSET_KEY_LENGTH != offset) {
+            return entries[item + offset];
+        }
+        if (OFFSET_KEY_LENGTH == offset) {
+            // return two low bytes of the key length index int
+            return (entries[item + OFFSET_KEY_LENGTH] & KEY_LENGTH_MASK);
+        } else {
+            // offset must be OFFSET_KEY_BLOCK, return 2 high bytes of the int inside key length
+            // right-shift force, fill empty with zeroes
+            return (entries[item + OFFSET_KEY_LENGTH] >>> 16);
+        }
+    }
+
+    /**
+     * gets the field of specified offset for given item in entry array
+     */
+    public static int getEntryField(int item, int offset, int[] entries) {
 
         if (OFFSET_KEY_BLOCK != offset && OFFSET_KEY_LENGTH != offset) {
             return entries[item + offset];
