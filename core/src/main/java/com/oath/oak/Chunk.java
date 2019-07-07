@@ -42,7 +42,7 @@ public class Chunk<K, V> {
 
     // used for checking if rebalance is needed
     private static final double REBALANCE_PROB_PERC = 30;
-    private static final double SORTED_REBALANCE_RATIO = 2;
+    private static final double SORTED_REBALANCE_RATIO = 256;
     private static final double MAX_ENTRIES_FACTOR = 2;
     private static final double MAX_IDLE_ENTRIES_FACTOR = 5;
 
@@ -51,7 +51,7 @@ public class Chunk<K, V> {
         new OpData(Operation.NO_OP, 0, 0, 0, null);
 
     // defaults
-    public static final int MAX_ITEMS_DEFAULT = 4096;
+    public static final int MAX_ITEMS_DEFAULT = 256;
 
     private static final Unsafe unsafe;
     private final MemoryManager memoryManager;
