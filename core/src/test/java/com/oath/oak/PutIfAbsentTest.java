@@ -77,6 +77,8 @@ public class PutIfAbsentTest {
         assertEquals(count2, numKeys);
         assertEquals(numKeys, oak.size());
         assertEquals(numKeys, returnValues[0]);
+
+        oak.close();
     }
 
     @Test(timeout=10_000)
@@ -133,5 +135,7 @@ public class PutIfAbsentTest {
         assertEquals(count2, numKeys);
         assertEquals(numKeys, returnValues[0]);
         assertEquals(numKeys, oak.size());
+
+        oak.close();
     }
 }

@@ -8,6 +8,8 @@ package com.oath.oak;
 
 
 
+import com.oath.oak.NativeAllocator.OakNativeMemoryAllocator;
+
 import java.nio.ByteBuffer;
 
 
@@ -45,7 +47,18 @@ public class MemoryManager {
         return keysMemoryAllocator.allocate(bytes);
     }
 
-    public void releaseKeys(ByteBuffer keys) {
-        keysMemoryAllocator.free(keys);
+    public OakNativeMemoryAllocator.Slice allocateSlice(int bytes) {
+        return ((OakNativeMemoryAllocator)keysMemoryAllocator).allocateSlice(bytes);
+    }
+
+    public void releaseSlice(OakNativeMemoryAllocator.Slice slice) {
+        // keys aren't going to be released until GC part is taken care for
+        ((OakNativeMemoryAllocator)keysMemoryAllocator).freeSlice(slice);
+    }
+
+    // When some read only buffer needs to be read from a random block
+    public ByteBuffer getByteBufferFromBlockID(Integer id, int pos, int length) {
+        return ((OakNativeMemoryAllocator)keysMemoryAllocator).readByteBufferFromBlockID(id, pos, length);
     }
 }
+

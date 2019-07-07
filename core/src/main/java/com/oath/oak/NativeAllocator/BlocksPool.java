@@ -80,7 +80,7 @@ class BlocksPool implements BlocksProvider {
     public void returnBlock(Block b) {
         b.reset();
         blocks.add(b);
-        if (blocks.size() > 3 * NUMBER_OF_BLOCKS) {
+        if (blocks.size() > 3 * NUMBER_OF_BLOCKS) { // too many unused blocks
             synchronized (BlocksPool.class) { // can be easily changed to lock-free
                 for (int i = 0; i < NUMBER_OF_BLOCKS; i++) {
                     this.blocks.poll().clean();

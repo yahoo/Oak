@@ -23,10 +23,10 @@ public class ThreadIndexCalculator {
             return localInt;
         }
         int tid = (int) Thread.currentThread().getId();
-        int i = tid % 32;
+        int i = tid % MAX_THREADS;
         while(!indices[i].compareAndSet(-1, tid)) {
             //TODO get out of loop sometime
-            i = (i + 1) % 32;
+            i = (i + 1) % MAX_THREADS;
         }
         local.set(i);
         return i;
@@ -36,7 +36,6 @@ public class ThreadIndexCalculator {
         indices[local.get()].set(-1);
         local.set(-1);
     }
-
 
     public static ThreadIndexCalculator newInstance() {
         return new ThreadIndexCalculator();

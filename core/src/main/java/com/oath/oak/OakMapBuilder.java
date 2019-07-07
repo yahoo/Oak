@@ -44,7 +44,6 @@ public class OakMapBuilder<K,V> {
     this.comparator = null;
 
     this.chunkMaxItems = Chunk.MAX_ITEMS_DEFAULT;
-    this.chunkBytesPerItem = Chunk.BYTES_PER_ITEM_DEFAULT;
     this.memoryCapacity = MAX_MEM_CAPACITY;
     this.memoryAllocator = null;
   }
@@ -96,7 +95,7 @@ public class OakMapBuilder<K,V> {
       this.memoryAllocator = new OakNativeMemoryAllocator(memoryCapacity);
     }
 
-    MemoryManager memoryManager = new MemoryManager(memoryAllocator, new DirectMemoryAllocator());
+    MemoryManager memoryManager = new MemoryManager(memoryAllocator, memoryAllocator);
 
     return new OakMap<>(
             minKey,

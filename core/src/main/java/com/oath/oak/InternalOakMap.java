@@ -69,7 +69,7 @@ class InternalOakMap<K, V> {
         this.skiplist = new ConcurrentSkipListMap<>(this.comparator);
 
         Chunk<K, V> head = new Chunk<K, V>(this.minKey, null, this.comparator, memoryManager, chunkMaxItems,
-                chunkBytesPerItem, this.size, keySerializer, valueSerializer, threadIndexCalculator);
+            this.size, keySerializer, valueSerializer, threadIndexCalculator);
         this.skiplist.put(head.minKey, head);    // add first chunk (head) into skiplist
         this.head = new AtomicReference<>(head);
         this.threadIndexCalculator = threadIndexCalculator;
@@ -1096,6 +1096,9 @@ class InternalOakMap<K, V> {
 
         public Map.Entry<OakRBuffer, OakRBuffer> next() {
             Map.Entry<ByteBuffer, Handle> pair = advance();
+            if (pair.getKey() == null) {
+                return null;
+            }
             if (pair.getValue() == null) {
                 return null;
             }
