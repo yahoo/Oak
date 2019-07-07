@@ -12,9 +12,7 @@ import javafx.util.Pair;
 
 import java.nio.ByteBuffer;
 import java.util.Comparator;
-import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -25,6 +23,7 @@ public class OakNativeMemoryAllocator implements OakMemoryAllocator {
     // When allocating n bytes and there are buffers in the free list, only free buffers of size <= n * RECLAIM_FACTOR will be recycled
     // This parameter may be tuned for performance vs off-heap memory utilization
     private static final int RECLAIM_FACTOR = 2;
+    public static final int INVALID_BLOCK_ID = 0;
 
     // mapping IDs to blocks allocated solely to this Allocator
     private final ConcurrentHashMap<Integer,Block> blocks = new ConcurrentHashMap<>();
@@ -67,22 +66,28 @@ public class OakNativeMemoryAllocator implements OakMemoryAllocator {
         this.capacity = capacity;
     }
 
+    @Override
+    public ByteBuffer allocate(int size) {
+      return allocateConditional(size, true);
+    }
+
     // Allocates ByteBuffer of the given size, either from freeList or (if it is still possible)
     // within current block bounds.
     // Otherwise new block is allocated within Oak memory bounds. Thread safe.
-    @Override
-    public ByteBuffer allocate(int size) {
+    private ByteBuffer allocateConditional(int size, boolean reuseFreedMemory) {
 
+      if (reuseFreedMemory) {
         if (!freeList.isEmpty()) {
-            for (Pair<Long, Slice> kv : freeList) {
-                ByteBuffer bb = kv.getValue().getByteBuffer();
-                if (bb.remaining() > (RECLAIM_FACTOR * size)) break;     // all remaining buffers are too big
-                if (bb.remaining() >= size && freeList.remove(kv)) {
-                    if (stats != null) stats.reclaim(size);
-                    return bb;
-                }
+          for (Pair<Long, Slice> kv : freeList) {
+            ByteBuffer bb = kv.getValue().getByteBuffer();
+            if (bb.remaining() > (RECLAIM_FACTOR * size)) break;     // all remaining buffers are too big
+            if (bb.remaining() >= size && freeList.remove(kv)) {
+              if (stats != null) stats.reclaim(size);
+              return bb;
             }
+          }
         }
+      }
 
         ByteBuffer bb = null;
         // freeList is empty or there is no suitable slice
@@ -114,51 +119,11 @@ public class OakNativeMemoryAllocator implements OakMemoryAllocator {
         return bb;
     }
 
-  // Allocates ByteBuffer of the given size, either from freeList or (if it is still possible)
-  // within current block bounds.
-  // Otherwise new block is allocated within Oak memory bounds. Thread safe.
-  // Returns a block id of the block from which the buffer was allocated
+  // Allocates Slice, meaning it must be known from which block it is allocated.
+  // Because currently the free list doesn't keeps block IDs for released values,
+  // the free list is not used
   public Slice allocateSlice(int size) {
-
-//    if (!freeList.isEmpty()) {
-//      for (Pair<Long, Slice> kv : freeList) {
-//        ByteBuffer bb = kv.getValue().getByteBuffer();
-//        if (bb.remaining() > (RECLAIM_FACTOR * size)) break;     // all remaining buffers are too big
-//
-//        if (bb.remaining() >= size && freeList.remove(kv)) {
-//          if (stats != null) stats.reclaim(size);
-//          return kv.getValue();
-//        }
-//      }
-//    }
-
-    ByteBuffer bb = null;
-    // freeList is empty or there is no suitable slice
-    while (bb == null) {
-      try {
-        bb = currentBlock.allocate(size);
-      } catch (OakOutOfMemoryException e) {
-        // there is no space in current block
-        // may be a buffer bigger than any block is requested?
-        if (size > blocksProvider.blockSize()) {
-          throw new OakOutOfMemoryException();
-        }
-        // does allocation of new block brings us out of capacity?
-        if ((blocks.size() + 1) * blocksProvider.blockSize() > capacity) {
-          throw new OakOutOfMemoryException();
-        } else {
-          // going to allocate additional block (big chunk of memory)
-          // need to be thread-safe, so not many blocks are allocated
-          // locking is actually the most reasonable way of synchronization here
-          synchronized (this) {
-            if (currentBlock.allocated() + size > currentBlock.getCapacity()) {
-              allocateNewCurrentBlock();
-            }
-          }
-        }
-      }
-    }
-    allocated.addAndGet(size);
+    ByteBuffer bb = allocateConditional(size, false);
     return new Slice(currentBlockID,bb);
   }
 
@@ -171,13 +136,13 @@ public class OakNativeMemoryAllocator implements OakMemoryAllocator {
     public void free(ByteBuffer bb) {
         allocated.addAndGet(-(bb.remaining()));
         if (stats != null) stats.release(bb);
-        freeList.add(new Pair<>(freeCounter.getAndIncrement(), new Slice(0,bb)));
+        freeList.add(new Pair<>(freeCounter.getAndIncrement(), new Slice(INVALID_BLOCK_ID,bb)));
     }
 
-  public void free(ByteBuffer bb, int blockID) {
-    allocated.addAndGet(-(bb.remaining()));
-    if (stats != null) stats.release(bb);
-    freeList.add(new Pair<>(freeCounter.getAndIncrement(), new Slice(blockID,bb)));
+  public void freeSlice(Slice slice) {
+    allocated.addAndGet(-(slice.getByteBuffer().remaining()));
+    if (stats != null) stats.release(slice.getByteBuffer());
+    freeList.add(new Pair<>(freeCounter.getAndIncrement(), slice));
   }
 
     // Releases all memory allocated for this Oak (should be used as part of the Oak destruction)
@@ -199,7 +164,7 @@ public class OakNativeMemoryAllocator implements OakMemoryAllocator {
     // When some buffer need to be read from a random block
     public ByteBuffer readByteBufferFromBlockID(Integer id, int pos, int length) {
         Block b = blocks.get(id);
-        return b.getBuffer(pos,length);
+        return b.getReadOnlyBufferForThread(pos,length);
     }
 
   // Return the entire byte buffer of a given block, then a smaller byte buffer will be created
@@ -259,7 +224,7 @@ public class OakNativeMemoryAllocator implements OakMemoryAllocator {
       final int blockID;
       final ByteBuffer buffer;
 
-      Slice (int blockID, ByteBuffer buffer) {
+      public Slice (int blockID, ByteBuffer buffer) {
         this.blockID = blockID;
         this.buffer = buffer;
       }

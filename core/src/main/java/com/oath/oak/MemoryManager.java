@@ -51,13 +51,14 @@ public class MemoryManager {
         return ((OakNativeMemoryAllocator)keysMemoryAllocator).allocateSlice(bytes);
     }
 
-    public void releaseKeys(ByteBuffer keys) {
+    public void releaseSlice(OakNativeMemoryAllocator.Slice slice) {
         // keys aren't going to be released until GC part is taken care for
+        ((OakNativeMemoryAllocator)keysMemoryAllocator).freeSlice(slice);
     }
 
-    // When some buffer need to be read from a random block
-    public ByteBuffer getByteBufferOfBlockID(Integer id) {
-        return ((OakNativeMemoryAllocator)keysMemoryAllocator).getByteBufferOfBlockID(id);
+    // When some read only buffer needs to be read from a random block
+    public ByteBuffer getByteBufferFromBlockID(Integer id, int pos, int length) {
+        return ((OakNativeMemoryAllocator)keysMemoryAllocator).readByteBufferFromBlockID(id, pos, length);
     }
 }
 

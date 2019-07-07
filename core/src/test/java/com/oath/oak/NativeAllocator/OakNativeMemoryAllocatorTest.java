@@ -12,6 +12,8 @@ import java.util.List;
 import java.util.Random;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+
+import com.oath.oak.ThreadIndexCalculator;
 import org.junit.Test;
 
 import static junit.framework.TestCase.assertNull;
@@ -22,7 +24,6 @@ import static org.mockito.Mockito.when;
 
 public class OakNativeMemoryAllocatorTest {
     private static int valueSizeAfterSerialization = Integer.MAX_VALUE / 40;
-
     public static class CheckOakCapacityValueSerializer implements OakSerializer<Integer> {
 
         @Override

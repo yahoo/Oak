@@ -335,7 +335,7 @@ class InternalOakMap<K, V> {
         }
 
         if (ei == -1) {
-            ei = c.allocateEntryAndSeparateKey(key);
+            ei = c.allocateEntryAndKey(key);
             if (ei == -1) {
                 rebalance(c);
                 put(key, value, transformer);
@@ -408,7 +408,7 @@ class InternalOakMap<K, V> {
         }
 
         if (ei == -1) {
-            ei = c.allocateEntryAndSeparateKey(key);
+            ei = c.allocateEntryAndKey(key);
             if (ei == -1) {
                 rebalance(c);
                 return putIfAbsent(key, value, transformer);
@@ -495,7 +495,7 @@ class InternalOakMap<K, V> {
         }
 
         if (ei == -1) {
-            ei = c.allocateEntryAndSeparateKey(key);
+            ei = c.allocateEntryAndKey(key);
             if (ei == -1) {
                 rebalance(c);
                 return putIfAbsentComputeIfPresent(key, value, computer);
