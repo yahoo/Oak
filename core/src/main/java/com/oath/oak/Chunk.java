@@ -42,7 +42,7 @@ public class Chunk<K, V> {
 
     // used for checking if rebalance is needed
     private static final double REBALANCE_PROB_PERC = 30;
-    private static final double SORTED_REBALANCE_RATIO = 256;
+    private static final double SORTED_REBALANCE_RATIO = 1.6;
     private static final double MAX_ENTRIES_FACTOR = 2;
     private static final double MAX_IDLE_ENTRIES_FACTOR = 5;
 
