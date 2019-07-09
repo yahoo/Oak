@@ -958,11 +958,11 @@ class InternalOakMap<K, V> {
                 throw new NoSuchElementException();
             }
 
-            Chunk.State chunkState = state.getChunk().state();
-
-            if (chunkState == Chunk.State.RELEASED) {
-                initAfterRebalance();
-            }
+//            Chunk.State chunkState = state.getChunk().state();
+//
+//            if (chunkState == Chunk.State.RELEASED) {
+//                initAfterRebalance();
+//            }
 
             ByteBuffer bb = state.getChunk().readKey(state.getIndex()).slice();
             Handle currentHandle = state.getChunk().getHandle(state.getIndex());
