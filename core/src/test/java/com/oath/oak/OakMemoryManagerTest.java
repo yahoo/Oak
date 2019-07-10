@@ -6,6 +6,7 @@
 
 package com.oath.oak;
 
+import com.oath.oak.NativeAllocator.OakNativeMemoryAllocator;
 import org.junit.Before;
 import org.junit.Test;
 import org.mockito.stubbing.Answer;
@@ -27,7 +28,7 @@ public class OakMemoryManagerTest {
     public void setUp() {
         allocatedBytes = 0;
         valuesMemoryAllocator = mock(OakMemoryAllocator.class);
-        keysMemoryAllocator = new DirectMemoryAllocator();
+        keysMemoryAllocator = new OakNativeMemoryAllocator(128);
         when(valuesMemoryAllocator.allocate(anyInt())).thenAnswer((Answer) invocation -> {
             int size = (int) invocation.getArguments()[0];
             allocatedBytes += size;
@@ -40,7 +41,7 @@ public class OakMemoryManagerTest {
             return  allocatedBytes;
         }).when(valuesMemoryAllocator).free(any());
         when(valuesMemoryAllocator.allocated()).thenAnswer((Answer) invocationOnMock -> allocatedBytes);
-        memoryManager = new MemoryManager(valuesMemoryAllocator, keysMemoryAllocator);
+        memoryManager = new MemoryManager(keysMemoryAllocator);
     }
 
     @Test
@@ -52,12 +53,5 @@ public class OakMemoryManagerTest {
         bb = memoryManager.allocate(4);
         assertEquals(4, bb.remaining());
         assertEquals(8, memoryManager.allocated());
-    }
-
-    @Test
-    public void allocateKeys() {
-        ByteBuffer bb = memoryManager.allocateKeys(1024);
-        assertEquals(1024, bb.remaining());
-        assertEquals(1024, bb.capacity());
     }
 }

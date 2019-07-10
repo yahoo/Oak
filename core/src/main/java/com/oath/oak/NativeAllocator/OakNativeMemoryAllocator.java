@@ -29,11 +29,10 @@ public class OakNativeMemoryAllocator implements OakMemoryAllocator {
     public static final int INVALID_BLOCK_ID = 0;
 
     // mapping IDs to blocks allocated solely to this Allocator
-    private final ConcurrentHashMap<Integer,Block> blocks = new ConcurrentHashMap<>();
+    private final Block[] blocksArray;
     private final AtomicInteger idGenerator = new AtomicInteger(1);
 
-    // free list of ByteBuffers which can be reused - sorted by buffer size, then by unique hash
-
+    // free list of Slices which can be reused - sorted by buffer size, then by unique hash
     private Comparator<Map.Entry<Long, Slice>> comparator =
             Comparator.<Map.Entry<Long, Slice>, Integer>comparing(p -> (p.getValue()).getByteBuffer().remaining())
             .thenComparing(Map.Entry::getKey);
@@ -41,7 +40,6 @@ public class OakNativeMemoryAllocator implements OakMemoryAllocator {
 
     private final BlocksProvider blocksProvider;
     private Block currentBlock;
-    private int currentBlockID;
 
     // the memory allocation limit for this Allocator
     // current capacity is set as number of blocks (!) allocated for this OakMap
@@ -59,12 +57,16 @@ public class OakNativeMemoryAllocator implements OakMemoryAllocator {
     // constructor
     // input param: memory capacity given to this Oak. Uses default BlocksPool
     public OakNativeMemoryAllocator(long capacity) {
-       this(capacity, BlocksPool.getInstance());
+      this(capacity, BlocksPool.getInstance());
     }
 
     // A testable constructor
     OakNativeMemoryAllocator(long capacity, BlocksProvider blocksProvider) {
         this.blocksProvider = blocksProvider;
+        int blockArraySize = ((int)capacity/blocksProvider.blockSize());
+        blockArraySize = (blockArraySize == 0) ? 1 : blockArraySize;
+        // first entry of blocksArray is always empty
+        this.blocksArray = new Block[blockArraySize+1];
         // initially allocate one single block from pool
         // this may lazy initialize the pool and take time if this is the first call for the pool
         allocateNewCurrentBlock();
@@ -106,13 +108,13 @@ public class OakNativeMemoryAllocator implements OakMemoryAllocator {
                     throw new OakOutOfMemoryException();
                 }
                 // does allocation of new block brings us out of capacity?
-                if ((blocks.size() + 1) * blocksProvider.blockSize() > capacity) {
+                if ((numberOfBocks() + 1) * blocksProvider.blockSize() > capacity) {
                     throw new OakOutOfMemoryException();
                 } else {
                     // going to allocate additional block (big chunk of memory)
                     // need to be thread-safe, so not many blocks are allocated
                     // locking is actually the most reasonable way of synchronization here
-                    synchronized (this) {
+                    synchronized (currentBlock) {
                         if (currentBlock.allocated() + size > currentBlock.getCapacity()) {
                           allocateNewCurrentBlock();
                         }
@@ -129,7 +131,8 @@ public class OakNativeMemoryAllocator implements OakMemoryAllocator {
   // the free list is not used
   public Slice allocateSlice(int size) {
     ByteBuffer bb = allocateConditional(size, false);
-    return new Slice(currentBlockID,bb);
+    // idGenerator - 1 is the current block ID (as free list usage is disabled above)
+    return new Slice((idGenerator.get()-1),bb);
   }
 
     // Releases memory (makes it available for reuse) without other GC consideration.
@@ -157,8 +160,8 @@ public class OakNativeMemoryAllocator implements OakMemoryAllocator {
     @Override
     public void close() {
         if (!closed.compareAndSet(false,true)) return;
-        for (Block b : blocks.values()) {
-            blocksProvider.returnBlock(b);
+        for (int i = 1; i < numberOfBocks(); i++) {
+          blocksProvider.returnBlock(blocksArray[i]);
         }
         // no need to do anything with the free list,
         // as all free list members were residing on one of the (already released) blocks
@@ -169,14 +172,15 @@ public class OakNativeMemoryAllocator implements OakMemoryAllocator {
     public long allocated() { return allocated.get(); }
 
     // When some buffer need to be read from a random block
-    public ByteBuffer readByteBufferFromBlockID(Integer id, int pos, int length) {
-        Block b = blocks.get(id);
-        return b.getReadOnlyBufferForThread(pos,length);
+    public ByteBuffer readByteBufferFromBlockID(
+        Integer blockID, int bufferPosition, int bufferLength) {
+      Block b = blocksArray[blockID];
+      return b.getReadOnlyBufferForThread(bufferPosition,bufferLength);
     }
 
   // Return the entire byte buffer of a given block, then a smaller byte buffer will be created
   public ByteBuffer getByteBufferOfBlockID(Integer id) {
-    Block b = blocks.get(id);
+    Block b = blocksArray[id];
     return b.getFullByteBuffer();
   }
 
@@ -186,14 +190,18 @@ public class OakNativeMemoryAllocator implements OakMemoryAllocator {
     }
 
     // used only for testing
-    int numOfAllocatedBlocks() { return blocks.size(); }
+    int numOfAllocatedBlocks() { return numberOfBocks(); }
 
+    // This method MUST be called within a thread safe context !!!
     private void allocateNewCurrentBlock() {
       Block b = blocksProvider.getBlock();
       int blockID = idGenerator.getAndIncrement();
-      this.blocks.put(blockID, b);
+      this.blocksArray[blockID] = b;
       this.currentBlock = b;
-      this.currentBlockID = blockID;
+    }
+
+    private int numberOfBocks() {
+      return idGenerator.get() - 1;
     }
 
     private Stats stats = null;

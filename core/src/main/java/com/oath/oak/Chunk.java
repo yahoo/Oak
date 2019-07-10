@@ -209,23 +209,16 @@ public class Chunk<K, V> {
     /**
      * release key in slice, currently not in use, waiting for GC to be arranged
      **/
-    void releaseKey(int entryIndex, int[] entries) {
-
-        int blockID = Chunk.getEntryField(entryIndex, Chunk.OFFSET_KEY_BLOCK, entries);
-        int keyPosition = Chunk.getEntryField(entryIndex, Chunk.OFFSET_KEY_POSITION, entries);
-        int length = Chunk.getEntryField(entryIndex, Chunk.OFFSET_KEY_LENGTH, entries);
+    void releaseKey(int entryIndex) {
+        int blockID = getEntryField(entryIndex, OFFSET_KEY_BLOCK);
+        int keyPosition = getEntryField(entryIndex, OFFSET_KEY_POSITION);
+        int length = getEntryField(entryIndex, OFFSET_KEY_LENGTH);
         ByteBuffer bb = memoryManager.getByteBufferFromBlockID(blockID, keyPosition,length);
-
         OakNativeMemoryAllocator.Slice s
             = new OakNativeMemoryAllocator.Slice(blockID, bb);
 
         memoryManager.releaseSlice(s);
     }
-
-
-
-
-
 
     ByteBuffer readMinKey() {
         int minEntry = getFirstItemEntryIndex();
@@ -241,14 +234,6 @@ public class Chunk<K, V> {
      * gets the field of specified offset for given item in entry array
      */
     private int getEntryField(int item, int offset) {
-        return getEntryField(item, offset, this.entries);
-    }
-
-    /**
-     * gets the field of specified offset for given item in entry array
-     */
-    public static int getEntryField(int item, int offset, int[] entries) {
-
         if (OFFSET_KEY_BLOCK != offset && OFFSET_KEY_LENGTH != offset) {
             return entries[item + offset];
         }

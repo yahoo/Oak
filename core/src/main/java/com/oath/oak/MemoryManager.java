@@ -17,12 +17,11 @@ public class MemoryManager {
     private final OakMemoryAllocator keysMemoryAllocator;
     private final OakMemoryAllocator valuesMemoryAllocator;
 
-    public MemoryManager(OakMemoryAllocator valuesMemoryAllocator, OakMemoryAllocator keysMemoryAllocator) {
-        assert valuesMemoryAllocator != null;
-        assert keysMemoryAllocator != null;
+    public MemoryManager(OakMemoryAllocator memoryAllocator) {
+        assert memoryAllocator != null;
 
-        this.valuesMemoryAllocator = valuesMemoryAllocator;
-        this.keysMemoryAllocator = keysMemoryAllocator;
+        this.valuesMemoryAllocator = memoryAllocator;
+        this.keysMemoryAllocator = memoryAllocator;
     }
 
     public ByteBuffer allocate(int size) {
@@ -43,10 +42,9 @@ public class MemoryManager {
         return valuesMemoryAllocator.allocated();
     }
 
-    public ByteBuffer allocateKeys(int bytes) {
-        return keysMemoryAllocator.allocate(bytes);
-    }
-
+    // allocateSlice is used when the blockID (of the block from which the ByteBuffer is allocated)
+    // needs to be known. Currently allocateSlice() is used for keys and
+    // allocate() is used for values.
     public OakNativeMemoryAllocator.Slice allocateSlice(int bytes) {
         return ((OakNativeMemoryAllocator)keysMemoryAllocator).allocateSlice(bytes);
     }

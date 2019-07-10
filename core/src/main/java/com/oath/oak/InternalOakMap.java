@@ -1096,9 +1096,6 @@ class InternalOakMap<K, V> {
 
         public Map.Entry<OakRBuffer, OakRBuffer> next() {
             Map.Entry<ByteBuffer, Handle> pair = advance();
-            if (pair.getKey() == null) {
-                return null;
-            }
             if (pair.getValue() == null) {
                 return null;
             }
