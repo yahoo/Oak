@@ -107,7 +107,8 @@ public class OakNativeMemoryAllocator implements OakMemoryAllocator {
                     throw new OakOutOfMemoryException();
                 }
               System.out.println("\n BEFORE OUT OF CAPACITY! (Thread ID: "
-                  + (int) Thread.currentThread().getId() + ")"
+                  + (int) Thread.currentThread().getId() + ") future memory size: "
+                  + (numberOfBocks() + 1) * blocksProvider.blockSize()
                   + ", capacity: " + capacity + ", blocksArray length: " + blocksArray.length
                   + ", block's size: " + blocksProvider.blockSize()
                   + ", number of blocks: " + numberOfBocks() + "\n");
