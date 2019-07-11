@@ -206,7 +206,7 @@ public class OakNativeMemoryAllocator implements OakMemoryAllocator {
       this.currentBlock = b;
     }
 
-    private int numberOfBocks() {
+    private long numberOfBocks() {
       return idGenerator.get() - 1;
     }
 
