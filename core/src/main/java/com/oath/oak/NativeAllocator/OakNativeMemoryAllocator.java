@@ -189,6 +189,12 @@ public class OakNativeMemoryAllocator implements OakMemoryAllocator {
     private void allocateNewCurrentBlock() {
       Block b = blocksProvider.getBlock();
       int blockID = idGenerator.getAndIncrement();
+      if (blocksArray.length < blockID) {
+        System.out.println("\n BLOCKS ARRAY TOO SHORT! blockID: " + blockID
+            + ", capacity: " + capacity + ", blocksArray length: " + blocksArray.length
+            + ", block's size: " + blocksProvider.blockSize()
+            + ", number of blocks: " + numberOfBocks() + "\n");
+      }
       this.blocksArray[blockID] = b;
       this.currentBlock = b;
     }
