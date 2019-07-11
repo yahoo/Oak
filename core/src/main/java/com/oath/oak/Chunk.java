@@ -177,7 +177,7 @@ public class Chunk<K, V> {
      * write key in slice
      **/
     void writeKey(K key, int ei) {
-        OakNativeMemoryAllocator.Slice s
+        Slice s
             = memoryManager.allocateSlice(keySerializer.calculateSize(key));
         // byteBuffer.slice() is set so it protects us from the overwrites of the serializer
         keySerializer.serialize(key, s.getByteBuffer().slice());
@@ -214,8 +214,7 @@ public class Chunk<K, V> {
         int keyPosition = getEntryField(entryIndex, OFFSET_KEY_POSITION);
         int length = getEntryField(entryIndex, OFFSET_KEY_LENGTH);
         ByteBuffer bb = memoryManager.getByteBufferFromBlockID(blockID, keyPosition,length);
-        OakNativeMemoryAllocator.Slice s
-            = new OakNativeMemoryAllocator.Slice(blockID, bb);
+        Slice s = new Slice(blockID, bb);
 
         memoryManager.releaseSlice(s);
     }

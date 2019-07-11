@@ -23,7 +23,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class OakNativeMemoryAllocatorTest {
-    private static int valueSizeAfterSerialization = Integer.MAX_VALUE / 40;
+    private static int valueSizeAfterSerialization = Integer.MAX_VALUE / 20;
     public static class CheckOakCapacityValueSerializer implements OakSerializer<Integer> {
 
         @Override

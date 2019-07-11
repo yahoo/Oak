@@ -24,7 +24,7 @@ class BlocksPool implements BlocksProvider {
     // Number of memory blocks to be pre-allocated (currently gives us 2GB). When it is not enough,
     // another half such amount of memory (1GB) will be allocated at once.
     private final static int NUMBER_OF_BLOCKS = 10;
-
+    private final static int EXCESS_POOL_RATIO = 3;
     // not thread safe, private constructor; should be called only once
     private BlocksPool() {
         prealloc(NUMBER_OF_BLOCKS);
@@ -80,7 +80,7 @@ class BlocksPool implements BlocksProvider {
     public void returnBlock(Block b) {
         b.reset();
         blocks.add(b);
-        if (blocks.size() > 3 * NUMBER_OF_BLOCKS) { // too many unused blocks
+        if (blocks.size() > EXCESS_POOL_RATIO * NUMBER_OF_BLOCKS) { // too many unused blocks
             synchronized (BlocksPool.class) { // can be easily changed to lock-free
                 for (int i = 0; i < NUMBER_OF_BLOCKS; i++) {
                     this.blocks.poll().clean();

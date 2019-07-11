@@ -8,13 +8,13 @@ package com.oath.oak.NativeAllocator;
 
 import com.oath.oak.OakMemoryAllocator;
 import com.oath.oak.OakOutOfMemoryException;
+import com.oath.oak.Slice;
 
 import java.nio.ByteBuffer;
 import java.util.AbstractMap;
 import java.util.Comparator;
 
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 
 import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -34,7 +34,7 @@ public class OakNativeMemoryAllocator implements OakMemoryAllocator {
 
     // free list of Slices which can be reused - sorted by buffer size, then by unique hash
     private Comparator<Map.Entry<Long, Slice>> comparator =
-            Comparator.<Map.Entry<Long, Slice>, Integer>comparing(p -> (p.getValue()).getByteBuffer().remaining())
+            Comparator.<Map.Entry<Long, Slice>, Integer>comparing(p -> p.getValue().getByteBuffer().remaining())
             .thenComparing(Map.Entry::getKey);
     private final ConcurrentSkipListSet<Map.Entry<Long,Slice>> freeList = new ConcurrentSkipListSet<>(comparator);
 
@@ -178,12 +178,6 @@ public class OakNativeMemoryAllocator implements OakMemoryAllocator {
       return b.getReadOnlyBufferForThread(bufferPosition,bufferLength);
     }
 
-  // Return the entire byte buffer of a given block, then a smaller byte buffer will be created
-  public ByteBuffer getByteBufferOfBlockID(Integer id) {
-    Block b = blocksArray[id];
-    return b.getFullByteBuffer();
-  }
-
     // used only for testing
     Block getCurrentBlock() {
         return currentBlock;
@@ -233,19 +227,6 @@ public class OakNativeMemoryAllocator implements OakMemoryAllocator {
                 reclaimedBytes += size;
             }
         }
-    }
-
-    public static class Slice {
-      final int blockID;
-      final ByteBuffer buffer;
-
-      public Slice (int blockID, ByteBuffer buffer) {
-        this.blockID = blockID;
-        this.buffer = buffer;
-      }
-
-      public ByteBuffer getByteBuffer() {return buffer;}
-      public int getBlockID() {return blockID;}
     }
 
 }

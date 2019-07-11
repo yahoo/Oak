@@ -6,10 +6,7 @@
 
 package com.oath.oak;
 
-
-
 import com.oath.oak.NativeAllocator.OakNativeMemoryAllocator;
-
 import java.nio.ByteBuffer;
 
 
@@ -45,11 +42,11 @@ public class MemoryManager {
     // allocateSlice is used when the blockID (of the block from which the ByteBuffer is allocated)
     // needs to be known. Currently allocateSlice() is used for keys and
     // allocate() is used for values.
-    public OakNativeMemoryAllocator.Slice allocateSlice(int bytes) {
+    public Slice allocateSlice(int bytes) {
         return ((OakNativeMemoryAllocator)keysMemoryAllocator).allocateSlice(bytes);
     }
 
-    public void releaseSlice(OakNativeMemoryAllocator.Slice slice) {
+    public void releaseSlice(Slice slice) {
         // keys aren't going to be released until GC part is taken care for
         ((OakNativeMemoryAllocator)keysMemoryAllocator).freeSlice(slice);
     }
