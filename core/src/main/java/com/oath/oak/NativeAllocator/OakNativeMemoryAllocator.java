@@ -106,12 +106,6 @@ public class OakNativeMemoryAllocator implements OakMemoryAllocator {
                 if (size > blocksProvider.blockSize()) {
                     throw new OakOutOfMemoryException();
                 }
-              System.out.println("\n BEFORE OUT OF CAPACITY! (Thread ID: "
-                  + (int) Thread.currentThread().getId() + ") future memory size: "
-                  + (numberOfBocks() + 1) * blocksProvider.blockSize()
-                  + ", capacity: " + capacity + ", blocksArray length: " + blocksArray.length
-                  + ", block's size: " + blocksProvider.blockSize()
-                  + ", number of blocks: " + numberOfBocks() + "\n");
                 // does allocation of new block brings us out of capacity?
                 if ((numberOfBocks() + 1) * blocksProvider.blockSize() > capacity) {
                     throw new OakOutOfMemoryException();
@@ -195,13 +189,6 @@ public class OakNativeMemoryAllocator implements OakMemoryAllocator {
     private void allocateNewCurrentBlock() {
       Block b = blocksProvider.getBlock();
       int blockID = idGenerator.getAndIncrement();
-      if (blocksArray.length <= blockID) {
-        System.out.println("\n BLOCKS ARRAY TOO SHORT! (Thread ID: "
-            + (int) Thread.currentThread().getId() + ") blockID: " + blockID
-            + ", capacity: " + capacity + ", blocksArray length: " + blocksArray.length
-            + ", block's size: " + blocksProvider.blockSize()
-            + ", number of blocks: " + numberOfBocks() + "\n");
-      }
       this.blocksArray[blockID] = b;
       this.currentBlock = b;
     }
