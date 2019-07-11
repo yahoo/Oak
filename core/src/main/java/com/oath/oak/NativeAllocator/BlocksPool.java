@@ -46,7 +46,7 @@ class BlocksPool implements BlocksProvider {
     }
 
     @Override
-    public int blockSize() {
+    public long blockSize() {
         return BLOCK_SIZE;
     }
 

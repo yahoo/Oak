@@ -1,7 +1,7 @@
 package com.oath.oak.NativeAllocator;
 
 interface BlocksProvider {
-    int blockSize();
+    long blockSize();
 
     Block getBlock();
 
