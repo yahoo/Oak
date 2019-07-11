@@ -113,7 +113,7 @@ public class OakNativeMemoryAllocator implements OakMemoryAllocator {
                     // going to allocate additional block (big chunk of memory)
                     // need to be thread-safe, so not many blocks are allocated
                     // locking is actually the most reasonable way of synchronization here
-                    synchronized (currentBlock) {
+                    synchronized (this) {
                         if (currentBlock.allocated() + size > currentBlock.getCapacity()) {
                           allocateNewCurrentBlock();
                         }
