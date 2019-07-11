@@ -189,7 +189,7 @@ public class OakNativeMemoryAllocator implements OakMemoryAllocator {
     }
 
     // used only for testing
-    int numOfAllocatedBlocks() { return numberOfBocks(); }
+    int numOfAllocatedBlocks() { return (int)numberOfBocks(); }
 
     // This method MUST be called within a thread safe context !!!
     private void allocateNewCurrentBlock() {
