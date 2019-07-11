@@ -114,7 +114,7 @@ public class OakMap<K extends MyBuffer, V extends MyBuffer> implements Compositi
     public void clear() {
         oak.close();
 
-        ma = new OakNativeMemoryAllocator(Integer.MAX_VALUE);
+        ma = new OakNativeMemoryAllocator(Long.MAX_VALUE/4);
         if (Parameters.detailedStats) {
             ma.collectStats();
         }
