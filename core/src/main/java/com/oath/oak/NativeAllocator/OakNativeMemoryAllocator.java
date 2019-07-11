@@ -63,8 +63,7 @@ public class OakNativeMemoryAllocator implements OakMemoryAllocator {
     // A testable constructor
     OakNativeMemoryAllocator(long capacity, BlocksProvider blocksProvider) {
         this.blocksProvider = blocksProvider;
-        int blockArraySize = ((int)capacity/blocksProvider.blockSize());
-        blockArraySize = (blockArraySize == 0) ? 1 : blockArraySize;
+        int blockArraySize = ((int)capacity/blocksProvider.blockSize())+1;
         // first entry of blocksArray is always empty
         this.blocksArray = new Block[blockArraySize+1];
         // initially allocate one single block from pool
