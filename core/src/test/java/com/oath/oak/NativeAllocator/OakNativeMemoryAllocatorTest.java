@@ -123,6 +123,7 @@ public class OakNativeMemoryAllocatorTest {
         ma.close();
     }
 
+
     @Test
     public void checkOakCapacity() {
         int initialRemainingBlocks = BlocksPool.getInstance().numOfRemainingBlocks();

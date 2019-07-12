@@ -16,7 +16,7 @@ public class OakMap<K extends MyBuffer, V extends MyBuffer> implements Compositi
     private OakNativeMemoryAllocator ma;
 
     public OakMap() {
-        ma = new OakNativeMemoryAllocator(Long.MAX_VALUE/4);
+        ma = new OakNativeMemoryAllocator((long) Integer.MAX_VALUE * 16);
         if (Parameters.detailedStats) {
             ma.collectStats();
         }
@@ -114,7 +114,7 @@ public class OakMap<K extends MyBuffer, V extends MyBuffer> implements Compositi
     public void clear() {
         oak.close();
 
-        ma = new OakNativeMemoryAllocator(Long.MAX_VALUE/4);
+        ma = new OakNativeMemoryAllocator((long) Integer.MAX_VALUE * 16);
         if (Parameters.detailedStats) {
             ma.collectStats();
         }
