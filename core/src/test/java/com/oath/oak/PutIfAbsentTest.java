@@ -1,5 +1,7 @@
 package com.oath.oak;
 
+import org.junit.After;
+import org.junit.Before;
 import org.junit.Test;
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -17,23 +19,31 @@ import static org.junit.Assert.fail;
 
 
 public class PutIfAbsentTest {
+    private OakMap<Integer, Integer> oak;
+    private CountDownLatch startSignal;
+    private List<Future<Integer>> threads;
+    private final int NUM_THREADS = 16;
 
+    @Before
+    public void init() {
+        OakMapBuilder<Integer, Integer> builder = OakMapBuilder.getDefaultBuilder();
+        oak = builder.build();
+        startSignal = new CountDownLatch(1);
+        threads = new ArrayList<>(NUM_THREADS);
+    }
+
+    @After
+    public void finish() {
+        oak.close();
+    }
 
 
     @Test(timeout=10_000)
     public void testConcurrentPutOrCompute() {
-        OakMapBuilder<Integer, Integer> builder = OakMapBuilder.getDefaultBuilder();
-        OakMap<Integer, Integer> oak = builder.build();
-
-        CountDownLatch startSignal = new CountDownLatch(1);
-
-        ExecutorService executor = Executors.newFixedThreadPool(16);
-
-        List<Future<Integer>> threads = new ArrayList<>();
-        Integer numThreads = 16;
+        ExecutorService executor = Executors.newFixedThreadPool(NUM_THREADS);
         int numKeys = 100000;
 
-        for (int i = 0; i < numThreads; ++i ) {
+        for (int i = 0; i < NUM_THREADS; ++i ) {
             Callable<Integer> operation = () -> {
                 int counter = 0;
                 try {
@@ -71,30 +81,21 @@ public class PutIfAbsentTest {
         int count2 = 0;
         while(iterator.hasNext()) {
             Integer value = iterator.next();
-            assertEquals(numThreads, value);
+            assertEquals((Integer) NUM_THREADS, value);
             count2++;
         }
         assertEquals(count2, numKeys);
         assertEquals(numKeys, oak.size());
         assertEquals(numKeys, returnValues[0]);
-
-        oak.close();
     }
+
 
     @Test(timeout=10_000)
     public void testConcurrentPutIfAbsent() {
-        OakMapBuilder<Integer, Integer> builder = OakMapBuilder.getDefaultBuilder();
-        OakMap<Integer, Integer> oak = builder.build();
-
-        CountDownLatch startSignal = new CountDownLatch(1);
-
-        ExecutorService executor = Executors.newFixedThreadPool(16);
-
-        List<Future<Integer>> threads = new ArrayList<>();
-        Integer numThreads = 16;
+        ExecutorService executor = Executors.newFixedThreadPool(NUM_THREADS);
         int numKeys = 100000;
 
-        for (int i = 0; i < numThreads; ++i ) {
+        for (int i = 0; i < NUM_THREADS; ++i ) {
             Callable<Integer> operation = () -> {
                 int counter = 0;
                 try {
@@ -135,7 +136,5 @@ public class PutIfAbsentTest {
         assertEquals(count2, numKeys);
         assertEquals(numKeys, returnValues[0]);
         assertEquals(numKeys, oak.size());
-
-        oak.close();
     }
 }

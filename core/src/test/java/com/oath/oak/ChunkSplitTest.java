@@ -36,31 +36,4 @@ public class ChunkSplitTest {
     }
 
     // the size of the keys is no longer the requirement for the split
-//    @Test
-//    public void testSplitBySize() throws NoSuchFieldException, IllegalAccessException {
-//        OakMapBuilder<String, String> builder = new OakMapBuilder<String, String>()
-//                .setChunkMaxItems(16)
-//                .setChunkBytesPerItem(1024)
-//                .setKeySerializer(new StringSerializer())
-//                .setValueSerializer(new StringSerializer())
-//                .setComparator(new StringComparator())
-//                .setMinKey("");
-//        OakMap<String, String> oak =  builder.build();
-//
-//        for (int i=0; i < 10; i++) {
-//            String key = String.format("-%01024d", i);
-//            oak.zc().put(key,key);
-//        }
-//
-//        Field field = oak.getClass().getDeclaredField("internalOakMap");
-//        field.setAccessible(true);
-//        InternalOakMap<String, String> internalOakMap = (InternalOakMap<String, String>) field.get(oak);
-//
-//        Field skipListField = internalOakMap.getClass().getDeclaredField("skiplist");
-//        skipListField.setAccessible(true);
-//        ConcurrentSkipListMap<Object, Chunk<String, String>> skipList =
-//                (ConcurrentSkipListMap<Object, Chunk<String, String>>) skipListField.get(internalOakMap);
-//        assertTrue(skipList.size() > 1);
-//        oak.close();
-//    }
 }

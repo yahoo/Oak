@@ -52,8 +52,9 @@ public class MemoryManager {
     }
 
     // When some read only buffer needs to be read from a random block
-    public ByteBuffer getByteBufferFromBlockID(Integer id, int pos, int length) {
-        return ((OakNativeMemoryAllocator)keysMemoryAllocator).readByteBufferFromBlockID(id, pos, length);
+    public ByteBuffer getByteBufferFromBlockID(Integer BlockID, int bufferPosition, int bufferLength) {
+        return ((OakNativeMemoryAllocator)keysMemoryAllocator).readByteBufferFromBlockID(
+            BlockID, bufferPosition, bufferLength);
     }
 }
 

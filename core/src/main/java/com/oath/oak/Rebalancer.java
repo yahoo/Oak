@@ -150,19 +150,7 @@ class Rebalancer<K, V> {
                 keySerializer, valueSerializer, threadIndexCalculator);
 
         int ei = firstFrozen.getFirstItemEntryIndex();
-
         List<Chunk<K,V>> newChunks = new LinkedList<>();
-
-//        Random rand = new Random();
-//                // Obtain a number between [0 - 99].
-//                int n = rand.nextInt(200);
-//                if (n==25) {
-//                    System.out.println("--- Doing new type of rebalance! Chunk max items: "
-//                        + currFrozen.getMaxItems() + "  entriesLowThreshold: "
-//                        + entriesLowThreshold + ", sorted count: "
-//                        + currFrozen.getStatistics().getInitialSortedCount() + ", total count: "
-//                        + currFrozen.getStatistics().getCompactedCount() + " ---");
-//                }
 
         while (true) {
             ei = currNewChunk.copyPartNoKeys(currFrozen, ei, entriesLowThreshold);
@@ -187,7 +175,7 @@ class Rebalancer<K, V> {
                     // we have to open an new chunk
                     // here we create a new on-heap minimal key for the second new chunk,
                     // created by the split. The new min key is on-heap copy of the one off-heap
-                    // TODO do we want to use slice here? yes we need!
+                    // We need to use slice() method here as we want new object to be created
                     ByteBuffer bb = currFrozen.readKey(ei).slice();
                     int remaining = bb.remaining();
                     int position = bb.position();

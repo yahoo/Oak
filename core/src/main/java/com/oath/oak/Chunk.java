@@ -30,15 +30,15 @@ public class Chunk<K, V> {
     private static final int FIRST_ITEM = 1;
 
     private static final int FIELDS = 4;  // # of fields in each item of key array
-    public static final int OFFSET_NEXT = 0;
-    public static final int OFFSET_KEY_POSITION = 1;
-    public static final int OFFSET_KEY_LENGTH = 2;
-    public static final int OFFSET_HANDLE_INDEX = 3;
+    private static final int OFFSET_NEXT = 0;
+    private static final int OFFSET_KEY_POSITION = 1;
+    private static final int OFFSET_KEY_LENGTH = 2;
+    private static final int OFFSET_HANDLE_INDEX = 3;
     // key block is not used as an offset, rather as request differentiation,
     // key block is part of key length integer, thus key length is limited to 65KB
-    public static final int OFFSET_KEY_BLOCK = 4;
-    public static final int KEY_LENGTH_MASK = 0xffff; // 16 lower bits
-    public static final int KEY_BLOCK_SHIFT = 16;
+    private static final int OFFSET_KEY_BLOCK = 4;
+    private static final int KEY_LENGTH_MASK = 0xffff; // 16 lower bits
+    private static final int KEY_BLOCK_SHIFT = 16;
 
     // used for checking if rebalance is needed
     private static final double REBALANCE_PROB_PERC = 30;
@@ -177,14 +177,15 @@ public class Chunk<K, V> {
      * write key in slice
      **/
     void writeKey(K key, int ei) {
+        int keySize = keySerializer.calculateSize(key);
         Slice s
-            = memoryManager.allocateSlice(keySerializer.calculateSize(key));
+            = memoryManager.allocateSlice(keySize);
         // byteBuffer.slice() is set so it protects us from the overwrites of the serializer
         keySerializer.serialize(key, s.getByteBuffer().slice());
 
         setEntryField(ei, OFFSET_KEY_BLOCK, s.getBlockID());
         setEntryField(ei, OFFSET_KEY_POSITION, s.getByteBuffer().position());
-        setEntryField(ei, OFFSET_KEY_LENGTH, keySerializer.calculateSize(key));
+        setEntryField(ei, OFFSET_KEY_LENGTH, keySize);
     }
 
     /**
@@ -233,16 +234,16 @@ public class Chunk<K, V> {
      * gets the field of specified offset for given item in entry array
      */
     private int getEntryField(int item, int offset) {
-        if (OFFSET_KEY_BLOCK != offset && OFFSET_KEY_LENGTH != offset) {
-            return entries[item + offset];
-        }
-        if (OFFSET_KEY_LENGTH == offset) {
-            // return two low bytes of the key length index int
-            return (entries[item + OFFSET_KEY_LENGTH] & KEY_LENGTH_MASK);
-        } else {
-            // offset must be OFFSET_KEY_BLOCK, return 2 high bytes of the int inside key length
-            // right-shift force, fill empty with zeroes
-            return (entries[item + OFFSET_KEY_LENGTH] >>> KEY_BLOCK_SHIFT);
+        switch (offset) {
+            case OFFSET_KEY_LENGTH:
+                // return two low bytes of the key length index int
+                return (entries[item + OFFSET_KEY_LENGTH] & KEY_LENGTH_MASK);
+            case OFFSET_KEY_BLOCK:
+                // offset must be OFFSET_KEY_BLOCK, return 2 high bytes of the int inside key length
+                // right-shift force, fill empty with zeroes
+                return (entries[item + OFFSET_KEY_LENGTH] >>> KEY_BLOCK_SHIFT);
+            default:
+                return entries[item + offset];
         }
     }
 
@@ -250,31 +251,29 @@ public class Chunk<K, V> {
     * * sets the field of specified offset to 'value' for given item in entry array
     */
     private void setEntryField(int item, int offset, int value) {
-      setEntryField(item, offset, value, this.entries);
-    }
-
-    /**
-     * sets the field of specified offset to 'value' for given item in entry array
-     */
-    public static void setEntryField(int item, int offset, int value, int[] entries) {
         assert item + offset >= 0;
-        if (OFFSET_KEY_BLOCK != offset && OFFSET_KEY_LENGTH != offset) {
-            entries[item + offset] = value;
-            return;
-        }
-        // OFFSET_KEY_LENGTH and OFFSET_KEY_BLOCK should be less then 16 bits long
-        // *2 in order to get read of the signed vs unsigned limits
-        assert value < Short.MAX_VALUE*2;
-        if (OFFSET_KEY_LENGTH == offset) {
+        switch (offset) {
+        case OFFSET_KEY_LENGTH:
+            // OFFSET_KEY_LENGTH and OFFSET_KEY_BLOCK should be less then 16 bits long
+            // *2 in order to get read of the signed vs unsigned limits
+            assert value < Short.MAX_VALUE*2;
             // set two low bytes of the handle index int
             entries[item + OFFSET_KEY_LENGTH] =
                 (entries[item + OFFSET_KEY_LENGTH]) | (value & KEY_LENGTH_MASK);
-        } else {
+            return;
+        case OFFSET_KEY_BLOCK:
+            // OFFSET_KEY_LENGTH and OFFSET_KEY_BLOCK should be less then 16 bits long
+            // *2 in order to get read of the signed vs unsigned limits
+            assert value < Short.MAX_VALUE*2;
             // offset must be OFFSET_KEY_BLOCK,
             // set 2 high bytes of the int inside OFFSET_KEY_LENGTH
-            assert value > 0;
+            assert value > 0; // block id can never be 0
             entries[item + OFFSET_KEY_LENGTH] =
                 (entries[item + OFFSET_KEY_LENGTH]) | (value << KEY_BLOCK_SHIFT);
+            return;
+        default:
+            entries[item + offset] = value;
+            return;
         }
     }
 

@@ -20,6 +20,10 @@ class Block {
     private final AtomicInteger allocated = new AtomicInteger(0);
     private final int id; // placeholder might need to be set in the future
 
+    // in order to avoid creating a new ByteBBuffer per each reading
+    // (for example binary search through the keys)
+    // keep persistent ByteBuffer objects referring to a slice from a Block's big underlying buffer
+    // in order to make it thread-safe keep separate persistent ByteBuffer per thread
     private ThreadIndexCalculator threadIndexCalculator;
     private ByteBuffer[] byteBufferPerThread;
 
@@ -100,12 +104,6 @@ class Block {
         // on purpose not creating a ByteBuffer slice() here,
         // slice() will be used only per demand when buffer is passed to the serializer
         return bb;
-    }
-
-    public ByteBuffer getFullByteBuffer() {
-        // this is dangerous for thread safety, better to use .asReadOnlyBuffer(),
-        // but this might be done to avoid new buffer object, and used only internally
-        return buffer;
     }
 
     // how many bytes a block may include, regardless allocated/free

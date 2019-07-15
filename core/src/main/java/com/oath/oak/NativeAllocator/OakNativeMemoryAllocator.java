@@ -74,13 +74,13 @@ public class OakNativeMemoryAllocator implements OakMemoryAllocator {
 
     @Override
     public ByteBuffer allocate(int size) {
-      return allocateConditional(size, true);
+      return allocate(size, true);
     }
 
     // Allocates ByteBuffer of the given size, either from freeList or (if it is still possible)
     // within current block bounds.
     // Otherwise new block is allocated within Oak memory bounds. Thread safe.
-    private ByteBuffer allocateConditional(int size, boolean reuseFreedMemory) {
+    private ByteBuffer allocate(int size, boolean reuseFreedMemory) {
 
       if (reuseFreedMemory) {
         if (!freeList.isEmpty()) {
@@ -129,7 +129,7 @@ public class OakNativeMemoryAllocator implements OakMemoryAllocator {
   // Because currently the free list doesn't keeps block IDs for released values,
   // the free list is not used
   public Slice allocateSlice(int size) {
-    ByteBuffer bb = allocateConditional(size, false);
+    ByteBuffer bb = allocate(size, false);
     // idGenerator - 1 is the current block ID (as free list usage is disabled above)
     return new Slice((idGenerator.get()-1),bb);
   }
