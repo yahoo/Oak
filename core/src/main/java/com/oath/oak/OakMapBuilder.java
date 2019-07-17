@@ -19,7 +19,7 @@ import java.nio.ByteBuffer;
  */
 public class OakMapBuilder<K,V> {
 
-  private final int MAX_MEM_CAPACITY = Integer.MAX_VALUE; // 2GB per Oak by default
+  private final long MAX_MEM_CAPACITY = ((long)Integer.MAX_VALUE)*8; // 16GB per Oak by default
 
   private OakSerializer<K> keySerializer;
   private OakSerializer<V> valueSerializer;
@@ -32,7 +32,7 @@ public class OakMapBuilder<K,V> {
   // Off-heap fields
   private int chunkMaxItems;
   private int chunkBytesPerItem;
-  private int memoryCapacity;
+  private long memoryCapacity;
   private OakMemoryAllocator memoryAllocator;
 
   public OakMapBuilder() {
@@ -73,7 +73,7 @@ public class OakMapBuilder<K,V> {
     return this;
   }
 
-  public OakMapBuilder<K, V> setMemoryCapacity(int memoryCapacity) {
+  public OakMapBuilder<K, V> setMemoryCapacity(long memoryCapacity) {
     this.memoryCapacity = memoryCapacity;
     return this;
   }
