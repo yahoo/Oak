@@ -6,8 +6,7 @@
 
 package com.oath.oak;
 
-
-
+import com.oath.oak.NativeAllocator.OakNativeMemoryAllocator;
 import java.nio.ByteBuffer;
 
 
@@ -15,12 +14,11 @@ public class MemoryManager {
     private final OakMemoryAllocator keysMemoryAllocator;
     private final OakMemoryAllocator valuesMemoryAllocator;
 
-    public MemoryManager(OakMemoryAllocator valuesMemoryAllocator, OakMemoryAllocator keysMemoryAllocator) {
-        assert valuesMemoryAllocator != null;
-        assert keysMemoryAllocator != null;
+    public MemoryManager(OakMemoryAllocator memoryAllocator) {
+        assert memoryAllocator != null;
 
-        this.valuesMemoryAllocator = valuesMemoryAllocator;
-        this.keysMemoryAllocator = keysMemoryAllocator;
+        this.valuesMemoryAllocator = memoryAllocator;
+        this.keysMemoryAllocator = memoryAllocator;
     }
 
     public ByteBuffer allocate(int size) {
@@ -41,11 +39,22 @@ public class MemoryManager {
         return valuesMemoryAllocator.allocated();
     }
 
-    public ByteBuffer allocateKeys(int bytes) {
-        return keysMemoryAllocator.allocate(bytes);
+    // allocateSlice is used when the blockID (of the block from which the ByteBuffer is allocated)
+    // needs to be known. Currently allocateSlice() is used for keys and
+    // allocate() is used for values.
+    public Slice allocateSlice(int bytes) {
+        return ((OakNativeMemoryAllocator)keysMemoryAllocator).allocateSlice(bytes);
     }
 
-    public void releaseKeys(ByteBuffer keys) {
-        keysMemoryAllocator.free(keys);
+    public void releaseSlice(Slice slice) {
+        // keys aren't going to be released until GC part is taken care for
+        ((OakNativeMemoryAllocator)keysMemoryAllocator).freeSlice(slice);
+    }
+
+    // When some read only buffer needs to be read from a random block
+    public ByteBuffer getByteBufferFromBlockID(Integer BlockID, int bufferPosition, int bufferLength) {
+        return ((OakNativeMemoryAllocator)keysMemoryAllocator).readByteBufferFromBlockID(
+            BlockID, bufferPosition, bufferLength);
     }
 }
+

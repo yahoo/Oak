@@ -12,6 +12,8 @@ import java.util.List;
 import java.util.Random;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+
+import com.oath.oak.ThreadIndexCalculator;
 import org.junit.Test;
 
 import static junit.framework.TestCase.assertNull;
@@ -21,8 +23,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class OakNativeMemoryAllocatorTest {
-    private static int valueSizeAfterSerialization = Integer.MAX_VALUE / 40;
-
+    private static int valueSizeAfterSerialization = Integer.MAX_VALUE / 20;
     public static class CheckOakCapacityValueSerializer implements OakSerializer<Integer> {
 
         @Override
@@ -82,7 +83,7 @@ public class OakNativeMemoryAllocatorTest {
     @Test
     public void checkCapacity() {
 
-        int blockSize = BlocksPool.getInstance().blockSize();
+        int blockSize = (int) BlocksPool.getInstance().blockSize();
         int capacity = blockSize * 3;
         OakNativeMemoryAllocator ma = new OakNativeMemoryAllocator(capacity);
 
@@ -122,12 +123,13 @@ public class OakNativeMemoryAllocatorTest {
         ma.close();
     }
 
+
     @Test
     public void checkOakCapacity() {
         int initialRemainingBlocks = BlocksPool.getInstance().numOfRemainingBlocks();
-        int blockSize = BlocksPool.getInstance().blockSize();
+        int blockSize = (int) BlocksPool.getInstance().blockSize();
         int capacity = blockSize * 3;
-
+        int keysSizeAfterSerialization = 0;
         OakNativeMemoryAllocator ma = new OakNativeMemoryAllocator(capacity);
         int maxItemsPerChunk = 1024;
         int maxBytesPerChunkItem = 100;
@@ -153,14 +155,15 @@ public class OakNativeMemoryAllocatorTest {
         // will transform a single integer into huge buffer of size about 100MB,
         // what is currently one block size
         oak.zc().put(key, val);
-
+        keysSizeAfterSerialization = 4; // size of integer key in bytes
         //check that after a single allocation of a block size
         // (1) we have all the blocks in the pool except one which is in the allocator
         assertEquals(initialRemainingBlocks - 1, BlocksPool.getInstance().numOfRemainingBlocks());
 
         // (2) check the one block in the allocator
         assertEquals(ma.numOfAllocatedBlocks(), 1);
-        assertEquals(valueSizeAfterSerialization, ma.allocated());   // check the newest block allocation
+        assertEquals(valueSizeAfterSerialization+keysSizeAfterSerialization,
+            ma.allocated());   // check the newest block allocation
         // check that what you read is the same that you wrote
         Integer resultForKey = oak.firstKey();
         Integer resultForValue = oak.get(key);
@@ -169,15 +172,17 @@ public class OakNativeMemoryAllocatorTest {
 
         key = 1;
         oak.zc().put(key, val);
-
+        keysSizeAfterSerialization += 4;
         //check that after a double allocation of a block size
         // (1) we have all the blocks in the pool except two which are in the allocator
         assertEquals(initialRemainingBlocks - 2, BlocksPool.getInstance().numOfRemainingBlocks());
 
         // (2) check the two blocks in the allocator
         assertEquals(ma.numOfAllocatedBlocks(), 2);
-        assertEquals(valueSizeAfterSerialization, ma.getCurrentBlock().allocated());   // check the newest block allocation
-        assertEquals(valueSizeAfterSerialization * 2, ma.allocated());   // check the total allocation
+        // mind no addition of the size of integer key, as it was allocated in the previous block
+        assertEquals(valueSizeAfterSerialization , ma.getCurrentBlock().allocated());   // check the newest block allocation
+        assertEquals(valueSizeAfterSerialization * 2+keysSizeAfterSerialization,
+            ma.allocated());   // check the total allocation
         // check that what you read is the same that you wrote
         resultForKey = oak.lastKey();
         resultForValue = oak.get(key);
@@ -186,15 +191,17 @@ public class OakNativeMemoryAllocatorTest {
 
         key = 2;
         oak.zc().put(key, val);
-
+        keysSizeAfterSerialization += 4;
         //check that after three allocations of a block size
         // (1) we have all the blocks in the pool except three which are in the allocator
         assertEquals(initialRemainingBlocks - 3, BlocksPool.getInstance().numOfRemainingBlocks());
 
         // (2) check the 3 blocks in the allocator
         assertEquals(ma.numOfAllocatedBlocks(), 3);
+        // mind no addition of the size of integer key, as it was allocated in the previous block
         assertEquals(valueSizeAfterSerialization, ma.getCurrentBlock().allocated());   // check the newest block allocation
-        assertEquals(valueSizeAfterSerialization * 3, ma.allocated());   // check the total allocation
+        assertEquals(valueSizeAfterSerialization * 3 +keysSizeAfterSerialization,
+            ma.allocated());   // check the total allocation
         // check that what you read is the same that you wrote
         resultForKey = oak.lastKey();
         resultForValue = oak.get(key);

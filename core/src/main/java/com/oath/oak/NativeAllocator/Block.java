@@ -7,6 +7,7 @@
 package com.oath.oak.NativeAllocator;
 
 import com.oath.oak.OakOutOfMemoryException;
+import com.oath.oak.ThreadIndexCalculator;
 import sun.misc.Cleaner;
 import java.lang.reflect.Field;
 import java.nio.ByteBuffer;
@@ -17,14 +18,25 @@ class Block {
     private final ByteBuffer buffer;
     private final int capacity;
     private final AtomicInteger allocated = new AtomicInteger(0);
+    private final int id; // placeholder might need to be set in the future
+
+    // in order to avoid creating a new ByteBBuffer per each reading
+    // (for example binary search through the keys)
+    // keep persistent ByteBuffer objects referring to a slice from a Block's big underlying buffer
+    // in order to make it thread-safe keep separate persistent ByteBuffer per thread
+    private ThreadIndexCalculator threadIndexCalculator;
+    private ByteBuffer[] byteBufferPerThread;
 
     Block(long capacity) {
-        assert capacity > 0;
-        assert capacity <= Integer.MAX_VALUE; // This is exactly 2GB
-        this.capacity = (int) capacity;
-        // Pay attention in allocateDirect the data is *zero'd out*
-        // which has an overhead in clearing and you end up touching every page
-        this.buffer = ByteBuffer.allocateDirect(this.capacity);
+      assert capacity > 0;
+      assert capacity <= Integer.MAX_VALUE; // This is exactly 2GB
+      this.capacity = (int) capacity;
+      this.threadIndexCalculator = ThreadIndexCalculator.newInstance();
+      this.byteBufferPerThread = new ByteBuffer[ThreadIndexCalculator.MAX_THREADS];
+      this.id = OakNativeMemoryAllocator.INVALID_BLOCK_ID;
+      // Pay attention in allocateDirect the data is *zero'd out*
+      // which has an overhead in clearing and you end up touching every page
+      this.buffer = ByteBuffer.allocateDirect(this.capacity);
     }
 
     // Block manages its linear allocation. Thread safe.
@@ -48,6 +60,7 @@ class Block {
     void reset() {
         buffer.clear(); // reset the position
         allocated.set(0);
+        this.threadIndexCalculator = ThreadIndexCalculator.newInstance();
     }
 
     // return how many bytes are actually allocated for this block only, thread safe
@@ -75,7 +88,28 @@ class Block {
         cleaner.clean();
     }
 
+    public ByteBuffer getReadOnlyBufferForThread(int position, int length) {
+        int idx = threadIndexCalculator.getIndex();
+        if (byteBufferPerThread[idx] == null) {
+            // the new buffer object is needed for thread safeness, otherwise
+            // (in single threaded environment)
+            // the setting of position and limit could happen on the main buffer itself
+            // but it hapens only once per thread id
+            byteBufferPerThread[idx] = buffer.asReadOnlyBuffer();
+        }
+
+        ByteBuffer bb = byteBufferPerThread[idx];
+        bb.limit(position + length);
+        bb.position(position);
+        // on purpose not creating a ByteBuffer slice() here,
+        // slice() will be used only per demand when buffer is passed to the serializer
+        return bb;
+    }
+
+    // how many bytes a block may include, regardless allocated/free
     public int getCapacity() {
         return capacity;
     }
+
+    public int getID() {return id;}
 }
