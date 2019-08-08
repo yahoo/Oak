@@ -159,7 +159,7 @@ public class OakNativeMemoryAllocator implements OakMemoryAllocator {
     @Override
     public void close() {
         if (!closed.compareAndSet(false,true)) return;
-        for (int i = 1; i < numberOfBocks(); i++) {
+        for (int i = 1; i <= numberOfBocks(); i++) {
           blocksProvider.returnBlock(blocksArray[i]);
         }
         // no need to do anything with the free list,
