@@ -36,15 +36,6 @@ public class ValueUtils {
 
     private static Unsafe unsafe;
 
-    private static int reverseBytes(int i) {
-        int newI = 0;
-        newI += (i & 0xff) << 24;
-        newI += (i & 0xff00) << 16;
-        newI += (i & 0xff0000) << 8;
-        newI += (i & 0xff000000);
-        return newI;
-    }
-
     static {
         try {
             Constructor<Unsafe> unsafeConstructor = Unsafe.class.getDeclaredConstructor();
@@ -68,6 +59,10 @@ public class ValueUtils {
         ByteBuffer dup = bb.duplicate();
         dup.position(dup.position() + VALUE_HEADER_SIZE);
         return dup.slice();
+    }
+
+    public static boolean isValueDeleted(ByteBuffer bb) {
+        return isValueDeleted(bb.getInt(0));
     }
 
     private static boolean CAS(ByteBuffer bb, int expected, int value) {
@@ -175,10 +170,10 @@ public class ValueUtils {
         ValueResult res = lockWrite(bb);
         if (res != SUCCESS) return res;
         int capacity = serializer.calculateSize(newVal);
-        if (bb.remaining() < capacity) { // can not reuse the existing space
+        if (bb.remaining() + ValueUtils.VALUE_HEADER_SIZE < capacity) { // can not reuse the existing space
             bb.putInt(bb.position(), MOVED.value);
             ByteBuffer dup = bb.duplicate();
-            dup.position(dup.position() + 4);
+            dup.position(dup.position() + ValueUtils.VALUE_HEADER_SIZE);
             Slice s = lookUp.valueSlice;
             Slice sDup = new Slice(s.getBlockID(), dup);
             memoryManager.releaseSlice(sDup);
@@ -213,26 +208,9 @@ public class ValueUtils {
         if (res != SUCCESS) return res;
         // releasing the actual value and not the header
         ByteBuffer dup = bb.duplicate();
-        dup.position(dup.position() + 4);
+        dup.position(dup.position() + ValueUtils.VALUE_HEADER_SIZE);
         Slice sDup = new Slice(s.getBlockID(), dup);
         memoryManager.releaseSlice(sDup);
         return SUCCESS;
-    }
-
-    /**
-     * Applies a transformation under writers locking
-     *
-     * @param transformer transformation to apply
-     * @return Transformation result or null if value is deleted
-     */
-    static <T> T mutatingTransform(Slice s, Function<ByteBuffer, T> transformer) {
-        T result;
-        ByteBuffer bb = s.getByteBuffer();
-        if (lockWrite(bb) != SUCCESS)
-            // finally clause will handle unlock
-            return null;
-        result = transformer.apply(getActualValueBuffer(bb));
-        unlockWrite(bb);
-        return result;
     }
 }
