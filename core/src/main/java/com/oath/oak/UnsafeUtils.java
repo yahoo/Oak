@@ -49,4 +49,23 @@ public final class UnsafeUtils {
             unsafe.copyMemory(srcArray, INT_ARRAY_OFFSET, dstByteBuffer.array(), BYTE_ARRAY_OFFSET + position, countInts * Integer.BYTES);
         }
     }
+
+    /**
+     Combines two integers to one long where the first argument is in the high 4 bytes.
+     Uses OR so the sign of the integers should not matter.
+     */
+    public static long intsToLong(int i1, int i2){
+        long newLong  = 0;
+        newLong |= ((long)i1) << 32;
+        newLong |= ((long)i2) & 0xffffffffL;
+        return newLong;
+    }
+
+    // maybe change to >>> instead of & 0xffffffffL
+    public static int[] longToInts(long l){
+        int[] res = new int[2];
+        res[1] = (int)(l & 0xffffffffL);
+        res[0] = (int)((l >> 32) & 0xffffffffL);
+        return res;
+    }
 }
