@@ -12,108 +12,102 @@ import java.util.function.Function;
 
 public class OakWBufferImpl implements OakWBuffer {
 
-    private final Handle handle;
+    private final ByteBuffer bb;
 
-    OakWBufferImpl(Handle handle) {
-        this.handle = handle;
+    OakWBufferImpl(ByteBuffer bb) {
+        this.bb = bb;
     }
-
 
     @Override
     public int capacity() {
-        return handle.capacity();
+        return bb.remaining();
     }
 
     @Override
     public ByteBuffer getByteBuffer() {
-        return handle.getSlicedByteBuffer();
+        return bb;
     }
 
     @Override
     public byte get(int index) {
-        return handle.get(index);
+        return bb.get(index);
     }
 
     @Override
     public OakWBuffer put(int index, byte b) {
-        handle.put(index, b);
+        bb.put(index, b);
         return this;
     }
 
     @Override
     public ByteOrder order() {
-        return handle.order();
+        return bb.order();
     }
 
     @Override
     public char getChar(int index) {
-        return handle.getChar(index);
+        return bb.getChar(index);
     }
 
     @Override
     public OakWBuffer putChar(int index, char value) {
-        handle.putChar(index, value);
+        bb.putChar(index, value);
         return this;
     }
 
     @Override
     public short getShort(int index) {
-        return handle.getShort(index);
+        return bb.getShort(index);
     }
 
     @Override
     public OakWBuffer putShort(int index, short value) {
-        handle.putShort(index, value);
+        bb.putShort(index, value);
         return this;
     }
 
     @Override
     public int getInt(int index) {
-        return handle.getInt(index);
+        return bb.getInt(index);
     }
 
     @Override
     public OakWBuffer putInt(int index, int value) {
-        handle.putInt(index, value);
+        bb.putInt(index, value);
         return this;
     }
 
     @Override
     public long getLong(int index) {
-        return handle.getLong(index);
+        return bb.getLong(index);
     }
 
     @Override
     public OakWBuffer putLong(int index, long value) {
-        handle.putLong(index, value);
+        bb.putLong(index, value);
         return this;
     }
 
     @Override
     public float getFloat(int index) {
-        return handle.getFloat(index);
+        return bb.getFloat(index);
     }
 
     @Override
     public OakWBuffer putFloat(int index, float value) {
-        handle.putFloat(index, value);
+        bb.putFloat(index, value);
         return this;
     }
 
     @Override
     public double getDouble(int index) {
-        return handle.getDouble(index);
+        return bb.getDouble(index);
     }
 
     @Override
     public OakWBuffer putDouble(int index, double value) {
-        handle.putDouble(index, value);
+        bb.putDouble(index, value);
         return this;
-    }
-
-    @Override
-    public <T> T transform(Function<ByteBuffer, T> transformer) {
-        return (T) handle.transform(transformer);
     }
 
 }
