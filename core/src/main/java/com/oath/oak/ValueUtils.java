@@ -14,6 +14,7 @@ import static com.oath.oak.Chunk.VALUE_BLOCK_SHIFT;
 import static com.oath.oak.Chunk.VALUE_LENGTH_MASK;
 import static com.oath.oak.ValueUtils.LockStats.*;
 import static com.oath.oak.ValueUtils.ValueResult.*;
+import static java.lang.Integer.reverseBytes;
 
 public class ValueUtils {
 
@@ -62,20 +63,18 @@ public class ValueUtils {
     }
 
     public static boolean isValueDeleted(ByteBuffer bb) {
-        return isValueDeleted(bb.getInt(0));
+        return isValueDeleted(bb.getInt(bb.position()));
+    }
+
+    static boolean isValueDeleted(Slice s) {
+        ByteBuffer bb = s.getByteBuffer();
+        return isValueDeleted(bb.getInt(bb.position()));
     }
 
     private static boolean CAS(ByteBuffer bb, int expected, int value) {
         // assuming big endian
         assert bb.order() == ByteOrder.BIG_ENDIAN;
         return unsafe.compareAndSwapInt(null, ((DirectBuffer) bb).address() + bb.position(), reverseBytes(expected), reverseBytes(value));
-    }
-
-    /* Header Utils */
-
-    static boolean isValueDeleted(Slice s) {
-        ByteBuffer bb = s.getByteBuffer();
-        return isValueDeleted(bb.getInt(bb.position()));
     }
 
     private static boolean isValueDeleted(int header) {
@@ -165,7 +164,7 @@ public class ValueUtils {
         return new AbstractMap.SimpleEntry<>(SUCCESS, transformation);
     }
 
-    public static <K, V> ValueResult put(Chunk<K, V> chunk, Chunk.LookUp lookUp, V newVal, OakSerializer<V> serializer, MemoryManager memoryManager) {
+    public static <V> ValueResult put(Chunk<?, V> chunk, Chunk.LookUp lookUp, V newVal, OakSerializer<V> serializer, MemoryManager memoryManager) {
         ByteBuffer bb = lookUp.valueSlice.getByteBuffer();
         ValueResult res = lockWrite(bb);
         if (res != SUCCESS) return res;
