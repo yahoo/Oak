@@ -18,6 +18,15 @@ public class ValueUtils {
 
     private static Unsafe unsafe;
 
+    private static int reverseBytes(int i) {
+        int newI = 0;
+        newI += (i & 0xff) << 24;
+        newI += (i & 0xff00) << 16;
+        newI += (i & 0xff0000) << 8;
+        newI += (i & 0xff000000);
+        return newI;
+    }
+
     static {
         try {
             Constructor<Unsafe> unsafeConstructor = Unsafe.class.getDeclaredConstructor();
@@ -38,7 +47,7 @@ public class ValueUtils {
     /* Header Utils */
 
     public static boolean isValueDeleted(ByteBuffer bb) {
-        return isValueDeleted(bb.getInt(0));
+        return isValueDeleted(bb.getInt(bb.position()));
 
     }
 
@@ -50,32 +59,37 @@ public class ValueUtils {
         assert bb.isDirect();
         int oldHeader;
         do {
-            oldHeader = bb.getInt(0);
+            oldHeader = bb.getInt(bb.position());
             if (isValueDeleted(oldHeader)) return false;
-        } while (unsafe.compareAndSwapInt(null, ((DirectBuffer) bb).address(), oldHeader, oldHeader + 4));
+            oldHeader &= ~0x3;
+        } while (!CAS(bb, oldHeader, oldHeader + 4));
         return true;
+    }
+
+    private static boolean CAS(ByteBuffer bb, int expected, int value) {
+        return unsafe.compareAndSwapInt(null, ((DirectBuffer) bb).address() + bb.position(), reverseBytes(expected), reverseBytes(value));
     }
 
     static void unlockRead(ByteBuffer bb) {
         assert bb.isDirect();
         int oldHeader;
         do {
-            oldHeader = bb.getInt(0);
-        } while (unsafe.compareAndSwapInt(null, ((DirectBuffer) bb).address(), oldHeader, oldHeader - 4));
+            oldHeader = bb.getInt(bb.position());
+        } while (!CAS(bb, oldHeader, oldHeader - 4));
     }
 
     private static boolean lockWrite(ByteBuffer bb) {
         assert bb.isDirect();
         int oldHeader;
         do {
-            oldHeader = bb.getInt(0);
+            oldHeader = bb.getInt(bb.position());
             if (isValueDeleted(oldHeader)) return false;
-        } while (unsafe.compareAndSwapInt(null, ((DirectBuffer) bb).address(), LOCK_FREE, LOCK_LOCKED));
+        } while (!CAS(bb, LOCK_FREE, LOCK_LOCKED));
         return true;
     }
 
     private static void unlockWrite(ByteBuffer bb) {
-        bb.putInt(LOCK_FREE);
+        bb.putInt(bb.position(), LOCK_FREE);
         // maybe a fence?
     }
 
@@ -83,9 +97,9 @@ public class ValueUtils {
         assert bb.isDirect();
         int oldHeader;
         do {
-            oldHeader = bb.getInt(0);
+            oldHeader = bb.getInt(bb.position());
             if (isValueDeleted(oldHeader)) return false;
-        } while (unsafe.compareAndSwapInt(null, ((DirectBuffer) bb).address(), LOCK_FREE, LOCK_DELETED));
+        } while (!CAS(bb, LOCK_FREE, LOCK_DELETED));
         return true;
     }
 
@@ -104,7 +118,7 @@ public class ValueUtils {
     }
 
     public static <V> boolean put(ByteBuffer bb, V newVal, OakSerializer<V> serializer, MemoryManager memoryManager) {
-        if (lockWrite(bb)) return false;
+        if (!lockWrite(bb)) return false;
         int capacity = serializer.calculateSize(newVal);
         if (bb.remaining() < capacity) { // can not reuse the existing space
             memoryManager.release(getActualValueBuffer(bb));
@@ -119,13 +133,10 @@ public class ValueUtils {
 
     // Why do we use finally here and not in put for example
     static boolean compute(ByteBuffer bb, Consumer<OakWBuffer> computer) {
-        if (lockWrite(bb)) return false;
-        try {
-            OakWBuffer wBuffer = new OakWBufferImpl(bb);
-            computer.accept(wBuffer);
-        } finally {
-            unlockWrite(bb);
-        }
+        if (!lockWrite(bb)) return false;
+        OakWBuffer wBuffer = new OakWBufferImpl(getActualValueBuffer(bb));
+        computer.accept(wBuffer);
+        unlockWrite(bb);
         return true;
     }
 
@@ -134,5 +145,20 @@ public class ValueUtils {
         // releasing the actual value and not the header
         memoryManager.release(getActualValueBuffer(bb));
         return true;
+    }
+
+    /**
+     * Applies a transformation under writers locking
+     *
+     * @param transformer transformation to apply
+     * @return Transformation result or null if value is deleted
+     */
+    public static <T> T mutatingTransform(ByteBuffer bb, Function<ByteBuffer, T> transformer) {
+        T result;
+        if (!lockWrite(bb))
+            // finally clause will handle unlock
+            return null;
+        result = transformer.apply(getActualValueBuffer(bb));
+        return result;
     }
 }
