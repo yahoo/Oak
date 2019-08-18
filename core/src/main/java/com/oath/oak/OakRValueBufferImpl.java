@@ -23,19 +23,22 @@ public class OakRValueBufferImpl implements OakRBuffer {
         this.bb = bb;
     }
 
+    private int valuePosition(){
+        return bb.position() + ValueUtils.VALUE_HEADER_SIZE;
+    }
+
     @Override
     public int capacity() {
         start();
-        int capacity = bb.remaining();
+        int capacity = bb.remaining() - ValueUtils.VALUE_HEADER_SIZE;
         end();
         return capacity;
     }
 
-
     @Override
     public byte get(int index) {
         start();
-        byte b = ValueUtils.getActualValueBuffer(bb).get(index);
+        byte b = bb.get(index + valuePosition());
         end();
         return b;
     }
@@ -44,7 +47,7 @@ public class OakRValueBufferImpl implements OakRBuffer {
     public ByteOrder order() {
         ByteOrder order;
         start();
-        order = ValueUtils.getActualValueBuffer(bb).order();
+        order = bb.order();
         end();
         return order;
     }
@@ -53,7 +56,7 @@ public class OakRValueBufferImpl implements OakRBuffer {
     public char getChar(int index) {
         char c;
         start();
-        c = ValueUtils.getActualValueBuffer(bb).getChar(index);
+        c = bb.getChar(index + valuePosition());
         end();
         return c;
     }
@@ -62,7 +65,7 @@ public class OakRValueBufferImpl implements OakRBuffer {
     public short getShort(int index) {
         short s;
         start();
-        s = ValueUtils.getActualValueBuffer(bb).getShort(index);
+        s = bb.getShort(index + valuePosition());
         end();
         return s;
     }
@@ -71,7 +74,7 @@ public class OakRValueBufferImpl implements OakRBuffer {
     public int getInt(int index) {
         int i;
         start();
-        i = ValueUtils.getActualValueBuffer(bb).getInt(index);
+        i = bb.getInt(index + valuePosition());
         end();
         return i;
     }
@@ -80,7 +83,7 @@ public class OakRValueBufferImpl implements OakRBuffer {
     public long getLong(int index) {
         long l;
         start();
-        l = ValueUtils.getActualValueBuffer(bb).getLong(index);
+        l = bb.getLong(index + valuePosition());
         end();
         return l;
     }
@@ -89,7 +92,7 @@ public class OakRValueBufferImpl implements OakRBuffer {
     public float getFloat(int index) {
         float f;
         start();
-        f = ValueUtils.getActualValueBuffer(bb).getFloat(index);
+        f = bb.getFloat(index + valuePosition());
         end();
         return f;
     }
@@ -98,7 +101,7 @@ public class OakRValueBufferImpl implements OakRBuffer {
     public double getDouble(int index) {
         double d;
         start();
-        d = ValueUtils.getActualValueBuffer(bb).getDouble(index);
+        d = bb.getDouble(index + valuePosition());
         end();
         return d;
     }
@@ -124,12 +127,14 @@ public class OakRValueBufferImpl implements OakRBuffer {
     @Override
     public void unsafeCopyBufferToIntArray(int srcPosition, int[] dstArray, int countInts) {
         start();
-        ValueUtils.unsafeBufferToIntArrayCopy(ValueUtils.getActualValueBuffer(bb), srcPosition, dstArray, countInts);
+        ByteBuffer dup = bb.duplicate();
+        dup.position(dup.position() + ValueUtils.VALUE_HEADER_SIZE);
+        ValueUtils.unsafeBufferToIntArrayCopy(dup, srcPosition, dstArray, countInts);
         end();
     }
 
     private void start() {
-        if(!ValueUtils.lockRead(bb))
+        if (!ValueUtils.lockRead(bb))
             throw new ConcurrentModificationException();
     }
 
