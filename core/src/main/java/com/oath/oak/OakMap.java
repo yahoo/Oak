@@ -53,7 +53,7 @@ public class OakMap<K, V> extends AbstractMap<K, V> implements AutoCloseable, Co
 
     // internal constructor, to create OakMap use OakMapBuilder
     OakMap(K minKey, OakSerializer<K> keySerializer, OakSerializer<V> valueSerializer, OakComparator<K> oakComparator,
-           int chunkMaxItems, int chunkBytesPerItem, MemoryManager mm, ThreadIndexCalculator threadIndexCalculator) {
+           int chunkMaxItems, MemoryManager mm, ThreadIndexCalculator threadIndexCalculator) {
 
         this.comparator = (o1, o2) -> {
             if (o1 instanceof ByteBuffer) {
@@ -82,7 +82,7 @@ public class OakMap<K, V> extends AbstractMap<K, V> implements AutoCloseable, Co
 
         this.keyDeserializeTransformer = keySerializer::deserialize;
         this.valueDeserializeTransformer = valueSerializer::deserialize;
-        this.entryDeserializeTransformer = entry -> new AbstractMap.SimpleEntry<K, V>(keySerializer.deserialize(entry.getKey()), valueSerializer.deserialize(entry.getValue()));
+        this.entryDeserializeTransformer = entry -> new AbstractMap.SimpleEntry<>(keySerializer.deserialize(entry.getKey()), valueSerializer.deserialize(entry.getValue()));
     }
 
     // set constructor, mostly used for subMap
@@ -158,7 +158,7 @@ public class OakMap<K, V> extends AbstractMap<K, V> implements AutoCloseable, Co
         if (value == null)
             throw new NullPointerException();
 
-        return (V) internalOakMap.put(key, value, valueDeserializeTransformer);
+        return internalOakMap.put(key, value, valueDeserializeTransformer);
     }
 
     /**
@@ -197,7 +197,7 @@ public class OakMap<K, V> extends AbstractMap<K, V> implements AutoCloseable, Co
         // this interface shouldn't be used with subMap
         if (this.isSubmap()) throw new UnsupportedOperationException();
 
-        return (K) internalOakMap.getMinKeyTransformation(keyDeserializeTransformer);
+        return internalOakMap.getMinKeyTransformation(keyDeserializeTransformer);
     }
 
     /**
@@ -213,7 +213,7 @@ public class OakMap<K, V> extends AbstractMap<K, V> implements AutoCloseable, Co
         // this interface shouldn't be used with subMap
         if (this.isSubmap()) throw new UnsupportedOperationException();
 
-        return (K) internalOakMap.getMaxKeyTransformation(keyDeserializeTransformer);
+        return internalOakMap.getMaxKeyTransformation(keyDeserializeTransformer);
     }
 
     /* ------ ConcurrentMap API methods ------ */

@@ -102,7 +102,7 @@ public class OakMapBuilder<K, V> {
                 keySerializer,
                 valueSerializer,
                 comparator, chunkMaxItems,
-                chunkBytesPerItem, memoryManager, threadIndexCalculator);
+                memoryManager, threadIndexCalculator);
     }
 
     private static int intsCompare(int int1, int int2) {
