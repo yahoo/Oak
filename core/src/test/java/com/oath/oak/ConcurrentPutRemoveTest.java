@@ -11,12 +11,13 @@ import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 
 public class ConcurrentPutRemoveTest {
     private static final long DURATION = 1000;
     private OakMap<Integer, Integer> oak;
-    private static final int NUM_THREADS = 16;
+    private static final int NUM_THREADS = 1;
     private static final int K = 1024;
     private static final int NUM_OF_ENTRIES = 10 * K;
     private ArrayList<Thread> threads;

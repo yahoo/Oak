@@ -62,7 +62,7 @@ public class ValueUtils {
         return dup.slice();
     }
 
-    public static boolean isValueDeleted(ByteBuffer bb) {
+    static boolean isValueDeleted(ByteBuffer bb) {
         return isValueDeleted(bb.getInt(bb.position()));
     }
 
