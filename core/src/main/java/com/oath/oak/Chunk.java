@@ -7,7 +7,6 @@
 package com.oath.oak;
 
 import sun.misc.Unsafe;
-
 import java.lang.reflect.Constructor;
 import java.nio.ByteBuffer;
 import java.util.Comparator;
@@ -564,7 +563,7 @@ public class Chunk<K, V> {
      * Updates a linked entry to point to handle or otherwise removes such a link. The handle in
      * turn has the value. For linkage this is an insert linearization point.
      * All the relevant data can be found inside opData.
-     * <p>
+     *
      * if someone else got to it first (helping rebalancer or other operation), returns the old handle
      */
     long pointToValue(OpData opData) {
@@ -703,12 +702,6 @@ public class Chunk<K, V> {
         return entryIndex;
     }
 
-//
-//    public void freeHandle(int handleIndex) {
-//        handles[handleIndex].remove(memoryManager);
-//        handles[handleIndex] = null;
-//    }
-
     /**
      * freezes chunk so no more changes can be done to it (marks pending items as frozen)
      */
@@ -733,7 +726,6 @@ public class Chunk<K, V> {
 
         // use local variables and just set the atomic variables once at the end
         int sortedEntryIndex = entryIndex.get();
-//        int currentHandleIdx = handleIndex.get();
 
         // check that we are not beyond allowed number of entries to copy from source chunk
         int maxIdx = maxCapacity * FIELDS + 1;
@@ -820,7 +812,6 @@ public class Chunk<K, V> {
         setEntryField(setIdx, OFFSET.NEXT, NONE);
         // update index and counter
         entryIndex.set(sortedEntryIndex);
-//        handleIndex.set(currentHandleIdx);
         sortedCount.set(sortedEntryIndex / FIELDS);
         statistics.updateInitialSortedCount(sortedCount.get());
         return srcEntryIdx; // if NONE then we finished copying old chunk, else we reached max in new chunk
