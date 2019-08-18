@@ -27,7 +27,7 @@ import java.util.function.Function;
  */
 public class OakMap<K, V> extends AbstractMap<K, V> implements AutoCloseable, ConcurrentNavigableMap<K, V> {
 
-    private final InternalOakMap internalOakMap;
+    private final InternalOakMap<K, V> internalOakMap;
     /*
      * Memory manager cares for allocation, de-allocation and reuse of the internally pre-allocated
      * memory. Each thread that is going to access a memory that can be released by memory must
@@ -41,7 +41,7 @@ public class OakMap<K, V> extends AbstractMap<K, V> implements AutoCloseable, Co
     private final Function<ByteBuffer, K> keyDeserializeTransformer;
     private final Function<ByteBuffer, V> valueDeserializeTransformer;
     private final Function<Map.Entry<ByteBuffer, ByteBuffer>, Map.Entry<K, V>> entryDeserializeTransformer;
-    private final Comparator comparator;
+    private final Comparator<Object> comparator;
 
     // SubOakMap fields
     private final K fromKey;
@@ -73,7 +73,7 @@ public class OakMap<K, V> extends AbstractMap<K, V> implements AutoCloseable, Co
 
         this.threadIndexCalculator = threadIndexCalculator;
         this.memoryManager = mm;
-        this.internalOakMap = new InternalOakMap(minKey, keySerializer, valueSerializer, this.comparator,
+        this.internalOakMap = new InternalOakMap<K, V>(minKey, keySerializer, valueSerializer, this.comparator,
                 this.memoryManager, chunkMaxItems, chunkBytesPerItem, threadIndexCalculator);
         this.fromKey = null;
         this.fromInclusive = false;
@@ -86,11 +86,11 @@ public class OakMap<K, V> extends AbstractMap<K, V> implements AutoCloseable, Co
     }
 
     // set constructor, mostly used for subMap
-    private OakMap(InternalOakMap internalOakMap, MemoryManager memoryManager,
+    private OakMap(InternalOakMap<K, V> internalOakMap, MemoryManager memoryManager,
                    Function<ByteBuffer, K> keyDeserializeTransformer,
                    Function<ByteBuffer, V> valueDeserializeTransformer,
                    Function<Map.Entry<ByteBuffer, ByteBuffer>, Map.Entry<K, V>> entryDeserializeTransformer,
-                   Comparator comparator,
+                   Comparator<Object> comparator,
                    K fromKey, boolean fromInclusive, K toKey,
                    boolean toInclusive, boolean isDescending, ThreadIndexCalculator threadIndexCalculator) {
         this.threadIndexCalculator = threadIndexCalculator;
@@ -137,7 +137,7 @@ public class OakMap<K, V> extends AbstractMap<K, V> implements AutoCloseable, Co
     public V get(Object key) {
         checkKey(key);
 
-        return (V) internalOakMap.getValueTransformation(key, valueDeserializeTransformer);
+        return internalOakMap.getValueTransformation((K) key, valueDeserializeTransformer);
     }
 
     /**
@@ -174,7 +174,7 @@ public class OakMap<K, V> extends AbstractMap<K, V> implements AutoCloseable, Co
     public V remove(Object key) {
         checkKey(key);
 
-        return (V) internalOakMap.remove(key, null, valueDeserializeTransformer);
+        return internalOakMap.remove((K) key, null, valueDeserializeTransformer);
     }
 
     /* ------ SortedMap API methods ------ */
@@ -225,7 +225,7 @@ public class OakMap<K, V> extends AbstractMap<K, V> implements AutoCloseable, Co
     public boolean remove(Object key, Object value) {
         checkKey(key);
 
-        return (value != null) && (internalOakMap.remove(key, value, valueDeserializeTransformer) != null);
+        return (value != null) && (internalOakMap.remove((K) key, (V) value, valueDeserializeTransformer) != null);
     }
 
 
@@ -520,7 +520,7 @@ public class OakMap<K, V> extends AbstractMap<K, V> implements AutoCloseable, Co
         public void remove(Object key) {
             m.checkKey(key);
 
-            m.internalOakMap.remove(key, null, null);
+            m.internalOakMap.remove((K) key, null, null);
         }
 
         public boolean putIfAbsent(K key, V value) {
@@ -598,7 +598,7 @@ public class OakMap<K, V> extends AbstractMap<K, V> implements AutoCloseable, Co
 
     /* ---------------- Private utility methods -------------- */
 
-    void checkKey(Object key) {
+    private void checkKey(Object key) {
         if (key == null)
             throw new NullPointerException();
         if (!inBounds(key))
