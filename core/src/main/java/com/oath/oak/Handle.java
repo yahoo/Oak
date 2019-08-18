@@ -9,191 +9,132 @@ package com.oath.oak;
 import java.nio.ByteBuffer;
 
 import java.nio.ByteOrder;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
 class Handle<V> implements OakWBuffer {
 
-    private final ReentrantReadWriteLock.ReadLock readLock;
-    private final ReentrantReadWriteLock.WriteLock writeLock;
-    private ByteBuffer value;
-    private final AtomicBoolean deleted;
+    private ByteBuffer bb;
 
     Handle() {
-        this.value = null;
-        ReentrantReadWriteLock lock = new ReentrantReadWriteLock(true);
-        this.readLock = lock.readLock();
-        this.writeLock = lock.writeLock();
-        this.deleted = new AtomicBoolean(false);
+        this.bb = null;
     }
 
     void setValue(ByteBuffer value) {
-        writeLock.lock();
-        this.value = value;
-        writeLock.unlock();
+        //writeLock.lock();
+        this.bb = value;
+        //writeLock.unlock();
     }
 
     boolean isDeleted() {
-        return deleted.get();
+        return ValueUtils.isValueDeleted(bb);
     }
 
     boolean remove(MemoryManager memoryManager) {
-        writeLock.lock();
-        if (isDeleted()) {
-            writeLock.unlock();
-            return false;
-        }
-        deleted.set(true);
-        writeLock.unlock();
-        memoryManager.release(value);
-        return true;
+        return ValueUtils.remove(bb, memoryManager);
     }
 
     boolean put(V newVal, OakSerializer<V> serializer, MemoryManager memoryManager) {
-        writeLock.lock();
-        if (isDeleted()) {
-            writeLock.unlock();
-            return false;
-        }
-        int capacity = serializer.calculateSize(newVal);
-        if (this.value.remaining() < capacity) { // can not reuse the existing space
-            memoryManager.release(this.value);
-            this.value = memoryManager.allocate(capacity);
-        }
-        serializer.serialize(newVal, this.value.slice());
-        writeLock.unlock();
-
-        return true;
+        return ValueUtils.put(bb, newVal, serializer, memoryManager);
     }
 
     // returns false in case handle was found deleted and compute didn't take place, true otherwise
     boolean compute(Consumer<OakWBuffer> computer) {
-        writeLock.lock();
-        if (isDeleted()) {
-            writeLock.unlock();
-            return false;
-        }
-        try {
-            OakWBuffer wBuffer = new OakWBufferImpl(this);
-            computer.accept(wBuffer);
-        } finally {
-            writeLock.unlock();
-        }
-        return true;
-    }
-
-    ByteBuffer getSlicedByteBuffer() {
-        assert writeLock.isHeldByCurrentThread();
-        return value.slice();
+        return ValueUtils.compute(bb, computer);
     }
 
     ByteBuffer getSlicedReadOnlyByteBuffer() {
-        //TODO: check that the read lock is held by the current thread
-        return value.asReadOnlyBuffer().slice();
+        ByteBuffer dup = bb.asReadOnlyBuffer();
+        dup.position(dup.position() + ValueUtils.VALUE_HEADER_SIZE);
+        return dup.slice();
     }
 
     /* OakWBuffer interface */
 
     public int capacity() {
-        return value.remaining();
+        return bb.remaining() - ValueUtils.VALUE_HEADER_SIZE;
     }
 
     @Override
     public ByteBuffer getByteBuffer() {
-        return getSlicedByteBuffer();
+        return bb;
     }
 
     public byte get(int index) {
-        return value.get(value.position() + index);
+        return bb.get(bb.position() + index + ValueUtils.VALUE_HEADER_SIZE);
     }
 
     public OakWBuffer put(int index, byte b) {
-        assert writeLock.isHeldByCurrentThread();
-        value.put(this.value.position() + index, b);
+        bb.put(bb.position() + index + ValueUtils.VALUE_HEADER_SIZE, b);
         return this;
     }
 
     public char getChar(int index) {
-        return value.getChar(value.position() + index);
+        return bb.getChar(bb.position() + index + ValueUtils.VALUE_HEADER_SIZE);
     }
 
     @Override
     public OakWBuffer putChar(int index, char value) {
-        assert writeLock.isHeldByCurrentThread();
-        this.value.putChar(this.value.position() + index, value);
+        bb.putChar(bb.position() + index + ValueUtils.VALUE_HEADER_SIZE, value);
         return this;
     }
 
     public short getShort(int index) {
-        return value.getShort(value.position() + index);
+        return bb.getShort(bb.position() + index);
     }
 
     @Override
     public OakWBuffer putShort(int index, short value) {
-        assert writeLock.isHeldByCurrentThread();
-        this.value.putShort(this.value.position() + index, value);
+        bb.putShort(bb.position() + index + ValueUtils.VALUE_HEADER_SIZE, value);
         return this;
     }
 
     public int getInt(int index) {
-        return value.getInt(value.position() + index);
+        return bb.getInt(bb.position() + index + ValueUtils.VALUE_HEADER_SIZE);
     }
 
     @Override
     public OakWBuffer putInt(int index, int value) {
-        assert writeLock.isHeldByCurrentThread();
-        this.value.putInt(this.value.position() + index, value);
+        bb.putInt(bb.position() + index + ValueUtils.VALUE_HEADER_SIZE, value);
         return this;
     }
 
     public long getLong(int index) {
-        return value.getLong(value.position() + index);
+        return bb.getLong(bb.position() + index + ValueUtils.VALUE_HEADER_SIZE);
     }
 
     @Override
     public OakWBuffer putLong(int index, long value) {
-        assert writeLock.isHeldByCurrentThread();
-        this.value.putLong(this.value.position() + index, value);
+        bb.putLong(bb.position() + index + ValueUtils.VALUE_HEADER_SIZE, value);
         return this;
     }
 
     public float getFloat(int index) {
-        return value.getFloat(value.position() + index);
+        return bb.getFloat(bb.position() + index + ValueUtils.VALUE_HEADER_SIZE);
     }
 
     @Override
     public OakWBuffer putFloat(int index, float value) {
-        assert writeLock.isHeldByCurrentThread();
-        this.value.putFloat(this.value.position() + index, value);
+        bb.putFloat(bb.position() + index + ValueUtils.VALUE_HEADER_SIZE, value);
         return this;
     }
 
     public double getDouble(int index) {
-        return value.getDouble(value.position() + index);
+        return bb.getDouble(bb.position() + index + ValueUtils.VALUE_HEADER_SIZE);
     }
 
     @Override
     public OakWBuffer putDouble(int index, double value) {
-        assert writeLock.isHeldByCurrentThread();
-        this.value.putDouble(this.value.position() + index, value);
+        bb.putDouble(bb.position() + index + ValueUtils.VALUE_HEADER_SIZE, value);
         return this;
     }
 
     public ByteOrder order() {
-        return value.order();
+        return bb.order();
     }
 
     public <T> T transform(Function<ByteBuffer, T> transformer) {
-        readLock.lock();
-        if (isDeleted()) {
-            readLock.unlock();
-            return null;
-        }
-        T transformation = transformer.apply(getSlicedReadOnlyByteBuffer());
-        readLock.unlock();
-        return transformation;
+        return ValueUtils.transform(bb, transformer);
     }
 
     /**
@@ -203,27 +144,16 @@ class Handle<V> implements OakWBuffer {
      * @return Transformation result or null if value is deleted
      */
     <T> T mutatingTransform(Function<ByteBuffer, T> transformer) {
-        T result;
-        try {
-            writeLock.lock();
-            if (isDeleted()) {
-                // finally clause will handle unlock
-                return null;
-            }
-            result = transformer.apply(getSlicedByteBuffer());
-        } finally {
-            writeLock.unlock();
-        }
-        return result;
+        return ValueUtils.mutatingTransform(bb, transformer);
     }
 
 
-    void readLock() {
-        readLock.lock();
+    boolean readLock() {
+        return ValueUtils.lockRead(bb);
     }
 
-    void readUnLock() {
-        readLock.unlock();
+    void readUnlock() {
+        ValueUtils.unlockRead(bb);
     }
 
     public void unsafeBufferToIntArrayCopy(int srcPosition, int[] dstArray, int countInts) {
