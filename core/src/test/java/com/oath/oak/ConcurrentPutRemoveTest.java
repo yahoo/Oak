@@ -6,17 +6,17 @@ import org.junit.Test;
 import java.util.ArrayList;
 import java.util.Random;
 import java.util.concurrent.BrokenBarrierException;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 
 public class ConcurrentPutRemoveTest {
     private static final long DURATION = 1000;
     private OakMap<Integer, Integer> oak;
-    private static final int NUM_THREADS = 16;
+    private static final int NUM_THREADS = 1;
     private static final int K = 1024;
     private static final int NUM_OF_ENTRIES = 10 * K;
     private ArrayList<Thread> threads;
@@ -57,9 +57,9 @@ public class ConcurrentPutRemoveTest {
                 int op = r.nextInt(2);
 
                 if (op == 0)
-                    puts[key] += oak.putIfAbsent(key, id) == null ? 1 : 0;
+                    puts[key] += (oak.putIfAbsent(key, id) == null) ? 1 : 0;
                 else
-                    removes[key] += (oak.remove(key) != null ? 1 : 0);
+                    removes[key] += (oak.remove(key) != null) ? 1 : 0;
             }
             for (int i = 0; i < NUM_OF_ENTRIES; i++) {
                 status[i].addAndGet(puts[i]);
