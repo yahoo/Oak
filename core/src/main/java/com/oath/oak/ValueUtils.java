@@ -19,11 +19,6 @@ public class ValueUtils {
 
     private static Unsafe unsafe;
 
-    private static void invariant(ByteBuffer bb) {
-        int old = bb.getInt(bb.position());
-        assert (old & LOCK_MASK) != 3;
-    }
-
     private static int reverseBytes(int i) {
         int newI = 0;
         newI += (i & 0xff) << 24;
@@ -77,55 +72,45 @@ public class ValueUtils {
 
     static boolean lockRead(ByteBuffer bb) {
         assert bb.isDirect();
-        invariant(bb);
         int oldHeader;
         do {
             oldHeader = bb.getInt(bb.position());
             if (isValueDeleted(oldHeader)) return false;
             oldHeader &= ~LOCK_MASK;
         } while (!CAS(bb, oldHeader, oldHeader + 4));
-        invariant(bb);
         return true;
     }
 
     static void unlockRead(ByteBuffer bb) {
         assert bb.isDirect();
         int oldHeader;
-        invariant(bb);
         do {
             oldHeader = bb.getInt(bb.position());
         } while (!CAS(bb, oldHeader, oldHeader - 4));
-        invariant(bb);
     }
 
     private static boolean lockWrite(ByteBuffer bb) {
         assert bb.isDirect();
         int oldHeader;
-        invariant(bb);
         do {
             oldHeader = bb.getInt(bb.position());
             if (isValueDeleted(oldHeader)) return false;
         } while (!CAS(bb, LOCK_FREE, LOCK_LOCKED));
-        invariant(bb);
         return true;
     }
 
     private static void unlockWrite(ByteBuffer bb) {
-        invariant(bb);
         bb.putInt(bb.position(), LOCK_FREE);
-        invariant(bb);
         // maybe a fence?
     }
 
     private static boolean deleteValue(ByteBuffer bb) {
         assert bb.isDirect();
         int oldHeader;
-        invariant(bb);
         do {
             oldHeader = bb.getInt(bb.position());
             if (isValueDeleted(oldHeader)) return false;
         } while (!CAS(bb, LOCK_FREE, LOCK_DELETED));
-        invariant(bb);
         return true;
     }
 
