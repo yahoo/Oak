@@ -6,6 +6,7 @@
 
 package com.oath.oak;
 
+import org.junit.Ignore;
 import org.junit.Test;
 
 import java.nio.ByteBuffer;
@@ -127,6 +128,7 @@ public class HeapUsageTest {
         }
     }
 
+    @Ignore
     @Test
     public void testUsage() {
         // this number can be changed to test larger sizes however JVM memory limit need to be changed
