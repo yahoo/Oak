@@ -9,7 +9,7 @@ import java.nio.ByteBuffer;
 public final class UnsafeUtils {
 
 
-    static private Unsafe unsafe;
+    static Unsafe unsafe;
 
     static private final long INT_ARRAY_OFFSET;
     static private final long BYTE_ARRAY_OFFSET;
