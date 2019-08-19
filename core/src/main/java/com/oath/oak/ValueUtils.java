@@ -3,6 +3,7 @@ package com.oath.oak;
 import sun.misc.Unsafe;
 import sun.nio.ch.DirectBuffer;
 
+import javax.naming.OperationNotSupportedException;
 import java.lang.reflect.Constructor;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
@@ -13,7 +14,7 @@ public class ValueUtils {
 
     private static final int LOCK_MASK = 0x3;
     private static final int LOCK_FREE = 0;
-    private static final int LOCK_LOCKED = 1;
+    static final int LOCK_LOCKED = 1;
     private static final int LOCK_DELETED = 2;
     public static final int VALUE_HEADER_SIZE = 4;
 
@@ -39,7 +40,7 @@ public class ValueUtils {
     }
 
     //One duplication
-    static ByteBuffer getActualValueBufferLessDuplications(ByteBuffer bb){
+    static ByteBuffer getActualValueBufferLessDuplications(ByteBuffer bb) {
         bb.position(bb.position() + VALUE_HEADER_SIZE);
         ByteBuffer dup = bb.slice();
         bb.position(bb.position() - VALUE_HEADER_SIZE);
@@ -89,7 +90,7 @@ public class ValueUtils {
         } while (!CAS(bb, oldHeader, oldHeader - 4));
     }
 
-    private static boolean lockWrite(ByteBuffer bb) {
+    static boolean lockWrite(ByteBuffer bb) {
         assert bb.isDirect();
         int oldHeader;
         do {
@@ -99,7 +100,7 @@ public class ValueUtils {
         return true;
     }
 
-    private static void unlockWrite(ByteBuffer bb) {
+    static void unlockWrite(ByteBuffer bb) {
         bb.putInt(bb.position(), LOCK_FREE);
         // maybe a fence?
     }
@@ -135,7 +136,7 @@ public class ValueUtils {
         if (bb.remaining() < capacity) { // can not reuse the existing space
             memoryManager.release(dup);
             memoryManager.allocate(capacity + VALUE_HEADER_SIZE);
-            throw new RuntimeException();
+            throw new UnsupportedOperationException();
             // TODO: update the relevant entry
         }
         // It seems like I have to change bb here or else I expose the header to the user
