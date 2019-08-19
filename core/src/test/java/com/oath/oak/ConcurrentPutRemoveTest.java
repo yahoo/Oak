@@ -1,6 +1,7 @@
 package com.oath.oak;
 
 import org.junit.Before;
+import org.junit.Ignore;
 import org.junit.Test;
 
 import java.util.ArrayList;
@@ -68,6 +69,7 @@ public class ConcurrentPutRemoveTest {
         }
     }
 
+    @Ignore
     @Test
     public void testMain() throws InterruptedException {
         for (int i = 0; i < NUM_THREADS; i++) {
