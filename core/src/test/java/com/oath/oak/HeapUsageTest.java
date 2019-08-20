@@ -61,7 +61,7 @@ public class HeapUsageTest {
     @Test
     public void testMain() throws InterruptedException {
 
-        OakMapBuilder builder = OakMapBuilder
+        OakMapBuilder<Integer, Integer> builder = OakMapBuilder
                 .getDefaultBuilder()
                 .setChunkMaxItems(2048)
                 .setChunkBytesPerItem(100)
@@ -78,7 +78,7 @@ public class HeapUsageTest {
         Integer val = 0;
 
 
-        try (OakMap<Integer, Integer> oak = (OakMap<Integer, Integer>) builder.build()) {
+        try (OakMap<Integer, Integer> oak = builder.build()) {
 
 //            long heapSize = Runtime.getRuntime().totalMemory(); // Get current size of heap in bytes
 //            long heapMaxSize = Runtime.getRuntime().maxMemory(); // Get maximum size of heap in bytes
@@ -135,19 +135,19 @@ public class HeapUsageTest {
         // otherwise this will hit "java.lang.OutOfMemoryError: Direct buffer memory" exception
         // currently tested up to 2GB
         List<Long> configurations = new ArrayList<>();
-        for (int i = 50; i < 300; i+= 50) {
+        for (int i = 50; i < 300; i += 50) {
             configurations.add(i * K);
         }
 
         System.out.println("key size: " + keySize + "B" + ", value size: " + ((double) valSize) / K + "KB");
         for (long numOfEntries : configurations) {
-            OakMapBuilder builder = OakMapBuilder
+            OakMapBuilder<Integer, Integer> builder = OakMapBuilder
                     .getDefaultBuilder()
                     .setChunkMaxItems(2048)
                     .setChunkBytesPerItem(100)
                     .setKeySerializer(new FillTestKeySerializer())
                     .setValueSerializer(new FillTestValueSerializer());
-            try (OakMap<Integer, Integer> oak = (OakMap<Integer, Integer>) builder.build()) {
+            try (OakMap<Integer, Integer> oak = builder.build()) {
                 System.out.println("=====================================\nWith " + numOfEntries + " entries");
                 long heapSize = Runtime.getRuntime().totalMemory(); // Get current size of heap in bytes
                 long heapFreeSize = Runtime.getRuntime().freeMemory();
