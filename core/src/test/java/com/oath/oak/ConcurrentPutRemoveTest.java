@@ -29,7 +29,7 @@ public class ConcurrentPutRemoveTest {
     public void initStuff() {
         OakMapBuilder<Integer, Integer> builder = OakMapBuilder.getDefaultBuilder();
         oak = builder.build();
-        barrier = new CyclicBarrier(NUM_THREADS);
+        barrier = new CyclicBarrier(NUM_THREADS + 1);
         stop = new AtomicBoolean(false);
         threads = new ArrayList<>(NUM_THREADS);
         status = new AtomicInteger[NUM_OF_ENTRIES];
