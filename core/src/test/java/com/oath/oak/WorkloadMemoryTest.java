@@ -115,28 +115,28 @@ public class WorkloadMemoryTest {
             }
         }
 
-            printHeapStats("After warm-up");
+        printHeapStats("After warm-up");
 
-            for (int i = 0; i < NUM_THREADS; i++) {
-                threads.get(i).start();
-            }
-
-            try {
-                barrier.await();
-            } catch (InterruptedException | BrokenBarrierException e) {
-                e.printStackTrace();
-            }
-
-            Thread.sleep(DURATION);
-
-            stop.set(true);
-
-            for (int i = 0; i < NUM_THREADS; i++) {
-                threads.get(i).join();
-            }
-
-            printHeapStats("End of test");
+        for (int i = 0; i < NUM_THREADS; i++) {
+            threads.get(i).start();
         }
+
+        try {
+            barrier.await();
+        } catch (InterruptedException | BrokenBarrierException e) {
+            e.printStackTrace();
+        }
+
+        Thread.sleep(DURATION);
+
+        stop.set(true);
+
+        for (int i = 0; i < NUM_THREADS; i++) {
+            threads.get(i).join();
+        }
+
+        printHeapStats("End of test");
+    }
 
     private static void allPutTest() throws InterruptedException {
         getPercents = 0;
