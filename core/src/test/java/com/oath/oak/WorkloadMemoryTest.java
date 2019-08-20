@@ -1,5 +1,7 @@
 package com.oath.oak;
 
+import org.junit.Test;
+
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Random;
@@ -12,7 +14,7 @@ public class WorkloadMemoryTest {
     /*-----------------------Constants-------------------------*/
     private static final int K = 1024;
     private static final int M = K * K;
-    private static final int NUM_OF_ENTRIES = 512 * K;
+    private static final int NUM_OF_ENTRIES = 2000000;
     private static final int DURATION = 3000;
     private static final int KEY_SIZE = 100;
     private static final int VALUE_SIZE = 1000;
@@ -88,70 +90,80 @@ public class WorkloadMemoryTest {
                     oak.zc().put(key, 8);
             }
         }
+    }
 
-        private static void printHeapStats(String message) {
-            System.gc();
-            long heapSize = Runtime.getRuntime().totalMemory(); // Get current size of heap in bytes
-            long heapFreeSize = Runtime.getRuntime().freeMemory();
+    private static void printHeapStats(String message) {
+        System.gc();
+        long heapSize = Runtime.getRuntime().totalMemory(); // Get current size of heap in bytes
+        long heapFreeSize = Runtime.getRuntime().freeMemory();
 
-            System.out.println("\n" + message);
-            System.out.println("heap used: " + (float) (heapSize - heapFreeSize) / M + "MB");
-            System.out.println("off heap used: " + (float) (oak.getMemoryManager().allocated()) / M + "MB");
+        System.out.println("\n" + message);
+        System.out.println((float) (heapSize - heapFreeSize) / M);
+        System.out.println((float) (oak.getMemoryManager().allocated()) / M);
+    }
+
+    private static void testMain() throws InterruptedException {
+        printHeapStats("Initial stats");
+        for (int i = 0; i < NUM_THREADS; i++) {
+            threads.add(new Thread(new RunThread()));
+        }
+        Random r = new Random();
+        for (int i = 0; i < (int) Math.round(NUM_OF_ENTRIES * 0.5); ) {
+            Integer key = r.nextInt(NUM_OF_ENTRIES);
+            if (oak.putIfAbsent(key, 8) == null) {
+                i++;
+            }
         }
 
-        private static void testMain() throws InterruptedException {
-            printHeapStats("Initial stats");
-            for (int i = 0; i < NUM_THREADS; i++) {
-                threads.add(new Thread(new RunThread()));
-            }
-            Random r = new Random();
-            for (int i = 0; i < (int) Math.round(NUM_OF_ENTRIES * 0.5); ) {
-                Integer key = r.nextInt(NUM_OF_ENTRIES);
-                if (oak.putIfAbsent(key, 8) == null) {
-                    i++;
-                }
-            }
+        printHeapStats("After warm-up");
 
-            printHeapStats("After warm-up");
-
-            for (int i = 0; i < NUM_THREADS; i++) {
-                threads.get(i).start();
-            }
-
-            try {
-                barrier.await();
-            } catch (InterruptedException | BrokenBarrierException e) {
-                e.printStackTrace();
-            }
-
-            Thread.sleep(DURATION);
-
-            stop.set(true);
-
-            for (int i = 0; i < NUM_THREADS; i++) {
-                threads.get(i).join();
-            }
-
-            printHeapStats("End of test");
+        for (int i = 0; i < NUM_THREADS; i++) {
+            threads.get(i).start();
         }
 
-        private static void allPutTest() throws InterruptedException {
-            getPercents = 0;
-            testMain();
+        try {
+            barrier.await();
+        } catch (InterruptedException | BrokenBarrierException e) {
+            e.printStackTrace();
         }
 
-        public void halfAndHalfTest() throws InterruptedException {
-            getPercents = 50;
-            testMain();
+        Thread.sleep(DURATION);
+
+        stop.set(true);
+
+        for (int i = 0; i < NUM_THREADS; i++) {
+            threads.get(i).join();
         }
 
-        public static void main(String[] args) {
-            try {
-                initStuff();
-                allPutTest();
-            } catch (InterruptedException e) {
-                e.printStackTrace();
+        printHeapStats("End of test");
+    }
+
+    private static void allPutTest() throws InterruptedException {
+        getPercents = 0;
+        testMain();
+    }
+
+    public void halfAndHalfTest() throws InterruptedException {
+        getPercents = 50;
+        testMain();
+    }
+
+    private void onlyPuts() {
+        printHeapStats("Initial stats");
+        Random r = new Random();
+        for (int i = 0; i < (int) Math.round(NUM_OF_ENTRIES * 0.5); ) {
+            Integer key = r.nextInt(NUM_OF_ENTRIES);
+            if (oak.putIfAbsent(key, 8) == null) {
+                i++;
             }
         }
+        printHeapStats("End of test");
+    }
+
+    @Test
+    public void start() {
+        initStuff();
+        onlyPuts();
     }
 }
+
