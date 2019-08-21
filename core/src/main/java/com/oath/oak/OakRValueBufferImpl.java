@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2018 Oath Inc.
  * Licensed under the terms of the Apache 2.0 license.
  * Please see LICENSE file in the project root for terms.
@@ -20,7 +20,7 @@ public class OakRValueBufferImpl implements OakRBuffer {
         this.bb = bb;
     }
 
-    private int valuePosition(){
+    private int valuePosition() {
         return bb.position() + ValueUtils.VALUE_HEADER_SIZE;
     }
 
@@ -35,7 +35,7 @@ public class OakRValueBufferImpl implements OakRBuffer {
     @Override
     public byte get(int index) {
         start();
-        if(index < 0) throw new IndexOutOfBoundsException();
+        if (index < 0) throw new IndexOutOfBoundsException();
         byte b = bb.get(index + valuePosition());
         end();
         return b;
@@ -54,7 +54,7 @@ public class OakRValueBufferImpl implements OakRBuffer {
     public char getChar(int index) {
         char c;
         start();
-        if(index < 0) throw new IndexOutOfBoundsException();
+        if (index < 0) throw new IndexOutOfBoundsException();
         c = bb.getChar(index + valuePosition());
         end();
         return c;
@@ -64,7 +64,7 @@ public class OakRValueBufferImpl implements OakRBuffer {
     public short getShort(int index) {
         short s;
         start();
-        if(index < 0) throw new IndexOutOfBoundsException();
+        if (index < 0) throw new IndexOutOfBoundsException();
         s = bb.getShort(index + valuePosition());
         end();
         return s;
@@ -74,7 +74,7 @@ public class OakRValueBufferImpl implements OakRBuffer {
     public int getInt(int index) {
         int i;
         start();
-        if(index < 0) throw new IndexOutOfBoundsException();
+        if (index < 0) throw new IndexOutOfBoundsException();
         i = bb.getInt(index + valuePosition());
         end();
         return i;
@@ -84,7 +84,7 @@ public class OakRValueBufferImpl implements OakRBuffer {
     public long getLong(int index) {
         long l;
         start();
-        if(index < 0) throw new IndexOutOfBoundsException();
+        if (index < 0) throw new IndexOutOfBoundsException();
         l = bb.getLong(index + valuePosition());
         end();
         return l;
@@ -94,7 +94,7 @@ public class OakRValueBufferImpl implements OakRBuffer {
     public float getFloat(int index) {
         float f;
         start();
-        if(index < 0) throw new IndexOutOfBoundsException();
+        if (index < 0) throw new IndexOutOfBoundsException();
         f = bb.getFloat(index + valuePosition());
         end();
         return f;
@@ -104,7 +104,7 @@ public class OakRValueBufferImpl implements OakRBuffer {
     public double getDouble(int index) {
         double d;
         start();
-        if(index < 0) throw new IndexOutOfBoundsException();
+        if (index < 0) throw new IndexOutOfBoundsException();
         d = bb.getDouble(index + valuePosition());
         end();
         return d;
