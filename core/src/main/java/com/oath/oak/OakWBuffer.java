@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2018 Oath Inc.
  * Licensed under the terms of the Apache 2.0 license.
  * Please see LICENSE file in the project root for terms.
@@ -6,8 +6,9 @@
 
 package com.oath.oak;
 
-import java.nio.*;
-import java.util.function.Function;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
+import java.nio.ReadOnlyBufferException;
 
 /**
  * A similar to ByteBuffer interface that allows internal Oak data access for read and write

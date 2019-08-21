@@ -8,7 +8,6 @@ package com.oath.oak;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
-import java.util.function.Function;
 
 public class OakWBufferImpl implements OakWBuffer {
 
