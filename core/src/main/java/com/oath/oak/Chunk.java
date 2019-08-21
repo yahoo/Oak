@@ -82,10 +82,8 @@ public class Chunk<K, V> {
     private AtomicReference<Rebalancer<K, V>> rebalancer;
     private final int[] entries;    // array is initialized to 0, i.e., NONE - this is important!
 
-    //    private final Handle<V>[] handles;
     private AtomicInteger pendingOps;
     private final AtomicInteger entryIndex;    // points to next free index of entry array
-    //    private final AtomicInteger handleIndex;   // points to next free index of entry array
     private final Statistics statistics;
     // # of sorted items at entry-array's beginning (resulting from split)
     private AtomicInteger sortedCount;

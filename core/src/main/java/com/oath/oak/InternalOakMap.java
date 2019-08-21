@@ -789,7 +789,7 @@ class InternalOakMap<K, V> {
                 memoryManager);
     }
 
-    Map.Entry<K, V> lowerEntry(K key) {
+    public Map.Entry<K, V> lowerEntry(K key) {
         Map.Entry<Object, Chunk<K, V>> lowerChunkEntry = skiplist.lowerEntry(key);
         if (lowerChunkEntry == null) {
             /* we were looking for the minimal key */
