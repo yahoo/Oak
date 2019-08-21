@@ -6,11 +6,11 @@ import java.util.concurrent.atomic.AtomicInteger;
 public class ThreadIndexCalculator {
 
     public static final int MAX_THREADS = 32;
-    private ThreadLocal<Integer> local = ThreadLocal.withInitial(()->-1);
-    AtomicInteger[] indices = new AtomicInteger[MAX_THREADS];
+    private ThreadLocal<Integer> local = ThreadLocal.withInitial(() -> -1);
+    private AtomicInteger[] indices = new AtomicInteger[MAX_THREADS];
 
     private ThreadIndexCalculator() {
-        for (Integer i=0; i < MAX_THREADS; ++i) {
+        for (int i = 0; i < MAX_THREADS; ++i) {
             indices[i] = new AtomicInteger(-1);
         }
     }
@@ -24,7 +24,7 @@ public class ThreadIndexCalculator {
         }
         int tid = (int) Thread.currentThread().getId();
         int i = tid % MAX_THREADS;
-        while(!indices[i].compareAndSet(-1, tid)) {
+        while (!indices[i].compareAndSet(-1, tid)) {
             //TODO get out of loop sometime
             i = (i + 1) % MAX_THREADS;
         }
