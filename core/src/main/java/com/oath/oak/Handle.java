@@ -64,7 +64,7 @@ class Handle<V> implements OakWBuffer {
         return ValueUtils.compute(bb, computer);
     }
 
-    ByteBuffer getSlicedReadOnlyByteBuffer() {
+    private ByteBuffer getSlicedReadOnlyByteBuffer() {
         ByteBuffer dup = bb.asReadOnlyBuffer();
         dup.position(dup.position() + VALUE_HEADER_SIZE);
         return dup.slice();
@@ -72,6 +72,7 @@ class Handle<V> implements OakWBuffer {
 
     /* OakWBuffer interface */
 
+    @Override
     public int capacity() {
         return bb.remaining() - VALUE_HEADER_SIZE;
     }
@@ -81,15 +82,18 @@ class Handle<V> implements OakWBuffer {
         return bb;
     }
 
+    @Override
     public byte get(int index) {
         return bb.get(bb.position() + index + VALUE_HEADER_SIZE);
     }
 
+    @Override
     public OakWBuffer put(int index, byte b) {
         bb.put(bb.position() + index + VALUE_HEADER_SIZE, b);
         return this;
     }
 
+    @Override
     public char getChar(int index) {
         return bb.getChar(bb.position() + index + VALUE_HEADER_SIZE);
     }
@@ -100,6 +104,7 @@ class Handle<V> implements OakWBuffer {
         return this;
     }
 
+    @Override
     public short getShort(int index) {
         return bb.getShort(bb.position() + index);
     }
@@ -110,6 +115,7 @@ class Handle<V> implements OakWBuffer {
         return this;
     }
 
+    @Override
     public int getInt(int index) {
         return bb.getInt(bb.position() + index + VALUE_HEADER_SIZE);
     }
@@ -120,6 +126,7 @@ class Handle<V> implements OakWBuffer {
         return this;
     }
 
+    @Override
     public long getLong(int index) {
         return bb.getLong(bb.position() + index + VALUE_HEADER_SIZE);
     }
@@ -130,6 +137,7 @@ class Handle<V> implements OakWBuffer {
         return this;
     }
 
+    @Override
     public float getFloat(int index) {
         return bb.getFloat(bb.position() + index + VALUE_HEADER_SIZE);
     }
@@ -140,6 +148,7 @@ class Handle<V> implements OakWBuffer {
         return this;
     }
 
+    @Override
     public double getDouble(int index) {
         return bb.getDouble(bb.position() + index + VALUE_HEADER_SIZE);
     }
@@ -150,6 +159,7 @@ class Handle<V> implements OakWBuffer {
         return this;
     }
 
+    @Override
     public ByteOrder order() {
         return bb.order();
     }

@@ -6,7 +6,6 @@
 
 package com.oath.oak;
 
-import jdk.nashorn.internal.runtime.regexp.joni.SearchAlgorithm;
 import sun.misc.Unsafe;
 
 import java.lang.reflect.Constructor;
@@ -86,7 +85,7 @@ public class Chunk<K, V> {
     private AtomicReference<Chunk<K, V>> creator;
     // chunk can be in the following states: normal, frozen or infant(has a creator)
     private final AtomicReference<State> state;
-    private AtomicReference<Rebalancer> rebalancer;
+    private AtomicReference<Rebalancer<K, V>> rebalancer;
     private final int[] entries;    // array is initialized to 0, i.e., NONE - this is important!
 
     //    private final Handle<V>[] handles;
@@ -312,7 +311,7 @@ public class Chunk<K, V> {
     /**
      * gets the value for the given item, or 'null' if it doesn't exist
      */
-    private ByteBuffer getValueBuffer(int entryIndex) {
+    ByteBuffer getValueBuffer(int entryIndex) {
 
         long valueStats = getValueStats(entryIndex);
         int[] valueArray = UnsafeUtils.longToInts(valueStats);
@@ -323,9 +322,10 @@ public class Chunk<K, V> {
             return buildValueBuffer(valueStats);
     }
 
-    private ByteBuffer buildValueBuffer(long valueStats) {
+    ByteBuffer buildValueBuffer(long valueStats) {
         int[] valueArray = UnsafeUtils.longToInts(valueStats);
-        assert valueArray[1] >>> VALUE_BLOCK_SHIFT != 0;
+        if ((valueArray[1] >>> VALUE_BLOCK_SHIFT) == 0)
+            return null;
         return memoryManager.getByteBufferFromBlockID(valueArray[1] >>> VALUE_BLOCK_SHIFT, valueArray[0], valueArray[1] & VALUE_LENGTH_MASK);
     }
 
@@ -359,6 +359,10 @@ public class Chunk<K, V> {
             else if (cmp == 0) {
                 long valueStats = getValueStats(curr);
                 ByteBuffer valueBuffer = buildValueBuffer(valueStats);
+                if (valueBuffer == null) {
+                    assert valueStats == 0;
+                    return new LookUp(null, valueStats, curr);
+                }
                 if (ValueUtils.isValueDeleted(valueBuffer)) return new LookUp(null, valueStats, curr);
                 return new LookUp(valueBuffer, valueStats, curr);
             }
@@ -534,7 +538,7 @@ public class Chunk<K, V> {
     /**
      * write value in place
      **/
-    void writeValueTOEntry(int entryIndex, V value) {
+    long writeValueOffHeap(V value) {
         int valueLength = valueSerializer.calculateSize(value) + ValueUtils.VALUE_HEADER_SIZE;
         Slice slice = memoryManager.allocateSlice(valueLength);
         // initializing the header lock
@@ -542,10 +546,8 @@ public class Chunk<K, V> {
         // just allocated byte buffer is ensured to have position 0
         // One duplication
         valueSerializer.serialize(value, ValueUtils.getActualValueBufferLessDuplications(slice.getByteBuffer()));
-        setEntryField(entryIndex, OFFSET.VALUE_POSITION, slice.getByteBuffer().position());
-        setEntryField(entryIndex, OFFSET.VALUE_BLOCK, slice.getBlockID());
-        setEntryField(entryIndex, OFFSET.VALUE_LENGTH, valueLength);
-
+        int valueBlockAndLength = (slice.getBlockID() << VALUE_BLOCK_SHIFT) | (valueLength & VALUE_LENGTH_MASK);
+        return UnsafeUtils.intsToLong(slice.getByteBuffer().position(), valueBlockAndLength);
     }
 
     public int getMaxItems() {
@@ -655,7 +657,7 @@ public class Chunk<K, V> {
      *
      * @return rebalancer object or null if not engaged.
      */
-    Rebalancer getRebalancer() {
+    Rebalancer<K, V> getRebalancer() {
         return rebalancer.get();
     }
 
