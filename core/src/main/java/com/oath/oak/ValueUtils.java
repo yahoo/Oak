@@ -3,7 +3,6 @@ package com.oath.oak;
 import sun.misc.Unsafe;
 import sun.nio.ch.DirectBuffer;
 
-import javax.naming.OperationNotSupportedException;
 import java.lang.reflect.Constructor;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
