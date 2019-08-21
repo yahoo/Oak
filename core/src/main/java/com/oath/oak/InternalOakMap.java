@@ -329,7 +329,7 @@ class InternalOakMap<K, V> {
         }
 
         int ei = -1;
-        long oldStats = 0;
+        long oldStats = DELETED_VALUE;
         if (lookUp != null) {
             ei = lookUp.entryIndex;
             assert ei > 0;
@@ -401,7 +401,7 @@ class InternalOakMap<K, V> {
 
 
         int ei = -1;
-        long oldStats = 0;
+        long oldStats = DELETED_VALUE;
         if (lookUp != null) {
             ei = lookUp.entryIndex;
             assert ei > 0;
@@ -417,7 +417,7 @@ class InternalOakMap<K, V> {
             int prevEi = c.linkEntry(ei, true, key);
             if (prevEi != ei) {
                 oldStats = c.getValueStats(prevEi);
-                if (oldStats != 0) {
+                if (oldStats != DELETED_VALUE) {
                     if (transformer == null) {
                         return Result.withFlag(false);
                     }
@@ -504,7 +504,7 @@ class InternalOakMap<K, V> {
         // 2. entry in the linked list, but handle is not attached
         // 3. entry in the linked list, handle attached, but handle is marked deleted
         int ei = -1;
-        long oldStats = 0;
+        long oldStats = DELETED_VALUE;
         if (lookUp != null) {
             ei = lookUp.entryIndex;
             assert ei > 0;
@@ -616,7 +616,7 @@ class InternalOakMap<K, V> {
 
 
             assert lookUp.entryIndex > 0;
-            assert lookUp.valueStats > 0;
+            assert lookUp.valueStats != DELETED_VALUE;
             Chunk.OpData opData = new Chunk.OpData(Operation.REMOVE, lookUp.entryIndex, 0, lookUp.valueStats, null);
 
             // publish
