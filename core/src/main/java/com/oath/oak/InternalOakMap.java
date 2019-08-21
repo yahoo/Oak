@@ -284,12 +284,12 @@ class InternalOakMap<K, V> {
     }
 
     // Returns old handle if someone helped before pointToValue happened, or null if
-    private Handle finishAfterPublishing(Chunk.OpData opData, Chunk<K, V> c) {
+    private boolean finishAfterPublishing(Chunk.OpData opData, Chunk<K, V> c) {
         // set pointer to value
-        Handle oldHandle = c.pointToValue(opData);
+        boolean result = c.pointToValue(opData);
         c.unpublish();
         checkRebalance(c);
-        return oldHandle;
+        return result;
     }
 
     /*-------------- OakMap Methods --------------*/
@@ -301,9 +301,10 @@ class InternalOakMap<K, V> {
 
         Chunk<K, V> c = findChunk(key); // find chunk matching key
         Chunk.LookUp lookUp = c.lookUp(key);
-        if (lookUp != null && lookUp.handle != null) {
-            V v = (transformer != null) ? (V) lookUp.handle.transform(transformer) : null;
-            lookUp.handle.put(value, valueSerializer, memoryManager);
+        if (lookUp != null && lookUp.valueBuffer != null) {
+            V v = (transformer != null) ? ValueUtils.transform(lookUp.valueBuffer, transformer) : null;
+            //TODO: fix when resize is required
+            ValueUtils.put(lookUp.valueBuffer, value, valueSerializer, memoryManager);
             return v;
         }
 
@@ -323,11 +324,11 @@ class InternalOakMap<K, V> {
         }
 
         int ei = -1;
-        int prevHi = -1;
+        long oldStats = -1;
         if (lookUp != null) {
             ei = lookUp.entryIndex;
             assert ei > 0;
-            prevHi = lookUp.handleIndex;
+            oldStats = lookUp.valueStats;
         }
 
         if (ei == -1) {
@@ -340,24 +341,16 @@ class InternalOakMap<K, V> {
             int prevEi = c.linkEntry(ei, true, key);
             if (prevEi != ei) {
                 ei = prevEi;
-                prevHi = c.getHandleIndex(prevEi);
+                oldStats = c.getValueStats(prevEi);
             }
         }
 
-        int hi = c.allocateHandle();
-        if (hi == -1) {
-            rebalance(c);
-            put(key, value, transformer);
-            return null;
-        }
-
-        c.writeValue(hi, value); // write value in place
+        c.writeValueTOEntry(ei, value); // write value in place
 
         Chunk.OpData opData = new Chunk.OpData(Operation.PUT, ei, hi, prevHi, null);
 
         // publish put
         if (!c.publish()) {
-            c.freeHandle(hi);
             rebalance(c);
             put(key, value, transformer);
             return null;
@@ -727,7 +720,7 @@ class InternalOakMap<K, V> {
 
     // encapsulates finding of the chunk in the skip list and later chunk list traversal
     private Chunk<K, V> findChunk(Object key) {
-        Chunk<K,V> c = skiplist.floorEntry(key).getValue();
+        Chunk<K, V> c = skiplist.floorEntry(key).getValue();
         c = iterateChunks(c, key);
         return c;
     }

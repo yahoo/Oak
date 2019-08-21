@@ -11,8 +11,8 @@ import java.nio.ByteBuffer;
 // Slice is a "small part" of a bigger block of the underlying managed memory.
 // Slice is allocated for data (key or value) and can be de-allocated later
 public class Slice {
-    final int blockID;
-    final ByteBuffer buffer;
+    private final int blockID;
+    private final ByteBuffer buffer;
 
     public Slice (int blockID, ByteBuffer buffer) {
         this.blockID = blockID;
