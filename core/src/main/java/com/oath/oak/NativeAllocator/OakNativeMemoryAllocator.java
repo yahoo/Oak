@@ -146,6 +146,7 @@ public class OakNativeMemoryAllocator implements OakMemoryAllocator {
     // Allocates Slice, meaning it must be known from which block it is allocated.
     // Because currently the free list doesn't keeps block IDs for released values,
     // the free list is not used
+    // BUG: the id may be incorrect
     public Slice allocateSlice(int size) {
         ByteBuffer bb = allocate(size, false);
         // idGenerator - 1 is the current block ID (as free list usage is disabled above)

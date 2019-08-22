@@ -18,6 +18,8 @@ import java.util.concurrent.atomic.AtomicMarkableReference;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
+import static com.oath.oak.NativeAllocator.OakNativeMemoryAllocator.INVALID_BLOCK_ID;
+
 public class Chunk<K, V> {
 
     /*-------------- Constants --------------*/
@@ -332,7 +334,7 @@ public class Chunk<K, V> {
         long valueStats = getValueStats(entryIndex);
         int[] valueArray = UnsafeUtils.longToInts(valueStats);
         // if no value for item - return null
-        if (valueArray[1] == 0) {
+        if (valueArray[1] == INVALID_BLOCK_ID) {
             return null;
         } else {
             return buildValueBuffer(valueStats);
@@ -341,9 +343,11 @@ public class Chunk<K, V> {
 
     ByteBuffer buildValueBuffer(long valueStats) {
         int[] valueArray = UnsafeUtils.longToInts(valueStats);
-        if ((valueArray[1] >>> VALUE_BLOCK_SHIFT) == 0)
+        if ((valueArray[1] >>> VALUE_BLOCK_SHIFT) == INVALID_BLOCK_ID) {
             return null;
-        return memoryManager.getByteBufferFromBlockID(valueArray[1] >>> VALUE_BLOCK_SHIFT, valueArray[0], valueArray[1] & VALUE_LENGTH_MASK);
+        }
+        return memoryManager.getByteBufferFromBlockID(valueArray[1] >>> VALUE_BLOCK_SHIFT, valueArray[0],
+                valueArray[1] & VALUE_LENGTH_MASK);
     }
 
     // Assuming the reading of valuePosition and valueBlockAndLength is atomic!
@@ -610,7 +614,7 @@ public class Chunk<K, V> {
 
         if (expectedValueStats == foundValueStats) {
             return true; // someone helped
-        } else if (foundValueBlockAndLength == 0) {
+        } else if (foundValueBlockAndLength == INVALID_BLOCK_ID) {
             // the handle was deleted, retry the attach
             opData.oldValueStats = 0;
             return pointToValue(opData); // remove completed, try again
@@ -643,10 +647,10 @@ public class Chunk<K, V> {
                 // update statistics only by thread that CASed
                 int[] olValueArray = UnsafeUtils.longToInts(opData.oldValueStats);
                 int[] valueArray = UnsafeUtils.longToInts(opData.newValueStats);
-                if (olValueArray[1] == 0 && valueArray[1] > 0) { // previously a remove
+                if (olValueArray[1] == INVALID_BLOCK_ID && valueArray[1] > 0) { // previously a remove
                     statistics.incrementAddedCount();
                     externalSize.incrementAndGet();
-                } else if (olValueArray[1] > 0 && valueArray[1] == 0) { // removing
+                } else if (olValueArray[1] > 0 && valueArray[1] == INVALID_BLOCK_ID) { // removing
                     statistics.decrementAddedCount();
                     externalSize.decrementAndGet();
                 }
@@ -947,7 +951,7 @@ public class Chunk<K, V> {
         AscendingIter() {
             next = getEntryField(HEAD_NODE, OFFSET.NEXT);
             int valueBlock = getEntryField(next, OFFSET.VALUE_BLOCK);
-            while (next != Chunk.NONE && valueBlock == 0) {
+            while (next != Chunk.NONE && valueBlock == INVALID_BLOCK_ID) {
                 next = getEntryField(next, OFFSET.NEXT);
                 valueBlock = getEntryField(next, OFFSET.VALUE_BLOCK);
             }
@@ -965,7 +969,7 @@ public class Chunk<K, V> {
 
             while (next != Chunk.NONE &&
                     (compare > 0 ||
-                            (compare >= 0 && !inclusive) || valueBlock == 0)) {
+                            (compare >= 0 && !inclusive) || valueBlock == INVALID_BLOCK_ID)) {
                 next = getEntryField(next, OFFSET.NEXT);
                 valueBlock = getEntryField(next, OFFSET.VALUE_BLOCK);
                 if (next != Chunk.NONE) {
@@ -977,7 +981,7 @@ public class Chunk<K, V> {
         private void advance() {
             next = getEntryField(next, OFFSET.NEXT);
             int valueBlock = getEntryField(next, OFFSET.VALUE_BLOCK);
-            while (next != Chunk.NONE && valueBlock < 0) {
+            while (next != Chunk.NONE && valueBlock == INVALID_BLOCK_ID) {
                 next = getEntryField(next, OFFSET.NEXT);
                 valueBlock = getEntryField(next, OFFSET.VALUE_BLOCK);
             }
@@ -1038,7 +1042,7 @@ public class Chunk<K, V> {
             }
             next = stack.pop();
             int valueBlock = getEntryField(next, OFFSET.VALUE_BLOCK);
-            while (next != Chunk.NONE && valueBlock < 0) {
+            while (next != Chunk.NONE && valueBlock != INVALID_BLOCK_ID) {
 //            while (next != Chunk.NONE && (handle < 0 || (handle > 0 && handles[handle].isDeleted()))) {
                 if (!stack.empty()) {
                     next = stack.pop();
