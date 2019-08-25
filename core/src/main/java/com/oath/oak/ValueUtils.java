@@ -186,7 +186,9 @@ public class ValueUtils {
         ByteBuffer bb = s.getByteBuffer();
         if (!deleteValue(bb)) return false;
         // releasing the actual value and not the header
-        Slice sDup = new Slice(s.getBlockID(), getActualValueBuffer(bb));
+        ByteBuffer dup = bb.duplicate();
+        dup.position(dup.position() + 4);
+        Slice sDup = new Slice(s.getBlockID(), dup);
         memoryManager.releaseSlice(sDup);
         return true;
     }
