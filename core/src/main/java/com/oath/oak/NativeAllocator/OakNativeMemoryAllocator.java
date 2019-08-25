@@ -90,34 +90,33 @@ public class OakNativeMemoryAllocator implements OakMemoryAllocator {
 
     @Override
     public ByteBuffer allocate(int size) {
-        return allocate(size, true);
+        return allocateSlice(size).getByteBuffer();
     }
 
     // Allocates ByteBuffer of the given size, either from freeList or (if it is still possible)
     // within current block bounds.
     // Otherwise new block is allocated within Oak memory bounds. Thread safe.
-    private ByteBuffer allocate(int size, boolean reuseFreedMemory) {
+    public Slice allocateSlice(int size) {
 
-        if (reuseFreedMemory) {
-            FreeChuck myDummy = dummies[threadIndexCalculator.getIndex()];
-            while (!freeList.isEmpty()) {
-                myDummy.length = size;
-                FreeChuck bestFit = freeList.higher(myDummy);
-                if (bestFit == null) break;
-                if (bestFit.slice.getByteBuffer().remaining() > (RECLAIM_FACTOR * size))
-                    break;     // all remaining buffers are too big
-                if (freeList.remove(bestFit)) {
-                    if (stats != null) stats.reclaim(size);
-                    return bestFit.slice.getByteBuffer();
-                }
+        FreeChuck myDummy = dummies[threadIndexCalculator.getIndex()];
+        while (!freeList.isEmpty()) {
+            myDummy.length = size;
+            FreeChuck bestFit = freeList.higher(myDummy);
+            if (bestFit == null) break;
+            if (bestFit.slice.getByteBuffer().remaining() > (RECLAIM_FACTOR * size))
+                break;     // all remaining buffers are too big
+            if (freeList.remove(bestFit)) {
+                if (stats != null)
+                    stats.reclaim(size);
+                return bestFit.slice;
             }
         }
 
-        ByteBuffer bb = null;
+        Slice s = null;
         // freeList is empty or there is no suitable slice
-        while (bb == null) {
+        while (s == null) {
             try {
-                bb = currentBlock.allocate(size);
+                s = currentBlock.allocate(size);
             } catch (OakOutOfMemoryException e) {
                 // there is no space in current block
                 // may be a buffer bigger than any block is requested?
@@ -140,17 +139,7 @@ public class OakNativeMemoryAllocator implements OakMemoryAllocator {
             }
         }
         allocated.addAndGet(size);
-        return bb;
-    }
-
-    // Allocates Slice, meaning it must be known from which block it is allocated.
-    // Because currently the free list doesn't keeps block IDs for released values,
-    // the free list is not used
-    // BUG: the id may be incorrect
-    public Slice allocateSlice(int size) {
-        ByteBuffer bb = allocate(size, false);
-        // idGenerator - 1 is the current block ID (as free list usage is disabled above)
-        return new Slice((idGenerator.get() - 1), bb);
+        return s;
     }
 
     // Releases memory (makes it available for reuse) without other GC consideration.
@@ -211,6 +200,7 @@ public class OakNativeMemoryAllocator implements OakMemoryAllocator {
         Block b = blocksProvider.getBlock();
         int blockID = idGenerator.getAndIncrement();
         this.blocksArray[blockID] = b;
+        b.setID(blockID);
         this.currentBlock = b;
     }
 
