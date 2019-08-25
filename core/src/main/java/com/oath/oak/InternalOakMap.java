@@ -15,7 +15,8 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
-import static com.oath.oak.Chunk.DELETED_VALUE;
+import static com.oath.oak.Chunk.*;
+import static com.oath.oak.UnsafeUtils.longToInts;
 
 class InternalOakMap<K, V> {
 
@@ -541,13 +542,11 @@ class InternalOakMap<K, V> {
 
         // publish put
         if (!c.publish()) {
-            //TODO: free value
             memoryManager.releaseSlice(c.buildValueSlice(newValueStats));
             rebalance(c);
             return putIfAbsentComputeIfPresent(key, value, computer);
         }
 
-        // TODO: free value
         long res = finishAfterPublishing(opData, c);
         if (res != DELETED_VALUE) {
             memoryManager.releaseSlice(c.buildValueSlice(newValueStats));
