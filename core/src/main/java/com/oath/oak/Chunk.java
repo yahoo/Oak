@@ -44,7 +44,7 @@ public class Chunk<K, V> {
     }
 
     static final int NONE = 0;    // constant for "no index", etc. MUST BE 0!
-
+    static final long DELETED_VALUE = 0;
     // location of the first (head) node - just a next pointer
     private static final int HEAD_NODE = 0;
     // index of first item in array, after head (not necessarily first in list!)
@@ -61,8 +61,8 @@ public class Chunk<K, V> {
     private static final int KEY_LENGTH_MASK = 0xffff; // 16 lower bits
     private static final int KEY_BLOCK_SHIFT = 16;
     // Assume the length of a value is up to 8MB because there can be up to 512 blocks
-    private static final int VALUE_LENGTH_MASK = 0x7fffff;
-    private static final int VALUE_BLOCK_SHIFT = 23;
+    static final int VALUE_LENGTH_MASK = 0x7fffff;
+    static final int VALUE_BLOCK_SHIFT = 23;
 
     // used for checking if rebalance is needed
     private static final double REBALANCE_PROB_PERC = 30;
@@ -590,11 +590,11 @@ public class Chunk<K, V> {
      * <p>
      * if someone else got to it first (helping rebalancer or other operation), returns the old handle
      */
-    boolean pointToValue(OpData opData) {
+    long pointToValue(OpData opData) {
 
         // try to perform the CAS according to operation data (opData)
         if (pointToValueCAS(opData, true)) {
-            return true;
+            return DELETED_VALUE;
         }
 
         // the straight forward helping didn't work, check why
@@ -603,7 +603,7 @@ public class Chunk<K, V> {
         // the operation is remove, means we tried to change the handle index we knew about to -1
         // the old handle index is no longer there so we have nothing to do
         if (operation == Operation.REMOVE) {
-            return true; // this is a remove, no need to try again and return doesn't matter
+            return DELETED_VALUE; // this is a remove, no need to try again and return doesn't matter
         }
 
         // the operation is either NO_OP, PUT, PUT_IF_ABSENT, COMPUTE
@@ -612,13 +612,13 @@ public class Chunk<K, V> {
         int foundValueBlockAndLength = UnsafeUtils.longToInts(foundValueStats)[0];
 
         if (expectedValueStats == foundValueStats) {
-            return true; // someone helped
+            return DELETED_VALUE; // someone helped
         } else if (foundValueBlockAndLength == INVALID_BLOCK_ID) {
             // the handle was deleted, retry the attach
             opData.oldValueStats = 0;
             return pointToValue(opData); // remove completed, try again
         } else if (operation == Operation.PUT_IF_ABSENT) {
-            return false; // too late
+            return foundValueStats; // too late
         } else if (operation == Operation.COMPUTE) {
             Slice valueSlice = buildValueSlice(foundValueStats);
             boolean succ = ValueUtils.compute(valueSlice, opData.computer);
@@ -629,7 +629,7 @@ public class Chunk<K, V> {
                 opData.oldValueStats = foundValueStats;
                 return pointToValue(opData);
             }
-            return false;
+            return foundValueStats;
         }
         // this is a put, try again
         opData.oldValueStats = foundValueStats;
