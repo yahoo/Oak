@@ -19,6 +19,10 @@ public class Slice {
         this.buffer = buffer;
     }
 
+    public Slice(int blockID, int position, int length, MemoryManager memoryManager) {
+        this(blockID, memoryManager.getByteBufferFromBlockID(blockID, position, length));
+    }
+
     public ByteBuffer getByteBuffer() {
         return buffer;
     }
