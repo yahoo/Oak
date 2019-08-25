@@ -20,7 +20,7 @@ public class Slice {
     }
 
     public Slice(int blockID, int position, int length, MemoryManager memoryManager) {
-        this(blockID, memoryManager.getByteBufferFromBlockID(blockID, position, length));
+        this(blockID, memoryManager.getByteBufferFromBlockID(blockID, position, length).duplicate());
     }
 
     public ByteBuffer getByteBuffer() {

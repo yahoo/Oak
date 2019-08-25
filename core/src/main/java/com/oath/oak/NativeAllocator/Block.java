@@ -102,8 +102,8 @@ class Block {
             // the new buffer object is needed for thread safeness, otherwise
             // (in single threaded environment)
             // the setting of position and limit could happen on the main buffer itself
-            // but it hapens only once per thread id
-            byteBufferPerThread[idx] = buffer.asReadOnlyBuffer();
+            // but it happens only once per thread id
+            byteBufferPerThread[idx] = buffer.duplicate();
         }
 
         ByteBuffer bb = byteBufferPerThread[idx];
