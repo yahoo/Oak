@@ -74,7 +74,8 @@ public class ValueUtils {
     private static boolean CAS(ByteBuffer bb, int expected, int value) {
         // assuming big endian
         assert bb.order() == ByteOrder.BIG_ENDIAN;
-        return unsafe.compareAndSwapInt(null, ((DirectBuffer) bb).address() + bb.position(), reverseBytes(expected), reverseBytes(value));
+        return unsafe.compareAndSwapInt(null, ((DirectBuffer) bb).address() + bb.position(), reverseBytes(expected),
+                reverseBytes(value));
     }
 
     private static boolean isValueDeleted(int header) {
@@ -94,8 +95,12 @@ public class ValueUtils {
         int oldHeader;
         do {
             oldHeader = bb.getInt(bb.position());
-            if (isValueDeleted(oldHeader)) return FAILURE;
-            if (wasValueMoved(oldHeader)) return RETRY;
+            if (isValueDeleted(oldHeader)) {
+                return FAILURE;
+            }
+            if (wasValueMoved(oldHeader)) {
+                return RETRY;
+            }
             oldHeader &= ~LOCK_MASK;
         } while (!CAS(bb, oldHeader, oldHeader + 4));
         return SUCCESS;
@@ -118,10 +123,18 @@ public class ValueUtils {
         int oldHeader;
         do {
             oldHeader = bb.getInt(bb.position());
-            if (isValueDeleted(oldHeader)) return FAILURE;
-            if (wasValueMoved(oldHeader)) return RETRY;
+            if (isValueDeleted(oldHeader)) {
+                return FAILURE;
+            }
+            if (wasValueMoved(oldHeader)) {
+                return RETRY;
+            }
         } while (!CAS(bb, FREE.value, LOCKED.value));
         return SUCCESS;
+    }
+
+    static void unlockWrite(Slice s) {
+        unlockWrite(s.getByteBuffer());
     }
 
     private static void unlockWrite(ByteBuffer bb) {
