@@ -61,13 +61,17 @@ public class ValueUtils {
 
     /* Header Utils */
 
-    static boolean isValueDeleted(ByteBuffer bb) {
+    static boolean isValueDeleted(Slice s) {
+        ByteBuffer bb = s.getByteBuffer();
         return isValueDeleted(bb.getInt(bb.position()));
-
     }
 
     private static boolean isValueDeleted(int header) {
         return header == LOCK_DELETED;
+    }
+
+    static boolean lockRead(Slice s) {
+        return lockRead(s.getByteBuffer());
     }
 
     static boolean lockRead(ByteBuffer bb) {
@@ -81,12 +85,20 @@ public class ValueUtils {
         return true;
     }
 
+    static void unlockRead(Slice s) {
+        unlockRead(s.getByteBuffer());
+    }
+
     static void unlockRead(ByteBuffer bb) {
         assert bb.isDirect();
         int oldHeader;
         do {
             oldHeader = bb.getInt(bb.position());
         } while (!CAS(bb, oldHeader, oldHeader - 4));
+    }
+
+    static boolean lockWrite(Slice s) {
+        return lockWrite(s.getByteBuffer());
     }
 
     static boolean lockWrite(ByteBuffer bb) {
@@ -97,6 +109,10 @@ public class ValueUtils {
             if (isValueDeleted(oldHeader)) return false;
         } while (!CAS(bb, LOCK_FREE, LOCK_LOCKED));
         return true;
+    }
+
+    static void unlockWrite(Slice s) {
+        unlockWrite(s.getByteBuffer());
     }
 
     static void unlockWrite(ByteBuffer bb) {
@@ -128,16 +144,27 @@ public class ValueUtils {
         return transformation;
     }
 
-    public static <V> boolean put(ByteBuffer bb, V newVal, OakSerializer<V> serializer, MemoryManager memoryManager) {
+    static <T> T transform(Slice s, Function<ByteBuffer, T> transformer) {
+        ByteBuffer bb = s.getByteBuffer();
+        if (!lockRead(bb)) return null;
+
+        T transformation = transformer.apply(getActualValueBuffer(bb).asReadOnlyBuffer());
+        unlockRead(bb);
+        return transformation;
+    }
+
+    public static <V> boolean put(Slice s, V newVal, OakSerializer<V> serializer, MemoryManager memoryManager) {
+        ByteBuffer bb = s.getByteBuffer();
         if (!lockWrite(bb)) return false;
         int capacity = serializer.calculateSize(newVal);
-        ByteBuffer dup = getActualValueBuffer(bb);
         if (bb.remaining() < capacity) { // can not reuse the existing space
-            memoryManager.release(dup);
-            memoryManager.allocate(capacity + VALUE_HEADER_SIZE);
+            memoryManager.releaseSlice(s);
+            s = memoryManager.allocateSlice(capacity + VALUE_HEADER_SIZE);
+            bb = s.getByteBuffer();
             throw new UnsupportedOperationException();
             // TODO: update the relevant entry
         }
+        ByteBuffer dup = getActualValueBuffer(bb);
         // It seems like I have to change bb here or else I expose the header to the user
         // Duplicating bb instead
         serializer.serialize(newVal, dup);
@@ -146,7 +173,8 @@ public class ValueUtils {
     }
 
     // Why do we use finally here and not in put for example
-    static boolean compute(ByteBuffer bb, Consumer<OakWBuffer> computer) {
+    static boolean compute(Slice s, Consumer<OakWBuffer> computer) {
+        ByteBuffer bb = s.getByteBuffer();
         if (!lockWrite(bb)) return false;
         OakWBuffer wBuffer = new OakWBufferImpl(bb);
         computer.accept(wBuffer);
@@ -154,10 +182,12 @@ public class ValueUtils {
         return true;
     }
 
-    static boolean remove(ByteBuffer bb, MemoryManager memoryManager) {
+    static boolean remove(Slice s, MemoryManager memoryManager) {
+        ByteBuffer bb = s.getByteBuffer();
         if (!deleteValue(bb)) return false;
         // releasing the actual value and not the header
-        memoryManager.release(getActualValueBuffer(bb));
+        Slice sDup = new Slice(s.getBlockID(), getActualValueBuffer(bb));
+        memoryManager.releaseSlice(sDup);
         return true;
     }
 
@@ -167,8 +197,9 @@ public class ValueUtils {
      * @param transformer transformation to apply
      * @return Transformation result or null if value is deleted
      */
-    static <T> T mutatingTransform(ByteBuffer bb, Function<ByteBuffer, T> transformer) {
+    static <T> T mutatingTransform(Slice s, Function<ByteBuffer, T> transformer) {
         T result;
+        ByteBuffer bb = s.getByteBuffer();
         if (!lockWrite(bb))
             // finally clause will handle unlock
             return null;
