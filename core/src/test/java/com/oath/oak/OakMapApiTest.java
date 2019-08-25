@@ -287,10 +287,10 @@ public class OakMapApiTest {
         Integer from = 4;
         Integer to = 6;
 
-        Integer expected = from + 1;
+        int expected = from + 1;
         try (OakMap<Integer, Integer> sub = oak.subMap(from, false, to, true)) {
             for (Integer i : sub.values()) {
-                assertEquals(expected.intValue(), i.intValue());
+                assertEquals(expected, i.intValue());
                 expected++;
             }
         }
