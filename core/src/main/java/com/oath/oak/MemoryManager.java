@@ -30,10 +30,6 @@ public class MemoryManager {
         keysMemoryAllocator.close();
     }
 
-    void release(ByteBuffer bb) {
-        valuesMemoryAllocator.free(bb);
-    }
-
     // how many memory is allocated for this OakMap
     public long allocated() {
         return valuesMemoryAllocator.allocated();
