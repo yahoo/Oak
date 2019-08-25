@@ -11,6 +11,7 @@ import java.util.Random;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import org.junit.Before;
 import org.junit.Test;
 
 import static junit.framework.TestCase.assertNull;
@@ -20,7 +21,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class OakNativeMemoryAllocatorTest {
-    private static int valueSizeAfterSerialization = Integer.MAX_VALUE / 20;
+    private static int valueSizeAfterSerialization = 4 * 1024 * 1024;
 
     public static class CheckOakCapacityValueSerializer implements OakSerializer<Integer> {
 
@@ -121,6 +122,10 @@ public class OakNativeMemoryAllocatorTest {
         ma.close();
     }
 
+    @Before
+    public void init() {
+        BlocksPool.setBlockSize(8 * 1024 * 1024);
+    }
 
     @Test
     public void checkOakCapacity() {
