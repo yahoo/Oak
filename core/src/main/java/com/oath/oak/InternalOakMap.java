@@ -7,6 +7,7 @@
 package com.oath.oak;
 
 
+import java.lang.reflect.Field;
 import java.nio.ByteBuffer;
 import java.util.AbstractMap;
 import java.util.Comparator;
@@ -20,6 +21,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Function;
+
+import static com.oath.oak.Chunk.*;
+import static com.oath.oak.UnsafeUtils.longToInts;
 
 class InternalOakMap<K, V> {
 
@@ -285,9 +289,9 @@ class InternalOakMap<K, V> {
     }
 
     // Returns old handle if someone helped before pointToValue happened, or null if
-    private boolean finishAfterPublishing(Chunk.OpData opData, Chunk<K, V> c) {
+    private long finishAfterPublishing(Chunk.OpData opData, Chunk<K, V> c) {
         // set pointer to value
-        boolean result = c.pointToValue(opData);
+        long result = c.pointToValue(opData);
         c.unpublish();
         checkRebalance(c);
         return result;
@@ -424,13 +428,17 @@ class InternalOakMap<K, V> {
             return putIfAbsent(key, value, transformer);
         }
 
-        boolean result = finishAfterPublishing(opData, c);
+        long result = finishAfterPublishing(opData, c);
 
-        if (transformer == null) return Result.withFlag(result);
+        if (transformer == null) return Result.withFlag(result == DELETED_VALUE);
         // TODO: This is for the non-ZC API
         // What to do? Force access for the old buffer?
-//        return Result.withValue((!result) ? oldHandle.transform(transformer) : null);
-        throw new UnsupportedOperationException();
+        int[] valueArray = longToInts(result);
+        return Result.withValue((result != DELETED_VALUE) ?
+                ValueUtils.transform(
+                        new Slice(valueArray[0] >>> VALUE_BLOCK_SHIFT, valueArray[1], valueArray[0] & VALUE_LENGTH_MASK, memoryManager),
+                        transformer)
+                : null);
     }
 
 
@@ -506,7 +514,7 @@ class InternalOakMap<K, V> {
             return putIfAbsentComputeIfPresent(key, value, computer);
         }
 
-        return finishAfterPublishing(opData, c);
+        return finishAfterPublishing(opData, c) == DELETED_VALUE;
     }
 
     V remove(K key, V oldValue, Function<ByteBuffer, V> transformer) {
@@ -592,7 +600,7 @@ class InternalOakMap<K, V> {
         if (lookUp == null || lookUp.valueSlice == null) {
             return null;
         }
-        return new OakRValueBufferImpl(lookUp.valueSlice.getByteBuffer());
+        return new OakRValueBufferImpl(lookUp.valueSlice.getByteBuffer().asReadOnlyBuffer());
     }
 
     <T> T getValueTransformation(K key, Function<ByteBuffer, T> transformer) {
@@ -1033,7 +1041,7 @@ class InternalOakMap<K, V> {
             if (valueSlice == null)
                 return null;
 
-            return new OakRValueBufferImpl(valueSlice.getByteBuffer());
+            return new OakRValueBufferImpl(valueSlice.getByteBuffer().asReadOnlyBuffer());
         }
     }
 
@@ -1067,8 +1075,8 @@ class InternalOakMap<K, V> {
                 return null;
             }
             return new AbstractMap.SimpleImmutableEntry<>(
-                    new OakRKeyBufferImpl(pair.getKey()),
-                    new OakRValueBufferImpl(pair.getValue().getByteBuffer()));
+                    new OakRKeyBufferImpl(pair.getKey().asReadOnlyBuffer()),
+                    new OakRValueBufferImpl(pair.getValue().getByteBuffer().asReadOnlyBuffer()));
         }
     }
 
@@ -1112,7 +1120,7 @@ class InternalOakMap<K, V> {
         public OakRBuffer next() {
 
             Map.Entry<ByteBuffer, Slice> pair = advance();
-            return new OakRKeyBufferImpl(pair.getKey());
+            return new OakRKeyBufferImpl(pair.getKey().asReadOnlyBuffer());
 
         }
     }
