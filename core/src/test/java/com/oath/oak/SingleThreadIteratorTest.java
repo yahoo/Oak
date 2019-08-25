@@ -142,7 +142,7 @@ public class SingleThreadIteratorTest {
             assertEquals(9 * maxItemsPerChunk, c.intValue());
         }
 
-        try (OakMap<Integer, Integer> sub = oak.subMap(9 * maxItemsPerChunk, true, 13 * maxItemsPerChunk, false)){
+        try (OakMap<Integer, Integer> sub = oak.subMap(9 * maxItemsPerChunk, true, 13 * maxItemsPerChunk, false)) {
             Iterator<Integer> iter = sub.values().iterator();
             Integer c = 9 * maxItemsPerChunk;
             c = checkValues(iter, c);
@@ -190,7 +190,6 @@ public class SingleThreadIteratorTest {
         assertEquals(5, i.intValue());
 
 
-
         try (OakMap<Integer, Integer> oakDesc = oak.descendingMap()) {
             Iterator<Map.Entry<Integer, Integer>> entryIter = oakDesc.entrySet().iterator();
             i = 5;
@@ -201,7 +200,6 @@ public class SingleThreadIteratorTest {
             }
             assertEquals(0, i.intValue());
         }
-
 
 
         try (OakMap<Integer, Integer> sub = oak.subMap(1, false, 4, true);
@@ -287,7 +285,6 @@ public class SingleThreadIteratorTest {
         }
 
 
-
         for (i = 0; i < 3 * maxItemsPerChunk; i++) {
             oak.zc().put(i, i);
         }
@@ -304,7 +301,6 @@ public class SingleThreadIteratorTest {
             i++;
         }
         assertEquals(3 * maxItemsPerChunk, i.intValue());
-
 
 
         try (OakMap<Integer, Integer> oakDesc = oak.descendingMap()) {
@@ -341,7 +337,7 @@ public class SingleThreadIteratorTest {
         }
 
 
-        try (OakMap<Integer, Integer> sub = oak.subMap((int) Math.round(0.1 * maxItemsPerChunk), true, (int) Math.round(2.3 * maxItemsPerChunk), false)){
+        try (OakMap<Integer, Integer> sub = oak.subMap((int) Math.round(0.1 * maxItemsPerChunk), true, (int) Math.round(2.3 * maxItemsPerChunk), false)) {
 
             iter = sub.values().iterator();
             i = (int) Math.round(0.1 * maxItemsPerChunk);
@@ -396,9 +392,6 @@ public class SingleThreadIteratorTest {
                 assertEquals((int) Math.round(0.1 * maxItemsPerChunk), i.intValue());
             }
         }
-
-
-
 
 
     }
