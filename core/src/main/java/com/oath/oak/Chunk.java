@@ -234,8 +234,7 @@ public class Chunk<K, V> {
         int blockID = getEntryField(entryIndex, OFFSET.KEY_BLOCK);
         int keyPosition = getEntryField(entryIndex, OFFSET.KEY_POSITION);
         int length = getEntryField(entryIndex, OFFSET.KEY_LENGTH);
-        ByteBuffer bb = memoryManager.getByteBufferFromBlockID(blockID, keyPosition, length);
-        Slice s = new Slice(blockID, bb);
+        Slice s = new Slice(blockID, keyPosition, length, memoryManager);
 
         memoryManager.releaseSlice(s);
     }
@@ -313,22 +312,22 @@ public class Chunk<K, V> {
     /**
      * gets the value for the given item, or 'null' if it doesn't exist
      */
-    ByteBuffer getValueBuffer(int entryIndex) {
+    Slice getValueSlice(int entryIndex) {
 
         long valueStats = getValueStats(entryIndex);
         int[] valueArray = UnsafeUtils.longToInts(valueStats);
         // if no value for item - return null
-        if (valueArray[1] == INVALID_BLOCK_ID)
+        if (valueArray[0] == INVALID_BLOCK_ID)
             return null;
         else
-            return buildValueBuffer(valueStats);
+            return buildValueSlice(valueStats);
     }
 
-    ByteBuffer buildValueBuffer(long valueStats) {
+    Slice buildValueSlice(long valueStats) {
         int[] valueArray = UnsafeUtils.longToInts(valueStats);
-        if ((valueArray[1] >>> VALUE_BLOCK_SHIFT) == INVALID_BLOCK_ID)
+        if ((valueArray[0] >>> VALUE_BLOCK_SHIFT) == INVALID_BLOCK_ID)
             return null;
-        return memoryManager.getByteBufferFromBlockID(valueArray[1] >>> VALUE_BLOCK_SHIFT, valueArray[0], valueArray[1] & VALUE_LENGTH_MASK);
+        return new Slice(valueArray[0] >>> VALUE_BLOCK_SHIFT, valueArray[1], valueArray[0] & VALUE_LENGTH_MASK, memoryManager);
     }
 
     // Assuming the reading of valuePosition and valueBlockAndLength is atomic!
@@ -338,7 +337,7 @@ public class Chunk<K, V> {
             valuePosition = getEntryField(entryIndex, OFFSET.VALUE_POSITION);
             valueBlockAndLength = getEntryField(entryIndex, OFFSET.VALUE_BLOCK_AND_LENGTH);
         } while (valuePosition != getEntryField(entryIndex, OFFSET.VALUE_POSITION));
-        return UnsafeUtils.intsToLong(valuePosition, valueBlockAndLength);
+        return UnsafeUtils.intsToLong(valueBlockAndLength, valuePosition);
     }
 
     /**
@@ -360,13 +359,13 @@ public class Chunk<K, V> {
                 // if keys are equal - we've found the item
             else if (cmp == 0) {
                 long valueStats = getValueStats(curr);
-                ByteBuffer valueBuffer = buildValueBuffer(valueStats);
-                if (valueBuffer == null) {
+                Slice valueSlice = buildValueSlice(valueStats);
+                if (valueSlice == null) {
                     assert valueStats == 0;
                     return new LookUp(null, valueStats, curr);
                 }
-                if (ValueUtils.isValueDeleted(valueBuffer)) return new LookUp(null, valueStats, curr);
-                return new LookUp(valueBuffer, valueStats, curr);
+                if (ValueUtils.isValueDeleted(valueSlice)) return new LookUp(null, valueStats, curr);
+                return new LookUp(valueSlice, valueStats, curr);
             }
             // otherwise- proceed to next item
             else
@@ -377,12 +376,12 @@ public class Chunk<K, V> {
 
     static class LookUp {
 
-        final ByteBuffer valueBuffer;
+        final Slice valueSlice;
         final long valueStats;
         final int entryIndex;
 
-        LookUp(ByteBuffer valueBuffer, long valueStats, int entryIndex) {
-            this.valueBuffer = valueBuffer;
+        LookUp(Slice valueSlice, long valueStats, int entryIndex) {
+            this.valueSlice = valueSlice;
             this.valueStats = valueStats;
             this.entryIndex = entryIndex;
         }
@@ -549,7 +548,7 @@ public class Chunk<K, V> {
         // One duplication
         valueSerializer.serialize(value, ValueUtils.getActualValueBufferLessDuplications(slice.getByteBuffer()));
         int valueBlockAndLength = (slice.getBlockID() << VALUE_BLOCK_SHIFT) | (valueLength & VALUE_LENGTH_MASK);
-        return UnsafeUtils.intsToLong(slice.getByteBuffer().position(), valueBlockAndLength);
+        return UnsafeUtils.intsToLong(valueBlockAndLength, slice.getByteBuffer().position());
     }
 
     public int getMaxItems() {
@@ -582,7 +581,7 @@ public class Chunk<K, V> {
         // the operation is either NO_OP, PUT, PUT_IF_ABSENT, COMPUTE
         long expectedValueStats = opData.newValueStats;
         long foundValueStats = getValueStats(opData.entryIndex);
-        int foundValueBlockAndLength = UnsafeUtils.longToInts(foundValueStats)[1];
+        int foundValueBlockAndLength = UnsafeUtils.longToInts(foundValueStats)[0];
 
         if (expectedValueStats == foundValueStats) {
             return true; // someone helped
@@ -593,8 +592,8 @@ public class Chunk<K, V> {
         } else if (operation == Operation.PUT_IF_ABSENT) {
             return false; // too late
         } else if (operation == Operation.COMPUTE) {
-            ByteBuffer valueBuffer = buildValueBuffer(foundValueStats);
-            boolean succ = ValueUtils.compute(valueBuffer, opData.computer);
+            Slice valueSlice = buildValueSlice(foundValueStats);
+            boolean succ = ValueUtils.compute(valueSlice, opData.computer);
             if (!succ) {
                 // we tried to perform the compute but the handle was deleted,
                 // we can get to pointToValue with Operation.COMPUTE only from PIACIP
@@ -618,10 +617,10 @@ public class Chunk<K, V> {
                 // update statistics only by thread that CASed
                 int[] olValueArray = UnsafeUtils.longToInts(opData.oldValueStats);
                 int[] valueArray = UnsafeUtils.longToInts(opData.newValueStats);
-                if (olValueArray[1] == INVALID_BLOCK_ID && valueArray[1] > 0) { // previously a remove
+                if (olValueArray[0] == INVALID_BLOCK_ID && valueArray[0] > 0) { // previously a remove
                     statistics.incrementAddedCount();
                     externalSize.incrementAndGet();
-                } else if (olValueArray[1] > 0 && valueArray[1] == INVALID_BLOCK_ID) { // removing
+                } else if (olValueArray[0] > 0 && valueArray[0] == INVALID_BLOCK_ID) { // removing
                     statistics.decrementAddedCount();
                     externalSize.decrementAndGet();
                 }
@@ -629,8 +628,8 @@ public class Chunk<K, V> {
             }
         } else {
             int[] valueArray = UnsafeUtils.longToInts(opData.newValueStats);
-            setEntryField(opData.entryIndex, OFFSET.VALUE_POSITION, valueArray[0]);
-            setEntryField(opData.entryIndex, OFFSET.VALUE_BLOCK_AND_LENGTH, valueArray[1]);
+            setEntryField(opData.entryIndex, OFFSET.VALUE_POSITION, valueArray[1]);
+            setEntryField(opData.entryIndex, OFFSET.VALUE_BLOCK_AND_LENGTH, valueArray[0]);
         }
         return false;
     }
@@ -754,7 +753,7 @@ public class Chunk<K, V> {
             // try to find a continuous interval to copy
             // we cannot enlarge interval: if key is removed (handle index is -1) or
             // if this chunk already has all entries to start with
-            if ((currSrcValueBlock > 0) && (sortedEntryIndex + entriesToCopy * FIELDS <= maxIdx)) {
+            if ((currSrcValueBlock != INVALID_BLOCK_ID) && (sortedEntryIndex + entriesToCopy * FIELDS <= maxIdx)) {
                 // we can enlarge the interval, if it is otherwise possible:
                 // if this is first entry in the interval (we need to copy one entry anyway) OR
                 // if (on the source chunk) current entry idx directly follows the previous entry idx
@@ -769,37 +768,24 @@ public class Chunk<K, V> {
                 }
             }
 
-            //TODO: What does this do?
-
             entriesToCopy = entryIndexEnd - entryIndexStart + 1;
-            if (entriesToCopy > 0) { // copy continuous interval (TODO: with arraycopy)
+            if (entriesToCopy > 0) {
                 for (int i = 0; i < entriesToCopy; ++i) {
                     int offset = i * FIELDS;
                     // next should point to the next item
                     entries[sortedEntryIndex + offset + OFFSET.NEXT.value]
                             = sortedEntryIndex + offset + FIELDS;
 
-                    // copy the values of key position, key block index + key length => 2 integers via array copy
                     System.arraycopy(srcChunk.entries,  // source array
-                            entryIndexStart + offset + OFFSET_KEY_POSITION,
+                            entryIndexStart + offset + OFFSET.KEY_POSITION.value,
                             entries,                        // destination aray
-                            sortedEntryIndex + offset + OFFSET_KEY_POSITION, (FIELDS - 2));
-
-                    // copy handle
-                    int srcChunkHandleIdx = srcChunk.entries[entryIndexStart + offset + OFFSET_HANDLE_INDEX];
-                    assert srcChunk.handles.length > srcChunkHandleIdx;
-                    assert srcChunkHandleIdx > 0;
-                    assert handles.length > currentHandleIdx;
-                    assert currentHandleIdx > 0;
-                    entries[sortedEntryIndex + offset + OFFSET_HANDLE_INDEX] = currentHandleIdx;
-                    handles[currentHandleIdx] = srcChunk.handles[srcChunkHandleIdx];
-                    currentHandleIdx++;
+                            sortedEntryIndex + offset + OFFSET.KEY_POSITION.value, (FIELDS - 1));
                 }
 
                 sortedEntryIndex += entriesToCopy * FIELDS; // update
             }
 
-            if (currSrcHandleIndex < 0) { // if now this is a removed item
+            if (currSrcValueBlock == INVALID_BLOCK_ID) { // if now this is a removed item
                 // don't copy it, continue to next item
                 srcPrevEntryIdx = srcEntryIdx;
                 srcEntryIdx = srcChunk.getEntryField(srcEntryIdx, OFFSET.NEXT);
