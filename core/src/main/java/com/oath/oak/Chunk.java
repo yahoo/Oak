@@ -980,7 +980,7 @@ public class Chunk<K, V> {
             }
             next = stack.pop();
             int valueBlock = getEntryField(next, OFFSET.VALUE_BLOCK);
-            while (next != Chunk.NONE && valueBlock != INVALID_BLOCK_ID) {
+            while (next != Chunk.NONE && valueBlock == INVALID_BLOCK_ID) {
 //            while (next != Chunk.NONE && (handle < 0 || (handle > 0 && handles[handle].isDeleted()))) {
                 if (!stack.empty()) {
                     next = stack.pop();

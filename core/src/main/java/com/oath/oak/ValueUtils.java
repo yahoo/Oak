@@ -13,7 +13,7 @@ public class ValueUtils {
 
     private static final int LOCK_MASK = 0x3;
     private static final int LOCK_FREE = 0;
-    static final int LOCK_LOCKED = 1;
+    private static final int LOCK_LOCKED = 1;
     private static final int LOCK_DELETED = 2;
     public static final int VALUE_HEADER_SIZE = 4;
 
@@ -97,11 +97,7 @@ public class ValueUtils {
         } while (!CAS(bb, oldHeader, oldHeader - 4));
     }
 
-    static boolean lockWrite(Slice s) {
-        return lockWrite(s.getByteBuffer());
-    }
-
-    static boolean lockWrite(ByteBuffer bb) {
+    private static boolean lockWrite(ByteBuffer bb) {
         assert bb.isDirect();
         int oldHeader;
         do {
@@ -111,11 +107,7 @@ public class ValueUtils {
         return true;
     }
 
-    static void unlockWrite(Slice s) {
-        unlockWrite(s.getByteBuffer());
-    }
-
-    static void unlockWrite(ByteBuffer bb) {
+    private static void unlockWrite(ByteBuffer bb) {
         bb.putInt(bb.position(), LOCK_FREE);
         // maybe a fence?
     }
