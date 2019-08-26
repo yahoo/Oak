@@ -1,5 +1,6 @@
 package com.oath.oak;
 
+import org.junit.Ignore;
 import org.junit.Test;
 
 import java.nio.ByteBuffer;
@@ -160,6 +161,7 @@ public class WorkloadMemoryTest {
         printHeapStats("End of test");
     }
 
+    @Ignore
     @Test
     public void start() {
         initStuff();
