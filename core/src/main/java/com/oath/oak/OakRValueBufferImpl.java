@@ -138,7 +138,9 @@ public class OakRValueBufferImpl implements OakRBuffer {
     }
 
     private void start() {
-        if (!ValueUtils.lockRead(bb))
+        // TODO: What to do if the value was moved?
+        ValueUtils.ValueResult res = ValueUtils.lockRead(bb);
+        if (res != ValueUtils.ValueResult.SUCCESS)
             throw new ConcurrentModificationException();
     }
 

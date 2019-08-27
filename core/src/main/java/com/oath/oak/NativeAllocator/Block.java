@@ -96,7 +96,7 @@ class Block {
         cleaner.clean();
     }
 
-    public ByteBuffer getReadOnlyBufferForThread(int position, int length) {
+    ByteBuffer getReadOnlyBufferForThread(int position, int length) {
         int idx = threadIndexCalculator.getIndex();
         if (byteBufferPerThread[idx] == null) {
             // the new buffer object is needed for thread safeness, otherwise
