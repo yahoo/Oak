@@ -360,6 +360,7 @@ class InternalOakMap<K, V> {
 
         // publish put
         if (!c.publish()) {
+            memoryManager.releaseSlice(c.buildValueSlice(newValueStats));
             rebalance(c);
             put(key, value, transformer);
             return null;
@@ -434,16 +435,19 @@ class InternalOakMap<K, V> {
 
         // publish put
         if (!c.publish()) {
+            memoryManager.releaseSlice(c.buildValueSlice(newValueStats));
             rebalance(c);
             return putIfAbsent(key, value, transformer);
         }
 
         long result = finishAfterPublishing(opData, c);
 
+        if (result != DELETED_VALUE)
+            memoryManager.releaseSlice(c.buildValueSlice(newValueStats));
         if (transformer == null) return Result.withFlag(result == DELETED_VALUE);
         // What to do? Force access for the old buffer?
         if (result == DELETED_VALUE)
-            return Result.withFlag(true);
+            return Result.withValue(null);
         AbstractMap.SimpleEntry<ValueUtils.ValueResult, V> res = ValueUtils.transform(c.buildValueSlice(result), transformer);
         // TODO: What should be done if the value was already deleted?
         if (res.getKey() != ValueUtils.ValueResult.RETRY) {
@@ -527,11 +531,17 @@ class InternalOakMap<K, V> {
 
         // publish put
         if (!c.publish()) {
+            //TODO: free value
+            memoryManager.releaseSlice(c.buildValueSlice(newValueStats));
             rebalance(c);
             return putIfAbsentComputeIfPresent(key, value, computer);
         }
 
-        return finishAfterPublishing(opData, c) == DELETED_VALUE;
+        // TODO: free value
+        long res = finishAfterPublishing(opData, c);
+        if (res != DELETED_VALUE)
+            memoryManager.releaseSlice(c.buildValueSlice(newValueStats));
+        return res == DELETED_VALUE;
     }
 
     V remove(K key, V oldValue, Function<ByteBuffer, V> transformer) {
