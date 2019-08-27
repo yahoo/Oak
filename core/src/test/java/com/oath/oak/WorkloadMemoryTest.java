@@ -160,7 +160,6 @@ public class WorkloadMemoryTest {
         printHeapStats("End of test");
     }
 
-    @Ignore
     @Test
     public void start() {
         initStuff();
