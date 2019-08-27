@@ -178,7 +178,7 @@ public class Chunk<K, V> {
                 expected, value);
     }
 
-    private boolean longCasEntriesArray(int item, OFFSET offset, long expected, long value) {
+    boolean longCasEntriesArray(int item, OFFSET offset, long expected, long value) {
         return unsafe.compareAndSwapLong(entries,
                 Unsafe.ARRAY_INT_BASE_OFFSET + (item + offset.value) * Unsafe.ARRAY_INT_INDEX_SCALE,
                 expected, value);
@@ -585,9 +585,9 @@ public class Chunk<K, V> {
             return foundValueStats; // too late
         } else if (operation == Operation.COMPUTE) {
             Slice valueSlice = buildValueSlice(foundValueStats);
-            boolean succ = ValueUtils.compute(valueSlice, opData.computer);
-            if (!succ) {
-                // we tried to perform the compute but the handle was deleted,
+            ValueUtils.ValueResult succ = ValueUtils.compute(valueSlice, opData.computer);
+            if (succ != ValueUtils.ValueResult.SUCCESS) {
+                // we tried to perform the compute but the value was deleted/moved,
                 // we can get to pointToValue with Operation.COMPUTE only from PIACIP
                 // retry to make a put and to attach the new handle
                 opData.oldValueStats = foundValueStats;
