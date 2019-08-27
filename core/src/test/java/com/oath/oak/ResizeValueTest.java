@@ -1,7 +1,13 @@
 package com.oath.oak;
 
+import junit.framework.TestCase;
 import org.junit.Before;
 import org.junit.Test;
+
+import java.util.Iterator;
+import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Semaphore;
 
 import static org.junit.Assert.assertEquals;
 
@@ -22,7 +28,7 @@ public class ResizeValueTest {
     }
 
     @Test
-    public void testMain() {
+    public void simpleSequentialResizeTest() {
         String key = "Hello";
         String value = "h";
         oak.zc().put(key, value);
@@ -37,5 +43,29 @@ public class ResizeValueTest {
         valBuffer = oak.zc().get(key);
         transformed = valBuffer.transform(b -> new StringSerializer().deserialize(b));
         assertEquals(stringBuilder.toString(), transformed);
+    }
+
+    @Test
+    public void retryIteratorTest() {
+        oak.zc().put("AAAAAAA", "h");
+        oak.zc().put("ZZZZZZZ", "h");
+
+        Semaphore semaphore1 = new Semaphore(0);
+        Semaphore semaphore2 = new Semaphore(0);
+        Thread iteratorThread = new Thread(() -> {
+            Iterator<Map.Entry<String, String>> iterator = oak.entrySet().iterator();
+
+            Map.Entry<String, String> entry = iterator.next();
+            assertEquals(entry.getKey(), "AAAAAAA");
+
+            semaphore1.release();
+            try {
+                semaphore2.acquire();
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+
+        });
+        iteratorThread.start();
     }
 }
