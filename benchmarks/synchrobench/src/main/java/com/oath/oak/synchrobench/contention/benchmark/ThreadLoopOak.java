@@ -90,7 +90,7 @@ public class ThreadLoopOak implements Runnable {
     public void run() {
 
         boolean change = Parameters.change;
-        int size = 100;
+        int size = 10000;
 
 
         MyBuffer key = new MyBuffer(Parameters.keySize);

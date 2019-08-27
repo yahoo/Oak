@@ -15,7 +15,7 @@ public class WorkloadMemoryTest {
     /*-----------------------Constants-------------------------*/
     private static final int K = 1024;
     private static final int M = K * K;
-    private static final int NUM_OF_ENTRIES = 2000000;
+    private static final int NUM_OF_ENTRIES = 200;
     private static final int DURATION = 3000;
     private static final int KEY_SIZE = 100;
     private static final int VALUE_SIZE = 1000;
@@ -161,7 +161,6 @@ public class WorkloadMemoryTest {
         printHeapStats("End of test");
     }
 
-    @Ignore
     @Test
     public void start() {
         initStuff();
