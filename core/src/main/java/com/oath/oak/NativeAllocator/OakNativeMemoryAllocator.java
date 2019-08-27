@@ -21,7 +21,6 @@ import java.util.concurrent.atomic.AtomicLong;
 
 public class OakNativeMemoryAllocator implements OakMemoryAllocator {
 
-    // TODO: Why hold slice?
     private static class FreeChuck {
         long id;
         long length;
