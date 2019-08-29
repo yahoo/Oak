@@ -2,7 +2,7 @@ import math
 import subprocess
 import sys
 
-JAR_PATH =  './oak-benchmarks-synchrobench-0.1.6-SNAPSHOT.jar'
+JAR_PATH =  './target/oak-benchmarks-synchrobench-0.1.6-SNAPSHOT.jar'
 output_dir = './output'
 
 def scan_put_run(heap, data, threads):
@@ -11,7 +11,7 @@ def scan_put_run(heap, data, threads):
     print('running scan_put test')
 
     data_range = data*2
-    maps = ['OakMap']
+    maps = ['com.oath.oak.synchrobench.maps.OakMap']
     maps_output = {}
     for ma in maps:
         throughputs = []
@@ -49,7 +49,7 @@ def scan_put_run(heap, data, threads):
 
 def ingestion_run(heap, data, offheap=''):
     if offheap == '':
-        offheap = math.ceil(((data * (1000 + 100))/1000000000)*1.1)
+        offheap = math.ceil(((data * (1000 + 100))/(1024*1024*1024))*1.1)
 
     onheap = heap - offheap
 
@@ -57,7 +57,7 @@ def ingestion_run(heap, data, offheap=''):
     print('running ingestion test')
 
     data_range = data*2
-    maps = ['OakMap']
+    maps = ['com.oath.oak.synchrobench.maps.OakMap']
     maps_output = {}
 
     for ma in maps:
