@@ -967,7 +967,7 @@ class InternalOakMap<K, V> {
          * Advances next to higher entry.
          * Return previous index
          */
-        Map.Entry<ByteBuffer, Slice> advance() {
+        Map.Entry<ByteBuffer, Slice> advance(boolean needsKey, boolean needsValue) {
 
             if (state == null) {
                 throw new NoSuchElementException();
@@ -979,8 +979,8 @@ class InternalOakMap<K, V> {
                 initAfterRebalance();
             }
 
-            ByteBuffer bb = state.getChunk().readKey(state.getIndex()).slice();
-            Slice currentValue = state.getChunk().getValueSlice(state.getIndex());
+            ByteBuffer bb = needsKey ? state.getChunk().readKey(state.getIndex()).slice() : null;
+            Slice currentValue = needsValue ? state.getChunk().getValueSlice(state.getIndex()) : null;
             advanceState();
             return new AbstractMap.SimpleImmutableEntry<>(bb, currentValue);
         }
@@ -1076,7 +1076,7 @@ class InternalOakMap<K, V> {
 
         @Override
         public OakRBuffer next() {
-            Slice valueSlice = advance().getValue();
+            Slice valueSlice = advance(false, true).getValue();
             if (valueSlice == null)
                 return null;
 
@@ -1095,7 +1095,7 @@ class InternalOakMap<K, V> {
         }
 
         public T next() {
-            Map.Entry<ByteBuffer, Slice> nextItem = advance();
+            Map.Entry<ByteBuffer, Slice> nextItem = advance(true, true);
             Slice valueSlice = nextItem.getValue();
             if (valueSlice == null)
                 return null;
@@ -1112,7 +1112,7 @@ class InternalOakMap<K, V> {
         }
 
         public Map.Entry<OakRBuffer, OakRBuffer> next() {
-            Map.Entry<ByteBuffer, Slice> pair = advance();
+            Map.Entry<ByteBuffer, Slice> pair = advance(true, true);
             if (pair.getValue() == null) {
                 return null;
             }
@@ -1135,7 +1135,7 @@ class InternalOakMap<K, V> {
 
         public T next() {
 
-            Map.Entry<ByteBuffer, Slice> pair = advance();
+            Map.Entry<ByteBuffer, Slice> pair = advance(true, true);
             ByteBuffer serializedKey = pair.getKey();
             Slice valueSlice = pair.getValue();
             if (valueSlice == null) {
@@ -1166,7 +1166,7 @@ class InternalOakMap<K, V> {
         @Override
         public OakRBuffer next() {
 
-            Map.Entry<ByteBuffer, Slice> pair = advance();
+            Map.Entry<ByteBuffer, Slice> pair = advance(true, false);
             return new OakRKeyBufferImpl(pair.getKey().asReadOnlyBuffer());
 
         }
@@ -1183,7 +1183,7 @@ class InternalOakMap<K, V> {
         }
 
         public T next() {
-            Map.Entry<ByteBuffer, Slice> pair = advance();
+            Map.Entry<ByteBuffer, Slice> pair = advance(true, false);
             ByteBuffer serializedKey = pair.getKey();
             return transformer.apply(serializedKey);
         }
