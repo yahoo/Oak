@@ -58,8 +58,7 @@ public class HeapUsageTest {
     @Test
     public void testMain() throws InterruptedException {
 
-        OakMapBuilder<Integer, Integer> builder = OakMapBuilder
-                .getDefaultBuilder()
+        OakMapBuilder builder = IntegerOakMap.getDefaultBuilder()
                 .setChunkMaxItems(2048)
                 .setKeySerializer(new FillTestKeySerializer())
                 .setValueSerializer(new FillTestValueSerializer());

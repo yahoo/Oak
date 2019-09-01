@@ -1,9 +1,5 @@
 package com.oath.oak.NativeAllocator;
 
-import com.oath.oak.OakMap;
-import com.oath.oak.OakMapBuilder;
-import com.oath.oak.OakOutOfMemoryException;
-import com.oath.oak.OakSerializer;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -13,7 +9,11 @@ import java.util.Random;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-import com.oath.oak.ThreadIndexCalculator;
+import com.oath.oak.IntegerOakMap;
+import com.oath.oak.OakMap;
+import com.oath.oak.OakMapBuilder;
+import com.oath.oak.OakOutOfMemoryException;
+import com.oath.oak.OakSerializer;
 import org.junit.Test;
 
 import static junit.framework.TestCase.assertNull;
@@ -132,7 +132,7 @@ public class OakNativeMemoryAllocatorTest {
         int keysSizeAfterSerialization;
         OakNativeMemoryAllocator ma = new OakNativeMemoryAllocator(capacity);
         int maxItemsPerChunk = 1024;
-        OakMapBuilder<Integer, Integer> builder = OakMapBuilder.getDefaultBuilder()
+        OakMapBuilder<Integer, Integer> builder = IntegerOakMap.getDefaultBuilder()
                 .setChunkMaxItems(maxItemsPerChunk)
                 .setValueSerializer(new CheckOakCapacityValueSerializer())
                 .setMemoryAllocator(ma);

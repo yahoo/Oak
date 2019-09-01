@@ -16,14 +16,16 @@ class Rebalancer<K, V> {
 
     /*-------------- Constants --------------*/
 
-    private final int rebalanceSize;
-    private final double maxAfterMergePart;
-    private final double lowThreshold;
-    private final double appendThreshold;
+    private final int rebalanceSize = 2;
+    private final double maxAfterMergePart = 0.7;
+    private final double lowThreshold = 0.5;
+    private final double appendThreshold = 0.2;
+
     private final int entriesLowThreshold;
     private final int maxRangeToAppend;
     private final int maxAfterMergeItems;
 
+    /*-------------- Members --------------*/
     private final AtomicReference<Chunk<K, V>> nextToEngage;
     private final AtomicReference<List<Chunk<K, V>>> newChunks = new AtomicReference<>(null);
     private final AtomicReference<List<Chunk<K, V>>> engagedChunks = new AtomicReference<>(null);
@@ -32,7 +34,6 @@ class Rebalancer<K, V> {
     private Chunk<K, V> last;
     private int chunksInRange;
     private int itemsInRange;
-    private final Comparator<Object> comparator;
     private final boolean offHeap;
     private final MemoryManager memoryManager;
     private final OakSerializer<K> keySerializer;
@@ -40,16 +41,11 @@ class Rebalancer<K, V> {
 
     /*-------------- Constructors --------------*/
 
-    Rebalancer(Chunk<K, V> chunk, Comparator<Object> comparator, boolean offHeap, MemoryManager memoryManager,
+    Rebalancer(Chunk<K, V> chunk, boolean offHeap, MemoryManager memoryManager,
                OakSerializer<K> keySerializer, OakSerializer<V> valueSerializer) {
-        this.rebalanceSize = 2;
-        this.maxAfterMergePart = 0.7;
-        this.lowThreshold = 0.5;
-        this.appendThreshold = 0.2;
         this.entriesLowThreshold = (int) (chunk.getMaxItems() * this.lowThreshold);
         this.maxRangeToAppend = (int) (chunk.getMaxItems() * this.appendThreshold);
         this.maxAfterMergeItems = (int) (chunk.getMaxItems() * this.maxAfterMergePart);
-        this.comparator = comparator;
         this.offHeap = offHeap;
         this.memoryManager = memoryManager;
         nextToEngage = new AtomicReference<>(chunk);
@@ -73,14 +69,7 @@ class Rebalancer<K, V> {
 
     /*-------------- Methods --------------*/
 
-    /**
-     * compares ByteBuffer by calling the provided comparator
-     */
-    private int compare(Object k1, Object k2) {
-        return comparator.compare(k1, k2);
-    }
-
-    Rebalancer<K, V> engageChunks() {
+    Rebalancer<K,V> engageChunks() {
         while (true) {
             Chunk<K, V> next = nextToEngage.get();
             if (next == null) {

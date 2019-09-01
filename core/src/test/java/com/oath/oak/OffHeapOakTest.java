@@ -16,6 +16,7 @@ import java.util.concurrent.CountDownLatch;
 
 import static junit.framework.TestCase.assertNotNull;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNull;
 
 public class OffHeapOakTest {
     private OakMap<Integer, Integer> oak;
@@ -23,14 +24,17 @@ public class OffHeapOakTest {
     private ArrayList<Thread> threads;
     private CountDownLatch latch;
     private int maxItemsPerChunk = 248;
+    private Exception threadException;
 
     @Before
     public void init() {
-        OakMapBuilder<Integer, Integer> builder = OakMapBuilder.getDefaultBuilder()
+        int maxBytesPerChunkItem = 100;
+        OakMapBuilder<Integer, Integer> builder = IntegerOakMap.getDefaultBuilder()
                 .setChunkMaxItems(maxItemsPerChunk);
         oak = builder.build();
         latch = new CountDownLatch(1);
         threads = new ArrayList<>(NUM_THREADS);
+        threadException = null;
     }
 
     @After
@@ -52,6 +56,7 @@ public class OffHeapOakTest {
         for (int i = 0; i < NUM_THREADS; i++) {
             threads.get(i).join();
         }
+        assertNull(threadException);
 
         for (Integer i = 0; i < 6 * maxItemsPerChunk; i++) {
             Integer value = oak.get(i);
@@ -72,6 +77,15 @@ public class OffHeapOakTest {
 
         @Override
         public void run() {
+            try {
+                runTest();
+            } catch (Exception e) {
+                e.printStackTrace();
+                threadException = e;
+            }
+        }
+
+        private void runTest() {
             try {
                 latch.await();
             } catch (InterruptedException e) {

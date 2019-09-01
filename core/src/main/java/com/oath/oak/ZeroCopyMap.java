@@ -44,7 +44,7 @@ public interface ZeroCopyMap<K, V> {
      * @throws NullPointerException     if the specified key is null
      * @throws IllegalArgumentException if the specified key is out of bounds
      */
-    void remove(Object key);
+    void remove(K key);
 
     /**
      * If the specified key is not already associated

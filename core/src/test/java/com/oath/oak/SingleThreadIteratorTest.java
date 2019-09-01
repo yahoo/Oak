@@ -25,7 +25,8 @@ public class SingleThreadIteratorTest {
 
     @Before
     public void init() {
-        OakMapBuilder<Integer, Integer> builder = OakMapBuilder.getDefaultBuilder()
+        int maxBytesPerChunkItem = 100;
+        OakMapBuilder<Integer, Integer> builder = IntegerOakMap.getDefaultBuilder()
                 .setChunkMaxItems(maxItemsPerChunk);
         oak = builder.build();
     }
@@ -360,7 +361,7 @@ public class SingleThreadIteratorTest {
                     ByteBuffer bb = ByteBuffer.allocate(4);
                     bb.putInt(i);
                     bb.flip();
-                    sub.zc().remove(bb);
+                    sub.zc().remove(i);
                 }
             }
 

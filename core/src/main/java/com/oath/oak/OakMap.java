@@ -41,7 +41,7 @@ public class OakMap<K, V> extends AbstractMap<K, V> implements AutoCloseable, Co
     private final Function<ByteBuffer, K> keyDeserializeTransformer;
     private final Function<ByteBuffer, V> valueDeserializeTransformer;
     private final Function<Map.Entry<ByteBuffer, ByteBuffer>, Map.Entry<K, V>> entryDeserializeTransformer;
-    private final Comparator<Object> comparator;
+    private final OakComparator<K> comparator;
 
     // SubOakMap fields
     private final K fromKey;
@@ -49,32 +49,16 @@ public class OakMap<K, V> extends AbstractMap<K, V> implements AutoCloseable, Co
     private final K toKey;
     private boolean toInclusive;
     private final boolean isDescending;
-    private final ThreadIndexCalculator threadIndexCalculator;
 
     // internal constructor, to create OakMap use OakMapBuilder
     OakMap(K minKey, OakSerializer<K> keySerializer, OakSerializer<V> valueSerializer, OakComparator<K> oakComparator,
-           int chunkMaxItems, MemoryManager mm, ThreadIndexCalculator threadIndexCalculator) {
+           int chunkMaxItems, MemoryManager mm) {
 
-        this.comparator = (o1, o2) -> {
-            if (o1 instanceof ByteBuffer) {
-                if (o2 instanceof ByteBuffer) {
-                    return oakComparator.compareSerializedKeys((ByteBuffer) o1, (ByteBuffer) o2);
-                } else {
-                    return oakComparator.compareSerializedKeyAndKey((ByteBuffer) o1, (K) o2);
-                }
-            } else {
-                if (o2 instanceof ByteBuffer) {
-                    return (-1) * oakComparator.compareSerializedKeyAndKey((ByteBuffer) o2, (K) o1);
-                } else {
-                    return oakComparator.compareKeys((K) o1, (K) o2);
-                }
-            }
-        };
-
-        this.threadIndexCalculator = threadIndexCalculator;
         this.memoryManager = mm;
-        this.internalOakMap = new InternalOakMap<>(minKey, keySerializer, valueSerializer, this.comparator,
+        this.comparator = oakComparator;
+        this.internalOakMap = new InternalOakMap<>(minKey, keySerializer, valueSerializer, oakComparator,
                 this.memoryManager, chunkMaxItems);
+
         this.fromKey = null;
         this.fromInclusive = false;
         this.toKey = null;
@@ -83,7 +67,7 @@ public class OakMap<K, V> extends AbstractMap<K, V> implements AutoCloseable, Co
         this.keyDeserializeTransformer = keySerializer::deserialize;
         this.valueDeserializeTransformer = valueSerializer::deserialize;
         this.entryDeserializeTransformer =
-                entry -> new AbstractMap.SimpleEntry<K, V>(keySerializer.deserialize(entry.getKey()),
+                entry -> new AbstractMap.SimpleEntry<>(keySerializer.deserialize(entry.getKey()),
                         valueSerializer.deserialize(entry.getValue()));
     }
 
@@ -92,16 +76,15 @@ public class OakMap<K, V> extends AbstractMap<K, V> implements AutoCloseable, Co
                    Function<ByteBuffer, K> keyDeserializeTransformer,
                    Function<ByteBuffer, V> valueDeserializeTransformer,
                    Function<Map.Entry<ByteBuffer, ByteBuffer>, Map.Entry<K, V>> entryDeserializeTransformer,
-                   Comparator<Object> comparator,
+                   OakComparator<K> oakComparator,
                    K fromKey, boolean fromInclusive, K toKey,
-                   boolean toInclusive, boolean isDescending, ThreadIndexCalculator threadIndexCalculator) {
-        this.threadIndexCalculator = threadIndexCalculator;
+                   boolean toInclusive, boolean isDescending) {
         this.internalOakMap = internalOakMap;
         this.memoryManager = memoryManager;
         this.keyDeserializeTransformer = keyDeserializeTransformer;
         this.valueDeserializeTransformer = valueDeserializeTransformer;
         this.entryDeserializeTransformer = entryDeserializeTransformer;
-        this.comparator = comparator;
+        this.comparator = oakComparator;
         this.fromKey = fromKey;
         this.fromInclusive = fromInclusive;
         this.toKey = toKey;
@@ -139,7 +122,7 @@ public class OakMap<K, V> extends AbstractMap<K, V> implements AutoCloseable, Co
      */
     @Override
     public V get(Object key) {
-        checkKey(key);
+        checkKey((K) key);
 
         return internalOakMap.getValueTransformation((K) key, valueDeserializeTransformer);
     }
@@ -177,7 +160,7 @@ public class OakMap<K, V> extends AbstractMap<K, V> implements AutoCloseable, Co
      */
     @Override
     public V remove(Object key) {
-        checkKey(key);
+        checkKey((K) key);
 
         return internalOakMap.remove((K) key, null, valueDeserializeTransformer);
     }
@@ -204,7 +187,7 @@ public class OakMap<K, V> extends AbstractMap<K, V> implements AutoCloseable, Co
             throw new UnsupportedOperationException();
         }
 
-        return (K) internalOakMap.getMinKeyTransformation(keyDeserializeTransformer);
+        return internalOakMap.getMinKeyTransformation(keyDeserializeTransformer);
     }
 
     /**
@@ -232,7 +215,7 @@ public class OakMap<K, V> extends AbstractMap<K, V> implements AutoCloseable, Co
      */
     @Override
     public boolean remove(Object key, Object value) {
-        checkKey(key);
+        checkKey((K) key);
 
         return (value != null) && (internalOakMap.remove((K) key, (V) value, valueDeserializeTransformer) != null);
     }
@@ -288,7 +271,7 @@ public class OakMap<K, V> extends AbstractMap<K, V> implements AutoCloseable, Co
             throw new NullPointerException();
         }
 
-        return (V) internalOakMap.putIfAbsent(key, value, valueDeserializeTransformer).value;
+        return internalOakMap.putIfAbsent(key, value, valueDeserializeTransformer).value;
     }
 
 
@@ -335,17 +318,17 @@ public class OakMap<K, V> extends AbstractMap<K, V> implements AutoCloseable, Co
 
     /*-------------- SubMap --------------*/
 
-    boolean inBounds(Object key) {
+    private boolean inBounds(K key) {
         int res;
         if (fromKey != null) {
-            res = comparator.compare(key, fromKey);
+            res = comparator.compareKeys(key, fromKey);
             if (res < 0 || (res == 0 && !fromInclusive)) {
                 return false;
             }
         }
 
         if (toKey != null) {
-            res = comparator.compare(key, toKey);
+            res = comparator.compareKeys(key, toKey);
             return res <= 0 && (res != 0 || toInclusive);
         }
         return true;
@@ -396,7 +379,7 @@ public class OakMap<K, V> extends AbstractMap<K, V> implements AutoCloseable, Co
         internalOakMap.open();
         return new OakMap<>(this.internalOakMap, this.memoryManager, this.keyDeserializeTransformer,
                 this.valueDeserializeTransformer, this.entryDeserializeTransformer, this.comparator, fromKey,
-                fromInclusive, toKey, toInclusive, descending, threadIndexCalculator);
+                fromInclusive, toKey, toInclusive, descending);
     }
 
     /**
@@ -426,7 +409,7 @@ public class OakMap<K, V> extends AbstractMap<K, V> implements AutoCloseable, Co
         internalOakMap.open();
         return new OakMap<>(this.internalOakMap, this.memoryManager, this.keyDeserializeTransformer,
                 this.valueDeserializeTransformer, this.entryDeserializeTransformer, this.comparator, this.fromKey,
-                this.fromInclusive, toKey, inclusive, this.isDescending, threadIndexCalculator);
+                this.fromInclusive, toKey, inclusive, this.isDescending);
     }
 
 
@@ -462,7 +445,7 @@ public class OakMap<K, V> extends AbstractMap<K, V> implements AutoCloseable, Co
         internalOakMap.open();
         return new OakMap<>(this.internalOakMap, this.memoryManager, this.keyDeserializeTransformer,
                 this.valueDeserializeTransformer, this.entryDeserializeTransformer, this.comparator, fromKey,
-                inclusive, this.toKey, this.toInclusive, this.isDescending, threadIndexCalculator);
+                inclusive, this.toKey, this.toInclusive, this.isDescending);
     }
 
     @Override
@@ -483,7 +466,7 @@ public class OakMap<K, V> extends AbstractMap<K, V> implements AutoCloseable, Co
         internalOakMap.open();
         return new OakMap<>(this.internalOakMap, this.memoryManager, this.keyDeserializeTransformer,
                 this.valueDeserializeTransformer, this.entryDeserializeTransformer, this.comparator,
-                this.fromKey, this.fromInclusive, this.toKey, this.toInclusive, true, threadIndexCalculator);
+                this.fromKey, this.fromInclusive, this.toKey, this.toInclusive, true);
     }
 
     @Override
@@ -539,10 +522,10 @@ public class OakMap<K, V> extends AbstractMap<K, V> implements AutoCloseable, Co
             return m.internalOakMap.get(key);
         }
 
-        public void remove(Object key) {
+        public void remove(K key) {
             m.checkKey(key);
 
-            m.internalOakMap.remove((K) key, null, null);
+            m.internalOakMap.remove(key, null, null);
         }
 
         public boolean putIfAbsent(K key, V value) {
@@ -609,24 +592,6 @@ public class OakMap<K, V> extends AbstractMap<K, V> implements AutoCloseable, Co
         return internalOakMap.memorySize();
     }
 
-
-    /* ---------------- Package visibility getters for the views methods -------------- */
-    MemoryManager getMemoryManager() {
-        return memoryManager;
-    }
-
-    boolean getIsDescending() {
-        return isDescending;
-    }
-
-    boolean getFromInclusive() {
-        return fromInclusive;
-    }
-
-    boolean getToInclusive() {
-        return toInclusive;
-    }
-
     @Override
     public void close() {
         internalOakMap.close();
@@ -635,14 +600,13 @@ public class OakMap<K, V> extends AbstractMap<K, V> implements AutoCloseable, Co
 
     /* ---------------- Private utility methods -------------- */
 
-    void checkKey(Object key) {
+    private void checkKey(K key) {
         if (key == null) {
             throw new NullPointerException();
         }
         if (!inBounds(key)) {
             throw new IllegalArgumentException("The key is out of map bounds");
         }
-
     }
 
     private boolean isSubmap() {
@@ -699,6 +663,7 @@ public class OakMap<K, V> extends AbstractMap<K, V> implements AutoCloseable, Co
     private Iterator<Map.Entry<OakRBuffer, OakRBuffer>> entriesStreamIterator() {
         return internalOakMap.entriesStreamIterator(fromKey, fromInclusive, toKey, toInclusive, isDescending);
     }
+
     /* ---------------- TODO: Move methods below to their proper place as they are implemented -------------- */
 
 
@@ -902,7 +867,7 @@ public class OakMap<K, V> extends AbstractMap<K, V> implements AutoCloseable, Co
 
         private final OakMap<?, V> m;
 
-        public Values(OakMap<?, V> oakMap) {
+        Values(OakMap<?, V> oakMap) {
             this.m = oakMap;
         }
 
@@ -921,7 +886,7 @@ public class OakMap<K, V> extends AbstractMap<K, V> implements AutoCloseable, Co
 
         private final OakMap<K, V> m;
 
-        public KeyBufferSet(OakMap<K, V> oakMap) {
+        KeyBufferSet(OakMap<K, V> oakMap) {
             this.m = oakMap;
         }
 
@@ -958,7 +923,7 @@ public class OakMap<K, V> extends AbstractMap<K, V> implements AutoCloseable, Co
 
         private final OakMap<K, V> m;
 
-        public ValueBuffers(OakMap<K, V> oakMap) {
+        ValueBuffers(OakMap<K, V> oakMap) {
             this.m = oakMap;
         }
 

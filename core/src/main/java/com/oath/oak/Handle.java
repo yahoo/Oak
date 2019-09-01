@@ -39,16 +39,18 @@ class Handle implements OakWBuffer {
         return deleted.get();
     }
 
-    boolean remove(MemoryManager memoryManager) {
+    <V> Result<V> remove(MemoryManager memoryManager, V oldValue, Function<ByteBuffer, V> transformer) {
         writeLock.lock();
-        if (isDeleted()) {
+        V vv = (transformer != null) ? transformer.apply(value) : null;
+        if (isDeleted() || (oldValue != null) && (!oldValue.equals(vv))) {
             writeLock.unlock();
-            return false;
+            return Result.withFlag(false);
         }
         deleted.set(true);
+        Result res = (transformer != null) ? Result.withValue(vv) : Result.withFlag(true);
         writeLock.unlock();
         memoryManager.release(value);
-        return true;
+        return res;
     }
 
     <V> boolean put(V newVal, OakSerializer<V> serializer, MemoryManager memoryManager) {
@@ -207,7 +209,7 @@ class Handle implements OakWBuffer {
             if (isDeleted()) {
                 return null;
             }
-            V v = valueDeserializeTransformer.apply(this.value);
+            V v = valueDeserializeTransformer != null ? valueDeserializeTransformer.apply(this.value) : null;
             innerPut(newValue, serializer, memoryManager);
             return v;
         } finally {
