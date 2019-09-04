@@ -48,7 +48,7 @@ class InternalOakMap<K, V> {
             K minKey,
             OakSerializer<K> keySerializer,
             OakSerializer<V> valueSerializer,
-            Comparator comparator,
+            Comparator<Object> comparator,
             MemoryManager memoryManager,
             int chunkMaxItems,
             int chunkBytesPerItem,
@@ -68,7 +68,7 @@ class InternalOakMap<K, V> {
 
         this.skiplist = new ConcurrentSkipListMap<>(this.comparator);
 
-        Chunk<K, V> head = new Chunk<K, V>(this.minKey, null, this.comparator, memoryManager, chunkMaxItems,
+        Chunk<K, V> head = new Chunk<>(this.minKey, null, this.comparator, memoryManager, chunkMaxItems,
                 this.size, keySerializer, valueSerializer, threadIndexCalculator);
         this.skiplist.put(head.minKey, head);    // add first chunk (head) into skiplist
         this.head = new AtomicReference<>(head);
@@ -171,7 +171,7 @@ class InternalOakMap<K, V> {
         return result;
     }
 
-    private void checkRebalance(Chunk c) {
+    private void checkRebalance(Chunk<K, V> c) {
         if (c.shouldRebalance()) {
             rebalance(c);
         }
@@ -249,8 +249,8 @@ class InternalOakMap<K, V> {
         Iterator<Chunk<K, V>> iterEngaged = engagedChunks.iterator();
         Iterator<Chunk<K, V>> iterChildren = children.iterator();
 
-        Chunk firstEngaged = iterEngaged.next();
-        Chunk firstChild = iterChildren.next();
+        Chunk<K, V> firstEngaged = iterEngaged.next();
+        Chunk<K, V> firstChild = iterChildren.next();
 
         // need to make the new chunks available, before removing old chunks
         skiplist.replace(firstEngaged.minKey, firstEngaged, firstChild);
@@ -267,7 +267,7 @@ class InternalOakMap<K, V> {
         // for simplicity -  naive lock implementation
         // can be implemented without locks using versions on next pointer in skiplist
         while (iterChildren.hasNext()) {
-            Chunk childToAdd;
+            Chunk<K, V> childToAdd;
             synchronized (childToAdd = iterChildren.next()) {
                 if (childToAdd.state() == Chunk.State.INFANT) { // make sure it wasn't add before
                     skiplist.putIfAbsent(childToAdd.minKey, childToAdd);
@@ -278,7 +278,7 @@ class InternalOakMap<K, V> {
         }
     }
 
-    private boolean rebalanceRemove(Chunk<K, V> c, K key) {
+    private boolean rebalanceRemove(Chunk<K, V> c) {
         Rebalancer.RebalanceResult result = rebalance(c);
         //TODO YONIGO - is it ok?
         return result.success;
@@ -303,7 +303,7 @@ class InternalOakMap<K, V> {
         Chunk<K, V> c = findChunk(key); // find chunk matching key
         Chunk.LookUp lookUp = c.lookUp(key);
         if (lookUp != null && lookUp.handle != null) {
-            V v = (transformer != null) ? (V) lookUp.handle.transform(transformer) : null;
+            V v = (transformer != null) ? lookUp.handle.transform(transformer) : null;
             lookUp.handle.put(value, valueSerializer, memoryManager);
             return v;
         }
@@ -374,7 +374,7 @@ class InternalOakMap<K, V> {
             throw new NullPointerException();
         }
 
-        Chunk c = findChunk(key); // find chunk matching key
+        Chunk<K, V> c = findChunk(key); // find chunk matching key
         Chunk.LookUp lookUp = c.lookUp(key);
         if (lookUp != null && lookUp.handle != null) {
             if (transformer == null) return Result.withFlag(false);
@@ -456,7 +456,7 @@ class InternalOakMap<K, V> {
             throw new NullPointerException();
         }
 
-        Chunk c = findChunk(key); // find chunk matching key
+        Chunk<K, V> c = findChunk(key); // find chunk matching key
         Chunk.LookUp lookUp = c.lookUp(key);
         if (lookUp != null && lookUp.handle != null) {
             if (lookUp.handle.compute(computer)) {
@@ -550,7 +550,7 @@ class InternalOakMap<K, V> {
 
         while (true) {
 
-            Chunk c = findChunk(key); // find chunk matching key
+            Chunk<K, V> c = findChunk(key); // find chunk matching key
             Chunk.LookUp lookUp = c.lookUp(key);
             if (lookUp != null && logical) {
                 prev = lookUp.handle; // remember previous handle
@@ -565,7 +565,7 @@ class InternalOakMap<K, V> {
 
             if (logical) {
                 // we have marked this handle as deleted (successful remove)
-                V vv = (transformer != null) ? (V) lookUp.handle.transform(transformer) : null;
+                V vv = (transformer != null) ? lookUp.handle.transform(transformer) : null;
 
                 if (oldValue != null && !oldValue.equals(vv))
                     return null;
@@ -587,7 +587,7 @@ class InternalOakMap<K, V> {
                 continue;
             }
             if (state == Chunk.State.FROZEN || state == Chunk.State.RELEASED) {
-                if (!rebalanceRemove(c, key)) {
+                if (!rebalanceRemove(c)) {
                     logical = false;
                     continue;
                 }
@@ -601,7 +601,7 @@ class InternalOakMap<K, V> {
 
             // publish
             if (!c.publish()) {
-                if (!rebalanceRemove(c, key)) {
+                if (!rebalanceRemove(c)) {
                     logical = false;
                     continue;
                 }
@@ -636,8 +636,7 @@ class InternalOakMap<K, V> {
             return null;
         }
 
-        T transformation = (T) lookUp.handle.transform(transformer);
-        return transformation;
+        return lookUp.handle.transform(transformer);
 
     }
 
@@ -720,7 +719,7 @@ class InternalOakMap<K, V> {
             throw new NullPointerException();
         }
 
-        Chunk c = findChunk(key); // find chunk matching key
+        Chunk<K, V> c = findChunk(key); // find chunk matching key
         Chunk.LookUp lookUp = c.lookUp(key);
         if (lookUp == null || lookUp.handle == null) return false;
 
@@ -728,8 +727,8 @@ class InternalOakMap<K, V> {
     }
 
     // encapsulates finding of the chunk in the skip list and later chunk list traversal
-    private Chunk findChunk(Object key) {
-        Chunk c = skiplist.floorEntry(key).getValue();
+    private Chunk<K, V> findChunk(Object key) {
+        Chunk<K, V> c = skiplist.floorEntry(key).getValue();
         c = iterateChunks(c, key);
         return c;
     }
@@ -741,7 +740,7 @@ class InternalOakMap<K, V> {
             return null;
 
         // will return null if handle was deleted between prior lookup and the next call
-        return (V) lookUp.handle.exchange(value, valueDeserializeTransformer, valueSerializer, memoryManager);
+        return lookUp.handle.exchange(value, valueDeserializeTransformer, valueSerializer, memoryManager);
     }
 
     boolean replace(K key, V oldValue, V newValue, Function<ByteBuffer, V> valueDeserializeTransformer) {
@@ -949,7 +948,7 @@ class InternalOakMap<K, V> {
         private void initState(boolean isDescending, K lowerBound, boolean lowerInclusive,
                                K upperBound, boolean upperInclusive) {
 
-            Chunk.ChunkIter nextChunkIter = null;
+            Chunk.ChunkIter nextChunkIter;
             Chunk<K, V> nextChunk;
 
             if (!isDescending) {
@@ -1106,7 +1105,7 @@ class InternalOakMap<K, V> {
                 return null;
             }
             ByteBuffer serializedValue = handle.getSlicedReadOnlyByteBuffer();
-            Map.Entry<ByteBuffer, ByteBuffer> entry = new AbstractMap.SimpleEntry<ByteBuffer, ByteBuffer>(serializedKey, serializedValue);
+            Map.Entry<ByteBuffer, ByteBuffer> entry = new AbstractMap.SimpleEntry<>(serializedKey, serializedValue);
 
             T transformation = transformer.apply(entry);
             handle.readUnLock();
@@ -1184,12 +1183,12 @@ class InternalOakMap<K, V> {
 
         }
 
-        static Result withValue(Object value) {
-            return new Result(value, false, true);
+        static <V> Result<V> withValue(V value) {
+            return new Result<>(value, false, true);
         }
 
-        static Result withFlag(boolean flag) {
-            return new Result(null, flag, false);
+        static <V> Result<V> withFlag(boolean flag) {
+            return new Result<>(null, flag, false);
         }
 
     }
