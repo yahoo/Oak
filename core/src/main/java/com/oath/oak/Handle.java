@@ -200,27 +200,6 @@ class Handle implements OakWBuffer {
         return transformation;
     }
 
-    /**
-     * Applies a transformation under writers locking
-     *
-     * @param transformer transformation to apply
-     * @return Transformation result or null if value is deleted
-     */
-    <T> T mutatingTransform(Function<ByteBuffer, T> transformer) {
-        T result;
-        try {
-            writeLock.lock();
-            if (isDeleted()) {
-                // finally clause will handle unlock
-                return null;
-            }
-            result = transformer.apply(getSlicedByteBuffer());
-        } finally {
-            writeLock.unlock();
-        }
-        return result;
-    }
-
     <V> V exchange(V newValue, Function<ByteBuffer, V> valueDeserializeTransformer, OakSerializer<V> serializer, MemoryManager memoryManager) {
         try {
             writeLock.lock();
