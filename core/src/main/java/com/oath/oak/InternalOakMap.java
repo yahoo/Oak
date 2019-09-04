@@ -69,7 +69,7 @@ class InternalOakMap<K, V> {
         this.skiplist = new ConcurrentSkipListMap<>(this.comparator);
 
         Chunk<K, V> head = new Chunk<K, V>(this.minKey, null, this.comparator, memoryManager, chunkMaxItems,
-            this.size, keySerializer, valueSerializer, threadIndexCalculator);
+                this.size, keySerializer, valueSerializer, threadIndexCalculator);
         this.skiplist.put(head.minKey, head);    // add first chunk (head) into skiplist
         this.head = new AtomicReference<>(head);
         this.threadIndexCalculator = threadIndexCalculator;
@@ -139,14 +139,12 @@ class InternalOakMap<K, V> {
     }
 
 
-
-
     private Rebalancer.RebalanceResult rebalance(Chunk<K, V> c) {
 
         if (c == null) {
             return null;
         }
-        Rebalancer<K,V> rebalancer = new Rebalancer<>(c, comparator, true, memoryManager, keySerializer,
+        Rebalancer<K, V> rebalancer = new Rebalancer<>(c, comparator, true, memoryManager, keySerializer,
                 valueSerializer, threadIndexCalculator);
 
         rebalancer = rebalancer.engageChunks(); // maybe we encountered a different rebalancer
@@ -416,7 +414,7 @@ class InternalOakMap<K, V> {
             if (prevEi != ei) {
 
                 prevHi = c.getHandleIndex(prevEi);
-                if (prevHi != -1 ) {
+                if (prevHi != -1) {
                     if (transformer == null) return Result.withFlag(false);
                     return Result.withValue(c.getHandle(prevEi).transform(transformer));
                 } else {
@@ -742,17 +740,8 @@ class InternalOakMap<K, V> {
         if (lookUp == null || lookUp.handle == null)
             return null;
 
-        Function<ByteBuffer, V> replaceTransform = bb -> {
-            // mutatingTransform guarantees that this is write-synchronous handle is not deleted
-            V v = valueDeserializeTransformer.apply(bb);
-
-            lookUp.handle.put(value, valueSerializer, memoryManager);
-
-            return v;
-        };
-
         // will return null if handle was deleted between prior lookup and the next call
-        return (V) lookUp.handle.mutatingTransform(replaceTransform);
+        return (V) lookUp.handle.exchange(value, valueDeserializeTransformer, valueSerializer, memoryManager);
     }
 
     boolean replace(K key, V oldValue, V newValue, Function<ByteBuffer, V> valueDeserializeTransformer) {
@@ -761,20 +750,7 @@ class InternalOakMap<K, V> {
         if (lookUp == null || lookUp.handle == null)
             return false;
 
-        Function<ByteBuffer, Boolean> replaceTransform = bb -> {
-            // mutatingTransform guarantees that this is write-synchronous handle is not deleted
-            V v = valueDeserializeTransformer.apply(bb);
-            if (!v.equals(oldValue))
-                return false;
-
-            lookUp.handle.put(newValue, valueSerializer, memoryManager);
-
-            return true;
-        };
-
-        // res can be null if handle was deleted between lookup and the next call
-        Boolean res = (Boolean) lookUp.handle.mutatingTransform(replaceTransform);
-        return (res != null) ? res : false;
+        return lookUp.handle.compareExchange(oldValue, newValue, valueDeserializeTransformer, valueSerializer, memoryManager);
     }
 
     public Map.Entry<K, V> lowerEntry(K key) {
