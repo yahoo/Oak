@@ -14,7 +14,7 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
-class Handle<V> implements OakWBuffer {
+class Handle implements OakWBuffer {
 
     private final ReentrantReadWriteLock.ReadLock readLock;
     private final ReentrantReadWriteLock.WriteLock writeLock;
@@ -51,7 +51,7 @@ class Handle<V> implements OakWBuffer {
         return true;
     }
 
-    boolean put(V newVal, OakSerializer<V> serializer, MemoryManager memoryManager) {
+    <V> boolean put(V newVal, OakSerializer<V> serializer, MemoryManager memoryManager) {
         writeLock.lock();
         if (isDeleted()) {
             writeLock.unlock();
@@ -63,7 +63,7 @@ class Handle<V> implements OakWBuffer {
         return true;
     }
 
-    private void innerPut(V newVal, OakSerializer<V> serializer, MemoryManager memoryManager) {
+    private <V> void innerPut(V newVal, OakSerializer<V> serializer, MemoryManager memoryManager) {
         int capacity = serializer.calculateSize(newVal);
         if (this.value.remaining() < capacity) { // can not reuse the existing space
             memoryManager.release(this.value);
@@ -221,7 +221,7 @@ class Handle<V> implements OakWBuffer {
         return result;
     }
 
-    V exchange(V newValue, Function<ByteBuffer, V> valueDeserializeTransformer, OakSerializer<V> serializer, MemoryManager memoryManager) {
+    <V> V exchange(V newValue, Function<ByteBuffer, V> valueDeserializeTransformer, OakSerializer<V> serializer, MemoryManager memoryManager) {
         try {
             writeLock.lock();
             if (isDeleted())
@@ -234,7 +234,7 @@ class Handle<V> implements OakWBuffer {
         }
     }
 
-    boolean compareExchange(V oldValue, V newValue, Function<ByteBuffer, V> valueDeserializeTransformer, OakSerializer<V> serializer, MemoryManager memoryManager) {
+    <V> boolean compareExchange(V oldValue, V newValue, Function<ByteBuffer, V> valueDeserializeTransformer, OakSerializer<V> serializer, MemoryManager memoryManager) {
         try {
             writeLock.lock();
             if (isDeleted())
