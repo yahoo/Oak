@@ -94,12 +94,13 @@ public class Chunk<K, V> {
 
     /**
      * Create a new chunk
+     *
      * @param minKey  minimal key to be placed in chunk
      * @param creator the chunk that is responsible for this chunk creation
      */
     Chunk(ByteBuffer minKey, Chunk creator, Comparator<Object> comparator, MemoryManager memoryManager,
-        int maxItems, AtomicInteger externalSize,
-        OakSerializer<K> keySerializer, OakSerializer<V> valueSerializer) {
+          int maxItems, AtomicInteger externalSize,
+          OakSerializer<K> keySerializer, OakSerializer<V> valueSerializer) {
         this.memoryManager = memoryManager;
         this.maxItems = maxItems;
         this.entries = new int[maxItems * FIELDS + FIRST_ITEM];
@@ -110,10 +111,11 @@ public class Chunk<K, V> {
         this.sortedCount = new AtomicInteger(0);
         this.minKey = minKey;
         this.creator = new AtomicReference<>(creator);
-        if (creator == null)
+        if (creator == null) {
             this.state = new AtomicReference<>(State.NORMAL);
-        else
+        } else {
             this.state = new AtomicReference<>(State.INFANT);
+        }
         this.next = new AtomicMarkableReference<>(null, false);
         this.pendingOps = new AtomicInteger();
         this.rebalancer = new AtomicReference<>(null); // to be updated on rebalance
@@ -324,19 +326,25 @@ public class Chunk<K, V> {
             cmp = compare(readKey(curr), key);
             // if item's key is larger - we've exceeded our key
             // it's not in chunk - no need to search further
-            if (cmp > 0)
+            if (cmp > 0) {
                 return null;
-                // if keys are equal - we've found the item
+            }
+            // if keys are equal - we've found the item
             else if (cmp == 0) {
                 int hi = getEntryField(curr, OFFSET_HANDLE_INDEX);
-                if (hi < 0) return new LookUp(null, curr, -1);
+                if (hi < 0) {
+                    return new LookUp(null, curr, -1);
+                }
                 Handle h = handles[hi];
-                if (h.isDeleted()) return new LookUp(null, curr, hi);
+                if (h.isDeleted()) {
+                    return new LookUp(null, curr, hi);
+                }
                 return new LookUp(h, curr, hi);
             }
             // otherwise- proceed to next item
-            else
+            else {
                 curr = getEntryField(curr, OFFSET_NEXT);
+            }
         }
         return null;
     }
@@ -365,12 +373,14 @@ public class Chunk<K, V> {
         int sortedCount = this.sortedCount.get();
         // if there are no sorted keys, or the first item is already larger than key -
         // return the head node for a regular linear search
-        if ((sortedCount == 0) || compare(readKey(FIRST_ITEM), key) >= 0)
+        if ((sortedCount == 0) || compare(readKey(FIRST_ITEM), key) >= 0) {
             return HEAD_NODE;
+        }
 
         // optimization: compare with last key to avoid binary search
-        if (compare(readKey((sortedCount - 1) * FIELDS + FIRST_ITEM), key) < 0)
+        if (compare(readKey((sortedCount - 1) * FIELDS + FIRST_ITEM), key) < 0) {
             return (sortedCount - 1) * FIELDS + FIRST_ITEM;
+        }
 
         int start = 0;
         int end = sortedCount;
@@ -378,10 +388,11 @@ public class Chunk<K, V> {
         while (end - start > 1) {
             int curr = start + (end - start) / 2;
 
-            if (compare(readKey(curr * FIELDS + FIRST_ITEM), key) >= 0)
+            if (compare(readKey(curr * FIELDS + FIRST_ITEM), key) >= 0) {
                 end = curr;
-            else
+            } else {
                 start = curr;
+            }
         }
 
         return start * FIELDS + FIRST_ITEM;
@@ -443,7 +454,9 @@ public class Chunk<K, V> {
 
         while (true) {
             // start iterating from quickly-found node (by binary search) in sorted part of order-array
-            if (anchor == -1) anchor = binaryFind(key);
+            if (anchor == -1) {
+                anchor = binaryFind(key);
+            }
             curr = anchor;
 
             // iterate items until key's position is found
@@ -680,8 +693,9 @@ public class Chunk<K, V> {
      */
     final int copyPartNoKeys(Chunk srcChunk, int srcEntryIdx, int maxCapacity) {
 
-        if (srcEntryIdx == HEAD_NODE)
+        if (srcEntryIdx == HEAD_NODE) {
             return NONE;
+        }
 
         // use local variables and just set the atomic variables once at the end
         int sortedEntryIndex = entryIndex.get();
@@ -689,7 +703,9 @@ public class Chunk<K, V> {
 
         // check that we are not beyond allowed number of entries to copy from source chunk
         int maxIdx = maxCapacity * FIELDS + 1;
-        if (sortedEntryIndex >= maxIdx) return srcEntryIdx;
+        if (sortedEntryIndex >= maxIdx) {
+            return srcEntryIdx;
+        }
         assert srcEntryIdx <= entries.length - FIELDS;
 
         // set the next entry index from where we start to copy
@@ -722,7 +738,9 @@ public class Chunk<K, V> {
                     isFirstInInterval = false;
                     srcPrevEntryIdx = srcEntryIdx;
                     srcEntryIdx = srcChunk.getEntryField(srcEntryIdx, OFFSET_NEXT);
-                    if (srcEntryIdx != NONE) continue;
+                    if (srcEntryIdx != NONE) {
+                        continue;
+                    }
 
                 }
             }
@@ -761,8 +779,9 @@ public class Chunk<K, V> {
                 srcEntryIdx = srcChunk.getEntryField(srcEntryIdx, OFFSET_NEXT);
             }
 
-            if (srcEntryIdx == NONE || sortedEntryIndex > maxIdx)
+            if (srcEntryIdx == NONE || sortedEntryIndex > maxIdx) {
                 break; // if we are done
+            }
 
             // reset and continue
             entryIndexStart = srcEntryIdx;
@@ -803,8 +822,9 @@ public class Chunk<K, V> {
 
                 // try to mark next while keeping the same next chunk - using CAS
                 // if we succeeded then the next pointer we remembered is set and will not change - return it
-                if (next.compareAndSet(savedNext, savedNext, false, true))
+                if (next.compareAndSet(savedNext, savedNext, false, true)) {
                     return savedNext;
+                }
             }
         }
     }
@@ -812,10 +832,14 @@ public class Chunk<K, V> {
 
     boolean shouldRebalance() {
         // perform actual check only in pre defined percentage of puts
-        if (ThreadLocalRandom.current().nextInt(100) > REBALANCE_PROB_PERC) return false;
+        if (ThreadLocalRandom.current().nextInt(100) > REBALANCE_PROB_PERC) {
+            return false;
+        }
 
         // if another thread already runs rebalance -- skip it
-        if (!isEngaged(null)) return false;
+        if (!isEngaged(null)) {
+            return false;
+        }
         int numOfEntries = entryIndex.get() / FIELDS;
         int numOfItems = statistics.getCompactedCount();
         int sortedCount = this.sortedCount.get();
@@ -879,8 +903,9 @@ public class Chunk<K, V> {
             int handle = getEntryField(next, OFFSET_HANDLE_INDEX);
 
             int compare = -1;
-            if (next != Chunk.NONE)
+            if (next != Chunk.NONE) {
                 compare = compare(from, readKey(next));
+            }
 
             while (next != Chunk.NONE &&
                     (compare > 0 ||
@@ -888,8 +913,9 @@ public class Chunk<K, V> {
                             handle < 0)) {
                 next = getEntryField(next, OFFSET_NEXT);
                 handle = getEntryField(next, OFFSET_HANDLE_INDEX);
-                if (next != Chunk.NONE)
+                if (next != Chunk.NONE) {
                     compare = compare(from, readKey(next));
+                }
             }
         }
 
