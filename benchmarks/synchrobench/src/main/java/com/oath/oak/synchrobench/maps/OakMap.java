@@ -13,10 +13,10 @@ public class OakMap<K extends MyBuffer, V extends MyBuffer> implements Compositi
     private com.oath.oak.OakMap<MyBuffer, MyBuffer> oak;
     private OakMapBuilder<MyBuffer, MyBuffer> builder;
     private MyBuffer minKey;
-    private OakNativeMemoryAllocator ma;
+    public OakNativeMemoryAllocator ma;
 
     public OakMap() {
-        ma = new OakNativeMemoryAllocator((long) Integer.MAX_VALUE * 32);
+        ma = new OakNativeMemoryAllocator((long) Integer.MAX_VALUE * 128);
         if (Parameters.detailedStats) {
             ma.collectStats();
         }
