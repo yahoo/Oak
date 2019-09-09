@@ -608,6 +608,7 @@ public class Chunk<K, V> {
         if (pointToValueCAS(opData, true)) {
             return DELETED_VALUE;
         }
+        assert false;
 
         // the straight forward helping didn't work, check why
         Operation operation = opData.op;
@@ -653,8 +654,18 @@ public class Chunk<K, V> {
      */
     private boolean pointToValueCAS(OpData opData, boolean cas) {
         if (cas) {
+            System.out.println("------DEBUG BEFORE CAS------");
+            System.out.println("For key: " + keySerializer.deserialize(readKey(opData.entryIndex)));
+            System.out.println("Value Position: " + getEntryField(opData.entryIndex, OFFSET.VALUE_POSITION));
+            System.out.println("Value Block: " + getEntryField(opData.entryIndex, OFFSET.VALUE_BLOCK));
+            System.out.println("Value Length: " + getEntryField(opData.entryIndex, OFFSET.VALUE_LENGTH));
             if (longCasEntriesArray(opData.entryIndex, OFFSET.VALUE_STATS, opData.oldValueStats, opData.newValueStats)) {
                 // update statistics only by thread that CASed
+                System.out.println("------DEBUG AFTER CAS------");
+                System.out.println("For key: " + keySerializer.deserialize(readKey(opData.entryIndex)));
+                System.out.println("Value Position: " + getEntryField(opData.entryIndex, OFFSET.VALUE_POSITION));
+                System.out.println("Value Block: " + getEntryField(opData.entryIndex, OFFSET.VALUE_BLOCK));
+                System.out.println("Value Length: " + getEntryField(opData.entryIndex, OFFSET.VALUE_LENGTH));
                 int[] olValueArray = UnsafeUtils.longToInts(opData.oldValueStats);
                 int[] valueArray = UnsafeUtils.longToInts(opData.newValueStats);
                 if (olValueArray[0] == INVALID_BLOCK_ID && valueArray[0] > 0) { // previously a remove
