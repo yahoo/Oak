@@ -20,6 +20,7 @@ import java.util.function.Consumer;
 
 import static com.oath.oak.NativeAllocator.OakNativeMemoryAllocator.INVALID_BLOCK_ID;
 import static com.oath.oak.Operation.PUT;
+import static com.oath.oak.UnsafeUtils.intsToLong;
 
 public class Chunk<K, V> {
 
@@ -357,7 +358,7 @@ public class Chunk<K, V> {
             valuePosition = getEntryField(entryIndex, OFFSET.VALUE_POSITION);
             valueBlockAndLength = getEntryField(entryIndex, OFFSET.VALUE_BLOCK_AND_LENGTH);
         } while (valuePosition != getEntryField(entryIndex, OFFSET.VALUE_POSITION));
-        return UnsafeUtils.intsToLong(valueBlockAndLength, valuePosition);
+        return intsToLong(valueBlockAndLength, valuePosition);
     }
 
     /**
@@ -581,7 +582,7 @@ public class Chunk<K, V> {
         // One duplication
         valueSerializer.serialize(value, ValueUtils.getActualValueBufferLessDuplications(slice.getByteBuffer()));
         int valueBlockAndLength = (slice.getBlockID() << VALUE_BLOCK_SHIFT) | (valueLength & VALUE_LENGTH_MASK);
-        return UnsafeUtils.intsToLong(valueBlockAndLength, slice.getByteBuffer().position());
+        return intsToLong(valueBlockAndLength, slice.getByteBuffer().position());
     }
 
     public int getMaxItems() {
@@ -596,15 +597,17 @@ public class Chunk<K, V> {
             System.out.println("Value Block: " + getEntryField(opData.entryIndex, OFFSET.VALUE_BLOCK));
             System.out.println("Value Length: " + getEntryField(opData.entryIndex, OFFSET.VALUE_LENGTH));
             Slice s = getValueSlice(opData.entryIndex);
-            if (shouldBeNull)
+            if (shouldBeNull) {
                 assert s == null;
-            else
+            } else {
                 assert s != null;
+            }
             if (s != null) {
                 System.out.println("Lock :" + s.getByteBuffer().getInt(s.getByteBuffer().position()));
                 System.out.println("Value: " + s.getByteBuffer().getInt(s.getByteBuffer().position() + ValueUtils.VALUE_HEADER_SIZE));
-            } else
+            } else {
                 System.out.println("Null Slice");
+            }
         }
     }
 
@@ -675,6 +678,8 @@ public class Chunk<K, V> {
                 System.out.println("Value Position: " + getEntryField(opData.entryIndex, OFFSET.VALUE_POSITION));
                 System.out.println("Value Block: " + getEntryField(opData.entryIndex, OFFSET.VALUE_BLOCK));
                 System.out.println("Value Length: " + getEntryField(opData.entryIndex, OFFSET.VALUE_LENGTH));
+                System.out.println("After: " + intsToLong(entries[opData.entryIndex + OFFSET.VALUE_BLOCK_AND_LENGTH.value],
+                        entries[opData.entryIndex + OFFSET.VALUE_POSITION.value]));
                 int[] olValueArray = UnsafeUtils.longToInts(opData.oldValueStats);
                 int[] valueArray = UnsafeUtils.longToInts(opData.newValueStats);
                 if (olValueArray[0] == INVALID_BLOCK_ID && valueArray[0] > 0) { // previously a remove
