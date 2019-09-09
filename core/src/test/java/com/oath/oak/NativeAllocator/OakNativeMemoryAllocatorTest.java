@@ -80,7 +80,6 @@ public class OakNativeMemoryAllocatorTest {
     }
 
 
-    @Ignore
     @Test
     public void checkCapacity() {
 
@@ -129,7 +128,6 @@ public class OakNativeMemoryAllocatorTest {
         BlocksPool.setBlockSize(8 * 1024 * 1024);
     }
 
-    @Ignore
     @Test
     public void checkOakCapacity() {
         int initialRemainingBlocks = BlocksPool.getInstance().numOfRemainingBlocks();
