@@ -566,6 +566,7 @@ public class Chunk<K, V> {
 
     void printStuff(OpData opData) {
         if (opData.op == PUT) {
+            System.out.println("------DEBUG PUT------");
             System.out.println("For key: " + keySerializer.deserialize(readKey(opData.entryIndex)));
             System.out.println("Value Position: " + getEntryField(opData.entryIndex, OFFSET.VALUE_POSITION));
             System.out.println("Value Block: " + getEntryField(opData.entryIndex, OFFSET.VALUE_BLOCK));
@@ -574,6 +575,7 @@ public class Chunk<K, V> {
             assert s != null;
             System.out.println("Lock :" + s.getByteBuffer().getInt(s.getByteBuffer().position()));
             System.out.println("Value: " + s.getByteBuffer().getInt(s.getByteBuffer().position() + ValueUtils.VALUE_HEADER_SIZE));
+            System.out.println("----END DEBUG PUT----");
         }
     }
 
