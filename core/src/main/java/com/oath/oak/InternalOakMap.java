@@ -642,7 +642,6 @@ class InternalOakMap<K, V> {
         Chunk<K, V> c = findChunk(key); // find chunk matching key
         Chunk.LookUp lookUp = c.lookUp(key);
         if (lookUp == null || lookUp.valueSlice == null) {
-            assert false;
             return null;
         }
 
