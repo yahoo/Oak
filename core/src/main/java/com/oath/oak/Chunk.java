@@ -19,6 +19,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
 import static com.oath.oak.NativeAllocator.OakNativeMemoryAllocator.INVALID_BLOCK_ID;
+import static com.oath.oak.Operation.PUT;
 
 public class Chunk<K, V> {
 
@@ -355,7 +356,7 @@ public class Chunk<K, V> {
         // binary search sorted part of key array to quickly find node to start search at
         // it finds previous-to-key so start with its next
         int curr = getEntryField(binaryFind(key), OFFSET.NEXT);
-        int cmp;
+        int cmp = -1;
         // iterate until end of list (or key is found)
         while (curr != NONE) {
             // compare current item's key to searched key
@@ -556,6 +557,19 @@ public class Chunk<K, V> {
 
     public int getMaxItems() {
         return maxItems;
+    }
+
+    void printStuff(OpData opData) {
+        if (opData.op == PUT) {
+            System.out.println("For key: " + keySerializer.deserialize(readKey(opData.entryIndex)));
+            System.out.println("Value Position: " + getEntryField(opData.entryIndex, OFFSET.VALUE_POSITION));
+            System.out.println("Value Block: " + getEntryField(opData.entryIndex, OFFSET.VALUE_BLOCK));
+            System.out.println("Value Length: " + getEntryField(opData.entryIndex, OFFSET.VALUE_LENGTH));
+            Slice s = getValueSlice(opData.entryIndex);
+            assert s != null;
+            System.out.println("Lock :" + s.getByteBuffer().getInt(s.getByteBuffer().position()));
+            System.out.println("Value: " + s.getByteBuffer().getInt(s.getByteBuffer().position() + ValueUtils.VALUE_HEADER_SIZE));
+        }
     }
 
     /**
