@@ -290,6 +290,7 @@ class InternalOakMap<K, V> {
     // Returns old handle if someone helped before pointToValue happened, or null if
     private long finishAfterPublishing(Chunk.OpData opData, Chunk<K, V> c) {
         // set pointer to value
+        c.printStuff(opData);
         long result = c.pointToValue(opData);
         c.printStuff(opData);
         c.unpublish();
