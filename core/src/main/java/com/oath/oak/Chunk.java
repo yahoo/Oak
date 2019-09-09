@@ -473,7 +473,6 @@ public class Chunk<K, V> {
         System.out.println("Value Position: " + getEntryField(ei, OFFSET.VALUE_POSITION));
         System.out.println("Value Block: " + getEntryField(ei, OFFSET.VALUE_BLOCK));
         System.out.println("Value Length: " + getEntryField(ei, OFFSET.VALUE_LENGTH));
-        System.out.println("----END DEBUG ALLOC ENTRY----");
         writeKey(key, ei);
         return ei;
     }
@@ -581,7 +580,6 @@ public class Chunk<K, V> {
                 System.out.println("Value: " + s.getByteBuffer().getInt(s.getByteBuffer().position() + ValueUtils.VALUE_HEADER_SIZE));
             } else
                 System.out.println("Null Slice");
-            System.out.println("----END DEBUG PUT----");
         }
     }
 
