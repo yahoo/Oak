@@ -180,6 +180,9 @@ public class Chunk<K, V> {
     }
 
     boolean longCasEntriesArray(int item, OFFSET offset, long expected, long value) {
+        System.out.println("------DEBUG CAS FUNCTION------");
+        System.out.println("Expected :" + expected);
+        System.out.println("New Value: " + value);
         return unsafe.compareAndSwapLong(entries,
                 Unsafe.ARRAY_INT_BASE_OFFSET + (item + offset.value) * Unsafe.ARRAY_INT_INDEX_SCALE,
                 expected, value);
