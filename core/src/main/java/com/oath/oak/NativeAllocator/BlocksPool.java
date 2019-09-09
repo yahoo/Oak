@@ -48,6 +48,9 @@ class BlocksPool implements BlocksProvider {
 
     static void setBlockSize(int blockSize) {
         BLOCK_SIZE = blockSize;
+        synchronized (BlocksPool.class) { // can be easily changed to lock-free
+            instance = new BlocksPool();
+        }
     }
 
     @Override
