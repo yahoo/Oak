@@ -22,6 +22,7 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 
 import static com.oath.oak.Chunk.*;
+import static com.oath.oak.NativeAllocator.OakNativeMemoryAllocator.INVALID_BLOCK_ID;
 import static com.oath.oak.UnsafeUtils.longToInts;
 
 class InternalOakMap<K, V> {
@@ -357,6 +358,7 @@ class InternalOakMap<K, V> {
         }
 
         long newValueStats = c.writeValueOffHeap(value); // write value in place
+        checkSlice(newValueStats);
 
         Chunk.OpData opData = new Chunk.OpData(Operation.PUT, ei, newValueStats, oldStats, null);
 
@@ -371,6 +373,12 @@ class InternalOakMap<K, V> {
         assert finishAfterPublishing(opData, c) == DELETED_VALUE;
 
         return null;
+    }
+
+    private void checkSlice(long valueStats) {
+        int[] valueArray = UnsafeUtils.longToInts(valueStats);
+        assert (valueArray[0] >>> VALUE_BLOCK_SHIFT) != 0;
+        assert (valueArray[0] & VALUE_LENGTH_MASK) != 0;
     }
 
     Result<V> putIfAbsent(K key, V value, Function<ByteBuffer, V> transformer) {
