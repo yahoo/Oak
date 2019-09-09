@@ -290,6 +290,7 @@ class InternalOakMap<K, V> {
     private long finishAfterPublishing(Chunk.OpData opData, Chunk<K, V> c) {
         // set pointer to value
         long result = c.pointToValue(opData);
+        c.printStuff(opData);
         c.unpublish();
         checkRebalance(c);
         return result;
@@ -365,7 +366,7 @@ class InternalOakMap<K, V> {
             return null;
         }
 
-        finishAfterPublishing(opData, c);
+        assert finishAfterPublishing(opData, c) == DELETED_VALUE;
 
         return null;
     }
@@ -640,6 +641,7 @@ class InternalOakMap<K, V> {
         Chunk<K, V> c = findChunk(key); // find chunk matching key
         Chunk.LookUp lookUp = c.lookUp(key);
         if (lookUp == null || lookUp.valueSlice == null) {
+            assert false;
             return null;
         }
 
