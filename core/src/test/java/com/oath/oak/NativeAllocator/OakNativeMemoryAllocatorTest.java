@@ -21,6 +21,7 @@ import static org.junit.Assert.*;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+@Ignore
 public class OakNativeMemoryAllocatorTest {
     private static int valueSizeAfterSerialization = 4 * 1024 * 1024;
 

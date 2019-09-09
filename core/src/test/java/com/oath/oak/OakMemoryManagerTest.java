@@ -8,6 +8,7 @@ package com.oath.oak;
 
 import com.oath.oak.NativeAllocator.OakNativeMemoryAllocator;
 import org.junit.Before;
+import org.junit.Ignore;
 import org.junit.Test;
 import org.mockito.stubbing.Answer;
 
@@ -17,6 +18,7 @@ import static org.junit.Assert.assertEquals;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.*;
 
+@Ignore
 public class OakMemoryManagerTest {
     private OakMemoryAllocator valuesMemoryAllocator;
     private OakMemoryAllocator keysMemoryAllocator;
