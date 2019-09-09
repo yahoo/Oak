@@ -375,7 +375,7 @@ public class Chunk<K, V> {
             }
             return null;
         } finally {
-            System.out.println("------DEBUG------");
+            System.out.println("------DEBUG LOOKUP------");
             System.out.println("The comperator: " + cmp);
             if (curr != NONE) {
                 System.out.println("The Stats:");
@@ -387,7 +387,7 @@ public class Chunk<K, V> {
                 System.out.println("Lock :" + s.getByteBuffer().getInt(s.getByteBuffer().position()));
                 System.out.println("Value: " + s.getByteBuffer().getInt(s.getByteBuffer().position() + ValueUtils.VALUE_HEADER_SIZE));
             }
-            System.out.println("----END DEBUG----");
+            System.out.println("----END DEBUG LOOKUP----");
         }
     }
 
@@ -484,11 +484,11 @@ public class Chunk<K, V> {
         // key and value must be set before linking to the list so it will make sense when reached before put is done
         setEntryField(ei, OFFSET.VALUE_POSITION, 0); // set value index to -1, value is init to null
         setEntryField(ei, OFFSET.VALUE_BLOCK_AND_LENGTH, 0); // set value index to -1, value is init to null
-        System.out.println("------DEBUG------");
+        System.out.println("------DEBUG ALLOC ENTRY------");
         System.out.println("Value Position: " + getEntryField(ei, OFFSET.VALUE_POSITION));
         System.out.println("Value Block: " + getEntryField(ei, OFFSET.VALUE_BLOCK));
         System.out.println("Value Length: " + getEntryField(ei, OFFSET.VALUE_LENGTH));
-        System.out.println("----END DEBUG----");
+        System.out.println("----END DEBUG ALLOC ENTRY----");
         writeKey(key, ei);
         return ei;
     }
