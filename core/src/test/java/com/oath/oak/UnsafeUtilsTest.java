@@ -1,5 +1,6 @@
 package com.oath.oak;
 
+import org.junit.Ignore;
 import org.junit.Test;
 
 import java.nio.ByteBuffer;
@@ -10,11 +11,12 @@ import java.util.Map;
 import static junit.framework.TestCase.assertEquals;
 import static org.junit.Assert.fail;
 
+@Ignore
 public class UnsafeUtilsTest {
 
 
     @Test
-    public void testUnsafeCopy(){
+    public void testUnsafeCopy() {
 
         IntHolder minKey = new IntHolder(0, new int[0]);
 
@@ -39,12 +41,12 @@ public class UnsafeUtilsTest {
         IntHolder resValue1 = oak.get(key1);
         assertEquals(value1.size, resValue1.size);
 
-        for (int i = 0; i< value1.size; ++i) {
+        for (int i = 0; i < value1.size; ++i) {
             assertEquals(value1.array[i], resValue1.array[i]);
         }
         IntHolder resValue2 = oak.get(key2);
         assertEquals(value2.size, resValue2.size);
-        for (int i = 0; i< value2.size; ++i) {
+        for (int i = 0; i < value2.size; ++i) {
             assertEquals(value2.array[i], resValue2.array[i]);
         }
 
@@ -72,7 +74,7 @@ public class UnsafeUtilsTest {
     }
 
 
-    private static class IntHolder{
+    private static class IntHolder {
 
         private final int size;
         private final int[] array;
@@ -81,6 +83,7 @@ public class UnsafeUtilsTest {
             this.size = size;
             this.array = array;
         }
+
         public int getSize() {
             return size;
         }
@@ -108,9 +111,10 @@ public class UnsafeUtilsTest {
 
         @Override
         public int calculateSize(IntHolder object) {
-            return object.size*Integer.BYTES + Integer.BYTES;
+            return object.size * Integer.BYTES + Integer.BYTES;
         }
     }
+
     public static class UnsafeTestComparator implements OakComparator<IntHolder> {
 
 
@@ -134,12 +138,12 @@ public class UnsafeUtilsTest {
 
         @Override
         public int compareSerializedKeyAndKey(ByteBuffer serializedKey, IntHolder key) {
-            return compareKeys(new UnsafeTestSerializer().deserialize(serializedKey),key);
+            return compareKeys(new UnsafeTestSerializer().deserialize(serializedKey), key);
         }
     }
 
     @Test
-    public void testIntsToLong(){
+    public void testIntsToLong() {
         int i1 = 1, i2 = 2;
         long combine = UnsafeUtils.intsToLong(i1, i2);
         int[] res = UnsafeUtils.longToInts(combine);

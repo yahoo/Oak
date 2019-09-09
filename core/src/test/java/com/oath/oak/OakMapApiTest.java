@@ -12,6 +12,7 @@ import java.util.function.Consumer;
 
 import static org.junit.Assert.*;
 
+@Ignore
 public class OakMapApiTest {
 
     private OakMap<Integer, Integer> oak;
