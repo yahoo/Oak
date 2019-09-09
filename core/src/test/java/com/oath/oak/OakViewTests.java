@@ -2,6 +2,7 @@ package com.oath.oak;
 
 import org.junit.After;
 import org.junit.Before;
+import org.junit.Ignore;
 import org.junit.Test;
 
 import java.nio.ByteBuffer;
@@ -14,6 +15,7 @@ import java.util.function.Function;
 import static junit.framework.TestCase.assertEquals;
 import static org.junit.Assert.assertNotNull;
 
+@Ignore
 public class OakViewTests {
 
     private OakMap<String, String> oak;
