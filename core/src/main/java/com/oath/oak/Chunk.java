@@ -663,6 +663,7 @@ public class Chunk<K, V> {
     private boolean pointToValueCAS(OpData opData, boolean cas) {
         if (cas) {
             System.out.println("------DEBUG BEFORE CAS------");
+            System.out.println("Entry Index: " + opData.entryIndex);
             System.out.println("For key: " + keySerializer.deserialize(readKey(opData.entryIndex)));
             System.out.println("Value Position: " + getEntryField(opData.entryIndex, OFFSET.VALUE_POSITION));
             System.out.println("Value Block: " + getEntryField(opData.entryIndex, OFFSET.VALUE_BLOCK));
