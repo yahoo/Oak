@@ -384,11 +384,6 @@ class InternalOakMap<K, V> {
         int[] valueArray = UnsafeUtils.longToInts(valueStats);
         assert (valueArray[0] >>> VALUE_BLOCK_SHIFT) != 0;
         assert (valueArray[0] & VALUE_LENGTH_MASK) != 0;
-        System.out.println("------DEBUG CHECK SLICE------");
-        System.out.println("The value stats is " + valueStats);
-        System.out.println("Value Position: " + valueArray[1]);
-        System.out.println("Value Block: " + (valueArray[0] >>> VALUE_BLOCK_SHIFT));
-        System.out.println("Value Length: " + (valueArray[0] & VALUE_LENGTH_MASK));
     }
 
     Result<V> putIfAbsent(K key, V value, Function<ByteBuffer, V> transformer) {
