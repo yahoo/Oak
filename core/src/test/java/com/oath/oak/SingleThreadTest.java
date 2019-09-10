@@ -16,7 +16,6 @@ import java.util.function.Consumer;
 
 import static org.junit.Assert.*;
 
-@Ignore
 public class SingleThreadTest {
 
     private OakMap<Integer, Integer> oak;

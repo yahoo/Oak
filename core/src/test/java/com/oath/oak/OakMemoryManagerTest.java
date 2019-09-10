@@ -18,7 +18,6 @@ import static org.junit.Assert.assertEquals;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.*;
 
-@Ignore
 public class OakMemoryManagerTest {
     private OakMemoryAllocator valuesMemoryAllocator;
     private OakMemoryAllocator keysMemoryAllocator;

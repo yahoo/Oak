@@ -18,7 +18,6 @@ import java.util.concurrent.CountDownLatch;
 import static junit.framework.TestCase.assertNotNull;
 import static org.junit.Assert.assertEquals;
 
-@Ignore
 public class OffHeapOakTest {
     private OakMap<Integer, Integer> oak;
     private final int NUM_THREADS = 31;

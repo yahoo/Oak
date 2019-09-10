@@ -18,7 +18,6 @@ import java.util.concurrent.CountDownLatch;
 
 import static org.junit.Assert.assertEquals;
 
-@Ignore
 public class MultiThreadRangeTest {
 
     private OakMap<Integer, Integer> oak;

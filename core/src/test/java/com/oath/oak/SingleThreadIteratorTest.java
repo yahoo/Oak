@@ -38,7 +38,6 @@ public class SingleThreadIteratorTest {
         oak.close();
     }
 
-    @Ignore
     @Test
     public void testIterator() {
         Integer value;
@@ -114,7 +113,6 @@ public class SingleThreadIteratorTest {
         assertEquals(expectedVal, valIter.next());
     }
 
-    @Ignore
     @Test
     public void testGetRange() {
         try (OakMap<Integer, Integer> sub = oak.subMap(0, true, 3 * maxItemsPerChunk, false)) {
@@ -231,7 +229,6 @@ public class SingleThreadIteratorTest {
         }
     }
 
-    @Ignore
     @Test
     public void testDescending() {
         try (OakMap<Integer, Integer> oakDesc = oak.descendingMap()) {
