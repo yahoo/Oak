@@ -683,8 +683,9 @@ public class Chunk<K, V> {
                 System.out.println("Value Position: " + getEntryField(opData.entryIndex, OFFSET.VALUE_POSITION));
                 System.out.println("Value Block: " + getEntryField(opData.entryIndex, OFFSET.VALUE_BLOCK));
                 System.out.println("Value Length: " + getEntryField(opData.entryIndex, OFFSET.VALUE_LENGTH));
-                System.out.println("After: " + intsToLong(entries[opData.entryIndex + OFFSET.VALUE_BLOCK_AND_LENGTH.value],
-                        entries[opData.entryIndex + OFFSET.VALUE_POSITION.value]));
+                for (int i = 0; i < OFFSET.KEY_BLOCK_AND_LENGTH.value + 1; i++) {
+                    System.out.println("Entry [" + i + "]: " + entries[opData.entryIndex + i]);
+                }
                 int[] olValueArray = UnsafeUtils.longToInts(opData.oldValueStats);
                 int[] valueArray = UnsafeUtils.longToInts(opData.newValueStats);
                 if (olValueArray[0] == INVALID_BLOCK_ID && valueArray[0] > 0) { // previously a remove
