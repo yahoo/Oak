@@ -364,7 +364,7 @@ class InternalOakMap<K, V> {
             return null;
         }
 
-        assert finishAfterPublishing(opData, c) == DELETED_VALUE;
+        finishAfterPublishing(opData, c);
 
         return null;
     }
