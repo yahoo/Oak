@@ -17,7 +17,6 @@ import static junit.framework.TestCase.assertEquals;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
-@Ignore
 public class IteratorModificationTest {
 
     private OakMap<String, String> oak;

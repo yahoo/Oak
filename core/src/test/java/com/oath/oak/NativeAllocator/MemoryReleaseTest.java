@@ -1,7 +1,6 @@
 package com.oath.oak.NativeAllocator;
 
 
-
 import com.oath.oak.OakMap;
 import com.oath.oak.OakMapBuilder;
 
@@ -12,8 +11,6 @@ import org.junit.Test;
 
 
 public class MemoryReleaseTest {
-
-
 
 
     @Test(timeout = 300_000)

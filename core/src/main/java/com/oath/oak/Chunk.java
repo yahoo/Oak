@@ -192,10 +192,6 @@ public class Chunk<K, V> {
     }
 
     boolean longCasEntriesArray(int item, OFFSET offset, long expected, long value) {
-        System.out.println("------DEBUG CAS FUNCTION------");
-        System.out.println("Expected :" + expected);
-        System.out.println("New Value: " + value);
-        System.out.println("Entry index: " + item + ", Offset: " + offset.value);
         return unsafe.compareAndSwapLong(entries,
                 Unsafe.ARRAY_INT_BASE_OFFSET + (item + offset.value) * Unsafe.ARRAY_INT_INDEX_SCALE,
                 expected, value);
@@ -575,28 +571,6 @@ public class Chunk<K, V> {
         return maxItems;
     }
 
-    void printStuff(OpData opData, boolean shouldBeNull) {
-        if (opData.op == PUT) {
-            System.out.println("------DEBUG PUT------");
-            System.out.println("For key: " + keySerializer.deserialize(readKey(opData.entryIndex)));
-            System.out.println("Value Position: " + getEntryField(opData.entryIndex, OFFSET.VALUE_POSITION));
-            System.out.println("Value Block: " + getEntryField(opData.entryIndex, OFFSET.VALUE_BLOCK));
-            System.out.println("Value Length: " + getEntryField(opData.entryIndex, OFFSET.VALUE_LENGTH));
-            Slice s = getValueSlice(opData.entryIndex);
-//            if (shouldBeNull) {
-//                assert s == null;
-//            } else {
-//                assert s != null;
-//            }
-            if (s != null) {
-                System.out.println("Lock :" + s.getByteBuffer().getInt(s.getByteBuffer().position()));
-                System.out.println("Value: " + s.getByteBuffer().getInt(s.getByteBuffer().position() + ValueUtils.VALUE_HEADER_SIZE));
-            } else {
-                System.out.println("Null Slice");
-            }
-        }
-    }
-
     /**
      * Updates a linked entry to point to handle or otherwise removes such a link. The handle in
      * turn has the value. For linkage this is an insert linearization point.
@@ -610,7 +584,6 @@ public class Chunk<K, V> {
         if (pointToValueCAS(opData, true)) {
             return DELETED_VALUE;
         }
-        assert false;
 
         // the straight forward helping didn't work, check why
         Operation operation = opData.op;
@@ -656,30 +629,9 @@ public class Chunk<K, V> {
      */
     private boolean pointToValueCAS(OpData opData, boolean cas) {
         if (cas) {
-            System.out.println("------DEBUG BEFORE CAS------");
-            System.out.println("Entry Index: " + opData.entryIndex);
-            System.out.println("For key: " + keySerializer.deserialize(readKey(opData.entryIndex)));
-            System.out.println("Value Position: " + getEntryField(opData.entryIndex, OFFSET.VALUE_POSITION));
-            System.out.println("Value Block: " + getEntryField(opData.entryIndex, OFFSET.VALUE_BLOCK));
-            System.out.println("Value Length: " + getEntryField(opData.entryIndex, OFFSET.VALUE_LENGTH));
-            System.out.println("Before: " + intsToLong(entries[opData.entryIndex + OFFSET.VALUE_BLOCK_AND_LENGTH.value],
-                    entries[opData.entryIndex + OFFSET.VALUE_POSITION.value]));
-            System.out.println("Expected: " + opData.oldValueStats);
-            System.out.println("New: " + opData.newValueStats);
-            for (int i = 0; i < OFFSET.KEY_BLOCK_AND_LENGTH.value + 1; i++) {
-                System.out.println("Entry[" + i + "]: " + entries[opData.entryIndex + i]);
-            }
             if (longCasEntriesArray(opData.entryIndex, OFFSET.VALUE_STATS, opData.oldValueStats,
                     opData.newValueStats)) {
                 // update statistics only by thread that CASed
-                System.out.println("------DEBUG AFTER CAS------");
-                System.out.println("For key: " + keySerializer.deserialize(readKey(opData.entryIndex)));
-                System.out.println("Value Position: " + getEntryField(opData.entryIndex, OFFSET.VALUE_POSITION));
-                System.out.println("Value Block: " + getEntryField(opData.entryIndex, OFFSET.VALUE_BLOCK));
-                System.out.println("Value Length: " + getEntryField(opData.entryIndex, OFFSET.VALUE_LENGTH));
-                for (int i = 0; i < OFFSET.KEY_BLOCK_AND_LENGTH.value + 1; i++) {
-                    System.out.println("Entry[" + i + "]: " + entries[opData.entryIndex + i]);
-                }
                 int[] olValueArray = UnsafeUtils.longToInts(opData.oldValueStats);
                 int[] valueArray = UnsafeUtils.longToInts(opData.newValueStats);
                 if (olValueArray[0] == INVALID_BLOCK_ID && valueArray[0] > 0) { // previously a remove
