@@ -601,11 +601,11 @@ public class Chunk<K, V> {
             System.out.println("Value Block: " + getEntryField(opData.entryIndex, OFFSET.VALUE_BLOCK));
             System.out.println("Value Length: " + getEntryField(opData.entryIndex, OFFSET.VALUE_LENGTH));
             Slice s = getValueSlice(opData.entryIndex);
-            if (shouldBeNull) {
-                assert s == null;
-            } else {
-                assert s != null;
-            }
+//            if (shouldBeNull) {
+//                assert s == null;
+//            } else {
+//                assert s != null;
+//            }
             if (s != null) {
                 System.out.println("Lock :" + s.getByteBuffer().getInt(s.getByteBuffer().position()));
                 System.out.println("Value: " + s.getByteBuffer().getInt(s.getByteBuffer().position() + ValueUtils.VALUE_HEADER_SIZE));
