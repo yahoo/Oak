@@ -19,7 +19,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
 import static com.oath.oak.NativeAllocator.OakNativeMemoryAllocator.INVALID_BLOCK_ID;
-import static com.oath.oak.Operation.PUT;
 import static com.oath.oak.UnsafeUtils.intsToLong;
 
 public class Chunk<K, V> {

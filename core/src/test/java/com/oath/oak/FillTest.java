@@ -85,15 +85,15 @@ public class FillTest {
 
             int id = (int) Thread.currentThread().getId() % ThreadIndexCalculator.MAX_THREADS;
             int amount = (int) Math.round(NUM_OF_ENTRIES * 0.5) / NUM_THREADS;
-            int start = id * amount + (int) Math.round(NUM_OF_ENTRIES * 0.5);
+            int start = id * amount + (int) Math.round(NUM_OF_ENTRIES* 0.5);
             int end = (id + 1) * amount + (int) Math.round(NUM_OF_ENTRIES * 0.5);
 
             int[] arr = new int[amount];
-            for (int i = start, j = 0; i < end; i++, j++) {
+            for (int i = start, j = 0; i < end; i++,j++) {
                 arr[j] = i;
             }
 
-            int usedIdx = arr.length - 1;
+            int usedIdx = arr.length-1;
 
             for (int i = 0; i < amount; i++) {
 
@@ -108,7 +108,7 @@ public class FillTest {
                 oak.zc().putIfAbsent(next, next);
             }
 
-            for (Integer i = end - 1; i >= start; i--) {
+            for (Integer i = end-1; i >= start; i--) {
                 assertNotEquals(oak.get(i), null);
             }
 
@@ -128,11 +128,12 @@ public class FillTest {
         oak = builder.build();
 
 
+
         for (int i = 0; i < NUM_THREADS; i++) {
             threads.add(new Thread(new RunThreads(latch)));
         }
 
-        for (int i = 0; i < (int) Math.round(NUM_OF_ENTRIES * 0.5); i++) {
+        for (int i = 0; i < (int) Math.round(NUM_OF_ENTRIES*0.5); i++) {
             oak.zc().putIfAbsent(i, i);
         }
 
@@ -150,9 +151,9 @@ public class FillTest {
 
         long stopTime = System.currentTimeMillis();
 
-        for (Integer i = 0; i < NUM_OF_ENTRIES / 2; i++) {
+        for (Integer i = 0; i < NUM_OF_ENTRIES/2; i++) {
             Integer val = oak.get(i);
-            assertEquals(i, val);
+            assertEquals(i,val);
         }
 
         long elapsedTime = stopTime - startTime;
