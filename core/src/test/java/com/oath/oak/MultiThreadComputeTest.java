@@ -10,12 +10,12 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.function.Consumer;
 
-import static junit.framework.TestCase.assertNotNull;
-import static junit.framework.TestCase.assertNull;
+import static junit.framework.TestCase.*;
 import static org.junit.Assert.assertEquals;
 
 public class MultiThreadComputeTest {
