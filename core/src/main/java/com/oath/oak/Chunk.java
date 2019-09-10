@@ -658,6 +658,9 @@ public class Chunk<K, V> {
                     entries[opData.entryIndex + OFFSET.VALUE_POSITION.value]));
             System.out.println("Expected: " + opData.oldValueStats);
             System.out.println("New: " + opData.newValueStats);
+            for (int i = 0; i < OFFSET.KEY_BLOCK_AND_LENGTH.value + 1; i++) {
+                System.out.println("Entry[" + i + "]: " + entries[opData.entryIndex + i]);
+            }
             if (longCasEntriesArray(opData.entryIndex, OFFSET.VALUE_STATS, opData.oldValueStats,
                     opData.newValueStats)) {
                 // update statistics only by thread that CASed
