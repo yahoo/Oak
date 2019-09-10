@@ -6,7 +6,10 @@
 
 package com.oath.oak;
 
-import org.junit.*;
+import org.junit.After;
+import org.junit.Assert;
+import org.junit.Before;
+import org.junit.Test;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
@@ -218,7 +221,7 @@ public class MultiThreadTest {
                 i++;
             }
 
-            try (OakMap<Integer, Integer> oakDesc = oak.descendingMap()) {
+            try(OakMap<Integer, Integer> oakDesc = oak.descendingMap()) {
                 iter = oakDesc.values().iterator();
                 while (iter.hasNext()) {
                     value = iter.next();
@@ -268,7 +271,7 @@ public class MultiThreadTest {
                 i = iter.next();
             }
 
-            try (OakMap<Integer, Integer> oakDesc = oak.descendingMap()) {
+            try(OakMap<Integer, Integer> oakDesc = oak.descendingMap()) {
                 iter = oakDesc.values().iterator();
                 while (iter.hasNext()) {
                     i = iter.next();
