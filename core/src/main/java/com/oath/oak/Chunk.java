@@ -365,48 +365,34 @@ public class Chunk<K, V> {
         int curr = getEntryField(binaryFind(key), OFFSET.NEXT);
         int cmp = -1;
         // iterate until end of list (or key is found)
-        try {
-            while (curr != NONE) {
-                // compare current item's key to searched key
-                cmp = compare(readKey(curr), key);
-                // if item's key is larger - we've exceeded our key
-                // it's not in chunk - no need to search further
-                if (cmp > 0) {
-                    return null;
-                }
-                // if keys are equal - we've found the item
-                else if (cmp == 0) {
-                    long valueStats = getValueStats(curr);
-                    Slice valueSlice = buildValueSlice(valueStats);
-                    if (valueSlice == null) {
-                        assert valueStats == 0;
-                        return new LookUp(null, valueStats, curr);
-                    }
-                    if (ValueUtils.isValueDeleted(valueSlice)) {
-                        return new LookUp(null, valueStats, curr);
-                    }
-                    return new LookUp(valueSlice, valueStats, curr);
-                }
-                // otherwise- proceed to next item
-                else {
-                    curr = getEntryField(curr, OFFSET.NEXT);
-                }
+
+        while (curr != NONE) {
+            // compare current item's key to searched key
+            cmp = compare(readKey(curr), key);
+            // if item's key is larger - we've exceeded our key
+            // it's not in chunk - no need to search further
+            if (cmp > 0) {
+                return null;
             }
-            return null;
-        } finally {
-            System.out.println("------DEBUG LOOKUP------");
-            System.out.println("The comperator: " + cmp);
-            if (curr != NONE) {
-                System.out.println("The Stats:");
-                System.out.println("Value Position: " + getEntryField(curr, OFFSET.VALUE_POSITION));
-                System.out.println("Value Block: " + getEntryField(curr, OFFSET.VALUE_BLOCK));
-                System.out.println("Value Length: " + getEntryField(curr, OFFSET.VALUE_LENGTH));
-                Slice s = getValueSlice(curr);
-                assert s != null;
-                System.out.println("Lock :" + s.getByteBuffer().getInt(s.getByteBuffer().position()));
-                System.out.println("Value: " + s.getByteBuffer().getInt(s.getByteBuffer().position() + ValueUtils.VALUE_HEADER_SIZE));
+            // if keys are equal - we've found the item
+            else if (cmp == 0) {
+                long valueStats = getValueStats(curr);
+                Slice valueSlice = buildValueSlice(valueStats);
+                if (valueSlice == null) {
+                    assert valueStats == 0;
+                    return new LookUp(null, valueStats, curr);
+                }
+                if (ValueUtils.isValueDeleted(valueSlice)) {
+                    return new LookUp(null, valueStats, curr);
+                }
+                return new LookUp(valueSlice, valueStats, curr);
+            }
+            // otherwise- proceed to next item
+            else {
+                curr = getEntryField(curr, OFFSET.NEXT);
             }
         }
+        return null;
     }
 
     static class LookUp {
@@ -491,10 +477,6 @@ public class Chunk<K, V> {
         // key and value must be set before linking to the list so it will make sense when reached before put is done
         setEntryField(ei, OFFSET.VALUE_POSITION, 0); // set value index to -1, value is init to null
         setEntryField(ei, OFFSET.VALUE_BLOCK_AND_LENGTH, 0); // set value index to -1, value is init to null
-        System.out.println("------DEBUG ALLOC ENTRY------");
-        System.out.println("Value Position: " + getEntryField(ei, OFFSET.VALUE_POSITION));
-        System.out.println("Value Block: " + getEntryField(ei, OFFSET.VALUE_BLOCK));
-        System.out.println("Value Length: " + getEntryField(ei, OFFSET.VALUE_LENGTH));
         writeKey(key, ei);
         return ei;
     }
