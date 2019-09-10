@@ -19,7 +19,6 @@ import java.util.concurrent.Future;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.fail;
 
-@Ignore
 public class PutIfAbsentTest {
     private OakMap<Integer, Integer> oak;
     private CountDownLatch startSignal;

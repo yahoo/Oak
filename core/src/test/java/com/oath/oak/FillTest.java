@@ -17,7 +17,6 @@ import java.util.concurrent.CountDownLatch;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotEquals;
 
-@Ignore
 public class FillTest {
 
     private static final int NUM_THREADS = 1;

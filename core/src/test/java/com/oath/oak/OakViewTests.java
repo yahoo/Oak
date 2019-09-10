@@ -15,7 +15,6 @@ import java.util.function.Function;
 import static junit.framework.TestCase.assertEquals;
 import static org.junit.Assert.assertNotNull;
 
-@Ignore
 public class OakViewTests {
 
     private OakMap<String, String> oak;
