@@ -800,9 +800,9 @@ public class Chunk<K, V> {
                             = sortedEntryIndex + offset + FIELDS;
 
                     System.arraycopy(srcChunk.entries,  // source array
-                            entryIndexStart + offset + OFFSET.KEY_POSITION.value,
+                            entryIndexStart + offset + OFFSET.NEXT.value + 1,
                             entries,                        // destination aray
-                            sortedEntryIndex + offset + OFFSET.KEY_POSITION.value, (FIELDS - 1));
+                            sortedEntryIndex + offset + OFFSET.NEXT.value + 1, (FIELDS - 1));
                 }
 
                 sortedEntryIndex += entriesToCopy * FIELDS; // update
