@@ -31,7 +31,7 @@ public class SingleThreadTest {
 
     @After
     public void finish() {
-        oak.close();
+            oak.close();
     }
 
     @Test
@@ -184,7 +184,7 @@ public class SingleThreadTest {
     @Test
     public void testCompute() {
         Integer value;
-        Consumer<OakWBuffer> computer = oakWBuffer -> {
+        Consumer<OakWBuffer> computer =  oakWBuffer -> {
             if (oakWBuffer.getInt(0) == 0)
                 oakWBuffer.putInt(0, 1);
         };

@@ -8,8 +8,11 @@ import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.CountDownLatch;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
+
 
 public class ThreadIndexCalculatorTest {
+
 
 
     @Test
@@ -27,7 +30,7 @@ public class ThreadIndexCalculatorTest {
         ThreadIndexCalculator indexCalculator = ThreadIndexCalculator.newInstance();
         ConcurrentSkipListSet<Integer> uniqueIndices = new ConcurrentSkipListSet<>();
 
-        for (int i = 0; i < ThreadIndexCalculator.MAX_THREADS; ++i) {
+        for (int i = 0; i < ThreadIndexCalculator.MAX_THREADS; ++i){
 
             Thread thread = new Thread(() -> {
                 try {
@@ -50,6 +53,7 @@ public class ThreadIndexCalculatorTest {
                 index = indexCalculator.getIndex();
                 uniqueIndices.add(index);
                 doneSecondRoundLatch.countDown();
+
 
 
                 try {
@@ -77,9 +81,8 @@ public class ThreadIndexCalculatorTest {
         firstBatchRelease.countDown();
 
         CountDownLatch secondBatchStart = new CountDownLatch(1);
-        CountDownLatch doneSecondBatch = new CountDownLatch(ThreadIndexCalculator.MAX_THREADS);
-        ;
-        for (int i = 0; i < ThreadIndexCalculator.MAX_THREADS; ++i) {
+        CountDownLatch doneSecondBatch = new CountDownLatch(ThreadIndexCalculator.MAX_THREADS);;
+        for (int i = 0; i < ThreadIndexCalculator.MAX_THREADS; ++i){
 
             Thread thread = new Thread(() -> {
                 try {
