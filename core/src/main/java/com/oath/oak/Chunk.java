@@ -28,7 +28,7 @@ public class Chunk<K, V> {
 
     enum OFFSET {
         NEXT(0), KEY_POSITION(3), VALUE_STATS(1), VALUE_POSITION(1),
-        VALUE_BLOCK_AND_LENGTH(1), VALUE_BLOCK(1), VALUE_LENGTH(1), KEY_BLOCK_AND_LENGTH(4),
+        VALUE_BLOCK_AND_LENGTH(2), VALUE_BLOCK(2), VALUE_LENGTH(2), KEY_BLOCK_AND_LENGTH(4),
         KEY_BLOCK(4), KEY_LENGTH(4);
 
         public final int value;
