@@ -20,7 +20,6 @@ import static junit.framework.TestCase.*;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 
-@Ignore
 public class MultiThreadTest {
 
     private OakMap<Integer, Integer> oak;

@@ -19,7 +19,6 @@ import java.util.function.Consumer;
 import static junit.framework.TestCase.*;
 import static org.junit.Assert.assertEquals;
 
-@Ignore
 public class MultiThreadComputeTest {
 
     private OakMap<Integer, Integer> oak;

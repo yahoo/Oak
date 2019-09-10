@@ -11,7 +11,6 @@ import static junit.framework.TestCase.assertNull;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
-@Ignore
 public class ChunkSplitTest {
     private static final int maxItemsPerChunk = 10;
 

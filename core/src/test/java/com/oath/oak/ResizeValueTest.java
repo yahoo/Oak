@@ -11,7 +11,6 @@ import java.util.concurrent.Semaphore;
 
 import static org.junit.Assert.assertEquals;
 
-@Ignore
 public class ResizeValueTest {
     private OakMap<String, String> oak;
 

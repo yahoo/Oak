@@ -11,7 +11,6 @@ import java.util.Map;
 import static junit.framework.TestCase.assertEquals;
 import static org.junit.Assert.fail;
 
-@Ignore
 public class UnsafeUtilsTest {
 
 
