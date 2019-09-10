@@ -52,7 +52,7 @@ public class Chunk<K, V> {
     // index of first item in array, after head (not necessarily first in list!)
     private static final int FIRST_ITEM = 1;
 
-    private static final int FIELDS = 5;  // # of fields in each item of key array
+    private static final int FIELDS = 6;  // # of fields in each item of key array
     private static final int KEY_LENGTH_MASK = 0xffff; // 16 lower bits
     private static final int KEY_BLOCK_SHIFT = 16;
     // Assume the length of a value is up to 8MB because there can be up to 512 blocks
