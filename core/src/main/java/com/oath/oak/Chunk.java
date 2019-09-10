@@ -183,6 +183,7 @@ public class Chunk<K, V> {
         System.out.println("------DEBUG CAS FUNCTION------");
         System.out.println("Expected :" + expected);
         System.out.println("New Value: " + value);
+        System.out.println("Entry index: " + item + ", Offset: " + offset.value);
         return unsafe.compareAndSwapLong(entries,
                 Unsafe.ARRAY_INT_BASE_OFFSET + (item + offset.value) * Unsafe.ARRAY_INT_INDEX_SCALE,
                 expected, value);
@@ -657,7 +658,7 @@ public class Chunk<K, V> {
                 System.out.println("Value Block: " + getEntryField(opData.entryIndex, OFFSET.VALUE_BLOCK));
                 System.out.println("Value Length: " + getEntryField(opData.entryIndex, OFFSET.VALUE_LENGTH));
                 for (int i = 0; i < OFFSET.KEY_BLOCK_AND_LENGTH.value + 1; i++) {
-                    System.out.println("Entry [" + i + "]: " + entries[opData.entryIndex + i]);
+                    System.out.println("Entry[" + i + "]: " + entries[opData.entryIndex + i]);
                 }
                 int[] olValueArray = UnsafeUtils.longToInts(opData.oldValueStats);
                 int[] valueArray = UnsafeUtils.longToInts(opData.newValueStats);
