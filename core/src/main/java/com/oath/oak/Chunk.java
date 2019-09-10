@@ -363,6 +363,7 @@ public class Chunk<K, V> {
         int curr = getEntryField(binaryFind(key), OFFSET.NEXT);
         int cmp = -1;
         // iterate until end of list (or key is found)
+
         while (curr != NONE) {
             // compare current item's key to searched key
             cmp = compare(readKey(curr), key);
@@ -474,10 +475,6 @@ public class Chunk<K, V> {
         // key and value must be set before linking to the list so it will make sense when reached before put is done
         setEntryField(ei, OFFSET.VALUE_POSITION, 0); // set value index to -1, value is init to null
         setEntryField(ei, OFFSET.VALUE_BLOCK_AND_LENGTH, 0); // set value index to -1, value is init to null
-        System.out.println("------DEBUG ALLOC ENTRY------");
-        System.out.println("Value Position: " + getEntryField(ei, OFFSET.VALUE_POSITION));
-        System.out.println("Value Block: " + getEntryField(ei, OFFSET.VALUE_BLOCK));
-        System.out.println("Value Length: " + getEntryField(ei, OFFSET.VALUE_LENGTH));
         writeKey(key, ei);
         return ei;
     }
