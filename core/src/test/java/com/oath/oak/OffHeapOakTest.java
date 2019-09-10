@@ -100,7 +100,7 @@ public class OffHeapOakTest {
             for (Map.Entry<Integer, Integer> entry : oak.entrySet()) {
                 if (entry == null) continue;
                 assertNotNull("\nAfter initial pass of put and remove got entry NULL", entry);
-                assertNotNull("\nAfter initial pass of put and remove got value NULL for key "+ entry.getKey(), entry.getValue());
+                assertNotNull("\nAfter initial pass of put and remove got value NULL for key " + entry.getKey(), entry.getValue());
                 assertEquals(
                         "\nAfter initial pass of put and remove (range 0-"
                                 + (6 * maxItemsPerChunk) + "): Key " + entry.getKey()

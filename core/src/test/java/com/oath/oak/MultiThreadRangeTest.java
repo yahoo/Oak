@@ -28,7 +28,7 @@ public class MultiThreadRangeTest {
     @Before
     public void init() {
         int maxBytesPerChunkItem = 100;
-        OakMapBuilder<Integer, Integer>builder = OakMapBuilder.getDefaultBuilder()
+        OakMapBuilder<Integer, Integer> builder = OakMapBuilder.getDefaultBuilder()
                 .setChunkMaxItems(maxItemsPerChunk)
                 .setChunkBytesPerItem(maxBytesPerChunkItem);
         oak = builder.build();
