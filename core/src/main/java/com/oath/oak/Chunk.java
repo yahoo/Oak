@@ -52,7 +52,7 @@ public class Chunk<K, V> {
     // index of first item in array, after head (not necessarily first in list!)
     private static final int FIRST_ITEM = 1;
 
-    private static final int FIELDS = 5;  // # of fields in each item of key array
+    private static final int FIELDS = 6;  // # of fields in each item of key array
     //    private static final int OFFSET_NEXT = 0;
 //    private static final int OFFSET_KEY_POSITION = 1;
 //    private static final int OFFSET_KEY_LENGTH = 2;
