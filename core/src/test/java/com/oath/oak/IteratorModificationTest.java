@@ -235,6 +235,49 @@ public class IteratorModificationTest {
         assertTrue(passed.get());
     }
 
+    @Test
+    public void concurrentModificationStreamTest() throws InterruptedException {
+
+        CountDownLatch deleteLatch = new CountDownLatch(1);
+        CountDownLatch scanLatch = new CountDownLatch(1);
+        AtomicBoolean passed = new AtomicBoolean(false);
+
+        Thread scanThread = new Thread(() -> {
+            Iterator<Map.Entry<OakRBuffer, OakRBuffer>> iterator = oak.zc().entryStreamSet().iterator();
+            assertTrue(iterator.hasNext());
+            deleteLatch.countDown();
+            try {
+                scanLatch.await();
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+            try {
+                iterator.next();
+            } catch (ConcurrentModificationException e) {
+                passed.set(true);
+            }
+        });
+
+        Thread deleteThread = new Thread(() -> {
+            try {
+                deleteLatch.await();
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+            for (int i = 0; i < ELEMENTS; i++) {
+                String key = String.format("%0$" + KEY_SIZE + "s", String.valueOf(i));
+                oak.zc().remove(key);
+            }
+            scanLatch.countDown();
+        });
+
+        scanThread.start();
+        deleteThread.start();
+
+        scanThread.join();
+        deleteThread.join();
+        assertTrue(passed.get());
+    }
 
     @Test
     public void valueDeleteTest() {

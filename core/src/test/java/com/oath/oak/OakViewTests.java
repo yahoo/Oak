@@ -120,6 +120,13 @@ public class OakViewTests {
             assertEquals(values[i], key);
         }
 
+        Iterator<OakRBuffer> keyStreamIterator = oak.zc().keyStreamSet().iterator();
+        for (int i = 0; i < ELEMENTS; i++) {
+            OakRBuffer keyBB = keyStreamIterator.next();
+            String key = keyBB.transform(deserialize);
+            assertEquals(values[i], key);
+        }
+
         Iterator<OakRBuffer> valueIterator = oak.zc().values().iterator();
         for (int i = 0; i < ELEMENTS; i++) {
             OakRBuffer valueBB = valueIterator.next();
@@ -127,10 +134,24 @@ public class OakViewTests {
             assertEquals(values[i], value);
         }
 
+        Iterator<OakRBuffer> valueStreamIterator = oak.zc().valuesStream().iterator();
+        for (int i = 0; i < ELEMENTS; i++) {
+            OakRBuffer valueBB = valueStreamIterator.next();
+            String value = valueBB.transform(deserialize);
+            assertEquals(values[i], value);
+        }
 
         Iterator<Map.Entry<OakRBuffer, OakRBuffer>> entryIterator = oak.zc().entrySet().iterator();
         for (int i = 0; i < ELEMENTS; i++) {
             Map.Entry<OakRBuffer, OakRBuffer> entryBB = entryIterator.next();
+            String value = entryBB.getValue().transform(deserialize);
+            assertEquals(values[i], value);
+        }
+
+        Iterator<Map.Entry<OakRBuffer, OakRBuffer>> entryStreamIterator
+            = oak.zc().entryStreamSet().iterator();
+        for (int i = 0; i < ELEMENTS; i++) {
+            Map.Entry<OakRBuffer, OakRBuffer> entryBB = entryStreamIterator.next();
             String value = entryBB.getValue().transform(deserialize);
             assertEquals(values[i], value);
         }

@@ -44,15 +44,8 @@ class InternalOakMap<K, V> {
      * init with capacity = 2g
      */
 
-    InternalOakMap(
-            K minKey,
-            OakSerializer<K> keySerializer,
-            OakSerializer<V> valueSerializer,
-            Comparator comparator,
-            MemoryManager memoryManager,
-            int chunkMaxItems,
-            int chunkBytesPerItem,
-            ThreadIndexCalculator threadIndexCalculator) {
+    InternalOakMap(K minKey, OakSerializer<K> keySerializer, OakSerializer<V> valueSerializer,
+        Comparator comparator, MemoryManager memoryManager, int chunkMaxItems, ThreadIndexCalculator threadIndexCalculator) {
 
         this.size = new AtomicInteger(0);
         this.memoryManager = memoryManager;
@@ -69,7 +62,7 @@ class InternalOakMap<K, V> {
         this.skiplist = new ConcurrentSkipListMap<>(this.comparator);
 
         Chunk<K, V> head = new Chunk<K, V>(this.minKey, null, this.comparator, memoryManager, chunkMaxItems,
-            this.size, keySerializer, valueSerializer, threadIndexCalculator);
+            this.size, keySerializer, valueSerializer);
         this.skiplist.put(head.minKey, head);    // add first chunk (head) into skiplist
         this.head = new AtomicReference<>(head);
         this.threadIndexCalculator = threadIndexCalculator;
@@ -970,6 +963,48 @@ class InternalOakMap<K, V> {
             return new AbstractMap.SimpleImmutableEntry<>(bb, currentHandle);
         }
 
+        /**
+         * Advances next to higher entry without creating a ByteBuffer for key.
+         * Return previous index
+         */
+        Handle advanceStream(OakRKeyReferenceImpl key) {
+
+            if (state == null) {
+                throw new NoSuchElementException();
+            }
+
+            Chunk.State chunkState = state.getChunk().state();
+
+            if (chunkState == Chunk.State.RELEASED) {
+                initAfterRebalance();
+            }
+
+            if (key != null) state.getChunk().setKeyRefer(state.getIndex(),key);
+            Handle currentHandle = state.getChunk().getHandle(state.getIndex());
+            advanceState();
+            return currentHandle;
+        }
+
+        /**
+         * Advances next to higher key without creating a ByteBuffer for key.
+         * Do not get and return handle/value
+         */
+        void advanceStreamKeyOnly(OakRKeyReferenceImpl key) {
+
+            if (state == null) {
+                throw new NoSuchElementException();
+            }
+
+            Chunk.State chunkState = state.getChunk().state();
+
+            if (chunkState == Chunk.State.RELEASED) {
+                initAfterRebalance();
+            }
+
+            state.getChunk().setKeyRefer(state.getIndex(),key);
+            advanceState();
+        }
+
         private void initState(boolean isDescending, K lowerBound, boolean lowerInclusive,
                                K upperBound, boolean upperInclusive) {
 
@@ -1045,10 +1080,12 @@ class InternalOakMap<K, V> {
             int nextIndex = chunkIter.next();
             state.set(chunk, chunkIter, nextIndex);
 
-            ByteBuffer key = state.getChunk().readKey(state.getIndex());
-            if (!inBounds(key)) {
-                state = null;
-                return;
+            if (((hi != null) && !isDescending) || ((lo != null) && isDescending)) {
+                ByteBuffer key = state.getChunk().readKey(state.getIndex());
+                if (!inBounds(key)) {
+                    state = null;
+                    return;
+                }
             }
         }
     }
@@ -1066,6 +1103,25 @@ class InternalOakMap<K, V> {
                 return null;
 
             return new OakRValueBufferImpl(handle);
+        }
+    }
+
+    class ValueStreamIterator extends Iter<OakRBuffer> {
+
+        private OakRValueBufferImpl value = new OakRValueBufferImpl(null);
+
+        ValueStreamIterator(K lo, boolean loInclusive, K hi, boolean hiInclusive, boolean isDescending) {
+            super(lo, loInclusive, hi, hiInclusive, isDescending);
+        }
+
+        @Override
+        public OakRBuffer next() {
+            Handle handle = advanceStream(null);
+            if (handle == null) {
+                return null;
+            }
+            value.setHandle(handle);
+            return value;
         }
     }
 
@@ -1102,6 +1158,25 @@ class InternalOakMap<K, V> {
             return new AbstractMap.SimpleImmutableEntry<>(
                     new OakRKeyBufferImpl(pair.getKey()),
                     new OakRValueBufferImpl(pair.getValue()));
+        }
+    }
+
+    class EntryStreamIterator extends Iter<Map.Entry<OakRBuffer, OakRBuffer>> {
+
+        private OakRKeyReferenceImpl key = new OakRKeyReferenceImpl(memoryManager);
+        private OakRValueBufferImpl value = new OakRValueBufferImpl(null);
+
+        EntryStreamIterator(K lo, boolean loInclusive, K hi, boolean hiInclusive, boolean isDescending) {
+            super(lo, loInclusive, hi, hiInclusive, isDescending);
+        }
+
+        public Map.Entry<OakRBuffer, OakRBuffer> next() {
+            Handle handle = advanceStream(key);
+            if (handle == null) {
+                return null;
+            }
+            value.setHandle(handle);
+            return new AbstractMap.SimpleImmutableEntry<>(key, value);
         }
     }
 
@@ -1153,6 +1228,21 @@ class InternalOakMap<K, V> {
         }
     }
 
+    public class KeyStreamIterator extends Iter<OakRBuffer> {
+
+        private OakRKeyReferenceImpl key = new OakRKeyReferenceImpl(memoryManager);
+
+        KeyStreamIterator(K lo, boolean loInclusive, K hi, boolean hiInclusive, boolean isDescending) {
+            super(null, loInclusive, null, hiInclusive, isDescending);
+        }
+
+        @Override
+        public OakRBuffer next() {
+            advanceStreamKeyOnly(key);
+            return key;
+        }
+    }
+
     class KeyTransformIterator<T> extends Iter<T> {
 
         final Function<ByteBuffer, T> transformer;
@@ -1182,6 +1272,18 @@ class InternalOakMap<K, V> {
 
     Iterator<OakRBuffer> keysBufferViewIterator(K lo, boolean loInclusive, K hi, boolean hiInclusive, boolean isDescending) {
         return new KeyIterator(lo, loInclusive, hi, hiInclusive, isDescending);
+    }
+
+    Iterator<OakRBuffer> valuesStreamIterator(K lo, boolean loInclusive, K hi, boolean hiInclusive, boolean isDescending) {
+        return new ValueStreamIterator(lo, loInclusive, hi, hiInclusive, isDescending);
+    }
+
+    Iterator<Map.Entry<OakRBuffer, OakRBuffer>> entriesStreamIterator(K lo, boolean loInclusive, K hi, boolean hiInclusive, boolean isDescending) {
+        return new EntryStreamIterator(lo, loInclusive, hi, hiInclusive, isDescending);
+    }
+
+    Iterator<OakRBuffer> keysStreamIterator(K lo, boolean loInclusive, K hi, boolean hiInclusive, boolean isDescending) {
+        return new KeyStreamIterator(lo, loInclusive, hi, hiInclusive, isDescending);
     }
 
     <T> Iterator<T> valuesTransformIterator(K lo, boolean loInclusive, K hi, boolean hiInclusive, boolean isDescending, Function<ByteBuffer, T> transformer) {

@@ -13,9 +13,13 @@ import java.util.function.Function;
 
 public class OakRValueBufferImpl implements OakRBuffer {
 
-    private final Handle handle;
+    private Handle handle;
 
     OakRValueBufferImpl(Handle handle) {
+        this.handle = handle;
+    }
+
+    public void setHandle(Handle handle) {
         this.handle = handle;
     }
 

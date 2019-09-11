@@ -102,7 +102,7 @@ class Block {
         bb.limit(position + length);
         bb.position(position);
         // on purpose not creating a ByteBuffer slice() here,
-        // slice() will be used only per demand when buffer is passed to the serializer
+        // slice() will be used only per demand when buffer is passed outside Oak
         return bb;
     }
 
