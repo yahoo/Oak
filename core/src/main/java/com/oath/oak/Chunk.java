@@ -706,7 +706,6 @@ public class Chunk<K, V> {
                     isFirstInInterval = false;
                     srcPrevEntryIdx = srcEntryIdx;
                     srcEntryIdx = srcChunk.getEntryField(srcEntryIdx, OFFSET_NEXT);
-                    currSrcHandleIndex = srcChunk.getEntryField(srcEntryIdx, OFFSET_HANDLE_INDEX);
                     if (srcEntryIdx != NONE) continue;
 
                 }
