@@ -692,12 +692,13 @@ public class Chunk<K, V> {
 
         while (true) {
             currSrcHandleIndex = srcChunk.getEntryField(srcEntryIdx, OFFSET_HANDLE_INDEX);
+            boolean isHandleDeleted = (currSrcHandleIndex > 0) && srcChunk.handles[currSrcHandleIndex].isDeleted();
             int entriesToCopy = entryIndexEnd - entryIndexStart + 1;
 
             // try to find a continuous interval to copy
             // we cannot enlarge interval: if key is removed (handle index is -1) or
             // if this chunk already has all entries to start with
-            if ((currSrcHandleIndex > 0) && (sortedEntryIndex + entriesToCopy * FIELDS <= maxIdx)) {
+            if ((currSrcHandleIndex > 0) && (!isHandleDeleted) && (sortedEntryIndex + entriesToCopy * FIELDS <= maxIdx)) {
                 // we can enlarge the interval, if it is otherwise possible:
                 // if this is first entry in the interval (we need to copy one entry anyway) OR
                 // if (on the source chunk) current entry idx directly follows the previous entry idx
@@ -706,7 +707,6 @@ public class Chunk<K, V> {
                     isFirstInInterval = false;
                     srcPrevEntryIdx = srcEntryIdx;
                     srcEntryIdx = srcChunk.getEntryField(srcEntryIdx, OFFSET_NEXT);
-                    currSrcHandleIndex = srcChunk.getEntryField(srcEntryIdx, OFFSET_HANDLE_INDEX);
                     if (srcEntryIdx != NONE) continue;
 
                 }
@@ -740,7 +740,7 @@ public class Chunk<K, V> {
                 sortedEntryIndex += entriesToCopy * FIELDS; // update
             }
 
-            if (currSrcHandleIndex < 0) { // if now this is a removed item
+            if (currSrcHandleIndex < 0 || isHandleDeleted) { // if now this is a removed item
                 // don't copy it, continue to next item
                 srcPrevEntryIdx = srcEntryIdx;
                 srcEntryIdx = srcChunk.getEntryField(srcEntryIdx, OFFSET_NEXT);
