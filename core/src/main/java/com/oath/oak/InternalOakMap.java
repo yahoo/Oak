@@ -964,10 +964,10 @@ class InternalOakMap<K, V> {
         }
 
         /**
-         * Advances next to higher entry without creating a ByteBuffer for key.
+         * Advances next to the next entry without creating a ByteBuffer for the key.
          * Return previous index
          */
-        Handle advanceStream(OakRKeyReferenceImpl key) {
+        Handle advanceStream(OakRKeyReference key, boolean keyOnly) {
 
             if (state == null) {
                 throw new NoSuchElementException();
@@ -978,31 +978,15 @@ class InternalOakMap<K, V> {
             if (chunkState == Chunk.State.RELEASED) {
                 initAfterRebalance();
             }
-
-            if (key != null) state.getChunk().setKeyRefer(state.getIndex(),key);
-            Handle currentHandle = state.getChunk().getHandle(state.getIndex());
+            Handle currentHandle = null;
+            if (key != null) {
+              state.getChunk().setKeyRefer(state.getIndex(),key);
+            }
+            if (!keyOnly) {
+              currentHandle = state.getChunk().getHandle(state.getIndex());
+            }
             advanceState();
             return currentHandle;
-        }
-
-        /**
-         * Advances next to higher key without creating a ByteBuffer for key.
-         * Do not get and return handle/value
-         */
-        void advanceStreamKeyOnly(OakRKeyReferenceImpl key) {
-
-            if (state == null) {
-                throw new NoSuchElementException();
-            }
-
-            Chunk.State chunkState = state.getChunk().state();
-
-            if (chunkState == Chunk.State.RELEASED) {
-                initAfterRebalance();
-            }
-
-            state.getChunk().setKeyRefer(state.getIndex(),key);
-            advanceState();
         }
 
         private void initState(boolean isDescending, K lowerBound, boolean lowerInclusive,
@@ -1080,7 +1064,10 @@ class InternalOakMap<K, V> {
             int nextIndex = chunkIter.next();
             state.set(chunk, chunkIter, nextIndex);
 
-            if (((hi != null) && !isDescending) || ((lo != null) && isDescending)) {
+            // The boundary check is costly and need to be performed only when required,
+            // meaning not on the full scan.
+            // The check of the boundaries under condition is an optimization.
+            if ((hi!=null && !isDescending) || (lo!=null && isDescending)) {
                 ByteBuffer key = state.getChunk().readKey(state.getIndex());
                 if (!inBounds(key)) {
                     state = null;
@@ -1116,7 +1103,7 @@ class InternalOakMap<K, V> {
 
         @Override
         public OakRBuffer next() {
-            Handle handle = advanceStream(null);
+            Handle handle = advanceStream(null, false);
             if (handle == null) {
                 return null;
             }
@@ -1163,7 +1150,7 @@ class InternalOakMap<K, V> {
 
     class EntryStreamIterator extends Iter<Map.Entry<OakRBuffer, OakRBuffer>> {
 
-        private OakRKeyReferenceImpl key = new OakRKeyReferenceImpl(memoryManager);
+        private OakRKeyReference key = new OakRKeyReference(memoryManager);
         private OakRValueBufferImpl value = new OakRValueBufferImpl(null);
 
         EntryStreamIterator(K lo, boolean loInclusive, K hi, boolean hiInclusive, boolean isDescending) {
@@ -1171,7 +1158,7 @@ class InternalOakMap<K, V> {
         }
 
         public Map.Entry<OakRBuffer, OakRBuffer> next() {
-            Handle handle = advanceStream(key);
+            Handle handle = advanceStream(key, false);
             if (handle == null) {
                 return null;
             }
@@ -1230,7 +1217,7 @@ class InternalOakMap<K, V> {
 
     public class KeyStreamIterator extends Iter<OakRBuffer> {
 
-        private OakRKeyReferenceImpl key = new OakRKeyReferenceImpl(memoryManager);
+        private OakRKeyReference key = new OakRKeyReference(memoryManager);
 
         KeyStreamIterator(K lo, boolean loInclusive, K hi, boolean hiInclusive, boolean isDescending) {
             super(null, loInclusive, null, hiInclusive, isDescending);
@@ -1238,7 +1225,7 @@ class InternalOakMap<K, V> {
 
         @Override
         public OakRBuffer next() {
-            advanceStreamKeyOnly(key);
+            advanceStream(key, true);
             return key;
         }
     }

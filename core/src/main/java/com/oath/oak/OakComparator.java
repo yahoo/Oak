@@ -9,7 +9,9 @@ package com.oath.oak;
 
 import java.nio.ByteBuffer;
 
-// IMPORTANT: it shouldn't be assumed that any ByteBuffer position starts at zero
+// IMPORTANT:
+// (1) input ByteBuffer position might be any non-negative integer
+// (2) input ByteBuffer position shouldn't be changed as a side effect of comparision
 public interface OakComparator<K> {
 
   int compareKeys(K key1, K key2);

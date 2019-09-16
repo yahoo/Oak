@@ -170,7 +170,11 @@ public class OakNativeMemoryAllocator implements OakMemoryAllocator {
     @Override
     public long allocated() { return allocated.get(); }
 
-    // When some buffer need to be read from a random block
+  @Override public boolean isClosed() {
+    return closed.get();
+  }
+
+  // When some buffer need to be read from a random block
     public ByteBuffer readByteBufferFromBlockID(
         Integer blockID, int bufferPosition, int bufferLength) {
       Block b = blocksArray[blockID];

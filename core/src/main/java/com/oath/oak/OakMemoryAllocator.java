@@ -28,4 +28,7 @@ public interface OakMemoryAllocator {
 
     // Returns the memory allocation of this OakMap (this Allocator)
     long allocated();
+
+    // Check if this Allocator was already closed
+    boolean isClosed();
 }

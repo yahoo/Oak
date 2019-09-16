@@ -56,5 +56,9 @@ public class MemoryManager {
         return ((OakNativeMemoryAllocator)keysMemoryAllocator).readByteBufferFromBlockID(
             BlockID, bufferPosition, bufferLength);
     }
+
+    public boolean isClosed() {
+        return keysMemoryAllocator.isClosed() || valuesMemoryAllocator.isClosed();
+    }
 }
 

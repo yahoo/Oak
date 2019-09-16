@@ -19,7 +19,7 @@ public class OakRValueBufferImpl implements OakRBuffer {
         this.handle = handle;
     }
 
-    public void setHandle(Handle handle) {
+    void setHandle(Handle handle) {
         this.handle = handle;
     }
 
