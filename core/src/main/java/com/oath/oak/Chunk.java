@@ -6,7 +6,6 @@
 
 package com.oath.oak;
 
-import com.oath.oak.NativeAllocator.OakNativeMemoryAllocator;
 import sun.misc.Unsafe;
 import java.lang.reflect.Constructor;
 import java.nio.ByteBuffer;
@@ -96,11 +95,10 @@ public class Chunk<K, V> {
      * Create a new chunk
      * @param minKey  minimal key to be placed in chunk
      * @param creator the chunk that is responsible for this chunk creation
-     * @param threadIndexCalculator
      */
     Chunk(ByteBuffer minKey, Chunk creator, Comparator<Object> comparator, MemoryManager memoryManager,
-        int maxItems, AtomicInteger externalSize, OakSerializer<K> keySerializer, OakSerializer<V> valueSerializer,
-        ThreadIndexCalculator threadIndexCalculator) {
+        int maxItems, AtomicInteger externalSize,
+        OakSerializer<K> keySerializer, OakSerializer<V> valueSerializer) {
         this.memoryManager = memoryManager;
         this.maxItems = maxItems;
         this.entries = new int[maxItems * FIELDS + FIRST_ITEM];
@@ -205,6 +203,22 @@ public class Chunk<K, V> {
 
         ByteBuffer bb = memoryManager.getByteBufferFromBlockID(blockID, keyPosition,length);
         return bb;
+    }
+
+    /**
+     * Sets the given key reference (OakRKeyReferBufferImpl) given the entry index.
+     * There is no copy just a special ByteBuffer for a single key.
+     * The thread-local ByteBuffer can be reused by different threads, however as long as
+     * a thread is invoked the ByteBuffer is related solely to this thread.
+     */
+    void setKeyRefer(int entryIndex, OakRKeyReference keyReferBuffer) {
+        if (entryIndex == Chunk.NONE) {
+            return;
+        }
+        int blockID = getEntryField(entryIndex, OFFSET_KEY_BLOCK);
+        int keyPosition = getEntryField(entryIndex, OFFSET_KEY_POSITION);
+        int length = getEntryField(entryIndex, OFFSET_KEY_LENGTH);
+        keyReferBuffer.setKeyReference(blockID, keyPosition, length);
     }
 
     /**

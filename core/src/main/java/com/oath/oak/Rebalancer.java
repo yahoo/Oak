@@ -147,7 +147,7 @@ class Rebalancer<K, V> {
         Chunk<K,V> currFrozen = firstFrozen;
         Chunk<K,V> currNewChunk = new Chunk<K, V>(firstFrozen.minKey, firstFrozen, firstFrozen.comparator, memoryManager,
                 currFrozen.getMaxItems(), currFrozen.externalSize,
-                keySerializer, valueSerializer, threadIndexCalculator);
+                keySerializer, valueSerializer);
 
         int ei = firstFrozen.getFirstItemEntryIndex();
         List<Chunk<K,V>> newChunks = new LinkedList<>();
@@ -190,7 +190,7 @@ class Rebalancer<K, V> {
 
                     Chunk c = new Chunk<K, V>(newMinKey, firstFrozen, currFrozen.comparator, memoryManager,
                             currFrozen.getMaxItems(), currFrozen.externalSize,
-                            keySerializer, valueSerializer, threadIndexCalculator);
+                            keySerializer, valueSerializer);
                     currNewChunk.next.set(c, false);
                     newChunks.add(currNewChunk);
                     currNewChunk = c;

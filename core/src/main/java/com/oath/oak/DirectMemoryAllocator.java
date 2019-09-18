@@ -24,6 +24,11 @@ public class DirectMemoryAllocator implements OakMemoryAllocator{
     public long allocated() {
         return 0;
     }
+
+    @Override
+    public boolean isClosed() {
+        return false;
+    }
 }
 
 

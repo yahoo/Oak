@@ -109,4 +109,43 @@ public interface ZeroCopyMap<K, V> {
      * @return a set view of the serialized mappings contained in this map
      */
     Set<Map.Entry<OakRBuffer, OakRBuffer>> entrySet();
+
+    /**
+     * Returns a {@link Set} view of read only OakByteBuffers containing the
+     * serialized keys stored in this map. When set is iterated it gives a "stream" view
+     * on the elements, meaning only one element can be observed at a time.
+     * The set iteration can not be shared between multi threads.
+     *
+     * The stream iterator is intended to be used in threads that are for iterations only
+     * and are not involved in concurrent/parallel reading/updating the mappings
+     *
+     * @return a set view of the serialized keys contained in this map
+     */
+    Set<OakRBuffer> keyStreamSet();
+
+    /**
+     * Returns a {@link Collection} view of read only OakByteBuffers containing the
+     * serialized values stored in this map. When set is iterated it gives a "stream" view
+     * on the elements, meaning only one element can be observed at a time.
+     * The set iteration can not be shared between multi threads.
+     *
+     * The stream iterator is intended to be used in threads that are for iterations only
+     * and are not involved in concurrent/parallel reading/updating the mappings
+     *
+     * @return a collection view of the values contained in this map
+     */
+    Collection<OakRBuffer> valuesStream();
+
+    /**
+     * Returns a {@link Set} view of the serialized mappings contained in this
+     * map. When set is iterated it gives a "stream" view
+     * on the elements, meaning only one element can be observed at a time.
+     * The set iteration can not be shared between multi threads.
+     *
+     * The stream iterator is intended to be used in threads that are for iterations only
+     * and are not involved in concurrent/parallel reading/updating the mappings
+     *
+     * @return a set view of the serialized mappings contained in this map
+     */
+    Set<Map.Entry<OakRBuffer, OakRBuffer>> entryStreamSet();
 }
