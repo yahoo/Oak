@@ -997,7 +997,7 @@ class InternalOakMap<K, V> {
                 initAfterRebalance();
             }
             if (key != null) {
-              state.getChunk().setKeyRefer(state.getIndex(),key);
+                state.getChunk().setKeyRefer(state.getIndex(), key);
             }
             Slice currentValue = null;
             if (!keyOnly) {
@@ -1086,7 +1086,7 @@ class InternalOakMap<K, V> {
             // The boundary check is costly and need to be performed only when required,
             // meaning not on the full scan.
             // The check of the boundaries under condition is an optimization.
-            if ((hi!=null && !isDescending) || (lo!=null && isDescending)) {
+            if ((hi != null && !isDescending) || (lo != null && isDescending)) {
                 ByteBuffer key = state.getChunk().readKey(state.getIndex());
                 if (!inBounds(key)) {
                     state = null;
@@ -1290,15 +1290,18 @@ class InternalOakMap<K, V> {
         return new KeyIterator(lo, loInclusive, hi, hiInclusive, isDescending);
     }
 
-    Iterator<OakRBuffer> valuesStreamIterator(K lo, boolean loInclusive, K hi, boolean hiInclusive, boolean isDescending) {
+    Iterator<OakRBuffer> valuesStreamIterator(K lo, boolean loInclusive, K hi, boolean hiInclusive,
+                                              boolean isDescending) {
         return new ValueStreamIterator(lo, loInclusive, hi, hiInclusive, isDescending);
     }
 
-    Iterator<Map.Entry<OakRBuffer, OakRBuffer>> entriesStreamIterator(K lo, boolean loInclusive, K hi, boolean hiInclusive, boolean isDescending) {
+    Iterator<Map.Entry<OakRBuffer, OakRBuffer>> entriesStreamIterator(K lo, boolean loInclusive, K hi,
+                                                                      boolean hiInclusive, boolean isDescending) {
         return new EntryStreamIterator(lo, loInclusive, hi, hiInclusive, isDescending);
     }
 
-    Iterator<OakRBuffer> keysStreamIterator(K lo, boolean loInclusive, K hi, boolean hiInclusive, boolean isDescending) {
+    Iterator<OakRBuffer> keysStreamIterator(K lo, boolean loInclusive, K hi, boolean hiInclusive,
+                                            boolean isDescending) {
         return new KeyStreamIterator(lo, loInclusive, hi, hiInclusive, isDescending);
     }
 

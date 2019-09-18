@@ -81,7 +81,9 @@ public class OffHeapOakTest {
             }
 
             for (Map.Entry<Integer, Integer> entry : oak.entrySet()) {
-                if (entry == null) continue;
+                if (entry == null) {
+                    continue;
+                }
                 assertEquals(
                         "\nOn should be empty: Key " + entry.getKey()
                                 + ", Value " + entry.getValue(),
@@ -98,9 +100,12 @@ public class OffHeapOakTest {
             }
 
             for (Map.Entry<Integer, Integer> entry : oak.entrySet()) {
-                if (entry == null) continue;
+                if (entry == null) {
+                    continue;
+                }
                 assertNotNull("\nAfter initial pass of put and remove got entry NULL", entry);
-                assertNotNull("\nAfter initial pass of put and remove got value NULL for key "+ entry.getKey(), entry.getValue());
+                assertNotNull("\nAfter initial pass of put and remove got value NULL for key " + entry.getKey(),
+                        entry.getValue());
                 assertEquals(
                         "\nAfter initial pass of put and remove (range 0-"
                                 + (6 * maxItemsPerChunk) + "): Key " + entry.getKey()
@@ -117,7 +122,9 @@ public class OffHeapOakTest {
             }
 
             for (Map.Entry<Integer, Integer> entry : oak.entrySet()) {
-                if (entry == null) continue;
+                if (entry == null) {
+                    continue;
+                }
                 assertNotNull(entry.getValue());
                 assertEquals(
                         "\nAfter second pass of put and remove: Key " + entry.getKey()
