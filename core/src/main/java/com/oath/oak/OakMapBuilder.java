@@ -98,11 +98,8 @@ public class OakMapBuilder<K, V> {
         MemoryManager memoryManager = new MemoryManager(memoryAllocator);
 
         return new OakMap<>(
-                minKey,
-                keySerializer,
-                valueSerializer,
-                comparator, chunkMaxItems,
-                memoryManager, threadIndexCalculator);
+                minKey, keySerializer, valueSerializer, comparator, chunkMaxItems, memoryManager,
+                threadIndexCalculator);
     }
 
     private static int intsCompare(int int1, int int2) {

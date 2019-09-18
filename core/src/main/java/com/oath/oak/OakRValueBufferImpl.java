@@ -11,6 +11,7 @@ import java.nio.ByteOrder;
 import java.util.ConcurrentModificationException;
 import java.util.function.Function;
 
+// remove header
 public class OakRValueBufferImpl implements OakRBuffer {
 
     private ByteBuffer bb;

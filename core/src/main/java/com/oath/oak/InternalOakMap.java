@@ -70,7 +70,7 @@ class InternalOakMap<K, V> {
 
         this.skiplist = new ConcurrentSkipListMap<>(this.comparator);
 
-        Chunk<K, V> head = new Chunk<K, V>(this.minKey, null, this.comparator, memoryManager, chunkMaxItems,
+        Chunk<K, V> head = new Chunk<>(this.minKey, null, this.comparator, memoryManager, chunkMaxItems,
                 this.size, keySerializer, valueSerializer);
         this.skiplist.put(head.minKey, head);    // add first chunk (head) into skiplist
         this.head = new AtomicReference<>(head);
@@ -1013,10 +1013,6 @@ class InternalOakMap<K, V> {
             return new AbstractMap.SimpleImmutableEntry<>(bb, currentValue);
         }
 
-        /**
-         * Advances next to the next entry without creating a ByteBuffer for the key.
-         * Return previous index
-         */
         Slice advanceStream(OakRKeyReference key, boolean keyOnly) {
 
             if (state == null) {
@@ -1267,9 +1263,8 @@ class InternalOakMap<K, V> {
         @Override
         public OakRBuffer next() {
 
-            Map.Entry<ByteBuffer, Slice> pair = advance(true, false);
+            Map.Entry<ByteBuffer, Slice> pair = advance(true, true);
             return new OakRKeyBufferImpl(pair.getKey().asReadOnlyBuffer());
-
         }
     }
 
