@@ -107,7 +107,9 @@ class Rebalancer<K, V> {
      * Marks chunks as freezed, prevents future updates of the engagead chunks
      */
     void freeze() {
-        if (frozen.get()) return;
+        if (frozen.get()) {
+            return;
+        }
 
         for (Chunk chunk : getEngagedChunks()) {
             chunk.freeze();
@@ -146,8 +148,9 @@ class Rebalancer<K, V> {
             ei = currNewChunk.copyPartNoKeys(currFrozen, ei, entriesLowThreshold);
             // if completed reading curr frozen chunk
             if (ei == Chunk.NONE) {
-                if (!iterFrozen.hasNext())
+                if (!iterFrozen.hasNext()) {
                     break;
+                }
 
                 currFrozen = iterFrozen.next();
                 ei = currFrozen.getFirstItemEntryIndex();
@@ -228,11 +231,15 @@ class Rebalancer<K, V> {
         updateRangeView();
 
         // allow up to RebalanceSize chunks to be engaged
-        if (chunksInRange >= rebalanceSize) return null;
+        if (chunksInRange >= rebalanceSize) {
+            return null;
+        }
 
         Chunk<K, V> candidate = last.next.getReference();
 
-        if (!isCandidate(candidate)) return null;
+        if (!isCandidate(candidate)) {
+            return null;
+        }
 
         int newItems = candidate.getStatistics().getCompactedCount();
         int totalItems = itemsInRange + newItems;
@@ -250,7 +257,9 @@ class Rebalancer<K, V> {
     private void updateRangeView() {
         while (true) {
             Chunk<K, V> next = last.next.getReference();
-            if (next == null || !next.isEngaged(this)) break;
+            if (next == null || !next.isEngaged(this)) {
+                break;
+            }
             last = next;
             addToCounters(last);
         }
@@ -280,21 +289,26 @@ class Rebalancer<K, V> {
             current = current.next.getReference();
         }
 
-        if (engaged.isEmpty()) throw new IllegalStateException("Engaged list cannot be empty");
+        if (engaged.isEmpty()) {
+            throw new IllegalStateException("Engaged list cannot be empty");
+        }
 
         return engaged;
     }
 
     List<Chunk<K, V>> getEngagedChunks() {
         List<Chunk<K, V>> engaged = engagedChunks.get();
-        if (engaged == null) throw new IllegalStateException("Trying to get engaged before engagement stage completed");
+        if (engaged == null) {
+            throw new IllegalStateException("Trying to get engaged before engagement stage completed");
+        }
         return engaged;
     }
 
     List<Chunk<K, V>> getNewChunks() {
         List<Chunk<K, V>> newChunks = this.newChunks.get();
-        if (newChunks == null)
+        if (newChunks == null) {
             throw new IllegalStateException("Trying to get new chunks before creating stage completed");
+        }
         return newChunks;
     }
 

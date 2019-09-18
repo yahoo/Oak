@@ -73,7 +73,8 @@ public class ValueUtils {
     private static boolean CAS(ByteBuffer bb, int expected, int value) {
         // assuming big endian
         assert bb.order() == ByteOrder.BIG_ENDIAN;
-        return unsafe.compareAndSwapInt(null, ((DirectBuffer) bb).address() + bb.position(), reverseBytes(expected), reverseBytes(value));
+        return unsafe.compareAndSwapInt(null, ((DirectBuffer) bb).address() + bb.position(), reverseBytes(expected),
+                reverseBytes(value));
     }
 
     /* Header Utils */
@@ -100,8 +101,12 @@ public class ValueUtils {
         int oldHeader;
         do {
             oldHeader = bb.getInt(bb.position());
-            if (isValueDeleted(oldHeader)) return FAILURE;
-            if (wasValueMoved(oldHeader)) return RETRY;
+            if (isValueDeleted(oldHeader)) {
+                return FAILURE;
+            }
+            if (wasValueMoved(oldHeader)) {
+                return RETRY;
+            }
             oldHeader &= ~LOCK_MASK;
         } while (!CAS(bb, oldHeader, oldHeader + 4));
         return SUCCESS;
@@ -124,8 +129,12 @@ public class ValueUtils {
         int oldHeader;
         do {
             oldHeader = bb.getInt(bb.position());
-            if (isValueDeleted(oldHeader)) return FAILURE;
-            if (wasValueMoved(oldHeader)) return RETRY;
+            if (isValueDeleted(oldHeader)) {
+                return FAILURE;
+            }
+            if (wasValueMoved(oldHeader)) {
+                return RETRY;
+            }
         } while (!CAS(bb, FREE.value, LOCKED.value));
         return SUCCESS;
     }
@@ -140,8 +149,12 @@ public class ValueUtils {
         int oldHeader;
         do {
             oldHeader = bb.getInt(bb.position());
-            if (isValueDeleted(oldHeader)) return FAILURE;
-            if (wasValueMoved(oldHeader)) return RETRY;
+            if (isValueDeleted(oldHeader)) {
+                return FAILURE;
+            }
+            if (wasValueMoved(oldHeader)) {
+                return RETRY;
+            }
         } while (!CAS(bb, FREE.value, DELETED.value));
         return SUCCESS;
     }
@@ -153,7 +166,9 @@ public class ValueUtils {
     }
 
     static <T> T transform(ByteBuffer bb, Function<ByteBuffer, T> transformer) {
-        if (lockRead(bb) != SUCCESS) return null;
+        if (lockRead(bb) != SUCCESS) {
+            return null;
+        }
 
         T transformation = transformer.apply(getActualValueBuffer(bb).asReadOnlyBuffer());
         unlockRead(bb);
@@ -163,17 +178,22 @@ public class ValueUtils {
     static <T> AbstractMap.SimpleEntry<ValueResult, T> transform(Slice s, Function<ByteBuffer, T> transformer) {
         ByteBuffer bb = s.getByteBuffer();
         ValueResult res = lockRead(bb);
-        if (res != SUCCESS) return new AbstractMap.SimpleEntry<>(res, null);
+        if (res != SUCCESS) {
+            return new AbstractMap.SimpleEntry<>(res, null);
+        }
 
         T transformation = transformer.apply(getActualValueBuffer(bb).asReadOnlyBuffer());
         unlockRead(bb);
         return new AbstractMap.SimpleEntry<>(SUCCESS, transformation);
     }
 
-    public static <K, V> ValueResult put(Chunk<K, V> chunk, Chunk.LookUp lookUp, V newVal, OakSerializer<V> serializer, MemoryManager memoryManager) {
+    public static <K, V> ValueResult put(Chunk<K, V> chunk, Chunk.LookUp lookUp, V newVal,
+                                         OakSerializer<V> serializer, MemoryManager memoryManager) {
         ByteBuffer bb = lookUp.valueSlice.getByteBuffer();
         ValueResult res = lockWrite(bb);
-        if (res != SUCCESS) return res;
+        if (res != SUCCESS) {
+            return res;
+        }
         int capacity = serializer.calculateSize(newVal);
         if (bb.remaining() < capacity) { // can not reuse the existing space
             bb.putInt(bb.position(), MOVED.value);
@@ -185,8 +205,10 @@ public class ValueUtils {
             s = memoryManager.allocateSlice(capacity + VALUE_HEADER_SIZE);
             bb = s.getByteBuffer();
             bb.putInt(bb.position(), LOCKED.value);
-            int valueBlockAndLength = (s.getBlockID() << VALUE_BLOCK_SHIFT) | ((capacity + VALUE_HEADER_SIZE) & VALUE_LENGTH_MASK);
-            assert chunk.longCasEntriesArray(lookUp.entryIndex, Chunk.OFFSET.VALUE_STATS, lookUp.valueStats, UnsafeUtils.intsToLong(valueBlockAndLength, bb.position()));
+            int valueBlockAndLength =
+                    (s.getBlockID() << VALUE_BLOCK_SHIFT) | ((capacity + VALUE_HEADER_SIZE) & VALUE_LENGTH_MASK);
+            assert chunk.longCasEntriesArray(lookUp.entryIndex, Chunk.OFFSET.VALUE_STATS, lookUp.valueStats,
+                    UnsafeUtils.intsToLong(valueBlockAndLength, bb.position()));
             // TODO: CAS the new slice into the entry
         }
         ByteBuffer dup = getActualValueBuffer(bb);
@@ -200,7 +222,9 @@ public class ValueUtils {
     static ValueResult compute(Slice s, Consumer<OakWBuffer> computer) {
         ByteBuffer bb = s.getByteBuffer();
         ValueResult res = lockWrite(bb);
-        if (res != SUCCESS) return res;
+        if (res != SUCCESS) {
+            return res;
+        }
         OakWBuffer wBuffer = new OakWBufferImpl(bb);
         computer.accept(wBuffer);
         unlockWrite(bb);
@@ -210,7 +234,9 @@ public class ValueUtils {
     static ValueResult remove(Slice s, MemoryManager memoryManager) {
         ByteBuffer bb = s.getByteBuffer();
         ValueResult res = deleteValue(bb);
-        if (res != SUCCESS) return res;
+        if (res != SUCCESS) {
+            return res;
+        }
         // releasing the actual value and not the header
         ByteBuffer dup = bb.duplicate();
         dup.position(dup.position() + 4);
@@ -229,8 +255,10 @@ public class ValueUtils {
         T result;
         ByteBuffer bb = s.getByteBuffer();
         if (lockWrite(bb) != SUCCESS)
-            // finally clause will handle unlock
+        // finally clause will handle unlock
+        {
             return null;
+        }
         result = transformer.apply(getActualValueBuffer(bb));
         unlockWrite(bb);
         return result;
