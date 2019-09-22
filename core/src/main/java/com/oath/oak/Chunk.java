@@ -65,7 +65,7 @@ public class Chunk<K, V> {
     private AtomicReference<Rebalancer> rebalancer;
     private final int[] entries;    // array is initialized to 0, i.e., NONE - this is important!
 
-    private final Handle<V>[] handles;
+    private final Handle[] handles;
     private AtomicInteger pendingOps;
     private final AtomicInteger entryIndex;    // points to next free index of entry array
     private final AtomicInteger handleIndex;   // points to next free index of entry array
@@ -294,7 +294,7 @@ public class Chunk<K, V> {
     /**
      * gets the value for the given item, or 'null' if it doesn't exist
      */
-    Handle<V> getHandle(int entryIndex) {
+    Handle getHandle(int entryIndex) {
 
         int hi = getEntryField(entryIndex, OFFSET_HANDLE_INDEX);
 
@@ -344,11 +344,11 @@ public class Chunk<K, V> {
 
     static class LookUp<V> {
 
-        final Handle<V> handle;
+        final Handle handle;
         final int entryIndex;
         final int handleIndex;
 
-        LookUp(Handle<V> handle, int entryIndex, int handleIndex) {
+        LookUp(Handle handle, int entryIndex, int handleIndex) {
             this.handle = handle;
             this.entryIndex = entryIndex;
             this.handleIndex = handleIndex;
@@ -422,7 +422,7 @@ public class Chunk<K, V> {
         if (hi + 1 > handles.length) {
             return -1;
         }
-        handles[hi] = new Handle<>();
+        handles[hi] = new Handle();
         return hi;
     }
 
