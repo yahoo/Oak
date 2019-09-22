@@ -247,7 +247,7 @@ public class OakNativeMemoryAllocatorTest {
         // Order is important here!
         int[] sizes = new int[]{4, 16, 8, 32};
         List<ByteBuffer> allocated = Arrays.stream(sizes)
-                .mapToObj(allocator::allocate)
+                .mapToObj(allocator::allocate).map(ByteBuffer::duplicate)
                 .collect(Collectors.toList());
         int bytesAllocated = IntStream.of(sizes).sum();
 

@@ -57,9 +57,9 @@ class Block {
         }
         // the duplicate is needed for thread safeness, otherwise (in single threaded environment)
         // the setting of position and limit could happen on the main buffer itself
-        ByteBuffer bb = buffer.duplicate();
-        bb.position(now);
+        ByteBuffer bb = getMyBuffer();
         bb.limit(now + size);
+        bb.position(now);
         return new Slice(id, bb);
     }
 
@@ -96,7 +96,7 @@ class Block {
         cleaner.clean();
     }
 
-    ByteBuffer getReadOnlyBufferForThread(int position, int length) {
+    private ByteBuffer getMyBuffer() {
         int idx = threadIndexCalculator.getIndex();
         if (byteBufferPerThread[idx] == null) {
             // the new buffer object is needed for thread safeness, otherwise
@@ -106,7 +106,11 @@ class Block {
             byteBufferPerThread[idx] = buffer.duplicate();
         }
 
-        ByteBuffer bb = byteBufferPerThread[idx];
+        return byteBufferPerThread[idx];
+    }
+
+    ByteBuffer getReadOnlyBufferForThread(int position, int length) {
+        ByteBuffer bb = getMyBuffer();
         bb.limit(position + length);
         bb.position(position);
         // on purpose not creating a ByteBuffer slice() here,

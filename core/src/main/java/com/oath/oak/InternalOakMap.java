@@ -1242,7 +1242,12 @@ class InternalOakMap<K, V> {
             if (res == ValueUtils.ValueResult.FAILURE) {
                 return null;
             } else if (res == ValueUtils.ValueResult.RETRY) {
-                serializedValue = getValueTransformation(serializedKey, byteBuffer -> byteBuffer);
+                do {
+                    serializedValue = getValueTransformation(serializedKey, byteBuffer -> byteBuffer);
+                    if (serializedValue == null) {
+                        return null;
+                    }
+                } while (ValueUtils.lockRead(serializedValue) == ValueUtils.ValueResult.RETRY);
             } else {
                 serializedValue = ValueUtils.getActualValueBuffer(valueSlice.getByteBuffer()).asReadOnlyBuffer();
             }
