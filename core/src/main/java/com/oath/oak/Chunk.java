@@ -729,7 +729,7 @@ public class Chunk<K, V> {
             // try to find a continuous interval to copy
             // we cannot enlarge interval: if key is removed (handle index is -1) or
             // if this chunk already has all entries to start with
-            if ((currSrcHandleIndex > 0) && (!isHandleDeleted) && (sortedEntryIndex + entriesToCopy * FIELDS <= maxIdx)) {
+            if ((currSrcHandleIndex > 0) && (!isHandleDeleted) && (sortedEntryIndex + entriesToCopy * FIELDS < maxIdx)) {
                 // we can enlarge the interval, if it is otherwise possible:
                 // if this is first entry in the interval (we need to copy one entry anyway) OR
                 // if (on the source chunk) current entry idx directly follows the previous entry idx
