@@ -93,7 +93,7 @@ public class OakMap<K extends MyBuffer, V extends MyBuffer> implements Compositi
     private boolean createAndScanView(com.oath.oak.OakMap<MyBuffer, MyBuffer> subMap, int length) {
         Iterator iter;
         if (Parameters.zeroCopy) {
-            iter = subMap.zc().keySet().iterator();
+            iter = subMap.zc().keyStreamSet().iterator();
         } else {
             iter = subMap.keySet().iterator();
         }
