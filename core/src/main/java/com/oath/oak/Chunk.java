@@ -65,7 +65,7 @@ public class Chunk<K, V> {
     private AtomicReference<Rebalancer> rebalancer;
     private final int[] entries;    // array is initialized to 0, i.e., NONE - this is important!
 
-    private final Handle<V>[] handles;
+    private final Handle[] handles;
     private AtomicInteger pendingOps;
     private final AtomicInteger entryIndex;    // points to next free index of entry array
     private final AtomicInteger handleIndex;   // points to next free index of entry array
@@ -294,7 +294,7 @@ public class Chunk<K, V> {
     /**
      * gets the value for the given item, or 'null' if it doesn't exist
      */
-    Handle<V> getHandle(int entryIndex) {
+    Handle getHandle(int entryIndex) {
 
         int hi = getEntryField(entryIndex, OFFSET_HANDLE_INDEX);
 
@@ -344,11 +344,11 @@ public class Chunk<K, V> {
 
     static class LookUp<V> {
 
-        final Handle<V> handle;
+        final Handle handle;
         final int entryIndex;
         final int handleIndex;
 
-        LookUp(Handle<V> handle, int entryIndex, int handleIndex) {
+        LookUp(Handle handle, int entryIndex, int handleIndex) {
             this.handle = handle;
             this.entryIndex = entryIndex;
             this.handleIndex = handleIndex;
@@ -422,7 +422,7 @@ public class Chunk<K, V> {
         if (hi + 1 > handles.length) {
             return -1;
         }
-        handles[hi] = new Handle<>();
+        handles[hi] = new Handle();
         return hi;
     }
 
@@ -712,7 +712,7 @@ public class Chunk<K, V> {
             // try to find a continuous interval to copy
             // we cannot enlarge interval: if key is removed (handle index is -1) or
             // if this chunk already has all entries to start with
-            if ((currSrcHandleIndex > 0) && (!isHandleDeleted) && (sortedEntryIndex + entriesToCopy * FIELDS <= maxIdx)) {
+            if ((currSrcHandleIndex > 0) && (!isHandleDeleted) && (sortedEntryIndex + entriesToCopy * FIELDS < maxIdx)) {
                 // we can enlarge the interval, if it is otherwise possible:
                 // if this is first entry in the interval (we need to copy one entry anyway) OR
                 // if (on the source chunk) current entry idx directly follows the previous entry idx
@@ -760,7 +760,7 @@ public class Chunk<K, V> {
                 srcEntryIdx = srcChunk.getEntryField(srcEntryIdx, OFFSET_NEXT);
             }
 
-            if (srcEntryIdx == NONE || sortedEntryIndex > maxIdx)
+            if (srcEntryIdx == NONE || sortedEntryIndex >= maxIdx)
                 break; // if we are done
 
             // reset and continue

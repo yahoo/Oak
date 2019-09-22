@@ -14,7 +14,7 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
-class Handle<V> implements OakWBuffer {
+class Handle implements OakWBuffer {
 
     private final ReentrantReadWriteLock.ReadLock readLock;
     private final ReentrantReadWriteLock.WriteLock writeLock;
@@ -51,21 +51,25 @@ class Handle<V> implements OakWBuffer {
         return true;
     }
 
-    boolean put(V newVal, OakSerializer<V> serializer, MemoryManager memoryManager) {
+    <V> boolean put(V newVal, OakSerializer<V> serializer, MemoryManager memoryManager) {
         writeLock.lock();
         if (isDeleted()) {
             writeLock.unlock();
             return false;
         }
+        innerPut(newVal, serializer, memoryManager);
+        writeLock.unlock();
+
+        return true;
+    }
+
+    private <V> void innerPut(V newVal, OakSerializer<V> serializer, MemoryManager memoryManager) {
         int capacity = serializer.calculateSize(newVal);
         if (this.value.remaining() < capacity) { // can not reuse the existing space
             memoryManager.release(this.value);
             this.value = memoryManager.allocate(capacity);
         }
         serializer.serialize(newVal, this.value.slice());
-        writeLock.unlock();
-
-        return true;
     }
 
     // returns false in case handle was found deleted and compute didn't take place, true otherwise
@@ -196,27 +200,33 @@ class Handle<V> implements OakWBuffer {
         return transformation;
     }
 
-    /**
-     * Applies a transformation under writers locking
-     *
-     * @param transformer transformation to apply
-     * @return Transformation result or null if value is deleted
-     */
-    <T> T mutatingTransform(Function<ByteBuffer, T> transformer) {
-        T result;
+    <V> V exchange(V newValue, Function<ByteBuffer, V> valueDeserializeTransformer, OakSerializer<V> serializer, MemoryManager memoryManager) {
         try {
             writeLock.lock();
-            if (isDeleted()) {
-                // finally clause will handle unlock
+            if (isDeleted())
                 return null;
-            }
-            result = transformer.apply(getSlicedByteBuffer());
+            V v = valueDeserializeTransformer.apply(this.value);
+            innerPut(newValue, serializer, memoryManager);
+            return v;
         } finally {
             writeLock.unlock();
         }
-        return result;
     }
 
+    <V> boolean compareExchange(V oldValue, V newValue, Function<ByteBuffer, V> valueDeserializeTransformer, OakSerializer<V> serializer, MemoryManager memoryManager) {
+        try {
+            writeLock.lock();
+            if (isDeleted())
+                return false;
+            V v = valueDeserializeTransformer.apply(this.value);
+            if (!v.equals(oldValue))
+                return false;
+            innerPut(newValue, serializer, memoryManager);
+            return true;
+        } finally {
+            writeLock.unlock();
+        }
+    }
 
     void readLock() {
         readLock.lock();
