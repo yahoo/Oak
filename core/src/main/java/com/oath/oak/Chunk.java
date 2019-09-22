@@ -779,7 +779,7 @@ public class Chunk<K, V> {
                 srcEntryIdx = srcChunk.getEntryField(srcEntryIdx, OFFSET_NEXT);
             }
 
-            if (srcEntryIdx == NONE || sortedEntryIndex > maxIdx) {
+            if (srcEntryIdx == NONE || sortedEntryIndex >= maxIdx) {
                 break; // if we are done
             }
 

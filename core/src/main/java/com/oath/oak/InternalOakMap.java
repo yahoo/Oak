@@ -51,7 +51,6 @@ class InternalOakMap<K, V> {
             Comparator<Object> comparator,
             MemoryManager memoryManager,
             int chunkMaxItems,
-            int chunkBytesPerItem,
             ThreadIndexCalculator threadIndexCalculator) {
 
         this.size = new AtomicInteger(0);
