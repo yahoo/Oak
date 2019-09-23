@@ -15,7 +15,8 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
-import static com.oath.oak.Chunk.DELETED_VALUE;
+import static com.oath.oak.Chunk.*;
+import static com.oath.oak.UnsafeUtils.longToInts;
 
 class InternalOakMap<K, V> {
 

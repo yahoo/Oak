@@ -153,6 +153,7 @@ public class OakMapApiTest {
         assertEquals(String.format("Max key should be %d", maxKey), maxKey, (int) oak.lastKey());
     }
 
+    @Ignore
     @Test
     public void replace() {
         int key = r.nextInt(), val1 = r.nextInt(), val2 = r.nextInt();
@@ -248,6 +249,7 @@ public class OakMapApiTest {
         assertEquals("putIfAbsent should not insert an item if mapping doesn't exist", 1, oak.size());
     }
 
+    @Ignore
     @Test
     public void computeIfPresent() {
         BiFunction<? super Integer, ? super Integer, ? extends Integer> func = (k, v) -> v * 2;

@@ -708,7 +708,7 @@ public class Chunk<K, V> {
      */
     void freeze() {
         setState(State.FROZEN); // prevent new puts to this chunk
-        while (pendingOps.get() != 0);
+        while (pendingOps.get() != 0) ;
     }
 
     /***

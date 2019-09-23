@@ -200,7 +200,7 @@ public class ValueUtils {
                                      MemoryManager memoryManager) {
         ByteBuffer bb = lookUp.valueSlice.getByteBuffer();
         int capacity = serializer.calculateSize(newVal);
-        if (bb.remaining() + ValueUtils.VALUE_HEADER_SIZE < capacity) { // can not reuse the existing space
+        if (bb.remaining() < capacity + ValueUtils.VALUE_HEADER_SIZE) { // can not reuse the existing space
             bb.putInt(bb.position(), MOVED.value);
             ByteBuffer dup = bb.duplicate();
             dup.position(dup.position() + ValueUtils.VALUE_HEADER_SIZE);
