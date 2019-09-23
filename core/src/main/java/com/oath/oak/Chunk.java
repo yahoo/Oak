@@ -390,7 +390,7 @@ public class Chunk<K, V> {
 
     static class LookUp {
 
-        final Slice valueSlice;
+        Slice valueSlice;
         final long valueStats;
         final int entryIndex;
 

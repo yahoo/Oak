@@ -185,12 +185,20 @@ public class ValueUtils {
         return new AbstractMap.SimpleEntry<>(SUCCESS, transformation);
     }
 
-    public static <V> ValueResult put(Chunk<?, V> chunk, Chunk.LookUp lookUp, V newVal, OakSerializer<V> serializer, MemoryManager memoryManager) {
-        ByteBuffer bb = lookUp.valueSlice.getByteBuffer();
-        ValueResult res = lockWrite(bb);
+    public static <V> ValueResult put(Chunk<?, V> chunk, Chunk.LookUp lookUp, V newVal, OakSerializer<V> serializer,
+                                      MemoryManager memoryManager) {
+        ValueResult res = lockWrite(lookUp.valueSlice.getByteBuffer());
         if (res != SUCCESS) {
             return res;
         }
+        innerPut(chunk, lookUp, newVal, serializer, memoryManager);
+        unlockWrite(lookUp.valueSlice.getByteBuffer());
+        return SUCCESS;
+    }
+
+    private static <V> void innerPut(Chunk<?, V> chunk, Chunk.LookUp lookUp, V newVal, OakSerializer<V> serializer,
+                                     MemoryManager memoryManager) {
+        ByteBuffer bb = lookUp.valueSlice.getByteBuffer();
         int capacity = serializer.calculateSize(newVal);
         if (bb.remaining() + ValueUtils.VALUE_HEADER_SIZE < capacity) { // can not reuse the existing space
             bb.putInt(bb.position(), MOVED.value);
@@ -200,20 +208,18 @@ public class ValueUtils {
             Slice sDup = new Slice(s.getBlockID(), dup);
             memoryManager.releaseSlice(sDup);
             s = memoryManager.allocateSlice(capacity + VALUE_HEADER_SIZE);
+            lookUp.valueSlice = s;
             bb = s.getByteBuffer();
             bb.putInt(bb.position(), LOCKED.value);
             int valueBlockAndLength =
                     (s.getBlockID() << VALUE_BLOCK_SHIFT) | ((capacity + VALUE_HEADER_SIZE) & VALUE_LENGTH_MASK);
             assert chunk.longCasEntriesArray(lookUp.entryIndex, Chunk.OFFSET.VALUE_STATS, lookUp.valueStats,
                     UnsafeUtils.intsToLong(valueBlockAndLength, bb.position()));
-            // TODO: CAS the new slice into the entry
         }
         ByteBuffer dup = getActualValueBuffer(bb);
         // It seems like I have to change bb here or else I expose the header to the user
         // Duplicating bb instead
         serializer.serialize(newVal, dup);
-        unlockWrite(bb);
-        return SUCCESS;
     }
 
     static ValueResult compute(Slice s, Consumer<OakWBuffer> computer) {
@@ -240,5 +246,38 @@ public class ValueUtils {
         Slice sDup = new Slice(s.getBlockID(), dup);
         memoryManager.releaseSlice(sDup);
         return SUCCESS;
+    }
+
+    static <V> AbstractMap.SimpleEntry<ValueResult, V> exchange(Chunk<?, V> chunk, Chunk.LookUp lookUp, V newValue,
+                                                                Function<ByteBuffer, V> valueDeserializeTransformer,
+                                                                OakSerializer<V> serializer,
+                                                                MemoryManager memoryManager) {
+        ValueResult result = lockWrite(lookUp.valueSlice.getByteBuffer());
+        if (result != SUCCESS) {
+            return new AbstractMap.SimpleEntry<>(result, null);
+        }
+        V v = valueDeserializeTransformer.apply(getActualValueBuffer(lookUp.valueSlice.getByteBuffer()));
+        innerPut(chunk, lookUp, newValue, serializer, memoryManager);
+        unlockWrite(lookUp.valueSlice.getByteBuffer());
+        return new AbstractMap.SimpleEntry<>(SUCCESS, v);
+    }
+
+    static <V> ValueResult compareExchange(Chunk<?, V> chunk, Chunk.LookUp lookUp, V oldValue, V newValue,
+                                           Function<ByteBuffer, V> valueDeserializeTransformer,
+                                           OakSerializer<V> serializer, MemoryManager memoryManager) {
+        try {
+            ValueResult result = lockWrite(lookUp.valueSlice.getByteBuffer());
+            if (result != SUCCESS) {
+                return result;
+            }
+            V v = valueDeserializeTransformer.apply(getActualValueBuffer(lookUp.valueSlice.getByteBuffer()));
+            if (!v.equals(oldValue)) {
+                return FAILURE;
+            }
+            innerPut(chunk, lookUp, newValue, serializer, memoryManager);
+            return SUCCESS;
+        } finally {
+            unlockWrite(lookUp.valueSlice.getByteBuffer());
+        }
     }
 }

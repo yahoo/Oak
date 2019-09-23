@@ -766,25 +766,37 @@ class InternalOakMap<K, V> {
     }
 
     V replace(K key, V value, Function<ByteBuffer, V> valueDeserializeTransformer) {
-        Chunk<K, V> c = findChunk(key); // find chunk matching key
-        Chunk.LookUp lookUp = c.lookUp(key);
-        if (lookUp == null || lookUp.valueSlice == null) {
-            return null;
-        }
+        while (true) {
+            Chunk<K, V> c = findChunk(key); // find chunk matching key
+            Chunk.LookUp lookUp = c.lookUp(key);
+            if (lookUp == null || lookUp.valueSlice == null) {
+                return null;
+            }
 
-        // will return null if handle was deleted between prior lookup and the next call
-        return ValueUtils.exchange(lookUp.valueSlice, value, valueDeserializeTransformer, valueSerializer, memoryManager);
+            // will return null if handle was deleted between prior lookup and the next call
+            Map.Entry<ValueUtils.ValueResult, V> entry = ValueUtils.exchange(c, lookUp, value,
+                    valueDeserializeTransformer, valueSerializer, memoryManager);
+            if (entry.getKey() != ValueUtils.ValueResult.RETRY) {
+                return entry.getValue();
+            }
+        }
     }
 
     boolean replace(K key, V oldValue, V newValue, Function<ByteBuffer, V> valueDeserializeTransformer) {
-        Chunk<K, V> c = findChunk(key); // find chunk matching key
-        Chunk.LookUp lookUp = c.lookUp(key);
-        if (lookUp == null || lookUp.valueSlice == null) {
-            return false;
-        }
+        while (true) {
+            Chunk<K, V> c = findChunk(key); // find chunk matching key
+            Chunk.LookUp lookUp = c.lookUp(key);
+            if (lookUp == null || lookUp.valueSlice == null) {
+                return false;
+            }
 
-        return ValueUtils.compareExchange(lookUp.valueSlice, oldValue, newValue, valueDeserializeTransformer, valueSerializer,
-                memoryManager);
+            ValueUtils.ValueResult result = ValueUtils.compareExchange(c, lookUp, oldValue, newValue,
+                    valueDeserializeTransformer, valueSerializer,
+                    memoryManager);
+            if (result != ValueUtils.ValueResult.RETRY) {
+                return result == ValueUtils.ValueResult.SUCCESS;
+            }
+        }
     }
 
     public Map.Entry<K, V> lowerEntry(K key) {
