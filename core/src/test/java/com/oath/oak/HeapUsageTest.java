@@ -58,10 +58,9 @@ public class HeapUsageTest {
     @Test
     public void testMain() throws InterruptedException {
 
-        OakMapBuilder builder = OakMapBuilder
+        OakMapBuilder<Integer, Integer> builder = OakMapBuilder
                 .getDefaultBuilder()
                 .setChunkMaxItems(2048)
-                .setChunkBytesPerItem(100)
                 .setKeySerializer(new FillTestKeySerializer())
                 .setValueSerializer(new FillTestValueSerializer());
         // this number can be changed to test larger sizes however JVM memory limit need to be changed
@@ -83,7 +82,8 @@ public class HeapUsageTest {
 
 //            System.out.println("\nBefore filling up oak");
 //            System.out.println(
-//                "heap size: " + heapSize / M + "MB" + ", heap max size: " + heapMaxSize / M + "MB" + ", heap free size: " + heapFreeSize / M + "MB");
+//                "heap size: " + heapSize / M + "MB" + ", heap max size: " + heapMaxSize / M + "MB" + ", heap free
+//                size: " + heapFreeSize / M + "MB");
 //            System.out.println("heap used: " + (heapSize - heapFreeSize) / M + "MB");
 //            System.out.println("off heap used: " + oak.getMemoryManager().allocated() / M + "MB");
 
@@ -99,7 +99,8 @@ public class HeapUsageTest {
 //            heapMaxSize = Runtime.getRuntime().maxMemory(); // Get maximum size of heap in bytes
 //            heapFreeSize = Runtime.getRuntime().freeMemory();
 //            System.out.println(
-//                "heap size: " + heapSize / M + "MB" + ", heap max size: " + heapMaxSize / M + "MB" + ", heap free size: " + heapFreeSize / M + "MB");
+//                "heap size: " + heapSize / M + "MB" + ", heap max size: " + heapMaxSize / M + "MB" + ", heap free
+//                size: " + heapFreeSize / M + "MB");
 //            System.out.println("heap used: " + (heapSize - heapFreeSize) / M + "MB");
 
             for (int i = 0; i < numOfEntries; i++) {
@@ -118,7 +119,8 @@ public class HeapUsageTest {
 //            heapMaxSize = Runtime.getRuntime().maxMemory(); // Get maximum size of heap in bytes
 //            heapFreeSize = Runtime.getRuntime().freeMemory();
 //            System.out.println(
-//                "heap size: " + heapSize / M + "MB" + ", heap max size: " + heapMaxSize / M + "MB" + ", heap free size: " + heapFreeSize / M + "MB");
+//                "heap size: " + heapSize / M + "MB" + ", heap max size: " + heapMaxSize / M + "MB" + ", heap free
+//                size: " + heapFreeSize / M + "MB");
 //            System.out.println("heap used: " + (heapSize - heapFreeSize) / M + "MB");
 //            float percent = (100 * (heapSize - heapFreeSize)) / oak.getMemoryManager().allocated();
 //            System.out.println("\non/off heap used: " + String.format("%.0f%%", percent));

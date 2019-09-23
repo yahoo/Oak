@@ -113,7 +113,7 @@ public class OakWBufferImpl implements OakWBuffer {
 
     @Override
     public <T> T transform(Function<ByteBuffer, T> transformer) {
-        return (T) handle.transform(transformer);
+        return handle.transform(transformer);
     }
 
 }

@@ -55,8 +55,7 @@ public class ScanBenchmark
                 .setKeySerializer(new StringSerializer())
                 .setValueSerializer(new StringSerializer())
                 .setComparator(new StringComparator())
-                .setMinKey("")
-                .setChunkBytesPerItem(KEY_SIZE_BYTES);
+                .setMinKey("");
 
         oakMap = builder.build();
 

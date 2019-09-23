@@ -27,10 +27,8 @@ public class MultiThreadRangeTest {
 
     @Before
     public void init() {
-        int maxBytesPerChunkItem = 100;
-        OakMapBuilder<Integer, Integer>builder = OakMapBuilder.getDefaultBuilder()
-                .setChunkMaxItems(maxItemsPerChunk)
-                .setChunkBytesPerItem(maxBytesPerChunkItem);
+        OakMapBuilder<Integer, Integer> builder = OakMapBuilder.getDefaultBuilder()
+                .setChunkMaxItems(maxItemsPerChunk);
         oak = builder.build();
         latch = new CountDownLatch(1);
         threads = new ArrayList<>(NUM_THREADS);
@@ -78,7 +76,9 @@ public class MultiThreadRangeTest {
         Random r = new Random();
         for (int i = 5 * maxItemsPerChunk; i > 0; ) {
             Integer j = r.nextInt(10 * maxItemsPerChunk);
-            if (oak.zc().putIfAbsent(j, j)) i--;
+            if (oak.zc().putIfAbsent(j, j)) {
+                i--;
+            }
         }
 
         for (int i = 0; i < NUM_THREADS; i++) {
@@ -91,7 +91,9 @@ public class MultiThreadRangeTest {
 
         int size = 0;
         for (Integer i = 0; i < 10 * maxItemsPerChunk; i++) {
-            if (oak.get(i) != null) size++;
+            if (oak.get(i) != null) {
+                size++;
+            }
         }
         assertEquals(5 * maxItemsPerChunk, size);
     }

@@ -34,7 +34,6 @@ public class OakViewTests {
     public void init() {
         OakMapBuilder<String, String> builder = new OakMapBuilder<String, String>()
                 .setChunkMaxItems(100)
-                .setChunkBytesPerItem(128)
                 .setKeySerializer(new StringSerializer())
                 .setValueSerializer(new StringSerializer())
                 .setComparator(new StringComparator())
@@ -158,7 +157,7 @@ public class OakViewTests {
         }
 
         Iterator<Map.Entry<OakRBuffer, OakRBuffer>> entryStreamIterator
-            = oak.zc().entryStreamSet().iterator();
+                = oak.zc().entryStreamSet().iterator();
         for (int i = 0; i < ELEMENTS; i++) {
             Map.Entry<OakRBuffer, OakRBuffer> entryBB = entryStreamIterator.next();
             String value = entryBB.getValue().transform(deserialize);

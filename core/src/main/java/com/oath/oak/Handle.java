@@ -200,11 +200,13 @@ class Handle implements OakWBuffer {
         return transformation;
     }
 
-    <V> V exchange(V newValue, Function<ByteBuffer, V> valueDeserializeTransformer, OakSerializer<V> serializer, MemoryManager memoryManager) {
+    <V> V exchange(V newValue, Function<ByteBuffer, V> valueDeserializeTransformer, OakSerializer<V> serializer,
+                   MemoryManager memoryManager) {
         try {
             writeLock.lock();
-            if (isDeleted())
+            if (isDeleted()) {
                 return null;
+            }
             V v = valueDeserializeTransformer.apply(this.value);
             innerPut(newValue, serializer, memoryManager);
             return v;
@@ -213,14 +215,17 @@ class Handle implements OakWBuffer {
         }
     }
 
-    <V> boolean compareExchange(V oldValue, V newValue, Function<ByteBuffer, V> valueDeserializeTransformer, OakSerializer<V> serializer, MemoryManager memoryManager) {
+    <V> boolean compareExchange(V oldValue, V newValue, Function<ByteBuffer, V> valueDeserializeTransformer,
+                                OakSerializer<V> serializer, MemoryManager memoryManager) {
         try {
             writeLock.lock();
-            if (isDeleted())
+            if (isDeleted()) {
                 return false;
+            }
             V v = valueDeserializeTransformer.apply(this.value);
-            if (!v.equals(oldValue))
+            if (!v.equals(oldValue)) {
                 return false;
+            }
             innerPut(newValue, serializer, memoryManager);
             return true;
         } finally {

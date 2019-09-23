@@ -38,7 +38,7 @@ public class OakMemoryManagerTest {
         doAnswer(invocation -> {
             ByteBuffer bb = (ByteBuffer) invocation.getArguments()[0];
             allocatedBytes -= bb.capacity();
-            return  allocatedBytes;
+            return allocatedBytes;
         }).when(valuesMemoryAllocator).free(any());
         when(valuesMemoryAllocator.allocated()).thenAnswer((Answer) invocationOnMock -> allocatedBytes);
         memoryManager = new MemoryManager(keysMemoryAllocator);

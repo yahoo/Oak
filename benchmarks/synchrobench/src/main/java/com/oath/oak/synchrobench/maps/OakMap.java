@@ -27,7 +27,6 @@ public class OakMap<K extends MyBuffer, V extends MyBuffer> implements Compositi
                 .setValueSerializer(MyBufferOak.serializer)
                 .setMinKey(minKey)
                 .setComparator(MyBufferOak.keysComparator)
-                .setChunkBytesPerItem(Parameters.keySize + Integer.BYTES)
                 .setChunkMaxItems(Chunk.MAX_ITEMS_DEFAULT)
                 .setMemoryAllocator(ma);
         oak = builder.build();
@@ -125,7 +124,6 @@ public class OakMap<K extends MyBuffer, V extends MyBuffer> implements Compositi
                 .setValueSerializer(MyBufferOak.serializer)
                 .setMinKey(minKey)
                 .setComparator(MyBufferOak.keysComparator)
-                .setChunkBytesPerItem(Parameters.keySize + Integer.BYTES)
                 .setChunkMaxItems(Chunk.MAX_ITEMS_DEFAULT)
                 .setMemoryAllocator(ma);
         oak = builder.build();

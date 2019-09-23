@@ -20,10 +20,8 @@ public class OakMapApiTest {
     @Before
     public void init() {
         int maxItemsPerChunk = 2048;
-        int maxBytesPerChunkItem = Integer.BYTES;
         OakMapBuilder<Integer, Integer> builder = OakMapBuilder.getDefaultBuilder()
-                .setChunkMaxItems(maxItemsPerChunk)
-                .setChunkBytesPerItem(maxBytesPerChunkItem);
+                .setChunkMaxItems(maxItemsPerChunk);
         oak = builder.build();
     }
 
@@ -266,9 +264,11 @@ public class OakMapApiTest {
     public void computeIfPresentZC() {
         Consumer<OakWBuffer> func = oakWBuffer -> oakWBuffer.putInt(0, oakWBuffer.getInt(0) * 2);
 
-        assertFalse("computeIfPresentZC should return false if mapping doesn't exist", oak.zc().computeIfPresent(0, func));
+        assertFalse("computeIfPresentZC should return false if mapping doesn't exist", oak.zc().computeIfPresent(0,
+                func));
         oak.put(0, 1);
-        assertTrue("computeIfPresent should return a non-null value if mapping exists", oak.zc().computeIfPresent(0, func));
+        assertTrue("computeIfPresent should return a non-null value if mapping exists", oak.zc().computeIfPresent(0,
+                func));
         Integer result = oak.get(0);
         assertNotNull("computeIfPresent should not remove an existing mapping", result);
         assertEquals("computeIfPresent should modify the existing mapping", 2, result.intValue());
@@ -284,10 +284,10 @@ public class OakMapApiTest {
         Integer from = 4;
         Integer to = 6;
 
-        Integer expected = from + 1;
+        int expected = from + 1;
         try (OakMap<Integer, Integer> sub = oak.subMap(from, false, to, true)) {
             for (Integer i : sub.values()) {
-                assertEquals(expected.intValue(), i.intValue());
+                assertEquals(expected, i.intValue());
                 expected++;
             }
         }
