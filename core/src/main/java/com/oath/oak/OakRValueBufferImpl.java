@@ -114,7 +114,7 @@ public class OakRValueBufferImpl implements OakRBuffer {
         if (transformer == null) {
             throw new NullPointerException();
         }
-        T retVal = (T) handle.transform(transformer);
+        T retVal = handle.transform(transformer);
         if (retVal == null) {
             throw new ConcurrentModificationException();
         }

@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2018 Oath Inc.
  * Licensed under the terms of the Apache 2.0 license.
  * Please see LICENSE file in the project root for terms.
@@ -31,7 +31,6 @@ public class OakMapBuilder<K,V> {
 
   // Off-heap fields
   private int chunkMaxItems;
-  private int chunkBytesPerItem;
   private long memoryCapacity;
   private OakMemoryAllocator memoryAllocator;
 
@@ -68,11 +67,6 @@ public class OakMapBuilder<K,V> {
     return this;
   }
 
-  public OakMapBuilder<K, V> setChunkBytesPerItem(int chunkBytesPerItem) {
-    this.chunkBytesPerItem = chunkBytesPerItem;
-    return this;
-  }
-
   public OakMapBuilder<K, V> setMemoryCapacity(long memoryCapacity) {
     this.memoryCapacity = memoryCapacity;
     return this;
@@ -102,7 +96,7 @@ public class OakMapBuilder<K,V> {
             keySerializer,
             valueSerializer,
             comparator, chunkMaxItems,
-            chunkBytesPerItem, memoryManager, threadIndexCalculator);
+            memoryManager, threadIndexCalculator);
   }
 
   private static int intsCompare(int int1, int int2) {

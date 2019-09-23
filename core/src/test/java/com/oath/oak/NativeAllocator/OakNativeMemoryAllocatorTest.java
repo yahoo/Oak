@@ -127,15 +127,13 @@ public class OakNativeMemoryAllocatorTest {
     @Test
     public void checkOakCapacity() {
         int initialRemainingBlocks = BlocksPool.getInstance().numOfRemainingBlocks();
-        int blockSize = (int) BlocksPool.getInstance().blockSize();
+        int blockSize = BlocksPool.getInstance().blockSize();
         int capacity = blockSize * 3;
-        int keysSizeAfterSerialization = 0;
+        int keysSizeAfterSerialization;
         OakNativeMemoryAllocator ma = new OakNativeMemoryAllocator(capacity);
         int maxItemsPerChunk = 1024;
-        int maxBytesPerChunkItem = 100;
         OakMapBuilder<Integer, Integer> builder = OakMapBuilder.getDefaultBuilder()
                 .setChunkMaxItems(maxItemsPerChunk)
-                .setChunkBytesPerItem(maxBytesPerChunkItem)
                 .setValueSerializer(new CheckOakCapacityValueSerializer())
                 .setMemoryAllocator(ma);
 

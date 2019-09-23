@@ -25,9 +25,8 @@ public class ComputeTest {
     private static final long K = 1024;
 
     private static int keySize = 10;
-    private static int valSize = (int) Math.round(5 * K);
+    private static int valSize = Math.round(5 * K);
     private static int numOfEntries;
-
 
 
     static private ArrayList<Thread> threads = new ArrayList<>(NUM_THREADS);
@@ -92,10 +91,11 @@ public class ComputeTest {
             for (int i = 0; i < keySize; i++) {
                 int i1 = buff1.getInt(buff1.position() + Integer.BYTES * i);
                 int i2 = buff2.getInt(buff2.position() + Integer.BYTES * i);
-                if (i1 > i2)
+                if (i1 > i2) {
                     return 1;
-                else if (i1 < i2)
+                } else if (i1 < i2) {
                     return -1;
+                }
             }
             return 0;
         }
@@ -120,11 +120,11 @@ public class ComputeTest {
         for (int i = 0; i < 50; i++) {
             for (int j = 0; j < keySize; j++) {
                 arr[j] = oakWBuffer.getInt(index);
-                index+=Integer.BYTES;
+                index += Integer.BYTES;
             }
             for (int j = 0; j < keySize; j++) {
                 oakWBuffer.putInt(index, arr[j]);
-                index+=Integer.BYTES;
+                index += Integer.BYTES;
             }
         }
     };
@@ -154,10 +154,11 @@ public class ComputeTest {
                 int o = r.nextInt(2);
                 myKey.putInt(0, k);
                 myVal.putInt(0, k);
-                if (o % 2 == 0)
+                if (o % 2 == 0) {
                     oak.zc().computeIfPresent(myKey, computer);
-                else
+                } else {
                     oak.zc().putIfAbsent(myKey, myVal);
+                }
 
             }
 
@@ -175,7 +176,6 @@ public class ComputeTest {
 
         OakMapBuilder<ByteBuffer, ByteBuffer> builder = new OakMapBuilder<ByteBuffer, ByteBuffer>()
                 .setChunkMaxItems(2048)
-                .setChunkBytesPerItem(100)
                 .setKeySerializer(new ComputeTestKeySerializer())
                 .setValueSerializer(new ComputeTestValueSerializer())
                 .setMinKey(minKey)
@@ -191,7 +191,7 @@ public class ComputeTest {
             threads.add(new Thread(new RunThreads(latch)));
         }
 
-        for (Integer i = 0; i < (int) Math.round(numOfEntries * 0.5); i++) {
+        for (int i = 0; i < (int) Math.round(numOfEntries * 0.5); i++) {
             ByteBuffer key = ByteBuffer.allocate(keySize * Integer.BYTES);
             ByteBuffer val = ByteBuffer.allocate(valSize * Integer.BYTES);
             key.putInt(0, i);
@@ -218,7 +218,7 @@ public class ComputeTest {
             }
             assertEquals(i, val.getInt(0));
             int forty = val.getInt((keySize - 1) * Integer.BYTES);
-            assertTrue(forty == i || forty ==0);
+            assertTrue(forty == i || forty == 0);
         }
 
         oak.close();

@@ -7,6 +7,7 @@
 package com.oath.oak;
 
 import sun.misc.Unsafe;
+
 import java.lang.reflect.Constructor;
 import java.nio.ByteBuffer;
 import java.util.Comparator;
@@ -45,24 +46,20 @@ public class Chunk<K, V> {
     private static final double MAX_ENTRIES_FACTOR = 2;
     private static final double MAX_IDLE_ENTRIES_FACTOR = 5;
 
-    // when chunk is frozen, all of the elements in pending puts array will be this OpData
-    private static final OpData FROZEN_OP_DATA =
-        new OpData(Operation.NO_OP, 0, 0, 0, null);
-
     // defaults
     public static final int MAX_ITEMS_DEFAULT = 4096;
 
     private static final Unsafe unsafe;
     private final MemoryManager memoryManager;
     ByteBuffer minKey;       // minimal key that can be put in this chunk
-    AtomicMarkableReference<Chunk<K,V>> next;
+    AtomicMarkableReference<Chunk<K, V>> next;
     Comparator<Object> comparator;
 
     // in split/compact process, represents parent of split (can be null!)
-    private AtomicReference<Chunk> creator;
+    private AtomicReference<Chunk<K, V>> creator;
     // chunk can be in the following states: normal, frozen or infant(has a creator)
     private final AtomicReference<State> state;
-    private AtomicReference<Rebalancer> rebalancer;
+    private AtomicReference<Rebalancer<K, V>> rebalancer;
     private final int[] entries;    // array is initialized to 0, i.e., NONE - this is important!
 
     private final Handle[] handles;
@@ -93,12 +90,13 @@ public class Chunk<K, V> {
 
     /**
      * Create a new chunk
+     *
      * @param minKey  minimal key to be placed in chunk
      * @param creator the chunk that is responsible for this chunk creation
      */
-    Chunk(ByteBuffer minKey, Chunk creator, Comparator<Object> comparator, MemoryManager memoryManager,
-        int maxItems, AtomicInteger externalSize,
-        OakSerializer<K> keySerializer, OakSerializer<V> valueSerializer) {
+    Chunk(ByteBuffer minKey, Chunk<K, V> creator, Comparator<Object> comparator, MemoryManager memoryManager,
+          int maxItems, AtomicInteger externalSize,
+          OakSerializer<K> keySerializer, OakSerializer<V> valueSerializer) {
         this.memoryManager = memoryManager;
         this.maxItems = maxItems;
         this.entries = new int[maxItems * FIELDS + FIRST_ITEM];
@@ -109,10 +107,11 @@ public class Chunk<K, V> {
         this.sortedCount = new AtomicInteger(0);
         this.minKey = minKey;
         this.creator = new AtomicReference<>(creator);
-        if (creator == null)
+        if (creator == null) {
             this.state = new AtomicReference<>(State.NORMAL);
-        else
+        } else {
             this.state = new AtomicReference<>(State.INFANT);
+        }
         this.next = new AtomicMarkableReference<>(null, false);
         this.pendingOps = new AtomicInteger();
         this.rebalancer = new AtomicReference<>(null); // to be updated on rebalance
@@ -150,8 +149,8 @@ public class Chunk<K, V> {
     /*-------------- Methods --------------*/
 
     void release() {
-      // try to change the state
-      state.compareAndSet(State.FROZEN, State.RELEASED);
+        // try to change the state
+        state.compareAndSet(State.FROZEN, State.RELEASED);
     }
 
     /**
@@ -174,10 +173,10 @@ public class Chunk<K, V> {
     /**
      * write key in slice
      **/
-    void writeKey(K key, int ei) {
+    private void writeKey(K key, int ei) {
         int keySize = keySerializer.calculateSize(key);
         Slice s
-            = memoryManager.allocateSlice(keySize);
+                = memoryManager.allocateSlice(keySize);
         // byteBuffer.slice() is set so it protects us from the overwrites of the serializer
         keySerializer.serialize(key, s.getByteBuffer().slice());
 
@@ -201,8 +200,7 @@ public class Chunk<K, V> {
         int keyPosition = getEntryField(entryIndex, OFFSET_KEY_POSITION);
         int length = getEntryField(entryIndex, OFFSET_KEY_LENGTH);
 
-        ByteBuffer bb = memoryManager.getByteBufferFromBlockID(blockID, keyPosition,length);
-        return bb;
+        return memoryManager.getByteBufferFromBlockID(blockID, keyPosition, length);
     }
 
     /**
@@ -228,7 +226,7 @@ public class Chunk<K, V> {
         int blockID = getEntryField(entryIndex, OFFSET_KEY_BLOCK);
         int keyPosition = getEntryField(entryIndex, OFFSET_KEY_POSITION);
         int length = getEntryField(entryIndex, OFFSET_KEY_LENGTH);
-        ByteBuffer bb = memoryManager.getByteBufferFromBlockID(blockID, keyPosition,length);
+        ByteBuffer bb = memoryManager.getByteBufferFromBlockID(blockID, keyPosition, length);
         Slice s = new Slice(blockID, bb);
 
         memoryManager.releaseSlice(s);
@@ -262,32 +260,32 @@ public class Chunk<K, V> {
     }
 
     /**
-    * * sets the field of specified offset to 'value' for given item in entry array
-    */
+     * * sets the field of specified offset to 'value' for given item in entry array
+     */
     private void setEntryField(int item, int offset, int value) {
         assert item + offset >= 0;
         switch (offset) {
-        case OFFSET_KEY_LENGTH:
-            // OFFSET_KEY_LENGTH and OFFSET_KEY_BLOCK should be less then 16 bits long
-            // *2 in order to get read of the signed vs unsigned limits
-            assert value < Short.MAX_VALUE*2;
-            // set two low bytes of the handle index int
-            entries[item + OFFSET_KEY_LENGTH] =
-                (entries[item + OFFSET_KEY_LENGTH]) | (value & KEY_LENGTH_MASK);
-            return;
-        case OFFSET_KEY_BLOCK:
-            // OFFSET_KEY_LENGTH and OFFSET_KEY_BLOCK should be less then 16 bits long
-            // *2 in order to get read of the signed vs unsigned limits
-            assert value < Short.MAX_VALUE*2;
-            // offset must be OFFSET_KEY_BLOCK,
-            // set 2 high bytes of the int inside OFFSET_KEY_LENGTH
-            assert value > 0; // block id can never be 0
-            entries[item + OFFSET_KEY_LENGTH] =
-                (entries[item + OFFSET_KEY_LENGTH]) | (value << KEY_BLOCK_SHIFT);
-            return;
-        default:
-            entries[item + offset] = value;
-            return;
+            case OFFSET_KEY_LENGTH:
+                // OFFSET_KEY_LENGTH and OFFSET_KEY_BLOCK should be less then 16 bits long
+                // *2 in order to get read of the signed vs unsigned limits
+                assert value < Short.MAX_VALUE * 2;
+                // set two low bytes of the handle index int
+                entries[item + OFFSET_KEY_LENGTH] =
+                        (entries[item + OFFSET_KEY_LENGTH]) | (value & KEY_LENGTH_MASK);
+                return;
+            case OFFSET_KEY_BLOCK:
+                // OFFSET_KEY_LENGTH and OFFSET_KEY_BLOCK should be less then 16 bits long
+                // *2 in order to get read of the signed vs unsigned limits
+                assert value < Short.MAX_VALUE * 2;
+                // offset must be OFFSET_KEY_BLOCK,
+                // set 2 high bytes of the int inside OFFSET_KEY_LENGTH
+                assert value > 0; // block id can never be 0
+                entries[item + OFFSET_KEY_LENGTH] =
+                        (entries[item + OFFSET_KEY_LENGTH]) | (value << KEY_BLOCK_SHIFT);
+                return;
+            default:
+                entries[item + offset] = value;
+                return;
         }
     }
 
@@ -325,24 +323,30 @@ public class Chunk<K, V> {
             cmp = compare(readKey(curr), key);
             // if item's key is larger - we've exceeded our key
             // it's not in chunk - no need to search further
-            if (cmp > 0)
+            if (cmp > 0) {
                 return null;
-                // if keys are equal - we've found the item
+            }
+            // if keys are equal - we've found the item
             else if (cmp == 0) {
                 int hi = getEntryField(curr, OFFSET_HANDLE_INDEX);
-                if (hi < 0) return new LookUp(null, curr, -1);
+                if (hi < 0) {
+                    return new LookUp(null, curr, -1);
+                }
                 Handle h = handles[hi];
-                if (h.isDeleted()) return new LookUp(null, curr, hi);
+                if (h.isDeleted()) {
+                    return new LookUp(null, curr, hi);
+                }
                 return new LookUp(h, curr, hi);
             }
             // otherwise- proceed to next item
-            else
+            else {
                 curr = getEntryField(curr, OFFSET_NEXT);
+            }
         }
         return null;
     }
 
-    static class LookUp<V> {
+    static class LookUp {
 
         final Handle handle;
         final int entryIndex;
@@ -366,12 +370,14 @@ public class Chunk<K, V> {
         int sortedCount = this.sortedCount.get();
         // if there are no sorted keys, or the first item is already larger than key -
         // return the head node for a regular linear search
-        if ((sortedCount == 0) || compare(readKey(FIRST_ITEM), key) >= 0)
+        if ((sortedCount == 0) || compare(readKey(FIRST_ITEM), key) >= 0) {
             return HEAD_NODE;
+        }
 
         // optimization: compare with last key to avoid binary search
-        if (compare(readKey((sortedCount-1) * FIELDS + FIRST_ITEM), key) < 0)
-            return (sortedCount-1) * FIELDS + FIRST_ITEM;
+        if (compare(readKey((sortedCount - 1) * FIELDS + FIRST_ITEM), key) < 0) {
+            return (sortedCount - 1) * FIELDS + FIRST_ITEM;
+        }
 
         int start = 0;
         int end = sortedCount;
@@ -379,10 +385,11 @@ public class Chunk<K, V> {
         while (end - start > 1) {
             int curr = start + (end - start) / 2;
 
-            if (compare(readKey(curr * FIELDS + FIRST_ITEM), key) >= 0)
+            if (compare(readKey(curr * FIELDS + FIRST_ITEM), key) >= 0) {
                 end = curr;
-            else
+            } else {
                 start = curr;
+            }
         }
 
         return start * FIELDS + FIRST_ITEM;
@@ -444,7 +451,9 @@ public class Chunk<K, V> {
 
         while (true) {
             // start iterating from quickly-found node (by binary search) in sorted part of order-array
-            if (anchor == -1) anchor = binaryFind(key);
+            if (anchor == -1) {
+                anchor = binaryFind(key);
+            }
             curr = anchor;
 
             // iterate items until key's position is found
@@ -475,25 +484,25 @@ public class Chunk<K, V> {
             setEntryField(ei, OFFSET_NEXT, curr); // no need for CAS since put is not even published yet
             if (cas) {
                 if (casEntriesArray(prev, OFFSET_NEXT, curr, ei)) {
-                  // Here is the single place where we do enter a new entry to the chunk, meaning
-                  // there is none else simultaneously inserting the same key
-                  // (we were the first to insert this key).
-                  // If the new entry's index is exactly after the sorted count and
-                  // the entry's key is greater or equal then to the previous (sorted count)
-                  // index key. Then increase the sorted count.
-                  int sortedCount = this.sortedCount.get();
-                  if (sortedCount > 0) {
-                    if (ei == (sortedCount * FIELDS + 1)) {
-                      // the new entry's index is exactly after the sorted count
-                      if (compare(
-                          readKey((sortedCount - 1) * FIELDS + FIRST_ITEM), key) <= 0) {
-                        // compare with sorted count key, if inserting the "if-statement",
-                        // the sorted count key is less or equal to the key just inserted
-                          this.sortedCount.compareAndSet(sortedCount,(sortedCount+1));
-                      }
+                    // Here is the single place where we do enter a new entry to the chunk, meaning
+                    // there is none else simultaneously inserting the same key
+                    // (we were the first to insert this key).
+                    // If the new entry's index is exactly after the sorted count and
+                    // the entry's key is greater or equal then to the previous (sorted count)
+                    // index key. Then increase the sorted count.
+                    int sortedCount = this.sortedCount.get();
+                    if (sortedCount > 0) {
+                        if (ei == (sortedCount * FIELDS + 1)) {
+                            // the new entry's index is exactly after the sorted count
+                            if (compare(
+                                    readKey((sortedCount - 1) * FIELDS + FIRST_ITEM), key) <= 0) {
+                                // compare with sorted count key, if inserting the "if-statement",
+                                // the sorted count key is less or equal to the key just inserted
+                                this.sortedCount.compareAndSet(sortedCount, (sortedCount + 1));
+                            }
+                        }
                     }
-                  }
-                  return ei;
+                    return ei;
                 }
                 // CAS didn't succeed, try again
             } else {
@@ -507,20 +516,22 @@ public class Chunk<K, V> {
      * write value in place
      **/
     void writeValue(int hi, V value) {
-        assert hi >= 0 ;
+        assert hi >= 0;
         ByteBuffer byteBuffer = memoryManager.allocate(valueSerializer.calculateSize(value));
         // just allocated bytebuffer is ensured to have position 0
         valueSerializer.serialize(value, byteBuffer.slice());
         handles[hi].setValue(byteBuffer);
     }
 
-    public int getMaxItems() { return maxItems; }
+    public int getMaxItems() {
+        return maxItems;
+    }
 
     /**
      * Updates a linked entry to point to handle or otherwise removes such a link. The handle in
      * turn has the value. For linkage this is an insert linearization point.
      * All the relevant data can be found inside opData.
-     *
+     * <p>
      * if someone else got to it first (helping rebalancer or other operation), returns the old handle
      */
     Handle pointToValue(OpData opData) {
@@ -551,9 +562,9 @@ public class Chunk<K, V> {
             return pointToValue(opData); // remove completed, try again
         } else if (operation == Operation.PUT_IF_ABSENT) {
             return handles[foundHandleIdx]; // too late
-        } else if (operation == Operation.COMPUTE){
+        } else if (operation == Operation.COMPUTE) {
             Handle h = handles[foundHandleIdx];
-            if(h != null){
+            if (h != null) {
                 boolean succ = h.compute(opData.computer);
                 if (!succ) {
                     // we tried to perform the compute but the handle was deleted,
@@ -573,7 +584,7 @@ public class Chunk<K, V> {
     /**
      * used by put/putIfAbsent/remove and rebalancer
      */
-    boolean pointToValueCAS(OpData opData, boolean cas) {
+    private boolean pointToValueCAS(OpData opData, boolean cas) {
         if (cas) {
             if (casEntriesArray(opData.entryIndex, OFFSET_HANDLE_INDEX, opData.prevHandleIndex, opData.handleIndex)) {
                 // update statistics only by thread that CASed
@@ -597,7 +608,7 @@ public class Chunk<K, V> {
      *
      * @param r -- a rebalancer to engage with
      */
-    void engage(Rebalancer r) {
+    void engage(Rebalancer<K, V> r) {
         rebalancer.compareAndSet(null, r);
     }
 
@@ -607,7 +618,7 @@ public class Chunk<K, V> {
      * @param r -- a rebalancer object. If r is null, verifies that the chunk is not engaged to any rebalancer
      * @return true if the chunk is engaged with r, false otherwise
      */
-    boolean isEngaged(Rebalancer r) {
+    boolean isEngaged(Rebalancer<K, V> r) {
         return rebalancer.get() == r;
     }
 
@@ -616,11 +627,11 @@ public class Chunk<K, V> {
      *
      * @return rebalancer object or null if not engaged.
      */
-    Rebalancer getRebalancer() {
+    Rebalancer<K, V> getRebalancer() {
         return rebalancer.get();
     }
 
-    Chunk creator() {
+    Chunk<K, V> creator() {
         return creator.get();
     }
 
@@ -666,7 +677,7 @@ public class Chunk<K, V> {
      */
     void freeze() {
         setState(State.FROZEN); // prevent new puts to this chunk
-        while (pendingOps.get() != 0);
+        while (pendingOps.get() != 0) ;
     }
 
     /***
@@ -679,8 +690,9 @@ public class Chunk<K, V> {
      */
     final int copyPartNoKeys(Chunk srcChunk, int srcEntryIdx, int maxCapacity) {
 
-        if (srcEntryIdx == HEAD_NODE)
+        if (srcEntryIdx == HEAD_NODE) {
             return NONE;
+        }
 
         // use local variables and just set the atomic variables once at the end
         int sortedEntryIndex = entryIndex.get();
@@ -688,7 +700,9 @@ public class Chunk<K, V> {
 
         // check that we are not beyond allowed number of entries to copy from source chunk
         int maxIdx = maxCapacity * FIELDS + 1;
-        if (sortedEntryIndex >= maxIdx) return srcEntryIdx;
+        if (sortedEntryIndex >= maxIdx) {
+            return srcEntryIdx;
+        }
         assert srcEntryIdx <= entries.length - FIELDS;
 
         // set the next entry index from where we start to copy
@@ -721,7 +735,9 @@ public class Chunk<K, V> {
                     isFirstInInterval = false;
                     srcPrevEntryIdx = srcEntryIdx;
                     srcEntryIdx = srcChunk.getEntryField(srcEntryIdx, OFFSET_NEXT);
-                    if (srcEntryIdx != NONE) continue;
+                    if (srcEntryIdx != NONE) {
+                        continue;
+                    }
 
                 }
             }
@@ -732,13 +748,13 @@ public class Chunk<K, V> {
                     int offset = i * FIELDS;
                     // next should point to the next item
                     entries[sortedEntryIndex + offset + OFFSET_NEXT]
-                        = sortedEntryIndex + offset + FIELDS;
+                            = sortedEntryIndex + offset + FIELDS;
 
                     // copy the values of key position, key block index + key length => 2 integers via array copy
                     System.arraycopy(srcChunk.entries,  // source array
-                        entryIndexStart + offset + OFFSET_KEY_POSITION,
-                        entries,                        // destination aray
-                        sortedEntryIndex + offset + OFFSET_KEY_POSITION, (FIELDS-2));
+                            entryIndexStart + offset + OFFSET_KEY_POSITION,
+                            entries,                        // destination aray
+                            sortedEntryIndex + offset + OFFSET_KEY_POSITION, (FIELDS - 2));
 
                     // copy handle
                     int srcChunkHandleIdx = srcChunk.entries[entryIndexStart + offset + OFFSET_HANDLE_INDEX];
@@ -760,8 +776,9 @@ public class Chunk<K, V> {
                 srcEntryIdx = srcChunk.getEntryField(srcEntryIdx, OFFSET_NEXT);
             }
 
-            if (srcEntryIdx == NONE || sortedEntryIndex >= maxIdx)
+            if (srcEntryIdx == NONE || sortedEntryIndex >= maxIdx) {
                 break; // if we are done
+            }
 
             // reset and continue
             entryIndexStart = srcEntryIdx;
@@ -786,7 +803,7 @@ public class Chunk<K, V> {
      *
      * @return the next chunk pointed to once marked (will not change)
      */
-    Chunk markAndGetNext() {
+    Chunk<K, V> markAndGetNext() {
         // new chunks are ready, we mark frozen chunk's next pointer so it won't change
         // since next pointer can be changed by other split operations we need to do this in a loop - until we succeed
         while (true) {
@@ -798,12 +815,13 @@ public class Chunk<K, V> {
             // otherwise try to mark it
             else {
                 // read chunk's current next
-                Chunk savedNext = next.getReference();
+                Chunk<K, V> savedNext = next.getReference();
 
                 // try to mark next while keeping the same next chunk - using CAS
                 // if we succeeded then the next pointer we remembered is set and will not change - return it
-                if (next.compareAndSet(savedNext, savedNext, false, true))
+                if (next.compareAndSet(savedNext, savedNext, false, true)) {
                     return savedNext;
+                }
             }
         }
     }
@@ -811,10 +829,14 @@ public class Chunk<K, V> {
 
     boolean shouldRebalance() {
         // perform actual check only in pre defined percentage of puts
-        if (ThreadLocalRandom.current().nextInt(100) > REBALANCE_PROB_PERC) return false;
+        if (ThreadLocalRandom.current().nextInt(100) > REBALANCE_PROB_PERC) {
+            return false;
+        }
 
         // if another thread already runs rebalance -- skip it
-        if (!isEngaged(null)) return false;
+        if (!isEngaged(null)) {
+            return false;
+        }
         int numOfEntries = entryIndex.get() / FIELDS;
         int numOfItems = statistics.getCompactedCount();
         int sortedCount = this.sortedCount.get();
@@ -877,18 +899,20 @@ public class Chunk<K, V> {
 
             int handle = getEntryField(next, OFFSET_HANDLE_INDEX);
 
-            int compare=-1;
-            if (next != Chunk.NONE)
+            int compare = -1;
+            if (next != Chunk.NONE) {
                 compare = compare(from, readKey(next));
+            }
 
             while (next != Chunk.NONE &&
                     (compare > 0 ||
-                    (compare >= 0 && !inclusive)||
-                    handle < 0)) {
+                            (compare >= 0 && !inclusive) ||
+                            handle < 0)) {
                 next = getEntryField(next, OFFSET_NEXT);
                 handle = getEntryField(next, OFFSET_HANDLE_INDEX);
-                if (next != Chunk.NONE)
+                if (next != Chunk.NONE) {
                     compare = compare(from, readKey(next));
+                }
             }
         }
 
@@ -1126,7 +1150,10 @@ public class Chunk<K, V> {
         int getAddedCount() {
             return addedCount.get();
         }
-        int getInitialSortedCount() { return initialSortedCount; }
+
+        int getInitialSortedCount() {
+            return initialSortedCount;
+        }
     }
 
     /**

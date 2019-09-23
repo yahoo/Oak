@@ -34,10 +34,8 @@ public class MultiThreadTest {
 
     @Before
     public void init() {
-        int maxBytesPerChunkItem = Integer.BYTES;
         OakMapBuilder<Integer, Integer> builder = OakMapBuilder.getDefaultBuilder()
-                .setChunkMaxItems(maxItemsPerChunk)
-                .setChunkBytesPerItem(maxBytesPerChunkItem);
+                .setChunkMaxItems(maxItemsPerChunk);
         oak = builder.build();
         latch = new CountDownLatch(1);
         threads = new ArrayList<>(NUM_THREADS);
@@ -221,7 +219,7 @@ public class MultiThreadTest {
                 i++;
             }
 
-            try(OakMap<Integer, Integer> oakDesc = oak.descendingMap()) {
+            try (OakMap<Integer, Integer> oakDesc = oak.descendingMap()) {
                 iter = oakDesc.values().iterator();
                 while (iter.hasNext()) {
                     value = iter.next();
@@ -271,7 +269,7 @@ public class MultiThreadTest {
                 i = iter.next();
             }
 
-            try(OakMap<Integer, Integer> oakDesc = oak.descendingMap()) {
+            try (OakMap<Integer, Integer> oakDesc = oak.descendingMap()) {
                 iter = oakDesc.values().iterator();
                 while (iter.hasNext()) {
                     i = iter.next();
@@ -308,8 +306,9 @@ public class MultiThreadTest {
         for (Integer i = 0; i < 2 * maxItemsPerChunk; i++) {
             Integer value = oak.get(i);
             assertNotNull(value);
-            if (i > 0)
+            if (i > 0) {
                 assertEquals(i, value);
+            }
         }
     }
 }

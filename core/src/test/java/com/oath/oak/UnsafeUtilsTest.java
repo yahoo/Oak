@@ -1,5 +1,6 @@
 package com.oath.oak;
 
+import org.junit.Assert;
 import org.junit.Test;
 
 import java.nio.ByteBuffer;
@@ -8,13 +9,14 @@ import java.util.Iterator;
 import java.util.Map;
 
 import static junit.framework.TestCase.assertEquals;
+import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.fail;
 
 public class UnsafeUtilsTest {
 
 
     @Test
-    public void testUnsafeCopy(){
+    public void testUnsafeCopy() {
 
         IntHolder minKey = new IntHolder(0, new int[0]);
 
@@ -39,12 +41,12 @@ public class UnsafeUtilsTest {
         IntHolder resValue1 = oak.get(key1);
         assertEquals(value1.size, resValue1.size);
 
-        for (int i = 0; i< value1.size; ++i) {
+        for (int i = 0; i < value1.size; ++i) {
             assertEquals(value1.array[i], resValue1.array[i]);
         }
         IntHolder resValue2 = oak.get(key2);
         assertEquals(value2.size, resValue2.size);
-        for (int i = 0; i< value2.size; ++i) {
+        for (int i = 0; i < value2.size; ++i) {
             assertEquals(value2.array[i], resValue2.array[i]);
         }
 
@@ -58,12 +60,12 @@ public class UnsafeUtilsTest {
             entry.getValue().unsafeCopyBufferToIntArray(Integer.BYTES, dstArrayValue, size);
             if (size == 5) {
                 //value1
-                Arrays.equals(value1.array, dstArrayKey);
-                Arrays.equals(value1.array, dstArrayValue);
+                assertArrayEquals(value1.array, dstArrayKey);
+                assertArrayEquals(value1.array, dstArrayValue);
             } else if (size == 6) {
                 //value2
-                Arrays.equals(value2.array, dstArrayKey);
-                Arrays.equals(value2.array, dstArrayValue);
+                assertArrayEquals(value2.array, dstArrayKey);
+                assertArrayEquals(value2.array, dstArrayValue);
             } else {
                 fail();
             }
@@ -72,7 +74,7 @@ public class UnsafeUtilsTest {
     }
 
 
-    private static class IntHolder{
+    private static class IntHolder {
 
         private final int size;
         private final int[] array;
@@ -81,6 +83,7 @@ public class UnsafeUtilsTest {
             this.size = size;
             this.array = array;
         }
+
         public int getSize() {
             return size;
         }
@@ -95,7 +98,8 @@ public class UnsafeUtilsTest {
         @Override
         public void serialize(IntHolder object, ByteBuffer targetBuffer) {
             targetBuffer.putInt(targetBuffer.position(), object.size);
-            UnsafeUtils.unsafeCopyIntArrayToBuffer(object.array, targetBuffer, targetBuffer.position() + Integer.BYTES, object.size);
+            UnsafeUtils.unsafeCopyIntArrayToBuffer(object.array, targetBuffer,
+                    targetBuffer.position() + Integer.BYTES, object.size);
         }
 
         @Override
@@ -108,9 +112,10 @@ public class UnsafeUtilsTest {
 
         @Override
         public int calculateSize(IntHolder object) {
-            return object.size*Integer.BYTES + Integer.BYTES;
+            return object.size * Integer.BYTES + Integer.BYTES;
         }
     }
+
     public static class UnsafeTestComparator implements OakComparator<IntHolder> {
 
 
@@ -134,7 +139,7 @@ public class UnsafeUtilsTest {
 
         @Override
         public int compareSerializedKeyAndKey(ByteBuffer serializedKey, IntHolder key) {
-            return compareKeys(new UnsafeTestSerializer().deserialize(serializedKey),key);
+            return compareKeys(new UnsafeTestSerializer().deserialize(serializedKey), key);
         }
     }
 

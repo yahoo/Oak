@@ -10,12 +10,12 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
-import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.function.Consumer;
 
-import static junit.framework.TestCase.*;
+import static junit.framework.TestCase.assertNotNull;
+import static junit.framework.TestCase.assertNull;
 import static org.junit.Assert.assertEquals;
 
 public class MultiThreadComputeTest {
@@ -30,11 +30,8 @@ public class MultiThreadComputeTest {
 
     @Before
     public void init() {
-
-        int maxBytesPerChunkItem = 100;
         OakMapBuilder<Integer, Integer> builder = OakMapBuilder.getDefaultBuilder()
-                .setChunkMaxItems(maxItemsPerChunk)
-                .setChunkBytesPerItem(maxBytesPerChunkItem);
+                .setChunkMaxItems(maxItemsPerChunk);
         oak = builder.build();
         latch = new CountDownLatch(1);
         threads = new ArrayList<>(NUM_THREADS);

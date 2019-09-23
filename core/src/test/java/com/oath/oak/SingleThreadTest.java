@@ -11,7 +11,6 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
-import java.nio.ByteBuffer;
 import java.util.function.Consumer;
 
 import static org.junit.Assert.*;
@@ -23,16 +22,14 @@ public class SingleThreadTest {
 
     @Before
     public void init() {
-        int maxBytesPerChunkItem = Integer.BYTES;
         OakMapBuilder<Integer, Integer> builder = OakMapBuilder.getDefaultBuilder()
-                .setChunkMaxItems(maxItemsPerChunk)
-                .setChunkBytesPerItem(maxBytesPerChunkItem);
+                .setChunkMaxItems(maxItemsPerChunk);
         oak = builder.build();
     }
 
     @After
     public void finish() {
-            oak.close();
+        oak.close();
     }
 
     @Test
@@ -151,8 +148,9 @@ public class SingleThreadTest {
     public void testComputeIf() {
         Integer value;
         Consumer<OakWBuffer> computer = oakWBuffer -> {
-            if (oakWBuffer.getInt(0) == 0)
+            if (oakWBuffer.getInt(0) == 0) {
                 oakWBuffer.putInt(0, 1);
+            }
         };
         Integer key = 0;
         assertFalse(oak.zc().computeIfPresent(key, computer));
@@ -185,9 +183,10 @@ public class SingleThreadTest {
     @Test
     public void testCompute() {
         Integer value;
-        Consumer<OakWBuffer> computer =  oakWBuffer -> {
-            if (oakWBuffer.getInt(0) == 0)
+        Consumer<OakWBuffer> computer = oakWBuffer -> {
+            if (oakWBuffer.getInt(0) == 0) {
                 oakWBuffer.putInt(0, 1);
+            }
         };
         Integer key = 0;
         assertFalse(oak.zc().computeIfPresent(key, computer));

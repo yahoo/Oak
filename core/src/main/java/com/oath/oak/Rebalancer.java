@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2018 Oath Inc.
  * Licensed under the terms of the Apache 2.0 license.
  * Please see LICENSE file in the project root for terms.
@@ -24,11 +24,9 @@ class Rebalancer<K, V> {
     private final int maxRangeToAppend;
     private final int maxAfterMergeItems;
 
-    /*-------------- Members --------------*/
-    private final ThreadIndexCalculator threadIndexCalculator;
-    private final AtomicReference<Chunk> nextToEngage;
-    private final AtomicReference<List<Chunk<K,V>>> newChunks = new AtomicReference<>(null);
-    private final AtomicReference<List<Chunk<K,V>>> engagedChunks = new AtomicReference<>(null);
+    private final AtomicReference<Chunk<K, V>> nextToEngage;
+    private final AtomicReference<List<Chunk<K, V>>> newChunks = new AtomicReference<>(null);
+    private final AtomicReference<List<Chunk<K, V>>> engagedChunks = new AtomicReference<>(null);
     private final AtomicBoolean frozen = new AtomicBoolean(false);
     private final Chunk<K, V> first;
     private Chunk<K, V> last;
@@ -43,8 +41,7 @@ class Rebalancer<K, V> {
     /*-------------- Constructors --------------*/
 
     Rebalancer(Chunk<K, V> chunk, Comparator<Object> comparator, boolean offHeap, MemoryManager memoryManager,
-               OakSerializer<K> keySerializer, OakSerializer<V> valueSerializer,
-               ThreadIndexCalculator threadIndexCalculator) {
+               OakSerializer<K> keySerializer, OakSerializer<V> valueSerializer) {
         this.rebalanceSize = 2;
         this.maxAfterMergePart = 0.7;
         this.lowThreshold = 0.5;
@@ -62,7 +59,6 @@ class Rebalancer<K, V> {
         itemsInRange = first.getStatistics().getCompactedCount();
         this.keySerializer = keySerializer;
         this.valueSerializer = valueSerializer;
-        this.threadIndexCalculator = threadIndexCalculator;
     }
 
     static class RebalanceResult {
@@ -84,9 +80,9 @@ class Rebalancer<K, V> {
         return comparator.compare(k1, k2);
     }
 
-    Rebalancer<K,V> engageChunks() {
+    Rebalancer<K, V> engageChunks() {
         while (true) {
-            Chunk next = nextToEngage.get();
+            Chunk<K, V> next = nextToEngage.get();
             if (next == null) {
                 break;
             }
@@ -97,7 +93,7 @@ class Rebalancer<K, V> {
                 return next.getRebalancer().engageChunks();
             }
 
-            Chunk candidate = findNextCandidate();
+            Chunk<K, V> candidate = findNextCandidate();
 
             // if fail to CAS here, another thread has updated next candidate
             // continue to while loop and try to engage it
@@ -105,7 +101,7 @@ class Rebalancer<K, V> {
         }
         updateRangeView();
 
-        List<Chunk<K,V>> engaged = createEngagedList();
+        List<Chunk<K, V>> engaged = createEngagedList();
 
         engagedChunks.compareAndSet(null, engaged); // if CAS fails here - another thread has updated it
 
@@ -117,9 +113,11 @@ class Rebalancer<K, V> {
      * Marks chunks as freezed, prevents future updates of the engagead chunks
      */
     void freeze() {
-        if (frozen.get()) return;
+        if (frozen.get()) {
+            return;
+        }
 
-        for (Chunk chunk : getEngagedChunks()) {
+        for (Chunk<K, V> chunk : getEngagedChunks()) {
             chunk.freeze();
         }
 
@@ -139,32 +137,34 @@ class Rebalancer<K, V> {
             return new RebalanceResult(false, null); // this was done by another thread already
         }
 
-        List<Chunk<K,V>> frozenChunks = engagedChunks.get();
+        List<Chunk<K, V>> frozenChunks = engagedChunks.get();
 
-        ListIterator<Chunk<K,V>> iterFrozen = frozenChunks.listIterator();
+        ListIterator<Chunk<K, V>> iterFrozen = frozenChunks.listIterator();
 
-        Chunk<K,V> firstFrozen = iterFrozen.next();
-        Chunk<K,V> currFrozen = firstFrozen;
-        Chunk<K,V> currNewChunk = new Chunk<K, V>(firstFrozen.minKey, firstFrozen, firstFrozen.comparator, memoryManager,
+        Chunk<K, V> firstFrozen = iterFrozen.next();
+        Chunk<K, V> currFrozen = firstFrozen;
+        Chunk<K, V> currNewChunk = new Chunk<>(firstFrozen.minKey, firstFrozen, firstFrozen.comparator,
+                memoryManager,
                 currFrozen.getMaxItems(), currFrozen.externalSize,
                 keySerializer, valueSerializer);
 
         int ei = firstFrozen.getFirstItemEntryIndex();
-        List<Chunk<K,V>> newChunks = new LinkedList<>();
+        List<Chunk<K, V>> newChunks = new LinkedList<>();
 
         while (true) {
             ei = currNewChunk.copyPartNoKeys(currFrozen, ei, entriesLowThreshold);
             // if completed reading curr frozen chunk
             if (ei == Chunk.NONE) {
-                if (!iterFrozen.hasNext())
+                if (!iterFrozen.hasNext()) {
                     break;
+                }
 
                 currFrozen = iterFrozen.next();
                 ei = currFrozen.getFirstItemEntryIndex();
 
             } else { // filled new chunk up to ENETRIES_LOW_THRESHOLD
 
-                List<Chunk<K,V>> frozenSuffix = frozenChunks.subList(iterFrozen.previousIndex(), frozenChunks.size());
+                List<Chunk<K, V>> frozenSuffix = frozenChunks.subList(iterFrozen.previousIndex(), frozenChunks.size());
                 // try to look ahead and add frozen suffix
                 if (canAppendSuffix(frozenSuffix, maxRangeToAppend)) {
                     // maybe there is just a little bit copying left
@@ -187,8 +187,7 @@ class Rebalancer<K, V> {
                     newMinKey.rewind();
 
 
-
-                    Chunk c = new Chunk<K, V>(newMinKey, firstFrozen, currFrozen.comparator, memoryManager,
+                    Chunk<K, V> c = new Chunk<>(newMinKey, firstFrozen, currFrozen.comparator, memoryManager,
                             currFrozen.getMaxItems(), currFrozen.externalSize,
                             keySerializer, valueSerializer);
                     currNewChunk.next.set(c, false);
@@ -207,13 +206,13 @@ class Rebalancer<K, V> {
     }
 
     private boolean canAppendSuffix(List<Chunk<K, V>> frozenSuffix, int maxCount) {
-        Iterator<Chunk<K,V>> iter = frozenSuffix.iterator();
+        Iterator<Chunk<K, V>> iter = frozenSuffix.iterator();
         // first of frozen chunks already have entriesLowThreshold copied into new one
         boolean firstChunk = true;
         int counter = 0;
         // use statistics to find out how much is left to copy
         while (iter.hasNext() && counter < maxCount) {
-            Chunk<K,V> c = iter.next();
+            Chunk<K, V> c = iter.next();
             counter += c.getStatistics().getCompactedCount();
             if (firstChunk) {
                 counter -= entriesLowThreshold;
@@ -223,9 +222,9 @@ class Rebalancer<K, V> {
         return counter < maxCount;
     }
 
-    private void completeCopy(Chunk<K,V> dest, int ei, List<Chunk<K,V>> srcChunks) {
-        Iterator<Chunk<K,V>> iter = srcChunks.iterator();
-        Chunk<K,V> src = iter.next();
+    private void completeCopy(Chunk<K, V> dest, int ei, List<Chunk<K, V>> srcChunks) {
+        Iterator<Chunk<K, V>> iter = srcChunks.iterator();
+        Chunk<K, V> src = iter.next();
         int maxItems = src.getMaxItems();
         dest.copyPartNoKeys(src, ei, maxItems);
         while (iter.hasNext()) {
@@ -235,16 +234,20 @@ class Rebalancer<K, V> {
         }
     }
 
-    private Chunk<K,V> findNextCandidate() {
+    private Chunk<K, V> findNextCandidate() {
 
         updateRangeView();
 
         // allow up to RebalanceSize chunks to be engaged
-        if (chunksInRange >= rebalanceSize) return null;
+        if (chunksInRange >= rebalanceSize) {
+            return null;
+        }
 
-        Chunk<K,V> candidate = last.next.getReference();
+        Chunk<K, V> candidate = last.next.getReference();
 
-        if (!isCandidate(candidate)) return null;
+        if (!isCandidate(candidate)) {
+            return null;
+        }
 
         int newItems = candidate.getStatistics().getCompactedCount();
         int totalItems = itemsInRange + newItems;
@@ -262,13 +265,15 @@ class Rebalancer<K, V> {
     private void updateRangeView() {
         while (true) {
             Chunk<K, V> next = last.next.getReference();
-            if (next == null || !next.isEngaged(this)) break;
+            if (next == null || !next.isEngaged(this)) {
+                break;
+            }
             last = next;
             addToCounters(last);
         }
     }
 
-    private void addToCounters(Chunk chunk) {
+    private void addToCounters(Chunk<K, V> chunk) {
         itemsInRange += chunk.getStatistics().getCompactedCount();
         chunksInRange++;
     }
@@ -278,35 +283,40 @@ class Rebalancer<K, V> {
      * @param chunk candidate chunk for range extension
      * @return true if not engaged and not null
      */
-    private boolean isCandidate(Chunk chunk) {
+    private boolean isCandidate(Chunk<K, V> chunk) {
         // do not take chunks that are engaged with another rebalancer or infant
         return chunk != null && chunk.isEngaged(null) && (chunk.state() != Chunk.State.INFANT) && (chunk.state() != Chunk.State.RELEASED);
     }
 
-    private List<Chunk<K,V>> createEngagedList() {
+    private List<Chunk<K, V>> createEngagedList() {
         Chunk<K, V> current = first;
-        List<Chunk<K,V>> engaged = new LinkedList<>();
+        List<Chunk<K, V>> engaged = new LinkedList<>();
 
         while (current != null && current.isEngaged(this)) {
             engaged.add(current);
             current = current.next.getReference();
         }
 
-        if (engaged.isEmpty()) throw new IllegalStateException("Engaged list cannot be empty");
+        if (engaged.isEmpty()) {
+            throw new IllegalStateException("Engaged list cannot be empty");
+        }
 
         return engaged;
     }
 
-    List<Chunk<K,V>> getEngagedChunks() {
-        List<Chunk<K,V>> engaged = engagedChunks.get();
-        if (engaged == null) throw new IllegalStateException("Trying to get engaged before engagement stage completed");
+    List<Chunk<K, V>> getEngagedChunks() {
+        List<Chunk<K, V>> engaged = engagedChunks.get();
+        if (engaged == null) {
+            throw new IllegalStateException("Trying to get engaged before engagement stage completed");
+        }
         return engaged;
     }
 
-    List<Chunk<K,V>> getNewChunks() {
-        List<Chunk<K,V>> newChunks = this.newChunks.get();
-        if (newChunks == null)
+    List<Chunk<K, V>> getNewChunks() {
+        List<Chunk<K, V>> newChunks = this.newChunks.get();
+        if (newChunks == null) {
             throw new IllegalStateException("Trying to get new chunks before creating stage completed");
+        }
         return newChunks;
     }
 
