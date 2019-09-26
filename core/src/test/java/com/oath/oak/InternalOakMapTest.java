@@ -8,8 +8,7 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
 
-import static org.junit.Assert.assertNotEquals;
-import static org.junit.Assert.assertNull;
+import static org.junit.Assert.*;
 
 public class InternalOakMapTest {
 
@@ -58,7 +57,7 @@ public class InternalOakMapTest {
 
         final Integer[] results = new Integer[3];
 
-        List<Thread> threadList = new ArrayList<>(3);
+        List<Thread> threadList = new ArrayList<>(results.length);
         threadList.add(new Thread(() -> results[0] = testMap.put(k, v1, IntegerOakMap.serializer::deserialize)));
         threadList.add(new Thread(() -> results[1] = testMap.put(k, v2, InternalOakMapTest::slowDeserialize)));
         threadList.add(new Thread(() -> results[2] = testMap.put(k, v3, IntegerOakMap.serializer::deserialize)));
@@ -77,7 +76,7 @@ public class InternalOakMapTest {
 
         final Integer[] results = new Integer[3];
 
-        List<Thread> threadList = new ArrayList<>(3);
+        List<Thread> threadList = new ArrayList<>(results.length);
         threadList.add(new Thread(() -> results[0] = testMap.put(k, v1, IntegerOakMap.serializer::deserialize)));
         threadList.add(new Thread(() -> results[1] = testMap.remove(k, null, InternalOakMapTest::slowDeserialize)));
         threadList.add(new Thread(() -> results[2] = testMap.put(k, v2, IntegerOakMap.serializer::deserialize)));
@@ -97,7 +96,7 @@ public class InternalOakMapTest {
 
         testMap.put(k, v1, IntegerOakMap.serializer::deserialize);
 
-        List<Thread> threadList = new ArrayList<>(3);
+        List<Thread> threadList = new ArrayList<>(results.length);
         threadList.add(new Thread(() -> results[0] = testMap.remove(k, null, InternalOakMapTest::slowDeserialize)));
         threadList.add(new Thread(() -> results[1] = testMap.remove(k, null, IntegerOakMap.serializer::deserialize)));
 

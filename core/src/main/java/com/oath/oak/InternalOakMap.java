@@ -64,7 +64,7 @@ class InternalOakMap<K, V> {
 
         // This is a trick for letting us search through the skiplist using both serialized and unserialized keys.
         // Might be nicer to replace it with a proper visitor
-        Comparator mixedKeyComparator = (o1, o2) -> {
+        Comparator<Object> mixedKeyComparator = (o1, o2) -> {
             if (o1 instanceof ByteBuffer) {
                 if (o2 instanceof ByteBuffer) {
                     return oakComparator.compareSerializedKeys((ByteBuffer) o1, (ByteBuffer) o2);
@@ -297,12 +297,12 @@ class InternalOakMap<K, V> {
     }
 
     // Returns old handle if someone helped before pointToValue happened, or null otherwise
-    private Handle finishAfterPublishing(Chunk.OpData opData, Chunk<K, V> c) {
+    private boolean finishAfterPublishing(Chunk.OpData opData, Chunk<K, V> c) {
         // set pointer to value
-        Handle oldHandle = c.pointToValue(opData);
+        boolean result = c.pointToValue(opData);
         c.unpublish();
         checkRebalance(c);
-        return oldHandle;
+        return result;
     }
 
     /*-------------- OakMap Methods --------------*/
@@ -315,7 +315,15 @@ class InternalOakMap<K, V> {
         Chunk<K, V> c = findChunk(key); // find chunk matching key
         Chunk.LookUp lookUp = c.lookUp(key);
         if (lookUp != null && lookUp.handle != null) {
-            return lookUp.handle.exchange(value, transformer, valueSerializer, memoryManager);
+            Result<V> res = lookUp.handle.exchange(value, transformer, valueSerializer, memoryManager);
+            if (res.hasValue) {
+                return res.value;
+            } else if (res.flag) {
+                // Exchange was successful, but we don't care about value, i.e., this is a ZC scenario
+                return null;
+            }
+            // Exchange failed because handle was deleted between lookup and exchange. Continue with insertion.
+            return put(key, value, transformer);
         }
 
         // if chunk is frozen or infant, we can't add to it
@@ -349,6 +357,9 @@ class InternalOakMap<K, V> {
             if (prevEi != ei) {
                 ei = prevEi;
                 prevHi = c.getHandleIndex(prevEi);
+                if (prevHi != -1) {
+                    return put(key, value, transformer);
+                }
             }
         }
 
@@ -369,10 +380,8 @@ class InternalOakMap<K, V> {
             return put(key, value, transformer);
         }
 
-        Handle oldHandle = finishAfterPublishing(opData, c);
-
-        if (oldHandle != null) {
-            return transformer != null ? oldHandle.transform(transformer) : null;
+        if (!finishAfterPublishing(opData, c)) {
+            return put(key, value, transformer);
         }
 
         return null;
@@ -406,19 +415,17 @@ class InternalOakMap<K, V> {
         }
 
 
-        int ei = -1;
+        int ei;
         int prevHi = -1;
 
         // Is there already an entry associated with this key?
         if (lookUp != null) {
-            // There's an entry for this key, but it isn't linked to any handle (in which case prevHi will be < 0) or it's linked to a deleted handle that will then be indexed in prevHi (which will be > 0)
+            // There's an entry for this key, but it isn't linked to any handle (in which case prevHi will be < 0)
+            // or it's linked to a deleted handle that will then be indexed in prevHi (which will be > 0)
             ei = lookUp.entryIndex;
             assert ei > 0;
             prevHi = lookUp.handleIndex;
-        }
-
-        // TODO - this can be the else clause of the previous if
-        if (ei == -1) {
+        } else {
             ei = c.allocateEntryAndKey(key);
             if (ei == -1) {
                 rebalance(c);
@@ -457,19 +464,11 @@ class InternalOakMap<K, V> {
             return putIfAbsent(key, value, transformer);
         }
 
-        Handle oldHandle = finishAfterPublishing(opData, c);
-
-        // Keep result before freeing old handle (otherwise we may incorrectly return null for a deleted handle)
-        Result<V> result;
-        if (transformer == null)
-            result = Result.withFlag(oldHandle == null);
-        else
-            result = Result.withValue((oldHandle != null) ? oldHandle.transform(transformer) : null);
-
-        if (oldHandle != null) {
-            c.freeHandle(hi);
+        if (!finishAfterPublishing(opData, c)) {
+            return putIfAbsent(key, value, transformer);
         }
-        return result;
+
+        return transformer != null ? Result.withValue(null) : Result.withFlag(true);
     }
 
 
@@ -552,14 +551,12 @@ class InternalOakMap<K, V> {
             return putIfAbsentComputeIfPresent(key, value, computer);
         }
 
-        Handle ret = finishAfterPublishing(opData, c);
-        if (ret == null) {
-            return true;
-        } else {
+        boolean res = finishAfterPublishing(opData, c);
+        if (!res) {
             // lost a race
             c.freeHandle(hi);
-            return false;
         }
+        return res;
     }
 
     V remove(K key, V oldValue, Function<ByteBuffer, V> transformer) {
@@ -567,12 +564,13 @@ class InternalOakMap<K, V> {
             throw new NullPointerException();
         }
 
-        // when logicallyDeleted is true, it means we have marked the handle as deleted. Note that the entry may still be linked!
+        // when logicallyDeleted is true, it means we have marked the handle as deleted.
+        // Note that the entry will remain linked until rebalance happens.
         boolean logicallyDeleted = false;
         V v = null;
 
         while (true) {
-            Chunk c = findChunk(key); // find chunk matching key
+            Chunk<K, V> c = findChunk(key); // find chunk matching key
             Chunk.LookUp lookUp = c.lookUp(key);
 
             if (lookUp == null || lookUp.handle == null) {
@@ -588,7 +586,8 @@ class InternalOakMap<K, V> {
             } else {
                 Result<V> removeResult = lookUp.handle.remove(memoryManager, oldValue, transformer);
                 if (!removeResult.hasValue && !removeResult.flag) {
-                    // we didn't succeed to remove the handle (it was marked as deleted already by someone else)
+                    // we didn't succeed to remove the handle: it didn't contain oldValue, or was already marked
+                    // as deleted by someone else)
                     return null;
                 }
                 // we have marked this handle as deleted (successful remove)
@@ -758,8 +757,9 @@ class InternalOakMap<K, V> {
             return null;
         }
 
-        // will return null if handle was deleted between prior lookup and the next call
-        return lookUp.handle.exchange(value, valueDeserializeTransformer, valueSerializer, memoryManager);
+        // will return Result.withValue only if handle wasn't deleted between prior lookup and the next call
+        Result<V> res = lookUp.handle.exchange(value, valueDeserializeTransformer, valueSerializer, memoryManager);
+        return res.hasValue ? res.value : null;
     }
 
     boolean replace(K key, V oldValue, V newValue, Function<ByteBuffer, V> valueDeserializeTransformer) {

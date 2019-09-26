@@ -40,16 +40,22 @@ class Handle implements OakWBuffer {
     }
 
     <V> Result<V> remove(MemoryManager memoryManager, V oldValue, Function<ByteBuffer, V> transformer) {
+        Result<V> res = Result.withFlag(false);
         writeLock.lock();
-        V vv = (transformer != null) ? transformer.apply(value) : null;
-        if (isDeleted() || (oldValue != null) && (!oldValue.equals(vv))) {
+        try {
+            if (!isDeleted()) {
+                V vv = (transformer != null) ? transformer.apply(value) : null;
+                if ((oldValue != null) && (!oldValue.equals(vv))) {
+                    res = Result.withFlag(false);
+                } else {
+                    deleted.set(true);
+                    res = (transformer != null) ? Result.withValue(vv) : Result.withFlag(true);
+                    memoryManager.release(value);
+                }
+            }
+        } finally {
             writeLock.unlock();
-            return Result.withFlag(false);
         }
-        deleted.set(true);
-        Result res = (transformer != null) ? Result.withValue(vv) : Result.withFlag(true);
-        writeLock.unlock();
-        memoryManager.release(value);
         return res;
     }
 
@@ -202,16 +208,18 @@ class Handle implements OakWBuffer {
         return transformation;
     }
 
-    <V> V exchange(V newValue, Function<ByteBuffer, V> valueDeserializeTransformer, OakSerializer<V> serializer,
-                   MemoryManager memoryManager) {
+    <V> Result<V> exchange(V newValue, Function<ByteBuffer, V> transformer, OakSerializer<V> serializer,
+                           MemoryManager memoryManager) {
         try {
             writeLock.lock();
             if (isDeleted()) {
-                return null;
+                return Result.withFlag(false);
             }
-            V v = valueDeserializeTransformer != null ? valueDeserializeTransformer.apply(this.value) : null;
+            Result<V> res = transformer != null ?
+                    Result.withValue(transformer.apply(this.value)) :
+                    Result.withFlag(true);
             innerPut(newValue, serializer, memoryManager);
-            return v;
+            return res;
         } finally {
             writeLock.unlock();
         }
@@ -243,7 +251,7 @@ class Handle implements OakWBuffer {
         readLock.unlock();
     }
 
-    public void unsafeBufferToIntArrayCopy(int srcPosition, int[] dstArray, int countInts) {
+    void unsafeBufferToIntArrayCopy(int srcPosition, int[] dstArray, int countInts) {
         UnsafeUtils.unsafeCopyBufferToIntArray(getSlicedReadOnlyByteBuffer(), srcPosition, dstArray, countInts);
     }
 }

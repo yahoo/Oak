@@ -16,10 +16,10 @@ class Rebalancer<K, V> {
 
     /*-------------- Constants --------------*/
 
-    private final int rebalanceSize = 2;
-    private final double maxAfterMergePart = 0.7;
-    private final double lowThreshold = 0.5;
-    private final double appendThreshold = 0.2;
+    private static final int REBALANCE_SIZE = 2;
+    private static final double MAX_AFTER_MERGE_PART = 0.7;
+    private static final double LOW_THRESHOLD = 0.5;
+    private static final double APPEND_THRESHOLD = 0.2;
 
     private final int entriesLowThreshold;
     private final int maxRangeToAppend;
@@ -43,9 +43,9 @@ class Rebalancer<K, V> {
 
     Rebalancer(Chunk<K, V> chunk, boolean offHeap, MemoryManager memoryManager,
                OakSerializer<K> keySerializer, OakSerializer<V> valueSerializer) {
-        this.entriesLowThreshold = (int) (chunk.getMaxItems() * this.lowThreshold);
-        this.maxRangeToAppend = (int) (chunk.getMaxItems() * this.appendThreshold);
-        this.maxAfterMergeItems = (int) (chunk.getMaxItems() * this.maxAfterMergePart);
+        this.entriesLowThreshold = (int) (chunk.getMaxItems() * LOW_THRESHOLD);
+        this.maxRangeToAppend = (int) (chunk.getMaxItems() * APPEND_THRESHOLD);
+        this.maxAfterMergeItems = (int) (chunk.getMaxItems() * MAX_AFTER_MERGE_PART);
         this.offHeap = offHeap;
         this.memoryManager = memoryManager;
         nextToEngage = new AtomicReference<>(chunk);
@@ -69,7 +69,7 @@ class Rebalancer<K, V> {
 
     /*-------------- Methods --------------*/
 
-    Rebalancer<K,V> engageChunks() {
+    Rebalancer<K, V> engageChunks() {
         while (true) {
             Chunk<K, V> next = nextToEngage.get();
             if (next == null) {
@@ -99,7 +99,7 @@ class Rebalancer<K, V> {
 
     /**
      * Freeze the engaged chunks. Should be called after engageChunks.
-     * Marks chunks as freezed, prevents future updates of the engagead chunks
+     * Marks chunks as frozen, prevents future updates of the engaged chunks
      */
     void freeze() {
         if (frozen.get()) {
@@ -151,7 +151,7 @@ class Rebalancer<K, V> {
                 currFrozen = iterFrozen.next();
                 ei = currFrozen.getFirstItemEntryIndex();
 
-            } else { // filled new chunk up to ENETRIES_LOW_THRESHOLD
+            } else { // filled new chunk up to entriesLowThreshold
 
                 List<Chunk<K, V>> frozenSuffix = frozenChunks.subList(iterFrozen.previousIndex(), frozenChunks.size());
                 // try to look ahead and add frozen suffix
@@ -228,7 +228,7 @@ class Rebalancer<K, V> {
         updateRangeView();
 
         // allow up to RebalanceSize chunks to be engaged
-        if (chunksInRange >= rebalanceSize) {
+        if (chunksInRange >= REBALANCE_SIZE) {
             return null;
         }
 

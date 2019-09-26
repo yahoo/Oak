@@ -518,13 +518,13 @@ public class Chunk<K, V> {
      * turn has the value. For linkage this is an insert linearization point.
      * All the relevant data can be found inside opData.
      * <p>
-     * if someone else got to it first (helping rebalancer or other operation), returns the old handle
+     * return true if operation was successful, false to indicate restart required
      */
-    Handle pointToValue(OpData opData) {
+    boolean pointToValue(OpData opData) {
 
         // try to perform the CAS according to operation data (opData)
         if (pointToValueCAS(opData)) {
-            return null;
+            return true;
         }
 
         // the straight forward helping didn't work, check why
@@ -534,7 +534,7 @@ public class Chunk<K, V> {
         // the old handle index is no longer there so we have nothing to do. Note that in case of non-ZC removal the
         // loop in remove() will lookup the key again so we will still return the previous value
         if (operation == Operation.REMOVE) {
-            return null; // this is a remove, no need to try again and return doesn't matter
+            return true; // this is a remove, no need to try again and return doesn't matter
         }
 
         // the operation is either NO_OP, PUT, PUT_IF_ABSENT, COMPUTE
@@ -542,30 +542,26 @@ public class Chunk<K, V> {
         int foundHandleIdx = getEntryField(opData.entryIndex, OFFSET_HANDLE_INDEX);
 
         if (foundHandleIdx == expectedHandleIdx) {
-            return null; // someone helped
+            return true; // someone helped
         } else if (foundHandleIdx < 0) {
             // the handle was deleted, retry the attach
             opData.prevHandleIndex = -1;
             return pointToValue(opData); // remove completed, try again
         } else if (operation == Operation.PUT_IF_ABSENT) {
-            return handles[foundHandleIdx]; // too late
+            return false;
         } else if (operation == Operation.COMPUTE) {
             Handle h = handles[foundHandleIdx];
-            if (h != null) {
-                boolean succ = h.compute(opData.computer);
-                if (!succ) {
-                    // we tried to perform the compute but the handle was deleted,
-                    // we can get to pointToValue with Operation.COMPUTE only from PIACIP
-                    // retry to make a put and to attach the new handle
-                    opData.prevHandleIndex = foundHandleIdx;
-                    return pointToValue(opData);
-                }
+            boolean succ = h.compute(opData.computer);
+            if (!succ) {
+                // we tried to perform the compute but the handle was deleted,
+                // we can get to pointToValue with Operation.COMPUTE only from PIACIP
+                // retry to make a put and to attach the new handle
+                opData.prevHandleIndex = foundHandleIdx;
+                return pointToValue(opData);
             }
-            return h;
         }
-        // this is a put, try again
-        opData.prevHandleIndex = foundHandleIdx;
-        return pointToValue(opData);
+        // this is a put, try again (restart put)
+        return false;
     }
 
     /**
@@ -652,7 +648,6 @@ public class Chunk<K, V> {
 
     void freeHandle(int handleIndex) {
         handles[handleIndex].remove(memoryManager, null, null);
-        handles[handleIndex] = null;
     }
 
     /**

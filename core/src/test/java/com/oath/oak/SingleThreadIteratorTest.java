@@ -25,7 +25,6 @@ public class SingleThreadIteratorTest {
 
     @Before
     public void init() {
-        int maxBytesPerChunkItem = 100;
         OakMapBuilder<Integer, Integer> builder = IntegerOakMap.getDefaultBuilder()
                 .setChunkMaxItems(maxItemsPerChunk);
         oak = builder.build();

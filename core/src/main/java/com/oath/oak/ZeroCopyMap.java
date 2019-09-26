@@ -76,11 +76,11 @@ public interface ZeroCopyMap<K, V> {
      * with a value, associate it with a constructed value.
      * Else, updates the value for the specified key.
      *
-     * @param key         key with which the specified value is to be associated
-     * @param value       value to be associated with the specified key
-     * @param computer    for computing the new value when the key is present
+     * @param key      key with which the specified value is to be associated
+     * @param value    value to be associated with the specified key
+     * @param computer for computing the new value when the key is present
      * @return {@code true} if there was no mapping for the key
-     * @throws NullPointerException if any of the parameters is null
+     * @throws NullPointerException     if any of the parameters is null
      * @throws IllegalArgumentException if the specified key is out of bounds
      */
     boolean putIfAbsentComputeIfPresent(K key, V value, Consumer<OakWBuffer> computer);
@@ -115,7 +115,7 @@ public interface ZeroCopyMap<K, V> {
      * serialized keys stored in this map. When set is iterated it gives a "stream" view
      * on the elements, meaning only one element can be observed at a time.
      * The set iteration can not be shared between multi threads.
-     *
+     * <p>
      * The stream iterator is intended to be used in threads that are for iterations only
      * and are not involved in concurrent/parallel reading/updating the mappings
      *
@@ -128,7 +128,7 @@ public interface ZeroCopyMap<K, V> {
      * serialized values stored in this map. When set is iterated it gives a "stream" view
      * on the elements, meaning only one element can be observed at a time.
      * The set iteration can not be shared between multi threads.
-     *
+     * <p>
      * The stream iterator is intended to be used in threads that are for iterations only
      * and are not involved in concurrent/parallel reading/updating the mappings
      *
@@ -141,7 +141,7 @@ public interface ZeroCopyMap<K, V> {
      * map. When set is iterated it gives a "stream" view
      * on the elements, meaning only one element can be observed at a time.
      * The set iteration can not be shared between multi threads.
-     *
+     * <p>
      * The stream iterator is intended to be used in threads that are for iterations only
      * and are not involved in concurrent/parallel reading/updating the mappings
      *

@@ -4,7 +4,7 @@ import java.nio.ByteBuffer;
 
 public class IntegerOakMap {
 
-    public static OakComparator<Integer> comparator = new OakComparator<Integer>() {
+    static OakComparator<Integer> comparator = new OakComparator<Integer>() {
 
         @Override
         public int compareKeys(Integer key1, Integer key2) {
@@ -25,7 +25,7 @@ public class IntegerOakMap {
         }
     };
 
-    public static OakSerializer<Integer> serializer = new OakSerializer<Integer>() {
+    static OakSerializer<Integer> serializer = new OakSerializer<Integer>() {
 
         @Override
         public void serialize(Integer obj, ByteBuffer targetBuffer) {
@@ -38,7 +38,9 @@ public class IntegerOakMap {
         }
 
         @Override
-        public int calculateSize(Integer key) { return Integer.BYTES; }
+        public int calculateSize(Integer key) {
+            return Integer.BYTES;
+        }
 
     };
 

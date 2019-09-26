@@ -27,10 +27,10 @@ public class OakMapBuilder<K, V> {
     // comparators
     private OakComparator<K> comparator;
 
-  // Off-heap fields
-  private int chunkMaxItems;
-  private long memoryCapacity;
-  private OakMemoryAllocator memoryAllocator;
+    // Off-heap fields
+    private int chunkMaxItems;
+    private long memoryCapacity;
+    private OakMemoryAllocator memoryAllocator;
 
     public OakMapBuilder() {
         this.keySerializer = null;
@@ -60,10 +60,10 @@ public class OakMapBuilder<K, V> {
         return this;
     }
 
-  public OakMapBuilder<K, V> setChunkMaxItems(int chunkMaxItems) {
-    this.chunkMaxItems = chunkMaxItems;
-    return this;
-  }
+    public OakMapBuilder<K, V> setChunkMaxItems(int chunkMaxItems) {
+        this.chunkMaxItems = chunkMaxItems;
+        return this;
+    }
 
     public OakMapBuilder<K, V> setMemoryCapacity(long memoryCapacity) {
         this.memoryCapacity = memoryCapacity;
