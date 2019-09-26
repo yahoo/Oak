@@ -39,6 +39,17 @@ public class JavaSkipListMap<K extends MyBuffer, V extends MyBuffer> implements 
     }
 
     @Override
+    public void putIfAbsentComputeIfPresentOak(K key, V value) {
+
+        skipListMap.merge(key, value, (old,v) -> {
+            synchronized (old) {
+                old.buffer.putLong(1, ~old.buffer.getLong(1));
+            }
+            return old;
+        });
+    }
+
+    @Override
     public boolean ascendOak(K from, int length) {
         Iterator iter = skipListMap.tailMap(from, true).keySet().iterator();
         int i = 0;
