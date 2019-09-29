@@ -16,7 +16,6 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 
 import static com.oath.oak.Chunk.*;
-import static com.oath.oak.UnsafeUtils.longToInts;
 
 class InternalOakMap<K, V> {
 
@@ -330,11 +329,11 @@ class InternalOakMap<K, V> {
         }
 
         int ei = -1;
-        long oldStats = DELETED_VALUE;
+        long oldReference = DELETED_VALUE;
         if (lookUp != null) {
             ei = lookUp.entryIndex;
             assert ei > 0;
-            oldStats = lookUp.valueStats;
+            oldReference = lookUp.valueReference;
         }
 
         if (ei == -1) {
@@ -347,17 +346,17 @@ class InternalOakMap<K, V> {
             int prevEi = c.linkEntry(ei, true, key);
             if (prevEi != ei) {
                 ei = prevEi;
-                oldStats = c.getValueStats(prevEi);
+                oldReference = c.getValueReference(prevEi);
             }
         }
 
-        long newValueStats = c.writeValueOffHeap(value); // write value in place
+        long newValueReference = c.writeValueOffHeap(value); // write value in place
 
-        Chunk.OpData opData = new Chunk.OpData(Operation.PUT, ei, newValueStats, oldStats, null);
+        Chunk.OpData opData = new Chunk.OpData(Operation.PUT, ei, newValueReference, oldReference, null);
 
         // publish put
         if (!c.publish()) {
-            memoryManager.releaseSlice(c.buildValueSlice(newValueStats));
+            c.releaseValue(newValueReference);
             rebalance(c);
             put(key, value, transformer);
             return null;
@@ -402,11 +401,11 @@ class InternalOakMap<K, V> {
 
 
         int ei = -1;
-        long oldStats = DELETED_VALUE;
+        long oldReference = DELETED_VALUE;
         if (lookUp != null) {
             ei = lookUp.entryIndex;
             assert ei > 0;
-            oldStats = lookUp.valueStats;
+            oldReference = lookUp.valueReference;
         }
 
         if (ei == -1) {
@@ -417,13 +416,13 @@ class InternalOakMap<K, V> {
             }
             int prevEi = c.linkEntry(ei, true, key);
             if (prevEi != ei) {
-                oldStats = c.getValueStats(prevEi);
-                if (oldStats != DELETED_VALUE) {
+                oldReference = c.getValueReference(prevEi);
+                if (oldReference != DELETED_VALUE) {
                     if (transformer == null) {
                         return Result.withFlag(false);
                     }
                     AbstractMap.SimpleEntry<ValueUtils.ValueResult, V> res =
-                            ValueUtils.transform(c.buildValueSlice(oldStats), transformer);
+                            ValueUtils.transform(c.buildValueSlice(oldReference), transformer);
                     if (res.getKey() == ValueUtils.ValueResult.SUCCESS) {
                         return Result.withValue(res.getValue());
                     }
@@ -434,13 +433,13 @@ class InternalOakMap<K, V> {
             }
         }
 
-        long newValueStats = c.writeValueOffHeap(value); // write value in place
+        long newValueReference = c.writeValueOffHeap(value); // write value in place
 
-        Chunk.OpData opData = new Chunk.OpData(Operation.PUT_IF_ABSENT, ei, newValueStats, oldStats, null);
+        Chunk.OpData opData = new Chunk.OpData(Operation.PUT_IF_ABSENT, ei, newValueReference, oldReference, null);
 
         // publish put
         if (!c.publish()) {
-            memoryManager.releaseSlice(c.buildValueSlice(newValueStats));
+            c.releaseValue(newValueReference);
             rebalance(c);
             return putIfAbsent(key, value, transformer);
         }
@@ -448,7 +447,7 @@ class InternalOakMap<K, V> {
         long result = finishAfterPublishing(opData, c);
 
         if (result != DELETED_VALUE) {
-            memoryManager.releaseSlice(c.buildValueSlice(newValueStats));
+            c.releaseValue(newValueReference);
         }
         if (transformer == null) {
             return Result.withFlag(result == DELETED_VALUE);
@@ -505,11 +504,11 @@ class InternalOakMap<K, V> {
         // 2. entry in the linked list, but handle is not attached
         // 3. entry in the linked list, handle attached, but handle is marked deleted
         int ei = -1;
-        long oldStats = DELETED_VALUE;
+        long oldReference = DELETED_VALUE;
         if (lookUp != null) {
             ei = lookUp.entryIndex;
             assert ei > 0;
-            oldStats = lookUp.valueStats;
+            oldReference = lookUp.valueReference;
         }
 
         if (ei == -1) {
@@ -520,9 +519,9 @@ class InternalOakMap<K, V> {
             }
             int prevEi = c.linkEntry(ei, true, key);
             if (prevEi != ei) {
-                oldStats = c.getValueStats(prevEi);
-                if (oldStats != 0) {
-                    ValueUtils.ValueResult res = ValueUtils.compute(c.buildValueSlice(oldStats), computer);
+                oldReference = c.getValueReference(prevEi);
+                if (oldReference != 0) {
+                    ValueUtils.ValueResult res = ValueUtils.compute(c.buildValueSlice(oldReference), computer);
                     if (res == ValueUtils.ValueResult.SUCCESS) {
                         // compute was successful and handle wasn't found deleted; in case
                         // this handle was already found as deleted, continue to construct another handle
@@ -536,20 +535,20 @@ class InternalOakMap<K, V> {
             }
         }
 
-        long newValueStats = c.writeValueOffHeap(value); // write value in place
+        long newValueReference = c.writeValueOffHeap(value); // write value in place
 
-        Chunk.OpData opData = new Chunk.OpData(Operation.COMPUTE, ei, newValueStats, oldStats, computer);
+        Chunk.OpData opData = new Chunk.OpData(Operation.COMPUTE, ei, newValueReference, oldReference, computer);
 
         // publish put
         if (!c.publish()) {
-            memoryManager.releaseSlice(c.buildValueSlice(newValueStats));
+            c.releaseValue(newValueReference);
             rebalance(c);
             return putIfAbsentComputeIfPresent(key, value, computer);
         }
 
         long res = finishAfterPublishing(opData, c);
         if (res != DELETED_VALUE) {
-            memoryManager.releaseSlice(c.buildValueSlice(newValueStats));
+            c.releaseValue(newValueReference);
         }
         return res == DELETED_VALUE;
     }
@@ -615,8 +614,8 @@ class InternalOakMap<K, V> {
 
 
             assert lookUp.entryIndex > 0;
-            assert lookUp.valueStats != DELETED_VALUE;
-            Chunk.OpData opData = new Chunk.OpData(Operation.REMOVE, lookUp.entryIndex, 0, lookUp.valueStats, null);
+            assert lookUp.valueReference != DELETED_VALUE;
+            Chunk.OpData opData = new Chunk.OpData(Operation.REMOVE, lookUp.entryIndex, 0, lookUp.valueReference, null);
 
             // publish
             if (!c.publish()) {

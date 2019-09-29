@@ -13,7 +13,7 @@ public class OakMap<K extends MyBuffer, V extends MyBuffer> implements Compositi
     private com.oath.oak.OakMap<MyBuffer, MyBuffer> oak;
     private OakMapBuilder<MyBuffer, MyBuffer> builder;
     private MyBuffer minKey;
-    public OakNativeMemoryAllocator ma;
+    private OakNativeMemoryAllocator ma;
 
     public OakMap() {
         ma = new OakNativeMemoryAllocator((long) Integer.MAX_VALUE * 128);
@@ -31,6 +31,10 @@ public class OakMap<K extends MyBuffer, V extends MyBuffer> implements Compositi
                 .setChunkMaxItems(Chunk.MAX_ITEMS_DEFAULT)
                 .setMemoryAllocator(ma);
         oak = builder.build();
+    }
+
+    public OakNativeMemoryAllocator getMemoryAllocator() {
+        return ma;
     }
 
     @Override
@@ -93,7 +97,11 @@ public class OakMap<K extends MyBuffer, V extends MyBuffer> implements Compositi
     private boolean createAndScanView(com.oath.oak.OakMap<MyBuffer, MyBuffer> subMap, int length) {
         Iterator iter;
         if (Parameters.zeroCopy) {
-            iter = subMap.zc().keyStreamSet().iterator();
+            if (Parameters.streamIteration) {
+                iter = subMap.zc().keyStreamSet().iterator();
+            } else {
+                iter = subMap.zc().keySet().iterator();
+            }
         } else {
             iter = subMap.keySet().iterator();
         }

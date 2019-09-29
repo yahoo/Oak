@@ -12,18 +12,18 @@ import java.util.function.Function;
 
 import static com.oath.oak.Chunk.VALUE_BLOCK_SHIFT;
 import static com.oath.oak.Chunk.VALUE_LENGTH_MASK;
-import static com.oath.oak.ValueUtils.LockStats.*;
+import static com.oath.oak.ValueUtils.LockStates.*;
 import static com.oath.oak.ValueUtils.ValueResult.*;
 import static java.lang.Integer.reverseBytes;
 
 public class ValueUtils {
 
-    enum LockStats {
+    enum LockStates {
         FREE(0), LOCKED(1), DELETED(2), MOVED(3);
 
         public int value;
 
-        LockStats(int value) {
+        LockStates(int value) {
             this.value = value;
         }
     }
@@ -213,7 +213,7 @@ public class ValueUtils {
             bb.putInt(bb.position(), LOCKED.value);
             int valueBlockAndLength =
                     (s.getBlockID() << VALUE_BLOCK_SHIFT) | ((capacity + VALUE_HEADER_SIZE) & VALUE_LENGTH_MASK);
-            assert chunk.longCasEntriesArray(lookUp.entryIndex, Chunk.OFFSET.VALUE_STATS, lookUp.valueStats,
+            assert chunk.longCasEntriesArray(lookUp.entryIndex, Chunk.OFFSET.VALUE_REFERENCE, lookUp.valueReference,
                     UnsafeUtils.intsToLong(valueBlockAndLength, bb.position()));
         }
         ByteBuffer dup = getActualValueBuffer(bb);

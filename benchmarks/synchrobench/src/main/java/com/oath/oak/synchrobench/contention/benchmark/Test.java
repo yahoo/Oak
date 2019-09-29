@@ -188,7 +188,7 @@ public class Test {
 
         System.out.println("\n" + message);
         System.out.println((float) (heapSize - heapFreeSize) / (1024 * 1024));
-        System.out.println((float) (((OakMap) oakBench).ma.allocated()) / (1024 * 1024));
+        System.out.println((float) (((OakMap) oakBench).getMemoryAllocator().allocated()) / (1024 * 1024));
     }
 
     /**
@@ -316,6 +316,8 @@ public class Test {
                 } else if (currentArg.equals("--change")
                         || currentArg.equals("-c")) {
                     Parameters.change = true;
+                } else if (currentArg.equals("--stream-iteration") || currentArg.equals("-si")){
+                    Parameters.streamIteration = true;
                 } else if (currentArg.equals("--buffer")) {
                     Parameters.zeroCopy = true;
                 } else if (currentArg.equals("--inc")) {

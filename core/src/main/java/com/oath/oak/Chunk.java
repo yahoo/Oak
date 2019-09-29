@@ -25,8 +25,38 @@ public class Chunk<K, V> {
 
     /*-------------- Constants --------------*/
 
+    /***
+     * This enum is used to access the different fields in each entry.
+     * The value associated with each entry signifies the offset of the field relative to the entry's beginning.
+     */
     enum OFFSET {
-        NEXT(0), KEY_POSITION(3), VALUE_STATS(1), VALUE_POSITION(1),
+        /***
+         * NEXT - the next index of this entry (one integer)
+         *
+         * VALUE_REFERENCE - the blockID, length and position of the value pointed from this entry (size of two
+         * integers, one long). Equals to DELETED_VALUE if no value is point.
+         *
+         * VALUE_POSITION
+         *
+         * VALUE_BLOCK_AND_LENGTH - this value holds both the blockID and the length of the value pointed by the entry.
+         * Using VALUE_LENGTH_MASK and VALUE_BLOCK_SHIFT the blockID and length can be extracted.
+         * Currently, the length of a value is limited to 8MB, and blockID is limited to 512 blocks
+         * (with the current block size of 256MB, the total memory is up to 128GB).
+         *
+         * VALUE_BLOCK
+         *
+         * VALUE_LENGTH
+         *
+         * KEY_POSITION
+         *
+         * KEY_BLOCK_AND_LENGTH - similar to VALUE_BLOCK_AND_LENGTH, but using KEY_LENGTH_MASK and KEY_BLOCK_SHIFT.
+         * The length of a key is limited to 32KB.
+         *
+         * KEY_BLOCK
+         *
+         * KEY_LENGTH
+         */
+        NEXT(0), KEY_POSITION(3), VALUE_REFERENCE(1), VALUE_POSITION(1),
         VALUE_BLOCK_AND_LENGTH(2), VALUE_BLOCK(2), VALUE_LENGTH(2), KEY_BLOCK_AND_LENGTH(4),
         KEY_BLOCK(4), KEY_LENGTH(4);
 
@@ -110,6 +140,7 @@ public class Chunk<K, V> {
 
     /**
      * Create a new chunk
+     *
      * @param minKey  minimal key to be placed in chunk
      * @param creator the chunk that is responsible for this chunk creation
      */
@@ -142,15 +173,16 @@ public class Chunk<K, V> {
     static class OpData {
         final Operation op;
         final int entryIndex;
-        final long newValueStats;
-        long oldValueStats;
+        final long newValueReference;
+        long oldValueReference;
         final Consumer<OakWBuffer> computer;
 
-        OpData(Operation op, int entryIndex, long newValueStats, long oldValueStats, Consumer<OakWBuffer> computer) {
+        OpData(Operation op, int entryIndex, long newValueReference, long oldValueReference,
+               Consumer<OakWBuffer> computer) {
             this.op = op;
             this.entryIndex = entryIndex;
-            this.newValueStats = newValueStats;
-            this.oldValueStats = oldValueStats;
+            this.newValueReference = newValueReference;
+            this.oldValueReference = oldValueReference;
             this.computer = computer;
         }
     }
@@ -320,18 +352,18 @@ public class Chunk<K, V> {
      */
     Slice getValueSlice(int entryIndex) {
 
-        long valueStats = getValueStats(entryIndex);
-        int[] valueArray = UnsafeUtils.longToInts(valueStats);
+        long valueReference = getValueReference(entryIndex);
+        int[] valueArray = UnsafeUtils.longToInts(valueReference);
         // if no value for item - return null
         if (valueArray[0] == INVALID_BLOCK_ID) {
             return null;
         } else {
-            return buildValueSlice(valueStats);
+            return buildValueSlice(valueReference);
         }
     }
 
-    Slice buildValueSlice(long valueStats) {
-        int[] valueArray = UnsafeUtils.longToInts(valueStats);
+    Slice buildValueSlice(long valueReference) {
+        int[] valueArray = UnsafeUtils.longToInts(valueReference);
         if ((valueArray[0] >>> VALUE_BLOCK_SHIFT) == INVALID_BLOCK_ID) {
             return null;
         }
@@ -340,13 +372,17 @@ public class Chunk<K, V> {
     }
 
     // Assuming the reading of valuePosition and valueBlockAndLength is atomic!
-    long getValueStats(int entryIndex) {
+    long getValueReference(int entryIndex) {
         int valuePosition, valueBlockAndLength;
         do {
             valuePosition = getEntryField(entryIndex, OFFSET.VALUE_POSITION);
             valueBlockAndLength = getEntryField(entryIndex, OFFSET.VALUE_BLOCK_AND_LENGTH);
         } while (valuePosition != getEntryField(entryIndex, OFFSET.VALUE_POSITION));
         return intsToLong(valueBlockAndLength, valuePosition);
+    }
+
+    void releaseValue(long newValueReference) {
+        memoryManager.releaseSlice(buildValueSlice(newValueReference));
     }
 
     /**
@@ -369,16 +405,16 @@ public class Chunk<K, V> {
             }
             // if keys are equal - we've found the item
             else if (cmp == 0) {
-                long valueStats = getValueStats(curr);
-                Slice valueSlice = buildValueSlice(valueStats);
+                long valueReference = getValueReference(curr);
+                Slice valueSlice = buildValueSlice(valueReference);
                 if (valueSlice == null) {
-                    assert valueStats == 0;
-                    return new LookUp(null, valueStats, curr);
+                    assert valueReference == 0;
+                    return new LookUp(null, valueReference, curr);
                 }
                 if (ValueUtils.isValueDeleted(valueSlice)) {
-                    return new LookUp(null, valueStats, curr);
+                    return new LookUp(null, valueReference, curr);
                 }
-                return new LookUp(valueSlice, valueStats, curr);
+                return new LookUp(valueSlice, valueReference, curr);
             }
             // otherwise- proceed to next item
             else {
@@ -391,12 +427,12 @@ public class Chunk<K, V> {
     static class LookUp {
 
         Slice valueSlice;
-        final long valueStats;
+        final long valueReference;
         final int entryIndex;
 
-        LookUp(Slice valueSlice, long valueStats, int entryIndex) {
+        LookUp(Slice valueSlice, long valueReference, int entryIndex) {
             this.valueSlice = valueSlice;
-            this.valueStats = valueStats;
+            this.valueReference = valueReference;
             this.entryIndex = entryIndex;
         }
     }
@@ -564,7 +600,7 @@ public class Chunk<K, V> {
      * Updates a linked entry to point to handle or otherwise removes such a link. The handle in
      * turn has the value. For linkage this is an insert linearization point.
      * All the relevant data can be found inside opData.
-     *
+     * <p>
      * if someone else got to it first (helping rebalancer or other operation), returns the old handle
      */
     long pointToValue(OpData opData) {
@@ -584,32 +620,32 @@ public class Chunk<K, V> {
         }
 
         // the operation is either NO_OP, PUT, PUT_IF_ABSENT, COMPUTE
-        long expectedValueStats = opData.newValueStats;
-        long foundValueStats = getValueStats(opData.entryIndex);
-        int foundValueBlockAndLength = UnsafeUtils.longToInts(foundValueStats)[0];
+        long expectedValueReference = opData.newValueReference;
+        long foundValueReference = getValueReference(opData.entryIndex);
+        int foundValueBlockAndLength = UnsafeUtils.longToInts(foundValueReference)[0];
 
-        if (expectedValueStats == foundValueStats) {
+        if (expectedValueReference == foundValueReference) {
             return DELETED_VALUE; // someone helped
         } else if (foundValueBlockAndLength == INVALID_BLOCK_ID) {
             // the handle was deleted, retry the attach
-            opData.oldValueStats = 0;
+            opData.oldValueReference = 0;
             return pointToValue(opData); // remove completed, try again
         } else if (operation == Operation.PUT_IF_ABSENT) {
-            return foundValueStats; // too late
+            return foundValueReference; // too late
         } else if (operation == Operation.COMPUTE) {
-            Slice valueSlice = buildValueSlice(foundValueStats);
+            Slice valueSlice = buildValueSlice(foundValueReference);
             ValueUtils.ValueResult succ = ValueUtils.compute(valueSlice, opData.computer);
             if (succ != ValueUtils.ValueResult.SUCCESS) {
                 // we tried to perform the compute but the value was deleted/moved,
                 // we can get to pointToValue with Operation.COMPUTE only from PIACIP
                 // retry to make a put and to attach the new handle
-                opData.oldValueStats = foundValueStats;
+                opData.oldValueReference = foundValueReference;
                 return pointToValue(opData);
             }
-            return foundValueStats;
+            return foundValueReference;
         }
         // this is a put, try again
-        opData.oldValueStats = foundValueStats;
+        opData.oldValueReference = foundValueReference;
         return pointToValue(opData);
     }
 
@@ -618,11 +654,11 @@ public class Chunk<K, V> {
      */
     private boolean pointToValueCAS(OpData opData, boolean cas) {
         if (cas) {
-            if (longCasEntriesArray(opData.entryIndex, OFFSET.VALUE_STATS, opData.oldValueStats,
-                    opData.newValueStats)) {
+            if (longCasEntriesArray(opData.entryIndex, OFFSET.VALUE_REFERENCE, opData.oldValueReference,
+                    opData.newValueReference)) {
                 // update statistics only by thread that CASed
-                int[] olValueArray = UnsafeUtils.longToInts(opData.oldValueStats);
-                int[] valueArray = UnsafeUtils.longToInts(opData.newValueStats);
+                int[] olValueArray = UnsafeUtils.longToInts(opData.oldValueReference);
+                int[] valueArray = UnsafeUtils.longToInts(opData.newValueReference);
                 if (olValueArray[0] == INVALID_BLOCK_ID && valueArray[0] > 0) { // previously a remove
                     statistics.incrementAddedCount();
                     externalSize.incrementAndGet();
@@ -633,7 +669,7 @@ public class Chunk<K, V> {
                 return true;
             }
         } else {
-            int[] valueArray = UnsafeUtils.longToInts(opData.newValueStats);
+            int[] valueArray = UnsafeUtils.longToInts(opData.newValueReference);
             setEntryField(opData.entryIndex, OFFSET.VALUE_POSITION, valueArray[1]);
             setEntryField(opData.entryIndex, OFFSET.VALUE_BLOCK_AND_LENGTH, valueArray[0]);
         }
@@ -749,10 +785,10 @@ public class Chunk<K, V> {
         boolean isFirstInInterval = true;
 
         while (true) {
-            long currSrcValueStats = srcChunk.getValueStats(srcEntryIdx);
-            currSrcValueBlock = UnsafeUtils.longToInts(currSrcValueStats)[0] >>> VALUE_BLOCK_SHIFT;
+            long currSrcValueReference = srcChunk.getValueReference(srcEntryIdx);
+            currSrcValueBlock = UnsafeUtils.longToInts(currSrcValueReference)[0] >>> VALUE_BLOCK_SHIFT;
             boolean isValueDeleted = (currSrcValueBlock == 0) ||
-                    ValueUtils.isValueDeleted(buildValueSlice(currSrcValueStats));
+                    ValueUtils.isValueDeleted(buildValueSlice(currSrcValueReference));
             int entriesToCopy = entryIndexEnd - entryIndexStart + 1;
 
             // try to find a continuous interval to copy
@@ -767,7 +803,7 @@ public class Chunk<K, V> {
                     isFirstInInterval = false;
                     srcPrevEntryIdx = srcEntryIdx;
                     srcEntryIdx = srcChunk.getEntryField(srcEntryIdx, OFFSET.NEXT);
-                    if (srcEntryIdx != NONE){
+                    if (srcEntryIdx != NONE) {
                         continue;
                     }
 
