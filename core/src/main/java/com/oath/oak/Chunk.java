@@ -388,7 +388,7 @@ public class Chunk<K, V> {
         // binary search sorted part of key array to quickly find node to start search at
         // it finds previous-to-key so start with its next
         int curr = getEntryField(binaryFind(key), OFFSET.NEXT);
-        int cmp = -1;
+        int cmp;
         // iterate until end of list (or key is found)
 
         while (curr != NONE) {

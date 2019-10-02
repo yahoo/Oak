@@ -662,16 +662,10 @@ class InternalOakMap<K, V> {
     }
 
     <T> T getKeyTransformation(K key, Function<ByteBuffer, T> transformer) {
-        if (key == null || transformer == null) {
-            throw new NullPointerException();
-        }
-
-        Chunk<K, V> c = findChunk(key); // find chunk matching key
-        Chunk.LookUp lookUp = c.lookUp(key);
-        if (lookUp == null || lookUp.valueSlice == null || lookUp.entryIndex == -1) {
+        ByteBuffer serializedKey = getKey(key);
+        if (serializedKey == null) {
             return null;
         }
-        ByteBuffer serializedKey = c.readKey(lookUp.entryIndex).slice();
         return transformer.apply(serializedKey);
     }
 
