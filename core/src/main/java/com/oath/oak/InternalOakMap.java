@@ -137,7 +137,6 @@ class InternalOakMap<K, V> {
     private boolean rebalance(Chunk<K, V> c) {
 
         if (c == null) {
-            // TODO: is this ok?
             return false;
         }
         Rebalancer<K, V> rebalancer = new Rebalancer<>(c, comparator, true, memoryManager, keySerializer,
@@ -274,12 +273,7 @@ class InternalOakMap<K, V> {
         }
     }
 
-    private boolean rebalanceRemove(Chunk<K, V> c) {
-        //TODO YONIGO - is it ok?
-        return rebalance(c);
-    }
-
-    // Returns old handle if someone helped before pointToValue happened, or null if
+    // Returns old value reference if someone helped before pointToValue happened, or DELETED_VALUE otherwise
     private long finishAfterPublishing(Chunk.OpData opData, Chunk<K, V> c) {
         // set pointer to value
         long result = c.pointToValue(opData);
@@ -478,8 +472,8 @@ class InternalOakMap<K, V> {
         if (lookUp != null && lookUp.valueSlice != null) {
             ValueUtils.ValueResult res = ValueUtils.compute(lookUp.valueSlice, computer);
             if (res == ValueUtils.ValueResult.SUCCESS) {
-                // compute was successful and handle wasn't found deleted; in case
-                // this handle was already found as deleted, continue to construct another handle
+                // compute was successful and the value wasn't found deleted; in case
+                // this value was already found as deleted, continue to allocate a new value slice
                 return false;
             } else if (res == ValueUtils.ValueResult.RETRY) {
                 return putIfAbsentComputeIfPresent(key, value, computer);
@@ -501,8 +495,8 @@ class InternalOakMap<K, V> {
 
         // we come here when no key was found, which can be in 3 cases:
         // 1. no entry in the linked list at all
-        // 2. entry in the linked list, but handle is not attached
-        // 3. entry in the linked list, handle attached, but handle is marked deleted
+        // 2. entry in the linked list, but the value reference is DELETED_VALUE
+        // 3. entry in the linked list, the value referenced is marked as deleted
         int ei = -1;
         long oldReference = DELETED_VALUE;
         if (lookUp != null) {
@@ -523,8 +517,8 @@ class InternalOakMap<K, V> {
                 if (oldReference != 0) {
                     ValueUtils.ValueResult res = ValueUtils.compute(c.buildValueSlice(oldReference), computer);
                     if (res == ValueUtils.ValueResult.SUCCESS) {
-                        // compute was successful and handle wasn't found deleted; in case
-                        // this handle was already found as deleted, continue to construct another handle
+                        // compute was successful and the value wasn't found deleted; in case
+                        // this value was already found as deleted, continue to allocate a new value slice
                         return false;
                     } else if (res == ValueUtils.ValueResult.RETRY) {
                         return putIfAbsentComputeIfPresent(key, value, computer);
@@ -558,7 +552,7 @@ class InternalOakMap<K, V> {
             throw new NullPointerException();
         }
 
-        boolean logical = true; // when logical is false, means we have marked the handle as deleted
+        boolean logical = true; // when logical is false, means we have marked the value as deleted
         Slice prev = null;
         V v = null;
 
@@ -567,7 +561,7 @@ class InternalOakMap<K, V> {
             Chunk<K, V> c = findChunk(key); // find chunk matching key
             Chunk.LookUp lookUp = c.lookUp(key);
             if (lookUp != null && logical) {
-                prev = lookUp.valueSlice; // remember previous handle
+                prev = lookUp.valueSlice; // remember previous value slice
             }
             if (!logical && lookUp != null && prev != lookUp.valueSlice) {
                 return v;  // someone else used this entry
@@ -578,7 +572,7 @@ class InternalOakMap<K, V> {
             }
 
             if (logical) {
-                // we have marked this handle as deleted (successful remove)
+                // we have marked this value as deleted (successful remove)
                 V vv = (transformer != null) ? ValueUtils.transform(lookUp.valueSlice, transformer).getValue() : null;
 
                 if (oldValue != null && !oldValue.equals(vv)) {
@@ -587,7 +581,7 @@ class InternalOakMap<K, V> {
 
                 ValueUtils.ValueResult res = ValueUtils.remove(lookUp.valueSlice, memoryManager);
                 if (res == ValueUtils.ValueResult.FAILURE) {
-                    // we didn't succeed to remove the handle was marked as deleted already
+                    // we didn't succeed at marking the value because it is already marked
                     return null;
                 } else if (res == ValueUtils.ValueResult.RETRY) {
                     return remove(key, oldValue, transformer);
@@ -595,7 +589,8 @@ class InternalOakMap<K, V> {
                 v = vv;
             }
 
-            // if chunk is frozen or infant, we can't update it (remove deleted key, set handle index to -1)
+            // if chunk is frozen or infant, we can't update it (remove deleted key, set value reference to
+            // DELETED_VALUE)
             // we need to help rebalancer first, then proceed
             Chunk.State state = c.state();
             if (state == Chunk.State.INFANT) {
@@ -605,7 +600,7 @@ class InternalOakMap<K, V> {
                 continue;
             }
             if (state == Chunk.State.FROZEN || state == Chunk.State.RELEASED) {
-                if (!rebalanceRemove(c)) {
+                if (!rebalance(c)) {
                     logical = false;
                     continue;
                 }
@@ -619,7 +614,7 @@ class InternalOakMap<K, V> {
 
             // publish
             if (!c.publish()) {
-                if (!rebalanceRemove(c)) {
+                if (!rebalance(c)) {
                     logical = false;
                     continue;
                 }
@@ -773,7 +768,7 @@ class InternalOakMap<K, V> {
                 return null;
             }
 
-            // will return null if handle was deleted between prior lookup and the next call
+            // will return null if the value is deleted
             Map.Entry<ValueUtils.ValueResult, V> entry = ValueUtils.exchange(c, lookUp, value,
                     valueDeserializeTransformer, valueSerializer, memoryManager);
             if (entry.getKey() != ValueUtils.ValueResult.RETRY) {
@@ -830,7 +825,8 @@ class InternalOakMap<K, V> {
         // TODO: No lock?
         return new AbstractMap.SimpleImmutableEntry<>(
                 keySerializer.deserialize(prevKey),
-                valueSerializer.deserialize(ValueUtils.getActualValueBuffer(c.getValueSlice(prevIndex).getByteBuffer()).asReadOnlyBuffer()));
+                valueSerializer.deserialize(ValueUtils.getActualValueBuffer(c.getValueSlice(prevIndex).getByteBuffer())
+                        .asReadOnlyBuffer()));
     }
 
     /*-------------- Iterators --------------*/

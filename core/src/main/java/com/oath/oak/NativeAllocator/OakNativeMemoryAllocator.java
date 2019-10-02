@@ -12,7 +12,6 @@ import com.oath.oak.Slice;
 import com.oath.oak.ThreadIndexCalculator;
 
 import java.nio.ByteBuffer;
-import java.util.AbstractMap;
 
 import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -123,7 +122,7 @@ public class OakNativeMemoryAllocator implements OakMemoryAllocator {
                     throw new OakOutOfMemoryException();
                 }
                 // does allocation of new block brings us out of capacity?
-                if ((numberOfBocks() + 1) * blocksProvider.blockSize() > capacity) {
+                if ((numberOfBlocks() + 1) * blocksProvider.blockSize() > capacity) {
                     throw new OakOutOfMemoryException();
                 } else {
                     // going to allocate additional block (big chunk of memory)
@@ -164,7 +163,7 @@ public class OakNativeMemoryAllocator implements OakMemoryAllocator {
     @Override
     public void close() {
         if (!closed.compareAndSet(false, true)) return;
-        for (int i = 1; i <= numberOfBocks(); i++) {
+        for (int i = 1; i <= numberOfBlocks(); i++) {
             blocksProvider.returnBlock(blocksArray[i]);
         }
         // no need to do anything with the free list,
@@ -195,7 +194,7 @@ public class OakNativeMemoryAllocator implements OakMemoryAllocator {
 
     // used only for testing
     int numOfAllocatedBlocks() {
-        return (int) numberOfBocks();
+        return (int) numberOfBlocks();
     }
 
     // This method MUST be called within a thread safe context !!!
@@ -207,7 +206,7 @@ public class OakNativeMemoryAllocator implements OakMemoryAllocator {
         this.currentBlock = b;
     }
 
-    private long numberOfBocks() {
+    private long numberOfBlocks() {
         return idGenerator.get() - 1;
     }
 
