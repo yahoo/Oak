@@ -206,13 +206,13 @@ public class Chunk<K, V> {
     /**
      * performs CAS from 'expected' to 'value' for field at specified offset of given item in key array
      */
-    private boolean intCasEntriesArray(int item, OFFSET offset, int expected, int value) {
+    private boolean casEntriesArrayInt(int item, OFFSET offset, int expected, int value) {
         return unsafe.compareAndSwapInt(entries,
                 Unsafe.ARRAY_INT_BASE_OFFSET + (item + offset.value) * Unsafe.ARRAY_INT_INDEX_SCALE,
                 expected, value);
     }
 
-    boolean longCasEntriesArray(int item, OFFSET offset, long expected, long value) {
+    boolean casEntriesArrayLong(int item, OFFSET offset, long expected, long value) {
         return unsafe.compareAndSwapLong(entries,
                 Unsafe.ARRAY_INT_BASE_OFFSET + (item + offset.value) * Unsafe.ARRAY_INT_INDEX_SCALE,
                 expected, value);
@@ -545,7 +545,7 @@ public class Chunk<K, V> {
             // first change this key's next to point to curr
             setEntryField(ei, OFFSET.NEXT, curr); // no need for CAS since put is not even published yet
             if (cas) {
-                if (intCasEntriesArray(prev, OFFSET.NEXT, curr, ei)) {
+                if (casEntriesArrayInt(prev, OFFSET.NEXT, curr, ei)) {
                     // Here is the single place where we do enter a new entry to the chunk, meaning
                     // there is none else simultaneously inserting the same key
                     // (we were the first to insert this key).
@@ -578,13 +578,14 @@ public class Chunk<K, V> {
      * write value in place
      **/
     long writeValueOffHeap(V value) {
+        // the length of the given value plus its header
         int valueLength = valueSerializer.calculateSize(value) + ValueUtils.VALUE_HEADER_SIZE;
         Slice slice = memoryManager.allocateSlice(valueLength);
-        // initializing the header lock
-        slice.getByteBuffer().putInt(slice.getByteBuffer().position(), 0);
-        // just allocated byte buffer is ensured to have position 0
-        // One duplication
-        valueSerializer.serialize(value, ValueUtils.getActualValueBufferLessDuplications(slice.getByteBuffer()));
+        // initializing the header lock to be free
+        slice.initHeader();
+        // since this is a private environment we can only use slice, instead of duplicate and then slice
+        valueSerializer.serialize(value, ValueUtils.getActualValueBufferPrivate(slice.getByteBuffer()));
+        // combines the blockID with the value's length (including the header)
         int valueBlockAndLength = (slice.getBlockID() << VALUE_BLOCK_SHIFT) | (valueLength & VALUE_LENGTH_MASK);
         return intsToLong(valueBlockAndLength, slice.getByteBuffer().position());
     }
@@ -651,24 +652,24 @@ public class Chunk<K, V> {
      */
     private boolean pointToValueCAS(OpData opData, boolean cas) {
         if (cas) {
-            if (longCasEntriesArray(opData.entryIndex, OFFSET.VALUE_REFERENCE, opData.oldValueReference,
+            if (casEntriesArrayLong(opData.entryIndex, OFFSET.VALUE_REFERENCE, opData.oldValueReference,
                     opData.newValueReference)) {
                 // update statistics only by thread that CASed
-                int[] olValueArray = UnsafeUtils.longToInts(opData.oldValueReference);
-                int[] valueArray = UnsafeUtils.longToInts(opData.newValueReference);
-                if (olValueArray[BLOCK_ID_LENGTH_ARRAY_INDEX] == INVALID_BLOCK_ID && valueArray[BLOCK_ID_LENGTH_ARRAY_INDEX] != INVALID_BLOCK_ID) { // previously a remove
+                int oldValueBlock = UnsafeUtils.longToInts(opData.oldValueReference)[BLOCK_ID_LENGTH_ARRAY_INDEX];
+                int newValueBlock = UnsafeUtils.longToInts(opData.newValueReference)[BLOCK_ID_LENGTH_ARRAY_INDEX];
+                if (oldValueBlock == INVALID_BLOCK_ID && newValueBlock != INVALID_BLOCK_ID) { // previously a remove
                     statistics.incrementAddedCount();
                     externalSize.incrementAndGet();
-                } else if (olValueArray[BLOCK_ID_LENGTH_ARRAY_INDEX] != INVALID_BLOCK_ID && valueArray[BLOCK_ID_LENGTH_ARRAY_INDEX] == INVALID_BLOCK_ID) { // removing
+                } else if (oldValueBlock != INVALID_BLOCK_ID && newValueBlock == INVALID_BLOCK_ID) { // removing
                     statistics.decrementAddedCount();
                     externalSize.decrementAndGet();
                 }
                 return true;
             }
         } else {
-            int[] valueArray = UnsafeUtils.longToInts(opData.newValueReference);
-            setEntryField(opData.entryIndex, OFFSET.VALUE_POSITION, valueArray[POSITION_ARRAY_INDEX]);
-            setEntryField(opData.entryIndex, OFFSET.VALUE_BLOCK_AND_LENGTH, valueArray[BLOCK_ID_LENGTH_ARRAY_INDEX]);
+            unsafe.putLong(entries,
+                    (long) Unsafe.ARRAY_INT_BASE_OFFSET + (opData.entryIndex + OFFSET.VALUE_REFERENCE.value) * Unsafe.ARRAY_INT_INDEX_SCALE,
+                    opData.newValueReference);
         }
         return false;
     }
@@ -816,6 +817,7 @@ public class Chunk<K, V> {
                     entries[sortedEntryIndex + offset + OFFSET.NEXT.value]
                             = sortedEntryIndex + offset + FIELDS;
 
+                    // copy both the key and the value references and the padding => 5 integers via array copy
                     System.arraycopy(srcChunk.entries,  // source array
                             entryIndexStart + offset + OFFSET.NEXT.value + 1,
                             entries,                        // destination aray

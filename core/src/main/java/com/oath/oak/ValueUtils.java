@@ -48,7 +48,8 @@ public class ValueUtils {
     }
 
     //One duplication
-    static ByteBuffer getActualValueBufferLessDuplications(ByteBuffer bb) {
+    //Instead of duplicating the buffer and then slicing it, since it is a private environment, no need to duplicate
+    static ByteBuffer getActualValueBufferPrivate(ByteBuffer bb) {
         bb.position(bb.position() + VALUE_HEADER_SIZE);
         ByteBuffer dup = bb.slice();
         bb.position(bb.position() - VALUE_HEADER_SIZE);
@@ -213,7 +214,7 @@ public class ValueUtils {
             bb.putInt(bb.position(), LOCKED.value);
             int valueBlockAndLength =
                     (s.getBlockID() << VALUE_BLOCK_SHIFT) | ((capacity + VALUE_HEADER_SIZE) & VALUE_LENGTH_MASK);
-            assert chunk.longCasEntriesArray(lookUp.entryIndex, Chunk.OFFSET.VALUE_REFERENCE, lookUp.valueReference,
+            assert chunk.casEntriesArrayLong(lookUp.entryIndex, Chunk.OFFSET.VALUE_REFERENCE, lookUp.valueReference,
                     UnsafeUtils.intsToLong(valueBlockAndLength, bb.position()));
         }
         ByteBuffer dup = getActualValueBuffer(bb);
