@@ -560,7 +560,8 @@ public class Chunk<K, V> {
                 return pointToValue(opData);
             }
         }
-        // this is a put, try again (restart put)
+        // This is a put, in which case operation should restart,
+        // or PIACIP compute happened, which should return false
         return false;
     }
 

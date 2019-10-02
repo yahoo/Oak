@@ -357,6 +357,8 @@ class InternalOakMap<K, V> {
             if (prevEi != ei) {
                 ei = prevEi;
                 prevHi = c.getHandleIndex(prevEi);
+                // We can swap the handle pointer *only* when previous handle was deleted (or prevHi == -1),
+                // otherwise operation should restart
                 if (prevHi != -1) {
                     return put(key, value, transformer);
                 }
@@ -465,6 +467,7 @@ class InternalOakMap<K, V> {
         }
 
         if (!finishAfterPublishing(opData, c)) {
+            c.freeHandle(hi);
             return putIfAbsent(key, value, transformer);
         }
 
