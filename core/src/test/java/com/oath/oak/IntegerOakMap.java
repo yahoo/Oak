@@ -19,9 +19,9 @@ public class IntegerOakMap {
         }
 
         @Override
-        public int compareSerializedKeyAndKey(ByteBuffer serializedKey, Integer key) {
+        public int compareKeyAndSerializedKey(Integer key, ByteBuffer serializedKey) {
             int int1 = serializedKey.getInt(serializedKey.position());
-            return intsCompare(int1, key);
+            return intsCompare(key, int1);
         }
     };
 

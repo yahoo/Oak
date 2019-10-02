@@ -312,10 +312,10 @@ public class Chunk<K, V> {
         // iterate until end of list (or key is found)
         while (curr != NONE) {
             // compare current item's key to searched key
-            cmp = comparator.compareSerializedKeyAndKey(readKey(curr), key);
+            cmp = comparator.compareKeyAndSerializedKey(key, readKey(curr));
             // if item's key is larger - we've exceeded our key
             // it's not in chunk - no need to search further
-            if (cmp > 0) {
+            if (cmp < 0) {
                 return null;
             }
             // if keys are equal - we've found the item
@@ -362,12 +362,12 @@ public class Chunk<K, V> {
         int sortedCount = this.sortedCount.get();
         // if there are no sorted keys, or the first item is already larger than key -
         // return the head node for a regular linear search
-        if ((sortedCount == 0) || comparator.compareSerializedKeyAndKey(readKey(FIRST_ITEM), key) >= 0) {
+        if ((sortedCount == 0) || comparator.compareKeyAndSerializedKey(key, readKey(FIRST_ITEM)) <= 0) {
             return HEAD_NODE;
         }
 
         // optimization: compare with last key to avoid binary search
-        if (comparator.compareSerializedKeyAndKey(readKey((sortedCount - 1) * FIELDS + FIRST_ITEM), key) < 0)
+        if (comparator.compareKeyAndSerializedKey(key, readKey((sortedCount - 1) * FIELDS + FIRST_ITEM)) > 0)
             return (sortedCount - 1) * FIELDS + FIRST_ITEM;
 
         int start = 0;
@@ -376,7 +376,7 @@ public class Chunk<K, V> {
         while (end - start > 1) {
             int curr = start + (end - start) / 2;
 
-            if (comparator.compareSerializedKeyAndKey(readKey(curr * FIELDS + FIRST_ITEM), key) >= 0) {
+            if (comparator.compareKeyAndSerializedKey(key, readKey(curr * FIELDS + FIRST_ITEM)) <= 0) {
                 end = curr;
             } else {
                 start = curr;
@@ -457,10 +457,10 @@ public class Chunk<K, V> {
                     break;
                 }
                 // compare current item's key to ours
-                cmp = comparator.compareSerializedKeyAndKey(readKey(curr), key);
+                cmp = comparator.compareKeyAndSerializedKey(key, readKey(curr));
 
                 // if current item's key is larger, done searching - add between prev and curr
-                if (cmp > 0) {
+                if (cmp < 0) {
                     break;
                 }
 
@@ -484,8 +484,8 @@ public class Chunk<K, V> {
                 if (sortedCount > 0) {
                     if (ei == (sortedCount * FIELDS + 1)) {
                         // the new entry's index is exactly after the sorted count
-                        if (comparator.compareSerializedKeyAndKey(
-                                readKey((sortedCount - 1) * FIELDS + FIRST_ITEM), key) <= 0) {
+                        if (comparator.compareKeyAndSerializedKey(
+                                key, readKey((sortedCount - 1) * FIELDS + FIRST_ITEM)) >= 0) {
                             // compare with sorted count key, if inserting the "if-statement",
                             // the sorted count key is less or equal to the key just inserted
                             this.sortedCount.compareAndSet(sortedCount, (sortedCount + 1));
@@ -872,7 +872,7 @@ public class Chunk<K, V> {
 
             int compare = -1;
             if (next != Chunk.NONE)
-                compare = (-1) * comparator.compareSerializedKeyAndKey(readKey(next), from);
+                compare = comparator.compareKeyAndSerializedKey(from, readKey(next));
 
             while (next != Chunk.NONE &&
                     (compare > 0 ||
@@ -881,7 +881,7 @@ public class Chunk<K, V> {
                 next = getEntryField(next, OFFSET_NEXT);
                 handle = getEntryField(next, OFFSET_HANDLE_INDEX);
                 if (next != Chunk.NONE)
-                    compare = (-1) * comparator.compareSerializedKeyAndKey(readKey(next), from);
+                    compare = comparator.compareKeyAndSerializedKey(from, readKey(next));
             }
         }
 
@@ -979,12 +979,12 @@ public class Chunk<K, V> {
                 }
             } else {
                 if (inclusive) {
-                    while (next != Chunk.NONE && comparator.compareSerializedKeyAndKey(readKey(next), from) <= 0) {
+                    while (next != Chunk.NONE && comparator.compareKeyAndSerializedKey(from, readKey(next)) >= 0) {
                         stack.push(next);
                         next = getEntryField(next, OFFSET_NEXT);
                     }
                 } else {
-                    while (next != Chunk.NONE && comparator.compareSerializedKeyAndKey(readKey(next), from) < 0) {
+                    while (next != Chunk.NONE && comparator.compareKeyAndSerializedKey(from, readKey(next)) > 0) {
                         stack.push(next);
                         next = getEntryField(next, OFFSET_NEXT);
                     }

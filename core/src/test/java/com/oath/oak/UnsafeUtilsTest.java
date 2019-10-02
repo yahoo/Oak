@@ -1,10 +1,8 @@
 package com.oath.oak;
 
-import org.junit.Assert;
 import org.junit.Test;
 
 import java.nio.ByteBuffer;
-import java.util.Arrays;
 import java.util.Iterator;
 import java.util.Map;
 
@@ -134,12 +132,12 @@ public class UnsafeUtilsTest {
         @Override
         public int compareSerializedKeys(ByteBuffer serializedKey1, ByteBuffer serializedKey2) {
             return compareKeys(new UnsafeTestSerializer().deserialize(serializedKey1),
-                    new UnsafeTestSerializer().deserialize(serializedKey1));
+                    new UnsafeTestSerializer().deserialize(serializedKey2));
         }
 
         @Override
-        public int compareSerializedKeyAndKey(ByteBuffer serializedKey, IntHolder key) {
-            return compareKeys(new UnsafeTestSerializer().deserialize(serializedKey), key);
+        public int compareKeyAndSerializedKey(IntHolder key, ByteBuffer serializedKey) {
+            return compareKeys(key, new UnsafeTestSerializer().deserialize(serializedKey));
         }
     }
 

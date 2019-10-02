@@ -69,11 +69,12 @@ class InternalOakMap<K, V> {
                 if (o2 instanceof ByteBuffer) {
                     return oakComparator.compareSerializedKeys((ByteBuffer) o1, (ByteBuffer) o2);
                 } else {
-                    return oakComparator.compareSerializedKeyAndKey((ByteBuffer) o1, (K) o2);
+                    // Note the inversion of arguments, hence sign flip
+                    return (-1) * oakComparator.compareKeyAndSerializedKey((K) o2, (ByteBuffer) o1);
                 }
             } else {
                 if (o2 instanceof ByteBuffer) {
-                    return (-1) * oakComparator.compareSerializedKeyAndKey((ByteBuffer) o2, (K) o1);
+                    return oakComparator.compareKeyAndSerializedKey((K) o1, (ByteBuffer) o2);
                 } else {
                     return oakComparator.compareKeys((K) o1, (K) o2);
                 }
@@ -142,7 +143,7 @@ class InternalOakMap<K, V> {
 
         // since skiplist isn't updated atomically in split/compaction, our key might belong in the next chunk
         // we need to iterate the chunks until we find the correct one
-        while ((next != null) && (comparator.compareSerializedKeyAndKey(next.minKey, key) <= 0)) {
+        while ((next != null) && (comparator.compareKeyAndSerializedKey(key, next.minKey) >= 0)) {
             c = next;
             next = c.next.getReference();
         }
@@ -790,8 +791,8 @@ class InternalOakMap<K, V> {
 
         while (chunkIter.hasNext()) {
             int nextIndex = chunkIter.next();
-            int cmp = comparator.compareSerializedKeyAndKey(c.readKey(nextIndex), key);
-            if (cmp >= 0) {
+            int cmp = comparator.compareKeyAndSerializedKey(key, c.readKey(nextIndex));
+            if (cmp <= 0) {
                 break;
             }
             prevIndex = nextIndex;
@@ -800,7 +801,7 @@ class InternalOakMap<K, V> {
         /* Edge case: we're looking for the lowest key in the map and it's still greater than minkey
             (in which  case prevKey == key) */
         ByteBuffer prevKey = c.readKey(prevIndex);
-        if (comparator.compareSerializedKeyAndKey(prevKey, key) == 0) {
+        if (comparator.compareKeyAndSerializedKey(key, prevKey) == 0) {
             return new AbstractMap.SimpleImmutableEntry<>(null, null);
         }
 
@@ -900,13 +901,13 @@ class InternalOakMap<K, V> {
 
         boolean tooLow(ByteBuffer key) {
             int c;
-            return (lo != null && ((c = comparator.compareSerializedKeyAndKey(key, lo)) < 0 ||
+            return (lo != null && ((c = comparator.compareKeyAndSerializedKey(lo, key)) > 0 ||
                     (c == 0 && !loInclusive)));
         }
 
         boolean tooHigh(ByteBuffer key) {
             int c;
-            return (hi != null && ((c = comparator.compareSerializedKeyAndKey(key, hi)) > 0 ||
+            return (hi != null && ((c = comparator.compareKeyAndSerializedKey(hi, key)) < 0 ||
                     (c == 0 && !hiInclusive)));
         }
 

@@ -36,14 +36,14 @@ public class StringComparator implements OakComparator<String>{
     }
 
     @Override
-    public int compareSerializedKeyAndKey(ByteBuffer serializedKey, String key) {
-        int size1 = serializedKey.getInt(serializedKey.position());
-        int size2 = key.length();
+    public int compareKeyAndSerializedKey(String key, ByteBuffer serializedKey) {
+        int size1 = key.length();
+        int size2 = serializedKey.getInt(serializedKey.position());
 
         int it=0;
         while (it < size1 && it < size2) {
-            char c1 = serializedKey.getChar(Integer.BYTES + serializedKey.position() + it*Character.BYTES);
-            char c2 = key.charAt(it);
+            char c1 = key.charAt(it);
+            char c2 = serializedKey.getChar(Integer.BYTES + serializedKey.position() + it * Character.BYTES);
             int compare = Character.compare(c1, c2);
             if (compare != 0) {
                 return compare;
