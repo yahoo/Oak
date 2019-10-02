@@ -14,9 +14,12 @@ public class OakMap<K extends MyBuffer, V extends MyBuffer> implements Compositi
     private OakMapBuilder<MyBuffer, MyBuffer> builder;
     private MyBuffer minKey;
     private OakNativeMemoryAllocator ma;
+    private static final long KB = 1024L;
+    private static final long GB = KB * KB * KB;
+    private static final long OAK_TARGET_MEMORY = 256 * GB;
 
     public OakMap() {
-        ma = new OakNativeMemoryAllocator((long) Integer.MAX_VALUE * 128);
+        ma = new OakNativeMemoryAllocator(OAK_TARGET_MEMORY);
         if (Parameters.detailedStats) {
             ma.collectStats();
         }

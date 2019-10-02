@@ -41,7 +41,7 @@ public class Chunk<K, V> {
          * VALUE_BLOCK_AND_LENGTH - this value holds both the blockID and the length of the value pointed by the entry.
          * Using VALUE_LENGTH_MASK and VALUE_BLOCK_SHIFT the blockID and length can be extracted.
          * Currently, the length of a value is limited to 8MB, and blockID is limited to 512 blocks
-         * (with the current block size of 256MB, the total memory is up to 128GB).
+         * (with the current block size of 256MB, the total memory is up to ֿ128GB).
          *
          * VALUE_BLOCK
          *
@@ -313,6 +313,8 @@ public class Chunk<K, V> {
     /**
      * * sets the field of specified offset to 'value' for given item in entry array
      * NOT ATOMIC!
+     * It can be used only on fields which do not change through out the entry's life, i.e. key reference, or it can
+     * be used when the entry is not yet linked.
      */
     private void setEntryField(int item, OFFSET offset, int value) {
         assert item + offset.value >= 0;
@@ -369,14 +371,10 @@ public class Chunk<K, V> {
                 memoryManager);
     }
 
-    // Assuming the reading of valuePosition and valueBlockAndLength is atomic!
+    // Atomically reads the value reference from the entry array (using getLong)
     long getValueReference(int entryIndex) {
-        int valuePosition, valueBlockAndLength;
-        do {
-            valuePosition = getEntryField(entryIndex, OFFSET.VALUE_POSITION);
-            valueBlockAndLength = getEntryField(entryIndex, OFFSET.VALUE_BLOCK_AND_LENGTH);
-        } while (valuePosition != getEntryField(entryIndex, OFFSET.VALUE_POSITION));
-        return intsToLong(valueBlockAndLength, valuePosition);
+        return unsafe.getLong(entries,
+                (long) Unsafe.ARRAY_INT_BASE_OFFSET + (entryIndex + OFFSET.VALUE_REFERENCE.value) * Unsafe.ARRAY_INT_INDEX_SCALE);
     }
 
     void releaseValue(long newValueReference) {
@@ -502,9 +500,9 @@ public class Chunk<K, V> {
         }
 
         // key and value must be set before linking to the list so it will make sense when reached before put is done
-        setEntryField(ei, OFFSET.VALUE_POSITION, 0); // set value position to 0, value is init to null
-        setEntryField(ei, OFFSET.VALUE_BLOCK_AND_LENGTH, 0); // set value block id and length to 0, value is init to
-        // null
+        unsafe.putLong(entries,
+                (long) Unsafe.ARRAY_INT_BASE_OFFSET + (ei + OFFSET.VALUE_REFERENCE.value) * Unsafe.ARRAY_INT_INDEX_SCALE,
+                DELETED_VALUE); // setting the value reference to DELETED_VALUE atomically (using putLong)
         writeKey(key, ei);
         return ei;
     }
