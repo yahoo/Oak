@@ -227,7 +227,6 @@ class InternalOakMap<K, V> {
             }
             // chunk is not in list (someone else already updated list), so we're done with this part
             if (curr == null) {
-                //TODO Never reached
                 break;
             }
 
