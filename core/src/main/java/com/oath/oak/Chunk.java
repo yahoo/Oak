@@ -41,7 +41,7 @@ public class Chunk<K, V> {
          * VALUE_BLOCK_AND_LENGTH - this value holds both the blockID and the length of the value pointed by the entry.
          * Using VALUE_LENGTH_MASK and VALUE_BLOCK_SHIFT the blockID and length can be extracted.
          * Currently, the length of a value is limited to 8MB, and blockID is limited to 512 blocks
-         * (with the current block size of 256MB, the total memory is up to ֿ128GB).
+         * (with the current block size of 256MB, the total memory is up to 128GB).
          *
          * VALUE_BLOCK
          *
