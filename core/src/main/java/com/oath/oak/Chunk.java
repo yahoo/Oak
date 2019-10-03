@@ -76,8 +76,8 @@ public class Chunk<K, V> {
 
     static final int NONE = 0;    // an entry with NONE as its next pointer, points to a null entry
     static final long DELETED_VALUE = 0;
-    private static final int BLOCK_ID_LENGTH_ARRAY_INDEX = 0;
-    private static final int POSITION_ARRAY_INDEX = 1;
+    static final int BLOCK_ID_LENGTH_ARRAY_INDEX = 0;
+    static final int POSITION_ARRAY_INDEX = 1;
     // location of the first (head) node - just a next pointer
     private static final int HEAD_NODE = 0;
     // index of first item in array, after head (not necessarily first in list!)
@@ -248,16 +248,32 @@ public class Chunk<K, V> {
      * The thread-local ByteBuffer can be reused by different threads, however as long as
      * a thread is invoked the ByteBuffer is related solely to this thread.
      */
-    void setKeyRefer(int entryIndex, OakRKeyReference keyReferBuffer) {
+    void setKeyRefer(int entryIndex, OakRReference keyReferBuffer) {
         if (entryIndex == Chunk.NONE) {
             return;
         }
         long keyReference = getKeyReference(entryIndex);
         int[] keyArray = longToInts(keyReference);
-        int blockID = keyArray[0] >> KEY_BLOCK_SHIFT;
-        int keyPosition = keyArray[1];
-        int length = keyArray[0] & KEY_LENGTH_MASK;
-        keyReferBuffer.setKeyReference(blockID, keyPosition, length);
+        int blockID = keyArray[BLOCK_ID_LENGTH_ARRAY_INDEX] >> KEY_BLOCK_SHIFT;
+        int keyPosition = keyArray[POSITION_ARRAY_INDEX];
+        int length = keyArray[BLOCK_ID_LENGTH_ARRAY_INDEX] & KEY_LENGTH_MASK;
+        keyReferBuffer.setReference(blockID, keyPosition, length);
+    }
+
+    boolean setValueRefer(int entryIndex, OakRReference value) {
+        if (entryIndex == Chunk.NONE) {
+            return false;
+        }
+        long valueReference = getValueReference(entryIndex);
+        int[] valueArray = longToInts(valueReference);
+        int blockID = valueArray[BLOCK_ID_LENGTH_ARRAY_INDEX] >> VALUE_BLOCK_SHIFT;
+        if (blockID == INVALID_BLOCK_ID) {
+            return false;
+        }
+        int keyPosition = valueArray[POSITION_ARRAY_INDEX];
+        int length = valueArray[BLOCK_ID_LENGTH_ARRAY_INDEX] & VALUE_LENGTH_MASK;
+        value.setReference(blockID, keyPosition, length);
+        return true;
     }
 
     /**

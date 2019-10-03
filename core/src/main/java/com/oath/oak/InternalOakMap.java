@@ -16,6 +16,8 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 
 import static com.oath.oak.Chunk.*;
+import static com.oath.oak.UnsafeUtils.intsToLong;
+import static com.oath.oak.UnsafeUtils.longToInts;
 import static com.oath.oak.ValueUtils.ValueResult.SUCCESS;
 import static com.oath.oak.ValueUtils.ValueResult.FAILURE;
 import static com.oath.oak.ValueUtils.ValueResult.RETRY;
@@ -994,7 +996,7 @@ class InternalOakMap<K, V> {
          * Advances next to the next entry without creating a ByteBuffer for the key.
          * Return previous index
          */
-        Slice advanceStream(OakRKeyReference key, boolean keyOnly) {
+        OakRReference advanceStream(OakRReference key, OakRReference value) {
 
             if (state == null) {
                 throw new NoSuchElementException();
@@ -1008,12 +1010,13 @@ class InternalOakMap<K, V> {
             if (key != null) {
                 state.getChunk().setKeyRefer(state.getIndex(), key);
             }
-            Slice currentValue = null;
-            if (!keyOnly) {
-                currentValue = state.getChunk().getValueSlice(state.getIndex());
+            if (value != null) {
+                if (!state.getChunk().setValueRefer(state.getIndex(), value)) {
+                    return null;
+                }
             }
             advanceState();
-            return currentValue;
+            return value;
         }
 
         private void initState(boolean isDescending, K lowerBound, boolean lowerInclusive,
@@ -1124,7 +1127,7 @@ class InternalOakMap<K, V> {
 
     class ValueStreamIterator extends Iter<OakRBuffer> {
 
-        private OakRValueBufferImpl value = new OakRValueBufferImpl(null);
+        private OakRReference value = new OakRReference(memoryManager, ValueUtils.VALUE_HEADER_SIZE);
 
         ValueStreamIterator(K lo, boolean loInclusive, K hi, boolean hiInclusive, boolean isDescending) {
             super(lo, loInclusive, hi, hiInclusive, isDescending);
@@ -1132,11 +1135,10 @@ class InternalOakMap<K, V> {
 
         @Override
         public OakRBuffer next() {
-            Slice slice = advanceStream(null, false);
-            if (slice == null) {
+            value = advanceStream(null, value);
+            if (value == null) {
                 return null;
             }
-            value.setByteBuffer(slice.getByteBuffer());
             return value;
         }
     }
@@ -1182,19 +1184,18 @@ class InternalOakMap<K, V> {
 
     class EntryStreamIterator extends Iter<Map.Entry<OakRBuffer, OakRBuffer>> {
 
-        private OakRKeyReference key = new OakRKeyReference(memoryManager);
-        private OakRValueBufferImpl value = new OakRValueBufferImpl(null);
+        private OakRReference key = new OakRReference(memoryManager, 0);
+        private OakRReference value = new OakRReference(memoryManager, ValueUtils.VALUE_HEADER_SIZE);
 
         EntryStreamIterator(K lo, boolean loInclusive, K hi, boolean hiInclusive, boolean isDescending) {
             super(lo, loInclusive, hi, hiInclusive, isDescending);
         }
 
         public Map.Entry<OakRBuffer, OakRBuffer> next() {
-            Slice slice = advanceStream(key, false);
-            if (slice == null) {
+            value = advanceStream(key, value);
+            if (value == null) {
                 return null;
             }
-            value.setByteBuffer(slice.getByteBuffer());
             return new AbstractMap.SimpleImmutableEntry<>(key, value);
         }
     }
@@ -1257,7 +1258,7 @@ class InternalOakMap<K, V> {
 
     public class KeyStreamIterator extends Iter<OakRBuffer> {
 
-        private OakRKeyReference key = new OakRKeyReference(memoryManager);
+        private OakRReference key = new OakRReference(memoryManager, 0);
 
         KeyStreamIterator(K lo, boolean loInclusive, K hi, boolean hiInclusive, boolean isDescending) {
             super(null, loInclusive, null, hiInclusive, isDescending);
@@ -1265,7 +1266,7 @@ class InternalOakMap<K, V> {
 
         @Override
         public OakRBuffer next() {
-            advanceStream(key, true);
+            advanceStream(key, null);
             return key;
         }
     }
