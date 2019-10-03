@@ -10,7 +10,6 @@ import sun.misc.Unsafe;
 
 import java.lang.reflect.Constructor;
 import java.nio.ByteBuffer;
-import java.util.Comparator;
 import java.util.EmptyStackException;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -53,7 +52,7 @@ public class Chunk<K, V> {
     private final MemoryManager memoryManager;
     ByteBuffer minKey;       // minimal key that can be put in this chunk
     AtomicMarkableReference<Chunk<K, V>> next;
-    Comparator<Object> comparator;
+    OakComparator<K> comparator;
 
     // in split/compact process, represents parent of split (can be null!)
     private AtomicReference<Chunk<K, V>> creator;
@@ -94,7 +93,7 @@ public class Chunk<K, V> {
      * @param minKey  minimal key to be placed in chunk
      * @param creator the chunk that is responsible for this chunk creation
      */
-    Chunk(ByteBuffer minKey, Chunk<K, V> creator, Comparator<Object> comparator, MemoryManager memoryManager,
+    Chunk(ByteBuffer minKey, Chunk<K, V> creator, OakComparator<K> comparator, MemoryManager memoryManager,
           int maxItems, AtomicInteger externalSize,
           OakSerializer<K> keySerializer, OakSerializer<V> valueSerializer) {
         this.memoryManager = memoryManager;
@@ -151,13 +150,6 @@ public class Chunk<K, V> {
     void release() {
         // try to change the state
         state.compareAndSet(State.FROZEN, State.RELEASED);
-    }
-
-    /**
-     * compares ByteBuffer by calling the provided comparator
-     */
-    private int compare(Object k1, Object k2) {
-        return comparator.compare(k1, k2);
     }
 
     /**
@@ -320,10 +312,10 @@ public class Chunk<K, V> {
         // iterate until end of list (or key is found)
         while (curr != NONE) {
             // compare current item's key to searched key
-            cmp = compare(readKey(curr), key);
+            cmp = comparator.compareKeyAndSerializedKey(key, readKey(curr));
             // if item's key is larger - we've exceeded our key
             // it's not in chunk - no need to search further
-            if (cmp > 0) {
+            if (cmp < 0) {
                 return null;
             }
             // if keys are equal - we've found the item
@@ -370,14 +362,13 @@ public class Chunk<K, V> {
         int sortedCount = this.sortedCount.get();
         // if there are no sorted keys, or the first item is already larger than key -
         // return the head node for a regular linear search
-        if ((sortedCount == 0) || compare(readKey(FIRST_ITEM), key) >= 0) {
+        if ((sortedCount == 0) || comparator.compareKeyAndSerializedKey(key, readKey(FIRST_ITEM)) <= 0) {
             return HEAD_NODE;
         }
 
         // optimization: compare with last key to avoid binary search
-        if (compare(readKey((sortedCount - 1) * FIELDS + FIRST_ITEM), key) < 0) {
+        if (comparator.compareKeyAndSerializedKey(key, readKey((sortedCount - 1) * FIELDS + FIRST_ITEM)) > 0)
             return (sortedCount - 1) * FIELDS + FIRST_ITEM;
-        }
 
         int start = 0;
         int end = sortedCount;
@@ -385,7 +376,7 @@ public class Chunk<K, V> {
         while (end - start > 1) {
             int curr = start + (end - start) / 2;
 
-            if (compare(readKey(curr * FIELDS + FIRST_ITEM), key) >= 0) {
+            if (comparator.compareKeyAndSerializedKey(key, readKey(curr * FIELDS + FIRST_ITEM)) <= 0) {
                 end = curr;
             } else {
                 start = curr;
@@ -445,7 +436,7 @@ public class Chunk<K, V> {
         return ei;
     }
 
-    int linkEntry(int ei, boolean cas, K key) {
+    int linkEntry(int ei, K key) {
         int prev, curr, cmp;
         int anchor = -1;
 
@@ -466,10 +457,10 @@ public class Chunk<K, V> {
                     break;
                 }
                 // compare current item's key to ours
-                cmp = compare(readKey(curr), key);
+                cmp = comparator.compareKeyAndSerializedKey(key, readKey(curr));
 
                 // if current item's key is larger, done searching - add between prev and curr
-                if (cmp > 0) {
+                if (cmp < 0) {
                     break;
                 }
 
@@ -482,33 +473,28 @@ public class Chunk<K, V> {
             // link to list between next and previous
             // first change this key's next to point to curr
             setEntryField(ei, OFFSET_NEXT, curr); // no need for CAS since put is not even published yet
-            if (cas) {
-                if (casEntriesArray(prev, OFFSET_NEXT, curr, ei)) {
-                    // Here is the single place where we do enter a new entry to the chunk, meaning
-                    // there is none else simultaneously inserting the same key
-                    // (we were the first to insert this key).
-                    // If the new entry's index is exactly after the sorted count and
-                    // the entry's key is greater or equal then to the previous (sorted count)
-                    // index key. Then increase the sorted count.
-                    int sortedCount = this.sortedCount.get();
-                    if (sortedCount > 0) {
-                        if (ei == (sortedCount * FIELDS + 1)) {
-                            // the new entry's index is exactly after the sorted count
-                            if (compare(
-                                    readKey((sortedCount - 1) * FIELDS + FIRST_ITEM), key) <= 0) {
-                                // compare with sorted count key, if inserting the "if-statement",
-                                // the sorted count key is less or equal to the key just inserted
-                                this.sortedCount.compareAndSet(sortedCount, (sortedCount + 1));
-                            }
+            if (casEntriesArray(prev, OFFSET_NEXT, curr, ei)) {
+                // Here is the single place where we do enter a new entry to the chunk, meaning
+                // there is none else simultaneously inserting the same key
+                // (we were the first to insert this key).
+                // If the new entry's index is exactly after the sorted count and
+                // the entry's key is greater or equal then to the previous (sorted count)
+                // index key. Then increase the sorted count.
+                int sortedCount = this.sortedCount.get();
+                if (sortedCount > 0) {
+                    if (ei == (sortedCount * FIELDS + 1)) {
+                        // the new entry's index is exactly after the sorted count
+                        if (comparator.compareKeyAndSerializedKey(
+                                key, readKey((sortedCount - 1) * FIELDS + FIRST_ITEM)) >= 0) {
+                            // compare with sorted count key, if inserting the "if-statement",
+                            // the sorted count key is less or equal to the key just inserted
+                            this.sortedCount.compareAndSet(sortedCount, (sortedCount + 1));
                         }
                     }
-                    return ei;
                 }
-                // CAS didn't succeed, try again
-            } else {
-                // without CAS (used by rebalance)
-                setEntryField(prev, OFFSET_NEXT, ei);
+                return ei;
             }
+            // CAS didn't succeed, try again
         }
     }
 
@@ -523,7 +509,7 @@ public class Chunk<K, V> {
         handles[hi].setValue(byteBuffer);
     }
 
-    public int getMaxItems() {
+    int getMaxItems() {
         return maxItems;
     }
 
@@ -532,22 +518,23 @@ public class Chunk<K, V> {
      * turn has the value. For linkage this is an insert linearization point.
      * All the relevant data can be found inside opData.
      * <p>
-     * if someone else got to it first (helping rebalancer or other operation), returns the old handle
+     * return true if operation was successful, false to indicate restart required
      */
-    Handle pointToValue(OpData opData) {
+    boolean pointToValue(OpData opData) {
 
         // try to perform the CAS according to operation data (opData)
-        if (pointToValueCAS(opData, true)) {
-            return null;
+        if (pointToValueCAS(opData)) {
+            return true;
         }
 
         // the straight forward helping didn't work, check why
         Operation operation = opData.op;
 
         // the operation is remove, means we tried to change the handle index we knew about to -1
-        // the old handle index is no longer there so we have nothing to do
+        // the old handle index is no longer there so we have nothing to do. Note that in case of non-ZC removal the
+        // loop in remove() will lookup the key again so we will still return the previous value
         if (operation == Operation.REMOVE) {
-            return null; // this is a remove, no need to try again and return doesn't matter
+            return true; // this is a remove, no need to try again and return doesn't matter
         }
 
         // the operation is either NO_OP, PUT, PUT_IF_ABSENT, COMPUTE
@@ -555,50 +542,43 @@ public class Chunk<K, V> {
         int foundHandleIdx = getEntryField(opData.entryIndex, OFFSET_HANDLE_INDEX);
 
         if (foundHandleIdx == expectedHandleIdx) {
-            return null; // someone helped
+            return true; // someone helped
         } else if (foundHandleIdx < 0) {
             // the handle was deleted, retry the attach
             opData.prevHandleIndex = -1;
             return pointToValue(opData); // remove completed, try again
         } else if (operation == Operation.PUT_IF_ABSENT) {
-            return handles[foundHandleIdx]; // too late
+            return false;
         } else if (operation == Operation.COMPUTE) {
             Handle h = handles[foundHandleIdx];
-            if (h != null) {
-                boolean succ = h.compute(opData.computer);
-                if (!succ) {
-                    // we tried to perform the compute but the handle was deleted,
-                    // we can get to pointToValue with Operation.COMPUTE only from PIACIP
-                    // retry to make a put and to attach the new handle
-                    opData.prevHandleIndex = foundHandleIdx;
-                    return pointToValue(opData);
-                }
+            boolean succ = h.compute(opData.computer);
+            if (!succ) {
+                // we tried to perform the compute but the handle was deleted,
+                // we can get to pointToValue with Operation.COMPUTE only from PIACIP
+                // retry to make a put and to attach the new handle
+                opData.prevHandleIndex = foundHandleIdx;
+                return pointToValue(opData);
             }
-            return h;
         }
-        // this is a put, try again
-        opData.prevHandleIndex = foundHandleIdx;
-        return pointToValue(opData);
+        // This is a put, in which case operation should restart,
+        // or PIACIP compute happened, which should return false
+        return false;
     }
 
     /**
      * used by put/putIfAbsent/remove and rebalancer
      */
-    private boolean pointToValueCAS(OpData opData, boolean cas) {
-        if (cas) {
-            if (casEntriesArray(opData.entryIndex, OFFSET_HANDLE_INDEX, opData.prevHandleIndex, opData.handleIndex)) {
-                // update statistics only by thread that CASed
-                if (opData.prevHandleIndex < 0 && opData.handleIndex > 0) { // previously a remove
-                    statistics.incrementAddedCount();
-                    externalSize.incrementAndGet();
-                } else if (opData.prevHandleIndex > 0 && opData.handleIndex == -1) { // removing
-                    statistics.decrementAddedCount();
-                    externalSize.decrementAndGet();
-                }
-                return true;
+    private boolean pointToValueCAS(OpData opData) {
+        if (casEntriesArray(opData.entryIndex, OFFSET_HANDLE_INDEX, opData.prevHandleIndex, opData.handleIndex)) {
+            // update statistics only by thread that CASed
+            if (opData.prevHandleIndex < 0 && opData.handleIndex > 0) { // previously a remove
+                statistics.incrementAddedCount();
+                externalSize.incrementAndGet();
+            } else if (opData.prevHandleIndex > 0 && opData.handleIndex == -1) { // removing
+                statistics.decrementAddedCount();
+                externalSize.decrementAndGet();
             }
-        } else {
-            setEntryField(opData.entryIndex, OFFSET_HANDLE_INDEX, opData.handleIndex);
+            return true;
         }
         return false;
     }
@@ -667,9 +647,8 @@ public class Chunk<K, V> {
     }
 
 
-    public void freeHandle(int handleIndex) {
-        handles[handleIndex].remove(memoryManager);
-        handles[handleIndex] = null;
+    void freeHandle(int handleIndex) {
+        handles[handleIndex].remove(memoryManager, null, null);
     }
 
     /**
@@ -688,7 +667,7 @@ public class Chunk<K, V> {
      * @param maxCapacity -- max number of entries "this" chunk can contain after copy
      * @return key index of next to the last copied item, NONE if all items were copied
      */
-    final int copyPartNoKeys(Chunk srcChunk, int srcEntryIdx, int maxCapacity) {
+    final int copyPartNoKeys(Chunk<K, V> srcChunk, int srcEntryIdx, int maxCapacity) {
 
         if (srcEntryIdx == HEAD_NODE) {
             return NONE;
@@ -849,14 +828,6 @@ public class Chunk<K, V> {
                 (numOfEntries * MAX_IDLE_ENTRIES_FACTOR > maxItems && numOfItems * MAX_IDLE_ENTRIES_FACTOR < numOfEntries);
     }
 
-    int getNumOfItems() {
-        return statistics.getCompactedCount();
-    }
-
-    int getNumOfEntries() {
-        return entryIndex.get() / FIELDS;
-    }
-
     /*-------------- Iterators --------------*/
 
     AscendingIter ascendingIter() {
@@ -900,9 +871,8 @@ public class Chunk<K, V> {
             int handle = getEntryField(next, OFFSET_HANDLE_INDEX);
 
             int compare = -1;
-            if (next != Chunk.NONE) {
-                compare = compare(from, readKey(next));
-            }
+            if (next != Chunk.NONE)
+                compare = comparator.compareKeyAndSerializedKey(from, readKey(next));
 
             while (next != Chunk.NONE &&
                     (compare > 0 ||
@@ -910,9 +880,8 @@ public class Chunk<K, V> {
                             handle < 0)) {
                 next = getEntryField(next, OFFSET_NEXT);
                 handle = getEntryField(next, OFFSET_HANDLE_INDEX);
-                if (next != Chunk.NONE) {
-                    compare = compare(from, readKey(next));
-                }
+                if (next != Chunk.NONE)
+                    compare = comparator.compareKeyAndSerializedKey(from, readKey(next));
             }
         }
 
@@ -1010,12 +979,12 @@ public class Chunk<K, V> {
                 }
             } else {
                 if (inclusive) {
-                    while (next != Chunk.NONE && compare(readKey(next), from) <= 0) {
+                    while (next != Chunk.NONE && comparator.compareKeyAndSerializedKey(from, readKey(next)) >= 0) {
                         stack.push(next);
                         next = getEntryField(next, OFFSET_NEXT);
                     }
                 } else {
-                    while (next != Chunk.NONE && compare(readKey(next), from) < 0) {
+                    while (next != Chunk.NONE && comparator.compareKeyAndSerializedKey(from, readKey(next)) > 0) {
                         stack.push(next);
                         next = getEntryField(next, OFFSET_NEXT);
                     }
@@ -1151,9 +1120,6 @@ public class Chunk<K, V> {
             return addedCount.get();
         }
 
-        int getInitialSortedCount() {
-            return initialSortedCount;
-        }
     }
 
     /**

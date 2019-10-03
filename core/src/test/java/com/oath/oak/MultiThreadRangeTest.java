@@ -27,7 +27,7 @@ public class MultiThreadRangeTest {
 
     @Before
     public void init() {
-        OakMapBuilder<Integer, Integer> builder = OakMapBuilder.getDefaultBuilder()
+        OakMapBuilder<Integer, Integer>builder = IntegerOakMap.getDefaultBuilder()
                 .setChunkMaxItems(maxItemsPerChunk);
         oak = builder.build();
         latch = new CountDownLatch(1);

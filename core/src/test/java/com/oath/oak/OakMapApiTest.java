@@ -20,7 +20,7 @@ public class OakMapApiTest {
     @Before
     public void init() {
         int maxItemsPerChunk = 2048;
-        OakMapBuilder<Integer, Integer> builder = OakMapBuilder.getDefaultBuilder()
+        OakMapBuilder<Integer, Integer> builder = IntegerOakMap.getDefaultBuilder()
                 .setChunkMaxItems(maxItemsPerChunk);
         oak = builder.build();
     }
@@ -289,6 +289,25 @@ public class OakMapApiTest {
             for (Integer i : sub.values()) {
                 assertEquals(expected, i.intValue());
                 expected++;
+            }
+        }
+    }
+
+    @Test
+    public void descIterTest() {
+        int numKeys = 10;
+        for (int i = 0; i < numKeys; i++) {
+            oak.put(i, i);
+        }
+
+        Integer from = 4;
+        Integer to = 6;
+
+        int expected = to;
+        try (OakMap<Integer, Integer> sub = oak.subMap(from, false, to, true).descendingMap()) {
+            for (Integer i : sub.values()) {
+                assertEquals(expected, i.intValue());
+                expected--;
             }
         }
     }

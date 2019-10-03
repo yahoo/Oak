@@ -64,11 +64,11 @@ class MyBufferOak {
         }
 
         @Override
-        public int compareSerializedKeyAndKey(ByteBuffer serializedKey, MyBuffer key) {
-            int pos1 = serializedKey.position();
-            int cap1 = serializedKey.getInt(pos1);
-            int pos2 = key.buffer.position();
-            int cap2 = key.buffer.capacity();
+        public int compareKeyAndSerializedKey(MyBuffer key, ByteBuffer serializedKey) {
+            int pos1 = key.buffer.position();
+            int cap1 = key.buffer.capacity();
+            int pos2 = serializedKey.position();
+            int cap2 = serializedKey.getInt(pos1);
             return compare(serializedKey, pos1 + Integer.BYTES, cap1, key.buffer, pos2, cap2);
 
         }

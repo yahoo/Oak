@@ -16,14 +16,16 @@ class Rebalancer<K, V> {
 
     /*-------------- Constants --------------*/
 
-    private final int rebalanceSize;
-    private final double maxAfterMergePart;
-    private final double lowThreshold;
-    private final double appendThreshold;
+    private static final int REBALANCE_SIZE = 2;
+    private static final double MAX_AFTER_MERGE_PART = 0.7;
+    private static final double LOW_THRESHOLD = 0.5;
+    private static final double APPEND_THRESHOLD = 0.2;
+
     private final int entriesLowThreshold;
     private final int maxRangeToAppend;
     private final int maxAfterMergeItems;
 
+    /*-------------- Members --------------*/
     private final AtomicReference<Chunk<K, V>> nextToEngage;
     private final AtomicReference<List<Chunk<K, V>>> newChunks = new AtomicReference<>(null);
     private final AtomicReference<List<Chunk<K, V>>> engagedChunks = new AtomicReference<>(null);
@@ -32,7 +34,6 @@ class Rebalancer<K, V> {
     private Chunk<K, V> last;
     private int chunksInRange;
     private int itemsInRange;
-    private final Comparator<Object> comparator;
     private final boolean offHeap;
     private final MemoryManager memoryManager;
     private final OakSerializer<K> keySerializer;
@@ -40,16 +41,11 @@ class Rebalancer<K, V> {
 
     /*-------------- Constructors --------------*/
 
-    Rebalancer(Chunk<K, V> chunk, Comparator<Object> comparator, boolean offHeap, MemoryManager memoryManager,
+    Rebalancer(Chunk<K, V> chunk, boolean offHeap, MemoryManager memoryManager,
                OakSerializer<K> keySerializer, OakSerializer<V> valueSerializer) {
-        this.rebalanceSize = 2;
-        this.maxAfterMergePart = 0.7;
-        this.lowThreshold = 0.5;
-        this.appendThreshold = 0.2;
-        this.entriesLowThreshold = (int) (chunk.getMaxItems() * this.lowThreshold);
-        this.maxRangeToAppend = (int) (chunk.getMaxItems() * this.appendThreshold);
-        this.maxAfterMergeItems = (int) (chunk.getMaxItems() * this.maxAfterMergePart);
-        this.comparator = comparator;
+        this.entriesLowThreshold = (int) (chunk.getMaxItems() * LOW_THRESHOLD);
+        this.maxRangeToAppend = (int) (chunk.getMaxItems() * APPEND_THRESHOLD);
+        this.maxAfterMergeItems = (int) (chunk.getMaxItems() * MAX_AFTER_MERGE_PART);
         this.offHeap = offHeap;
         this.memoryManager = memoryManager;
         nextToEngage = new AtomicReference<>(chunk);
@@ -72,13 +68,6 @@ class Rebalancer<K, V> {
     }
 
     /*-------------- Methods --------------*/
-
-    /**
-     * compares ByteBuffer by calling the provided comparator
-     */
-    private int compare(Object k1, Object k2) {
-        return comparator.compare(k1, k2);
-    }
 
     Rebalancer<K, V> engageChunks() {
         while (true) {
@@ -110,7 +99,7 @@ class Rebalancer<K, V> {
 
     /**
      * Freeze the engaged chunks. Should be called after engageChunks.
-     * Marks chunks as freezed, prevents future updates of the engagead chunks
+     * Marks chunks as frozen, prevents future updates of the engaged chunks
      */
     void freeze() {
         if (frozen.get()) {
@@ -162,7 +151,7 @@ class Rebalancer<K, V> {
                 currFrozen = iterFrozen.next();
                 ei = currFrozen.getFirstItemEntryIndex();
 
-            } else { // filled new chunk up to ENETRIES_LOW_THRESHOLD
+            } else { // filled new chunk up to entriesLowThreshold
 
                 List<Chunk<K, V>> frozenSuffix = frozenChunks.subList(iterFrozen.previousIndex(), frozenChunks.size());
                 // try to look ahead and add frozen suffix
@@ -239,7 +228,7 @@ class Rebalancer<K, V> {
         updateRangeView();
 
         // allow up to RebalanceSize chunks to be engaged
-        if (chunksInRange >= rebalanceSize) {
+        if (chunksInRange >= REBALANCE_SIZE) {
             return null;
         }
 

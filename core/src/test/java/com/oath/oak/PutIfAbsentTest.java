@@ -27,7 +27,7 @@ public class PutIfAbsentTest {
 
     @Before
     public void init() {
-        OakMapBuilder<Integer, Integer> builder = OakMapBuilder.getDefaultBuilder();
+        OakMapBuilder<Integer, Integer> builder = IntegerOakMap.getDefaultBuilder();
         oak = builder.build();
         startSignal = new CountDownLatch(1);
         threads = new ArrayList<>(NUM_THREADS);

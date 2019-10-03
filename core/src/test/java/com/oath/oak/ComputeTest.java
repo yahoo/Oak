@@ -106,8 +106,8 @@ public class ComputeTest {
         }
 
         @Override
-        public int compareSerializedKeyAndKey(ByteBuffer serializedKey, ByteBuffer key) {
-            return compareKeys(serializedKey, key);
+        public int compareKeyAndSerializedKey(ByteBuffer key, ByteBuffer serializedKey) {
+            return compareKeys(key, serializedKey);
         }
     }
 
