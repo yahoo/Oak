@@ -157,6 +157,11 @@ class InternalOakMap<K, V> {
     }
 
 
+    /**
+     * @param c - Chunk to rebalance
+     * @return - returns {@code true} if this thread managed to CAS to newChunk list of rebalance (the result of
+     * {@code rebalancer.createNewChunks}). {@code false} otherwise.
+     */
     private boolean rebalance(Chunk<K, V> c) {
 
         if (c == null) {
@@ -365,7 +370,7 @@ class InternalOakMap<K, V> {
             }
         }
 
-        long newValueReference = c.writeValueOffHeap(value); // write value in place
+        long newValueReference = c.writeValue(value); // write value in place
 
         Chunk.OpData opData = new Chunk.OpData(Operation.PUT, ei, newValueReference, oldReference, null);
 
@@ -454,7 +459,7 @@ class InternalOakMap<K, V> {
             }
         }
 
-        long newValueReference = c.writeValueOffHeap(value); // write value in place
+        long newValueReference = c.writeValue(value); // write value in place
 
         Chunk.OpData opData = new Chunk.OpData(Operation.PUT_IF_ABSENT, ei, newValueReference, oldReference, null);
 
@@ -542,7 +547,7 @@ class InternalOakMap<K, V> {
             }
         }
 
-        long newValueReference = c.writeValueOffHeap(value); // write value in place
+        long newValueReference = c.writeValue(value); // write value in place
 
         Chunk.OpData opData = new Chunk.OpData(Operation.COMPUTE, ei, newValueReference, oldReference, computer);
 
@@ -675,10 +680,10 @@ class InternalOakMap<K, V> {
         if (serializedKey == null) {
             return null;
         }
-        return transformer.apply(serializedKey);
+        return transformer.apply(serializedKey.slice().asReadOnlyBuffer());
     }
 
-    ByteBuffer getKey(K key) {
+    private ByteBuffer getKey(K key) {
         if (key == null) {
             throw new NullPointerException();
         }
@@ -688,7 +693,7 @@ class InternalOakMap<K, V> {
         if (lookUp == null || lookUp.valueSlice == null || lookUp.entryIndex == -1) {
             return null;
         }
-        return c.readKey(lookUp.entryIndex).slice();
+        return c.readKey(lookUp.entryIndex);
     }
 
     ByteBuffer getMinKey() {
@@ -826,9 +831,8 @@ class InternalOakMap<K, V> {
         }
 
         // TODO: No lock?
-        return new AbstractMap.SimpleImmutableEntry<>(
-                keySerializer.deserialize(prevKey),
-                valueSerializer.deserialize(ValueUtils.getActualValueBuffer(c.getValueSlice(prevIndex).getByteBuffer())
+        return new AbstractMap.SimpleImmutableEntry<>(keySerializer.deserialize(prevKey),
+                valueSerializer.deserialize(ValueUtils.getValueByteBufferNoHeader(c.getValueSlice(prevIndex).getByteBuffer())
                         .asReadOnlyBuffer()));
     }
 
@@ -987,7 +991,14 @@ class InternalOakMap<K, V> {
             }
 
             ByteBuffer bb = needsKey ? state.getChunk().readKey(state.getIndex()).slice() : null;
-            Slice currentValue = needsValue ? state.getChunk().getValueSlice(state.getIndex()) : null;
+            Slice currentValue = null;
+            if (needsValue) {
+                currentValue = state.getChunk().getValueSlice(state.getIndex());
+                if (currentValue == null || ValueUtils.isValueDeleted(currentValue)) {
+                    advanceState();
+                    return advance(needsKey, true);
+                }
+            }
             advanceState();
             return new AbstractMap.SimpleImmutableEntry<>(bb, currentValue);
         }
@@ -1010,9 +1021,12 @@ class InternalOakMap<K, V> {
             if (key != null) {
                 state.getChunk().setKeyRefer(state.getIndex(), key);
             }
+            // if there a reference to update (this if is not executed for KeyStreamIterator)
             if (value != null) {
                 if (!state.getChunk().setValueRefer(state.getIndex(), value)) {
-                    return null;
+                    // If the current value is deleted, then advance and try again
+                    advanceState();
+                    return advanceStream(key, value);
                 }
             }
             advanceState();
@@ -1156,12 +1170,21 @@ class InternalOakMap<K, V> {
         public T next() {
             Map.Entry<ByteBuffer, Slice> nextItem = advance(true, true);
             Slice valueSlice = nextItem.getValue();
-            if (valueSlice == null) {
-                return null;
-            }
+            assert valueSlice != null;
             AbstractMap.SimpleEntry<ValueUtils.ValueResult, T> res = ValueUtils.transform(valueSlice, transformer);
-            return (res.getKey() == RETRY) ?
-                    getValueTransformation(nextItem.getKey(), transformer) : res.getValue();
+            if (res.getKey() == FAILURE) {
+                // If this value is deleted, try the next one
+                return next();
+            }
+            // if the value was moved, fetch it from the
+            else if (res.getKey() == RETRY) {
+                T result = getValueTransformation(nextItem.getKey(), transformer);
+                if (result == null) {
+                    // the value was deleted, try the next one
+                    return next();
+                }
+            }
+            return res.getValue();
         }
     }
 
@@ -1216,22 +1239,21 @@ class InternalOakMap<K, V> {
             Map.Entry<ByteBuffer, Slice> pair = advance(true, true);
             ByteBuffer serializedKey = pair.getKey();
             Slice valueSlice = pair.getValue();
-            if (valueSlice == null) {
-                return null;
-            }
+            assert valueSlice != null;
             ValueUtils.ValueResult res = ValueUtils.lockRead(valueSlice);
             ByteBuffer serializedValue;
+            // the value is deleted, try the next one
             if (res == FAILURE) {
-                return null;
+                return next();
             } else if (res == RETRY) {
                 do {
                     serializedValue = getValueTransformation(serializedKey, byteBuffer -> byteBuffer);
                     if (serializedValue == null) {
-                        return null;
+                        return next();
                     }
                 } while (ValueUtils.lockRead(serializedValue) == RETRY);
             } else {
-                serializedValue = ValueUtils.getActualValueBuffer(valueSlice.getByteBuffer()).asReadOnlyBuffer();
+                serializedValue = ValueUtils.getValueByteBufferNoHeader(valueSlice.getByteBuffer()).asReadOnlyBuffer();
             }
             Map.Entry<ByteBuffer, ByteBuffer> entry = new AbstractMap.SimpleEntry<>(serializedKey, serializedValue);
 
@@ -1241,6 +1263,7 @@ class InternalOakMap<K, V> {
         }
     }
 
+    // May return deleted keys
     class KeyIterator extends Iter<OakRBuffer> {
 
         KeyIterator(K lo, boolean loInclusive, K hi, boolean hiInclusive, boolean isDescending) {

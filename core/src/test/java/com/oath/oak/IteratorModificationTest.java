@@ -2,6 +2,7 @@ package com.oath.oak;
 
 import org.junit.After;
 import org.junit.Before;
+import org.junit.Ignore;
 import org.junit.Test;
 
 import java.util.ConcurrentModificationException;
@@ -285,6 +286,7 @@ public class IteratorModificationTest {
         assertTrue(passed.get());
     }
 
+    @Ignore
     @Test
     public void valueDeleteTest() {
         Iterator<Map.Entry<String, String>> entryIterator = oak.entrySet().iterator();
