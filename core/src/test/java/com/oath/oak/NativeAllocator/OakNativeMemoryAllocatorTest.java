@@ -87,7 +87,7 @@ public class OakNativeMemoryAllocatorTest {
     @Test
     public void checkCapacity() {
 
-        int blockSize = (int) BlocksPool.getInstance().blockSize();
+        int blockSize = BlocksPool.getInstance().blockSize();
         int capacity = blockSize * 3;
         OakNativeMemoryAllocator ma = new OakNativeMemoryAllocator(capacity);
 

@@ -150,7 +150,7 @@ public class OakRValueBufferImpl implements OakRBuffer {
     }
 
     private void start() {
-        // TODO: What to do if the value was moved?
+        // if the value was moved a ConcurrentModificationException is thrown
         ValueUtils.ValueResult res = ValueUtils.lockRead(bb);
         if (res != ValueUtils.ValueResult.SUCCESS) {
             throw new ConcurrentModificationException();

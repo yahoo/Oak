@@ -648,9 +648,9 @@ public class Chunk<K, V> {
             ValueUtils.ValueResult succ = ValueUtils.compute(valueSlice, opData.computer);
 
             if (succ != ValueUtils.ValueResult.SUCCESS) {
-                // we tried to perform the compute but the handle was deleted,
+                // we tried to perform the compute but the value was deleted,
                 // we can get to pointToValue with Operation.COMPUTE only from PIACIP
-                // retry to make a put and to attach the new handle
+                // retry to make a put and to attach the new value
                 opData.oldValueReference = foundValueReference;
                 return pointToValue(opData);
             }

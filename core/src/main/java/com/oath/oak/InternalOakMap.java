@@ -582,21 +582,20 @@ class InternalOakMap<K, V> {
             }
 
             if (logicallyDeleted) {
-                // This is the case where we logically deleted this entry (marked the handle as deleted), but someone
-                // reused
-                // the entry before we unlinked it. We have the previous value saved in v.
+                // This is the case where we logically deleted this entry (marked the value as deleted), but someone
+                // reused the entry before we unlinked it. We have the previous value saved in v.
                 return v;
             } else {
                 Map.Entry<ValueUtils.ValueResult, V> removeResult = ValueUtils.remove(lookUp.valueSlice,
                         memoryManager, oldValue, transformer);
                 if (removeResult.getKey() == FAILURE) {
-                    // we didn't succeed to remove the handle: it didn't contain oldValue, or was already marked
+                    // we didn't succeed to remove the value: it didn't contain oldValue, or was already marked
                     // as deleted by someone else)
                     return null;
                 } else if (removeResult.getKey() == RETRY) {
                     return remove(key, oldValue, transformer);
                 }
-                // we have marked this handle as deleted (successful remove)
+                // we have marked this value as deleted (successful remove)
                 logicallyDeleted = true;
                 v = removeResult.getValue();
             }
@@ -975,7 +974,6 @@ class InternalOakMap<K, V> {
          * Advances next to higher entry.
          * Return previous index
          */
-        // TODO: maybe return two longs instead
         Map.Entry<ByteBuffer, Slice> advance(boolean needsKey, boolean needsValue) {
 
             if (state == null) {
