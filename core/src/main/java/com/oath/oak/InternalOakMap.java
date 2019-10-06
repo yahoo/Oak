@@ -400,7 +400,12 @@ class InternalOakMap<K, V> {
             if (transformer == null) {
                 return Result.withFlag(false);
             }
-            return Result.withValue(lookUp.handle.transform(transformer));
+            Result<V> res = Result.withValue(lookUp.handle.transform(transformer));
+            if (lookUp.handle.isDeleted()) {
+                // If handle was deleted between lookup and transformation, retry
+                return putIfAbsent(key, value, transformer);
+            }
+            return res;
         }
 
         // if chunk is frozen or infant, we can't add to it
@@ -441,7 +446,12 @@ class InternalOakMap<K, V> {
                     if (transformer == null) {
                         return Result.withFlag(false);
                     }
-                    return Result.withValue(c.getHandle(prevEi).transform(transformer));
+                    Handle handle = c.getHandle(prevEi);
+                    Result<V> res = Result.withValue(handle.transform(transformer));
+                    if (handle.isDeleted()) {
+                        return putIfAbsent(key, value, transformer);
+                    }
+                    return res;
                 } else {
                     ei = prevEi;
                 }
