@@ -518,8 +518,8 @@ public class Chunk<K, V> {
         }
 
         // key and value must be set before linking to the list so it will make sense when reached before put is done
-        setEntryFieldLong(ei, OFFSET.VALUE_REFERENCE, DELETED_VALUE); // setting the value reference to DELETED_VALUE
-        // atomically
+        // setting the value reference to DELETED_VALUE atomically
+        setEntryFieldLong(ei, OFFSET.VALUE_REFERENCE, DELETED_VALUE);
         writeKey(key, ei);
         return ei;
     }
@@ -561,42 +561,42 @@ public class Chunk<K, V> {
             // link to list between next and previous
             // first change this key's next to point to curr
             setEntryFieldInt(ei, OFFSET.NEXT, curr); // no need for CAS since put is not even published yet
-                if (casEntriesArrayInt(prev, OFFSET.NEXT, curr, ei)) {
-                    // Here is the single place where we do enter a new entry to the chunk, meaning
-                    // there is none else simultaneously inserting the same key
-                    // (we were the first to insert this key).
-                    // If the new entry's index is exactly after the sorted count and
-                    // the entry's key is greater or equal then to the previous (sorted count)
-                    // index key. Then increase the sorted count.
-                    int sortedCount = this.sortedCount.get();
-                    if (sortedCount > 0) {
-                        if (ei == (sortedCount * FIELDS + 1)) {
-                            // the new entry's index is exactly after the sorted count
-                            if (comparator.compareKeyAndSerializedKey(
-                                    key, readKey((sortedCount - 1) * FIELDS + FIRST_ITEM))  >= 0) {
-                                // compare with sorted count key, if inserting the "if-statement",
-                                // the sorted count key is less or equal to the key just inserted
-                                this.sortedCount.compareAndSet(sortedCount, (sortedCount + 1));
-                            }
+            if (casEntriesArrayInt(prev, OFFSET.NEXT, curr, ei)) {
+                // Here is the single place where we do enter a new entry to the chunk, meaning
+                // there is none else simultaneously inserting the same key
+                // (we were the first to insert this key).
+                // If the new entry's index is exactly after the sorted count and
+                // the entry's key is greater or equal then to the previous (sorted count)
+                // index key. Then increase the sorted count.
+                int sortedCount = this.sortedCount.get();
+                if (sortedCount > 0) {
+                    if (ei == (sortedCount * FIELDS + 1)) {
+                        // the new entry's index is exactly after the sorted count
+                        if (comparator.compareKeyAndSerializedKey(
+                                key, readKey((sortedCount - 1) * FIELDS + FIRST_ITEM)) >= 0) {
+                            // compare with sorted count key, if inserting the "if-statement",
+                            // the sorted count key is less or equal to the key just inserted
+                            this.sortedCount.compareAndSet(sortedCount, (sortedCount + 1));
                         }
                     }
-                    return ei;
                 }
-                // CAS didn't succeed, try again
+                return ei;
+            }
+            // CAS didn't succeed, try again
         }
     }
 
     /**
      * write value in place
      **/
-    long writeValueOffHeap(V value) {
+    long writeValue(V value) {
         // the length of the given value plus its header
         int valueLength = valueSerializer.calculateSize(value) + ValueUtils.VALUE_HEADER_SIZE;
         Slice slice = memoryManager.allocateSlice(valueLength);
         // initializing the header lock to be free
         slice.initHeader();
         // since this is a private environment we can only use slice, instead of duplicate and then slice
-        valueSerializer.serialize(value, ValueUtils.getActualValueBufferPrivate(slice.getByteBuffer()));
+        valueSerializer.serialize(value, ValueUtils.getValueByteBufferNoHeaderPrivate(slice.getByteBuffer()));
         // combines the blockID with the value's length (including the header)
         int valueBlockAndLength = (slice.getBlockID() << VALUE_BLOCK_SHIFT) | (valueLength & VALUE_LENGTH_MASK);
         return intsToLong(valueBlockAndLength, slice.getByteBuffer().position());
@@ -824,11 +824,11 @@ public class Chunk<K, V> {
                     entries[sortedEntryIndex + offset + OFFSET.NEXT.value]
                             = sortedEntryIndex + offset + FIELDS;
 
-                    // copy both the key and the value references and the padding => 5 integers via array copy
+                    // copy both the key and the value references (without the padding) => 4 integers via array copy
                     System.arraycopy(srcChunk.entries,  // source array
                             entryIndexStart + offset + OFFSET.NEXT.value + 1,
                             entries,                        // destination aray
-                            sortedEntryIndex + offset + OFFSET.NEXT.value + 1, (FIELDS - 1));
+                            sortedEntryIndex + offset + OFFSET.NEXT.value + 1, (FIELDS - 2));
                 }
 
                 sortedEntryIndex += entriesToCopy * FIELDS; // update

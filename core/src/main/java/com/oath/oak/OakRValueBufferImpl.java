@@ -144,7 +144,7 @@ public class OakRValueBufferImpl implements OakRBuffer {
     @Override
     public void unsafeCopyBufferToIntArray(int srcPosition, int[] dstArray, int countInts) {
         start();
-        ByteBuffer dup = ValueUtils.getActualValueBuffer(bb);
+        ByteBuffer dup = ValueUtils.getValueByteBufferNoHeader(bb);
         ValueUtils.unsafeBufferToIntArrayCopy(dup, srcPosition, dstArray, countInts);
         end();
     }
