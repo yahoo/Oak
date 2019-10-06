@@ -22,38 +22,37 @@ import java.util.function.Function;
  * The OakRKeyReference is intended to be used in threads that are for iterations only
  * and are not involved in concurrent/parallel reading/updating the mappings
  * */
-public class OakRKeyReference implements OakRBuffer {
+
+// TODO: No method acquires a read lock
+public class OakRReference implements OakRBuffer {
 
     private int blockID = OakNativeMemoryAllocator.INVALID_BLOCK_ID;
-    private int keyPosition = -1;
-    private int keyLength = -1;
+    private int position = -1;
+    private int length = -1;
     private final MemoryManager memoryManager;
-
-    private ByteBuffer cachedBBreference = null;
+    private final int headerSize;
 
     // The OakRKeyReferBufferImpl user accesses OakRKeyReferBufferImpl
     // as it would be a ByteBuffer with initially zero position.
     // We translate it to the relevant ByteBuffer position, by adding keyPosition to any given index
 
-    OakRKeyReference(MemoryManager memoryManager) {
+    OakRReference(MemoryManager memoryManager, int headerSize) {
         this.memoryManager = memoryManager;
+        this.headerSize = headerSize;
     }
 
-    void setKeyReference(int blockID, int keyPosition, int keyLength) {
+    void setReference(int blockID, int position, int length) {
         this.blockID = blockID;
-        this.keyPosition = keyPosition;
-        this.keyLength = keyLength;
-        this.cachedBBreference = null;
+        this.position = position;
+        this.length = length;
     }
 
-    void setKeyPosition(int keyPosition) {
-        this.keyPosition = keyPosition;
-        this.cachedBBreference = null;
+    void setPosition(int position) {
+        this.position = position;
     }
 
-    void setKeyLength(int keyLength) {
-        this.keyLength = keyLength;
-        this.cachedBBreference = null;
+    void setLength(int length) {
+        this.length = length;
     }
 
     @Override
@@ -63,7 +62,7 @@ public class OakRKeyReference implements OakRBuffer {
 
     @Override
     public byte get(int index) {
-        return getTemporaryPerThreadByteBuffer().get(index + keyPosition);
+        return getTemporaryPerThreadByteBuffer().get(index + headerSize + position);
     }
 
     @Override
@@ -73,39 +72,44 @@ public class OakRKeyReference implements OakRBuffer {
 
     @Override
     public char getChar(int index) {
-        return getTemporaryPerThreadByteBuffer().getChar(index + keyPosition);
+        return getTemporaryPerThreadByteBuffer().getChar(index + headerSize + position);
     }
 
     @Override
     public short getShort(int index) {
-        return getTemporaryPerThreadByteBuffer().getShort(index + keyPosition);
+        return getTemporaryPerThreadByteBuffer().getShort(index + headerSize + position);
     }
 
     @Override
     public int getInt(int index) {
-        return getTemporaryPerThreadByteBuffer().getInt(index + keyPosition);
+        return getTemporaryPerThreadByteBuffer().getInt(index + headerSize + position);
     }
 
     @Override
     public long getLong(int index) {
-        return getTemporaryPerThreadByteBuffer().getLong(index + keyPosition);
+        return getTemporaryPerThreadByteBuffer().getLong(index + headerSize + position);
     }
 
     @Override
     public float getFloat(int index) {
-        return getTemporaryPerThreadByteBuffer().getFloat(index + keyPosition);
+        return getTemporaryPerThreadByteBuffer().getFloat(index + headerSize + position);
     }
 
     @Override
     public double getDouble(int index) {
-        return getTemporaryPerThreadByteBuffer().getChar(index + keyPosition);
+        return getTemporaryPerThreadByteBuffer().getChar(index + headerSize + position);
     }
 
     @Override
     public <T> T transform(Function<ByteBuffer, T> transformer) {
-        // The ne ByteBuffer object is created here via slice(), to be sure that (user provided)
+        // The new ByteBuffer object is created here via slice(), to be sure that (user provided)
         // transformer can not access anything beyond given ByteBuffer
-        return transformer.apply(getTemporaryPerThreadByteBuffer().slice());
+        ByteBuffer buffer = getTemporaryPerThreadByteBuffer().slice();
+        if (headerSize != 0) {
+            buffer.position(headerSize);
+            buffer = buffer.slice();
+        }
+        return transformer.apply(buffer);
     }
 
     // the method provides an optimal way to copy data as array of integers from the key's buffer
@@ -113,15 +117,12 @@ public class OakRKeyReference implements OakRBuffer {
     // srcPosition = 0 if to start from the beginning
     @Override
     public void unsafeCopyBufferToIntArray(int srcPosition, int[] dstArray, int countInts) {
-        UnsafeUtils.unsafeCopyBufferToIntArray(getTemporaryPerThreadByteBuffer(), srcPosition + keyPosition, dstArray
-                , countInts);
+        UnsafeUtils.unsafeCopyBufferToIntArray(getTemporaryPerThreadByteBuffer(), srcPosition + position + headerSize
+                , dstArray, countInts);
 
     }
 
     private ByteBuffer getTemporaryPerThreadByteBuffer() {
-        if (cachedBBreference != null) {
-            return cachedBBreference;
-        }
         // need to check that the entire OakMap wasn't already closed with its memoryManager
         // if memoryManager was closed, its object is still not GCed as it is pointed from here
         // therefore it is valid to check from here
@@ -129,8 +130,8 @@ public class OakRKeyReference implements OakRBuffer {
             throw new ConcurrentModificationException();
         }
         assert blockID != OakNativeMemoryAllocator.INVALID_BLOCK_ID;
-        assert keyPosition != -1;
-        assert keyLength != -1;
-        return memoryManager.getByteBufferFromBlockID(blockID, keyPosition, keyLength);
+        assert position != -1;
+        assert length != -1;
+        return memoryManager.getByteBufferFromBlockID(blockID, position, length);
     }
 }

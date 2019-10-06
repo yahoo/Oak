@@ -21,17 +21,9 @@ public class MemoryManager {
         this.keysMemoryAllocator = memoryAllocator;
     }
 
-    public ByteBuffer allocate(int size) {
-        return valuesMemoryAllocator.allocate(size);
-    }
-
     public void close() {
         valuesMemoryAllocator.close();
         keysMemoryAllocator.close();
-    }
-
-    void release(ByteBuffer bb) {
-        valuesMemoryAllocator.free(bb);
     }
 
     // how many memory is allocated for this OakMap

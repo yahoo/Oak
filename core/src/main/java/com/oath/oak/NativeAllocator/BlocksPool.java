@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2018 Oath Inc.
  * Licensed under the terms of the Apache 2.0 license.
  * Please see LICENSE file in the project root for terms.
@@ -20,11 +20,12 @@ class BlocksPool implements BlocksProvider {
     private final ConcurrentLinkedQueue<Block> blocks = new ConcurrentLinkedQueue<>();
 
     // TODO change BLOCK_SIZE and NUMBER_OF_BLOCKS to be pre-configurable
-    private final static int BLOCK_SIZE = 2*104857600; // currently 200MB, the one block size
+    private static int BLOCK_SIZE = 256 * 1024 * 1024; // currently 200MB, the one block size
     // Number of memory blocks to be pre-allocated (currently gives us 2GB). When it is not enough,
     // another half such amount of memory (1GB) will be allocated at once.
     private final static int NUMBER_OF_BLOCKS = 10;
     private final static int EXCESS_POOL_RATIO = 3;
+
     // not thread safe, private constructor; should be called only once
     private BlocksPool() {
         prealloc(NUMBER_OF_BLOCKS);
@@ -43,6 +44,13 @@ class BlocksPool implements BlocksProvider {
             }
         }
         return instance;
+    }
+
+    static void setBlockSize(int blockSize) {
+        BLOCK_SIZE = blockSize;
+        synchronized (BlocksPool.class) { // can be easily changed to lock-free
+            instance = new BlocksPool();
+        }
     }
 
     @Override

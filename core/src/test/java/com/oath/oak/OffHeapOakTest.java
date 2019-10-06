@@ -11,12 +11,15 @@ import org.junit.Before;
 import org.junit.Test;
 
 import java.util.ArrayList;
+import java.util.ConcurrentModificationException;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 
 import static junit.framework.TestCase.assertNotNull;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
 
 public class OffHeapOakTest {
     private OakMap<Integer, Integer> oak;
@@ -56,7 +59,7 @@ public class OffHeapOakTest {
         for (int i = 0; i < NUM_THREADS; i++) {
             threads.get(i).join();
         }
-        assertNull(threadException);
+        assertTrue(threadException == null || threadException instanceof ConcurrentModificationException);
 
         for (Integer i = 0; i < 6 * maxItemsPerChunk; i++) {
             Integer value = oak.get(i);

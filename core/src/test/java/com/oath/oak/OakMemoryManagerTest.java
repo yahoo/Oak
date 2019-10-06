@@ -46,11 +46,11 @@ public class OakMemoryManagerTest {
 
     @Test
     public void allocate() {
-        ByteBuffer bb = memoryManager.allocate(4);
+        ByteBuffer bb = memoryManager.allocateSlice(4).getByteBuffer();
         assertEquals(4, bb.remaining());
         assertEquals(4, memoryManager.allocated());
 
-        bb = memoryManager.allocate(4);
+        bb = memoryManager.allocateSlice(4).getByteBuffer();
         assertEquals(4, bb.remaining());
         assertEquals(8, memoryManager.allocated());
     }

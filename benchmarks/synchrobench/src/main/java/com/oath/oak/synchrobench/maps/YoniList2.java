@@ -24,45 +24,47 @@ public class YoniList2<K extends MyBuffer, V extends MyBuffer> implements Compos
 
         comparator = (o1, o2) ->
         {
-            //TODO YONIGO - what if key gets dfeleted?
-            if (o1 instanceof MyBuffer) {
-
-                //o2 is a node and the key is either mybuffer or bytebuffer:
-                Cell cell2 = (Cell) o2;
-                Object key2 = cell2.key.get();
-                if (key2 instanceof MyBuffer) {
-                    return MyBufferOak.keysComparator.compareKeys((MyBuffer) o1, (MyBuffer) key2);
-                } else {
-                    return -1 * MyBufferOak.keysComparator.compareSerializedKeyAndKey((ByteBuffer) key2, (MyBuffer) o1);
-                }
-
-            } else if (o2 instanceof MyBuffer) {
-                Cell cell1 = (Cell) o1;
-                Object key1 = cell1.key.get();
-                if (key1 instanceof MyBuffer) {
-                    return MyBufferOak.keysComparator.compareKeys((MyBuffer) key1, (MyBuffer) o2);
-                } else {
-                    return MyBufferOak.keysComparator.compareSerializedKeyAndKey((ByteBuffer) key1, (MyBuffer) o2);
-                }
-            } else if (o1 instanceof YoniList2.Cell && o2 instanceof YoniList2.Cell) {
-                Cell cell1 = (Cell) o1;
-                Object key1 = cell1.key.get();
-                Cell cell2 = (Cell) o2;
-                Object key2 = cell2.key.get();
-
-                if (key1 instanceof MyBuffer && key2 instanceof MyBuffer) {
-                    return MyBufferOak.keysComparator.compareKeys((MyBuffer) key1, (MyBuffer) key2);
-                } else if (key1 instanceof ByteBuffer && key2 instanceof ByteBuffer) {
-                    return MyBufferOak.keysComparator.compareSerializedKeys((ByteBuffer) key1, (ByteBuffer) key2);
-                } else if (key1 instanceof MyBuffer && key2 instanceof ByteBuffer) {
-                    return -1 * MyBufferOak.keysComparator.compareSerializedKeyAndKey((ByteBuffer) key2,
-                            (MyBuffer) key1);
-                } else {
-                    return MyBufferOak.keysComparator.compareSerializedKeyAndKey((ByteBuffer) key1, (MyBuffer) key2);
-                }
-            } else {
-                throw new UnsupportedOperationException();
-            }
+//            //TODO YONIGO - what if key gets dfeleted?
+//            if (o1 instanceof MyBuffer) {
+//
+//                //o2 is a node and the key is either mybuffer or bytebuffer:
+//                Cell cell2 = (Cell) o2;
+//                Object key2 = cell2.key.get();
+//                if (key2 instanceof MyBuffer) {
+//                    return MyBufferOak.keysComparator.compareKeys((MyBuffer) o1, (MyBuffer) key2);
+//                } else {
+//                    return -1 * MyBufferOak.keysComparator.compareSerializedKeyAndKey((ByteBuffer) key2, (MyBuffer)
+//                    o1);
+//                }
+//
+//            } else if (o2 instanceof MyBuffer) {
+//                Cell cell1 = (Cell) o1;
+//                Object key1 = cell1.key.get();
+//                if (key1 instanceof MyBuffer) {
+//                    return MyBufferOak.keysComparator.compareKeys((MyBuffer) key1, (MyBuffer) o2);
+//                } else {
+//                    return MyBufferOak.keysComparator.compareSerializedKeyAndKey((ByteBuffer) key1, (MyBuffer) o2);
+//                }
+//            } else if (o1 instanceof YoniList2.Cell && o2 instanceof YoniList2.Cell) {
+//                Cell cell1 = (Cell) o1;
+//                Object key1 = cell1.key.get();
+//                Cell cell2 = (Cell) o2;
+//                Object key2 = cell2.key.get();
+//
+//                if (key1 instanceof MyBuffer && key2 instanceof MyBuffer) {
+//                    return MyBufferOak.keysComparator.compareKeys((MyBuffer) key1, (MyBuffer) key2);
+//                } else if (key1 instanceof ByteBuffer && key2 instanceof ByteBuffer) {
+//                    return MyBufferOak.keysComparator.compareSerializedKeys((ByteBuffer) key1, (ByteBuffer) key2);
+//                } else if (key1 instanceof MyBuffer && key2 instanceof ByteBuffer) {
+//                    return -1 * MyBufferOak.keysComparator.compareSerializedKeyAndKey((ByteBuffer) key2,
+//                            (MyBuffer) key1);
+//                } else {
+//                    return MyBufferOak.keysComparator.compareSerializedKeyAndKey((ByteBuffer) key1, (MyBuffer) key2);
+//                }
+//            } else {
+//                throw new UnsupportedOperationException();
+//            }
+            return 0;
         };
 
         skipListMap = new ConcurrentSkipListMap<>(comparator);
