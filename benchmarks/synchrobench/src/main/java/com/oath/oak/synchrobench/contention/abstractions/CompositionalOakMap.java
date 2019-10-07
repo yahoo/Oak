@@ -22,4 +22,6 @@ public interface CompositionalOakMap<K, V> {
 
     int size();
 
+    void putIfAbsentComputeIfPresentOak(K key, V value);
+
 }
