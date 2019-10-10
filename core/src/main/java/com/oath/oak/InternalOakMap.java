@@ -21,9 +21,10 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
-import static com.oath.oak.Chunk.DELETED_VALUE;
+import static com.oath.oak.Chunk.INVALID_ENTRY_INDEX;
+import static com.oath.oak.Chunk.INVALID_VALUE;
 import static com.oath.oak.ValueUtils.ValueResult.FAILURE;
-import static com.oath.oak.ValueUtils.ValueResult.RETRY;
+import static com.oath.oak.ValueUtils.ValueResult.MOVED;
 import static com.oath.oak.ValueUtils.ValueResult.SUCCESS;
 
 class InternalOakMap<K, V> {
@@ -344,17 +345,15 @@ class InternalOakMap<K, V> {
             return put(key, value, transformer);
         }
 
-        int ei = -1;
-        long oldReference = DELETED_VALUE;
+        int ei;
+        long oldReference = INVALID_VALUE;
         if (lookUp != null) {
             ei = lookUp.entryIndex;
             assert ei > 0;
             oldReference = lookUp.valueReference;
-        }
-
-        if (ei == -1) {
+        } else {
             ei = c.allocateEntryAndKey(key);
-            if (ei == -1) {
+            if (ei == INVALID_ENTRY_INDEX) {
                 rebalance(c);
                 return put(key, value, transformer);
             }
@@ -364,7 +363,7 @@ class InternalOakMap<K, V> {
                 oldReference = c.getValueReference(prevEi);
                 // We can use the old reference *only* when it is DELETED_VALUE,
                 // otherwise operation should restart
-                if (oldReference != DELETED_VALUE) {
+                if (oldReference != INVALID_VALUE) {
                     return put(key, value, transformer);
                 }
             }
@@ -422,7 +421,7 @@ class InternalOakMap<K, V> {
 
 
         int ei;
-        long oldReference = DELETED_VALUE;
+        long oldReference = INVALID_VALUE;
 
         // Is there already an entry associated with this key?
         if (lookUp != null) {
@@ -434,7 +433,7 @@ class InternalOakMap<K, V> {
             oldReference = lookUp.valueReference;
         } else {
             ei = c.allocateEntryAndKey(key);
-            if (ei == -1) {
+            if (ei == INVALID_ENTRY_INDEX) {
                 rebalance(c);
                 return putIfAbsent(key, value, transformer);
             }
@@ -442,12 +441,13 @@ class InternalOakMap<K, V> {
             if (prevEi != ei) {
                 // some other thread linked its entry with the same key.
                 oldReference = c.getValueReference(prevEi);
-                if (oldReference != DELETED_VALUE) {
+                Slice oldSlice = c.buildValueSlice(oldReference);
+                if (oldSlice != null) {
                     if (transformer == null) {
                         return Result.withFlag(false);
                     }
-                    AbstractMap.SimpleEntry<ValueUtils.ValueResult, V> res =
-                            ValueUtils.transform(c.buildValueSlice(oldReference), transformer);
+                    AbstractMap.SimpleEntry<ValueUtils.ValueResult, V> res = ValueUtils.transform(oldSlice,
+                            transformer);
                     if (res.getKey() == SUCCESS) {
                         return Result.withValue(res.getValue());
                     }
@@ -493,7 +493,7 @@ class InternalOakMap<K, V> {
                 // compute was successful and the value wasn't found deleted; in case
                 // this value was already found as deleted, continue to allocate a new value slice
                 return false;
-            } else if (res == RETRY) {
+            } else if (res == MOVED) {
                 return putIfAbsentComputeIfPresent(key, value, computer);
             }
         }
@@ -515,17 +515,15 @@ class InternalOakMap<K, V> {
         // 1. no entry in the linked list at all
         // 2. entry in the linked list, but the value reference is DELETED_VALUE
         // 3. entry in the linked list, the value referenced is marked as deleted
-        int ei = -1;
-        long oldReference = DELETED_VALUE;
+        int ei;
+        long oldReference = INVALID_VALUE;
         if (lookUp != null) {
             ei = lookUp.entryIndex;
             assert ei > 0;
             oldReference = lookUp.valueReference;
-        }
-
-        if (ei == -1) {
+        } else {
             ei = c.allocateEntryAndKey(key);
-            if (ei == -1) {
+            if (ei == INVALID_ENTRY_INDEX) {
                 rebalance(c);
                 return putIfAbsentComputeIfPresent(key, value, computer);
             }
@@ -538,7 +536,7 @@ class InternalOakMap<K, V> {
                         // compute was successful and the value wasn't found deleted; in case
                         // this value was already found as deleted, continue to allocate a new value slice
                         return false;
-                    } else if (res == RETRY) {
+                    } else if (res == MOVED) {
                         return putIfAbsentComputeIfPresent(key, value, computer);
                     }
                 } else {
@@ -597,7 +595,7 @@ class InternalOakMap<K, V> {
                     // we didn't succeed to remove the value: it didn't contain oldValue, or was already marked
                     // as deleted by someone else)
                     return null;
-                } else if (removeResult.getKey() == RETRY) {
+                } else if (removeResult.getKey() == MOVED) {
                     return remove(key, oldValue, transformer);
                 }
                 // we have marked this value as deleted (successful remove)
@@ -623,8 +621,8 @@ class InternalOakMap<K, V> {
 
 
             assert lookUp.entryIndex > 0;
-            assert lookUp.valueReference != DELETED_VALUE;
-            Chunk.OpData opData = new Chunk.OpData(Operation.REMOVE, lookUp.entryIndex, DELETED_VALUE,
+            assert lookUp.valueReference != INVALID_VALUE;
+            Chunk.OpData opData = new Chunk.OpData(Operation.REMOVE, lookUp.entryIndex, INVALID_VALUE,
                     lookUp.valueReference, null);
 
             // publish
@@ -664,7 +662,7 @@ class InternalOakMap<K, V> {
         }
 
         AbstractMap.SimpleEntry<ValueUtils.ValueResult, T> res = ValueUtils.transform(lookUp.valueSlice, transformer);
-        if (res.getKey() == RETRY) {
+        if (res.getKey() == MOVED) {
             return getValueTransformation(key, transformer);
         }
         return res.getValue();
@@ -690,7 +688,7 @@ class InternalOakMap<K, V> {
 
         Chunk<K, V> c = findChunk(key);
         Chunk.LookUp lookUp = c.lookUp(key);
-        if (lookUp == null || lookUp.valueSlice == null || lookUp.entryIndex == -1) {
+        if (lookUp == null || lookUp.valueSlice == null || lookUp.entryIndex == INVALID_ENTRY_INDEX) {
             return null;
         }
         return c.readKey(lookUp.entryIndex);
@@ -755,7 +753,7 @@ class InternalOakMap<K, V> {
         }
 
         ValueUtils.ValueResult res = ValueUtils.compute(lookUp.valueSlice, computer);
-        if (res == RETRY) {
+        if (res == MOVED) {
             return computeIfPresent(key, computer);
         }
         return res == SUCCESS;
@@ -779,7 +777,7 @@ class InternalOakMap<K, V> {
             // will return null if the value is deleted
             Map.Entry<ValueUtils.ValueResult, V> entry = ValueUtils.exchange(c, lookUp, value,
                     valueDeserializeTransformer, valueSerializer, memoryManager);
-            if (entry.getKey() != RETRY) {
+            if (entry.getKey() != MOVED) {
                 return entry.getValue();
             }
         }
@@ -796,7 +794,7 @@ class InternalOakMap<K, V> {
             ValueUtils.ValueResult result = ValueUtils.compareExchange(c, lookUp, oldValue, newValue,
                     valueDeserializeTransformer, valueSerializer,
                     memoryManager);
-            if (result != RETRY) {
+            if (result != MOVED) {
                 return result == SUCCESS;
             }
         }
@@ -1177,7 +1175,7 @@ class InternalOakMap<K, V> {
                 return next();
             }
             // if the value was moved, fetch it from the
-            else if (res.getKey() == RETRY) {
+            else if (res.getKey() == MOVED) {
                 T result = getValueTransformation(nextItem.getKey(), transformer);
                 if (result == null) {
                     // the value was deleted, try the next one
@@ -1245,13 +1243,13 @@ class InternalOakMap<K, V> {
             // the value is deleted, try the next one
             if (res == FAILURE) {
                 return next();
-            } else if (res == RETRY) {
+            } else if (res == MOVED) {
                 do {
                     serializedValue = getValueTransformation(serializedKey, byteBuffer -> byteBuffer);
                     if (serializedValue == null) {
                         return next();
                     }
-                } while (ValueUtils.lockRead(serializedValue) == RETRY);
+                } while (ValueUtils.lockRead(serializedValue) == MOVED);
             } else {
                 serializedValue = ValueUtils.getValueByteBufferNoHeader(valueSlice.getByteBuffer()).asReadOnlyBuffer();
             }

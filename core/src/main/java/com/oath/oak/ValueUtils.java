@@ -3,7 +3,6 @@ package com.oath.oak;
 import sun.misc.Unsafe;
 import sun.nio.ch.DirectBuffer;
 
-import java.lang.reflect.Constructor;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.AbstractMap;
@@ -31,7 +30,7 @@ public class ValueUtils {
     }
 
     enum ValueResult {
-        SUCCESS, FAILURE, RETRY
+        SUCCESS, FAILURE, MOVED
     }
 
     private static final int LOCK_MASK = 0x3;
@@ -93,7 +92,7 @@ public class ValueUtils {
     }
 
     private static boolean wasValueMoved(int header) {
-        return header == MOVED.value;
+        return header == LockStates.MOVED.value;
     }
 
     /**
@@ -120,7 +119,7 @@ public class ValueUtils {
                 return FAILURE;
             }
             if (wasValueMoved(oldHeader)) {
-                return RETRY;
+                return ValueResult.MOVED;
             }
             oldHeader &= ~LOCK_MASK;
         } while (!CAS(bb, oldHeader, oldHeader + 4));
@@ -156,7 +155,7 @@ public class ValueUtils {
                 return FAILURE;
             }
             if (wasValueMoved(oldHeader)) {
-                return RETRY;
+                return ValueResult.MOVED;
             }
         } while (!CAS(bb, FREE.value, LOCKED.value));
         return SUCCESS;
@@ -252,9 +251,9 @@ public class ValueUtils {
         int capacity = serializer.calculateSize(newVal);
         if (bb.remaining() < capacity + ValueUtils.VALUE_HEADER_SIZE) { // can not reuse the existing space
             if (!chunk.publish()) {
-                return RETRY;
+                return ValueResult.MOVED;
             }
-            bb.putInt(bb.position(), MOVED.value);
+            bb.putInt(bb.position(), LockStates.MOVED.value);
             ByteBuffer dup = bb.duplicate();
             dup.position(dup.position() + ValueUtils.VALUE_HEADER_SIZE);
             Slice s = lookUp.valueSlice;

@@ -13,6 +13,7 @@ import org.junit.Test;
 import java.util.ArrayList;
 import java.util.ConcurrentModificationException;
 import java.util.Map;
+import java.util.NoSuchElementException;
 import java.util.concurrent.CountDownLatch;
 
 import static junit.framework.TestCase.assertNotNull;
@@ -59,7 +60,8 @@ public class OffHeapOakTest {
         for (int i = 0; i < NUM_THREADS; i++) {
             threads.get(i).join();
         }
-        assertTrue(threadException == null || threadException instanceof ConcurrentModificationException);
+        assertTrue(threadException == null || threadException instanceof ConcurrentModificationException
+                || threadException instanceof NoSuchElementException);
 
         for (Integer i = 0; i < 6 * maxItemsPerChunk; i++) {
             Integer value = oak.get(i);
