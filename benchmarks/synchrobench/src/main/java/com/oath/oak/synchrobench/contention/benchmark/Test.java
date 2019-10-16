@@ -108,6 +108,7 @@ public class Test {
                     if (oakBench.putIfAbsentOak(key, val)) {
                         i--;
                     }
+                    // counts all the putIfAbsent operations, not only the successful ones
                     operations++;
                     break;
                 default:

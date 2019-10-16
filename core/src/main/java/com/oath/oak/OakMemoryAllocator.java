@@ -18,10 +18,14 @@ public interface OakMemoryAllocator {
     // Allocates ByteBuffer of the given size, thread safe.
     ByteBuffer allocate(int size);
 
+    Slice allocateSlice(int size);
+
     // Releases ByteBuffer (makes it available for reuse) without other GC consideration.
     // IMPORTANT: it is assumed free will get ByteBuffers only initially allocated from this
     // Allocator!
     void free(ByteBuffer bb);
+
+    void freeSlice(Slice slice);
 
     // Is invoked when entire OakMap is closed
     void close();

@@ -207,16 +207,16 @@ public class ValueUtils {
      * In case of {@code SUCCESS}, the value of the returned entry is the read value, otherwise, the value is {@code
      * null}.
      */
-    static <T> AbstractMap.SimpleEntry<ValueResult, T> transform(Slice s, Function<ByteBuffer, T> transformer) {
+    static <T> Result<T> transform(Slice s, Function<ByteBuffer, T> transformer) {
         ByteBuffer bb = s.getByteBuffer();
         ValueResult res = lockRead(bb);
         if (res != SUCCESS) {
-            return new AbstractMap.SimpleEntry<>(res, null);
+            return Result.withFlag(res);
         }
 
         T transformation = transformer.apply(getValueByteBufferNoHeader(bb).asReadOnlyBuffer());
         unlockRead(bb);
-        return new AbstractMap.SimpleEntry<>(SUCCESS, transformation);
+        return Result.withValue(transformation);
     }
 
     /**
@@ -309,12 +309,12 @@ public class ValueUtils {
      * In case of success, the value of the returned entry is the value which resides in the off-heap before the
      * removal (if {@code transformer} is not null), otherwise, it is {@code null}.
      */
-    static <V> Map.Entry<ValueResult, V> remove(Slice s, MemoryManager memoryManager, V oldValue, Function<ByteBuffer
+    static <V> Result<V> remove(Slice s, MemoryManager memoryManager, V oldValue, Function<ByteBuffer
             , V> transformer) {
         ByteBuffer bb = s.getByteBuffer();
         ValueResult res = lockWrite(bb);
         if (res != SUCCESS) {
-            return new AbstractMap.SimpleImmutableEntry<>(res, null);
+            return Result.withFlag(res);
         }
         // Reading the previous value
         ByteBuffer dup = bb.duplicate();
@@ -324,14 +324,14 @@ public class ValueUtils {
             v = transformer.apply(dup.slice().asReadOnlyBuffer());
             if (oldValue != null && !oldValue.equals(v)) {
                 unlockWrite(s);
-                return new AbstractMap.SimpleImmutableEntry<>(FAILURE, null);
+                return Result.withFlag(FAILURE);
             }
         }
         // The previous value matches, so the slice is deleted
         bb.putInt(bb.position(), DELETED.value);
         Slice sDup = new Slice(s.getBlockID(), dup);
         memoryManager.releaseSlice(sDup);
-        return new AbstractMap.SimpleImmutableEntry<>(SUCCESS, v);
+        return Result.withValue(v);
     }
 
     /**
@@ -339,27 +339,30 @@ public class ValueUtils {
      * was written before the exchange.
      * @see #put(Chunk, Chunk.LookUp, Object, OakSerializer, MemoryManager)
      */
-    static <V> AbstractMap.SimpleEntry<ValueResult, V> exchange(Chunk<?, V> chunk, Chunk.LookUp lookUp, V newValue,
+    static <V> Result<V> exchange(Chunk<?, V> chunk, Chunk.LookUp lookUp, V newValue,
                                                                 Function<ByteBuffer, V> valueDeserializeTransformer,
                                                                 OakSerializer<V> serializer,
                                                                 MemoryManager memoryManager) {
         ValueResult result = lockWrite(lookUp.valueSlice.getByteBuffer());
         if (result != SUCCESS) {
-            return new AbstractMap.SimpleEntry<>(result, null);
+            return Result.withFlag(result);
         }
         V v = valueDeserializeTransformer != null ?
                 valueDeserializeTransformer.apply(getValueByteBufferNoHeader(lookUp.valueSlice.getByteBuffer())) : null;
         result = innerPut(chunk, lookUp, newValue, serializer, memoryManager);
         unlockWrite(lookUp.valueSlice.getByteBuffer());
-        return new AbstractMap.SimpleEntry<>(result, v);
+        if(result != SUCCESS){
+            return Result.withFlag(result);
+        }
+        return Result.withValue(v);
     }
 
     /**
-     * @see #put(Chunk, Chunk.LookUp, Object, OakSerializer, MemoryManager)
      * @param oldValue the old value to which we compare the current value
      * @return {@code SUCCESS} if the exchange went successfully,
      * {@code FAILURE} if the value is deleted or if the value does not equal to {@code oldValue}
      * {@code RETRY} for the same reasons as put
+     * @see #put(Chunk, Chunk.LookUp, Object, OakSerializer, MemoryManager)
      */
     static <V> ValueResult compareExchange(Chunk<?, V> chunk, Chunk.LookUp lookUp, V oldValue, V newValue,
                                            Function<ByteBuffer, V> valueDeserializeTransformer,

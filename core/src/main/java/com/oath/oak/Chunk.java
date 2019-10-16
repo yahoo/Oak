@@ -74,7 +74,7 @@ public class Chunk<K, V> {
 
     static final int NONE = 0;    // an entry with NONE as its next pointer, points to a null entry
     static final int INVALID_ENTRY_INDEX = -1;
-    static final long INVALID_VALUE = 0;
+    static final long INVALID_VALUE_REFERENCE = 0;
     static final int BLOCK_ID_LENGTH_ARRAY_INDEX = 0;
     static final int POSITION_ARRAY_INDEX = 1;
     // location of the first (head) node - just a next pointer
@@ -254,7 +254,7 @@ public class Chunk<K, V> {
             return false;
         }
         long valueReference = getValueReference(entryIndex);
-        if (valueReference == INVALID_VALUE) {
+        if (valueReference == INVALID_VALUE_REFERENCE) {
             return false;
         }
         int[] valueArray = longToInts(valueReference);
@@ -373,7 +373,7 @@ public class Chunk<K, V> {
     }
 
     Slice buildValueSlice(long valueReference) {
-        if (valueReference == INVALID_VALUE) {
+        if (valueReference == INVALID_VALUE_REFERENCE) {
             return null;
         }
         int[] valueArray = UnsafeUtils.longToInts(valueReference);
@@ -431,7 +431,7 @@ public class Chunk<K, V> {
                 Slice valueSlice = buildValueSlice(valueReference);
                 if (valueSlice == null) {
                     // There is no value associated with the given key
-                    assert valueReference == INVALID_VALUE;
+                    assert valueReference == INVALID_VALUE_REFERENCE;
                     return new LookUp(null, valueReference, curr);
                 }
                 if (ValueUtils.isValueDeleted(valueSlice)) {
@@ -541,7 +541,7 @@ public class Chunk<K, V> {
 
         // key and value must be set before linking to the list so it will make sense when reached before put is done
         // setting the value reference to DELETED_VALUE atomically
-        setEntryFieldLong(ei, OFFSET.VALUE_REFERENCE, INVALID_VALUE);
+        setEntryFieldLong(ei, OFFSET.VALUE_REFERENCE, INVALID_VALUE_REFERENCE);
         writeKey(key, ei);
         return ei;
     }
@@ -610,17 +610,20 @@ public class Chunk<K, V> {
 
     /**
      * write value off-heap. The lock is initialized in this function as well.
+     *
      * @param value the value to write off-heap
      * @return a value reference for the newly allocated slice
      **/
     long writeValue(V value) {
         // the length of the given value plus its header
         int valueLength = valueSerializer.calculateSize(value) + ValueUtils.VALUE_HEADER_SIZE;
+        // The allocated slice is actually the thread's copy moved to point to the newly allocated slice
         Slice slice = memoryManager.allocateSlice(valueLength);
         // initializing the header lock to be free
         slice.initHeader();
         // since this is a private environment, we can only use ByteBuffer::slice, instead of ByteBuffer::duplicate
         // and then ByteBuffer::slice
+        // This is the only place where we create a new object (for the serializer).
         valueSerializer.serialize(value, ValueUtils.getValueByteBufferNoHeaderPrivate(slice.getByteBuffer()));
         // combines the blockID with the value's length (including the header)
         int valueBlockAndLength = (slice.getBlockID() << VALUE_BLOCK_SHIFT) | (valueLength & VALUE_LENGTH_MASK);
@@ -660,9 +663,9 @@ public class Chunk<K, V> {
 
         if (opData.newValueReference == foundValueReference) {
             return true; // someone helped
-        } else if (foundValueReference == INVALID_VALUE) {
+        } else if (foundValueReference == INVALID_VALUE_REFERENCE) {
             // the value reference was deleted, retry the attach
-            opData.oldValueReference = INVALID_VALUE;
+            opData.oldValueReference = INVALID_VALUE_REFERENCE;
             return pointToValue(opData); // remove completed, try again
         } else if (operation == Operation.PUT_IF_ABSENT) {
             return false; // too late
@@ -690,11 +693,11 @@ public class Chunk<K, V> {
         if (casEntriesArrayLong(opData.entryIndex, OFFSET.VALUE_REFERENCE, opData.oldValueReference,
                 opData.newValueReference)) {
             // update statistics only by thread that CASed
-            if (opData.oldValueReference == INVALID_VALUE && opData.newValueReference != INVALID_VALUE) { //
+            if (opData.oldValueReference == INVALID_VALUE_REFERENCE && opData.newValueReference != INVALID_VALUE_REFERENCE) {
                 // previously a remove
                 statistics.incrementAddedCount();
                 externalSize.incrementAndGet();
-            } else if (opData.oldValueReference != INVALID_VALUE && opData.newValueReference == INVALID_VALUE) { //
+            } else if (opData.oldValueReference != INVALID_VALUE_REFERENCE && opData.newValueReference == INVALID_VALUE_REFERENCE) {
                 // removing
                 statistics.decrementAddedCount();
                 externalSize.decrementAndGet();
@@ -813,7 +816,7 @@ public class Chunk<K, V> {
 
         while (true) {
             long currSrcValueReference = srcChunk.getValueReference(srcEntryIdx);
-            boolean isValueDeleted = (currSrcValueReference == INVALID_VALUE) ||
+            boolean isValueDeleted = (currSrcValueReference == INVALID_VALUE_REFERENCE) ||
                     ValueUtils.isValueDeleted(buildValueSlice(currSrcValueReference));
             int entriesToCopy = entryIndexEnd - entryIndexStart + 1;
 
@@ -965,11 +968,11 @@ public class Chunk<K, V> {
 
         AscendingIter() {
             next = getEntryFieldInt(HEAD_NODE, OFFSET.NEXT);
-            long valueReference = INVALID_VALUE;
+            long valueReference = INVALID_VALUE_REFERENCE;
             if (next != Chunk.NONE) {
                 valueReference = getEntryFieldLong(next, OFFSET.VALUE_REFERENCE);
             }
-            while (next != Chunk.NONE && valueReference == INVALID_VALUE) {
+            while (next != Chunk.NONE && valueReference == INVALID_VALUE_REFERENCE) {
                 next = getEntryFieldInt(next, OFFSET.NEXT);
                 if (next != Chunk.NONE) {
                     valueReference = getEntryFieldLong(next, OFFSET.VALUE_REFERENCE);
@@ -980,14 +983,14 @@ public class Chunk<K, V> {
         AscendingIter(K from, boolean inclusive) {
             next = getEntryFieldInt(binaryFind(from), OFFSET.NEXT);
 
-            long valueReference = INVALID_VALUE;
+            long valueReference = INVALID_VALUE_REFERENCE;
             int compare = -1;
             if (next != Chunk.NONE) {
                 compare = comparator.compareKeyAndSerializedKey(from, readKey(next));
                 valueReference = getEntryFieldLong(next, OFFSET.VALUE_REFERENCE);
             }
 
-            while (next != Chunk.NONE && (compare > 0 || (compare >= 0 && !inclusive) || valueReference == INVALID_VALUE)) {
+            while (next != Chunk.NONE && (compare > 0 || (compare >= 0 && !inclusive) || valueReference == INVALID_VALUE_REFERENCE)) {
                 next = getEntryFieldInt(next, OFFSET.NEXT);
                 if (next != Chunk.NONE) {
                     valueReference = getEntryFieldLong(next, OFFSET.VALUE_REFERENCE);
@@ -998,11 +1001,11 @@ public class Chunk<K, V> {
 
         private void advance() {
             next = getEntryFieldInt(next, OFFSET.NEXT);
-            long valueReference = INVALID_VALUE;
+            long valueReference = INVALID_VALUE_REFERENCE;
             if (next != Chunk.NONE) {
                 valueReference = getEntryFieldLong(next, OFFSET.VALUE_REFERENCE);
             }
-            while (next != Chunk.NONE && valueReference == INVALID_VALUE) {
+            while (next != Chunk.NONE && valueReference == INVALID_VALUE_REFERENCE) {
                 next = getEntryFieldInt(next, OFFSET.NEXT);
                 if (next != Chunk.NONE) {
                     valueReference = getEntryFieldLong(next, OFFSET.VALUE_REFERENCE);
@@ -1064,11 +1067,11 @@ public class Chunk<K, V> {
                 return;
             }
             next = stack.pop();
-            long valueReference = INVALID_VALUE;
+            long valueReference = INVALID_VALUE_REFERENCE;
             if (next != Chunk.NONE) {
                 valueReference = getEntryFieldLong(next, OFFSET.VALUE_REFERENCE);
             }
-            while (next != Chunk.NONE && valueReference == INVALID_VALUE) {
+            while (next != Chunk.NONE && valueReference == INVALID_VALUE_REFERENCE) {
                 if (!stack.empty()) {
                     next = stack.pop();
                     if (next != Chunk.NONE) {

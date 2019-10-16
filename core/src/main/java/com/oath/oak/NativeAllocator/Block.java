@@ -55,8 +55,9 @@ class Block {
             allocated.getAndAdd(-size);
             throw new OakOutOfMemoryException();
         }
-        // the duplicate is needed for thread safeness, otherwise (in single threaded environment)
-        // the setting of position and limit could happen on the main buffer itself
+        // The position and limit of this thread's buffer are changed.
+        // This means that a thread cannot allocate two slices from the same block at the same time without
+        // duplicating one of them.
         ByteBuffer bb = getMyBuffer();
         bb.limit(now + size);
         bb.position(now);
@@ -109,7 +110,7 @@ class Block {
         return byteBufferPerThread[idx];
     }
 
-    ByteBuffer getReadOnlyBufferForThread(int position, int length) {
+    ByteBuffer getBufferForThread(int position, int length) {
         ByteBuffer bb = getMyBuffer();
         bb.limit(position + length);
         bb.position(position);
@@ -123,7 +124,4 @@ class Block {
         return capacity;
     }
 
-    public int getID() {
-        return id;
-    }
 }

@@ -54,6 +54,7 @@ class BlocksPool implements BlocksProvider, Closeable {
         return instance;
     }
 
+    // used only in OakNativeMemoryAllocatorTest.java
     static void setBlockSize(int blockSize) {
         synchronized (BlocksPool.class) { // can be easily changed to lock-free
             instance = new BlocksPool(blockSize);
@@ -122,6 +123,8 @@ class BlocksPool implements BlocksProvider, Closeable {
     private void prealloc(int numOfBlocks) {
         // pre-allocation loop
         for (int i = 0; i < numOfBlocks; i++) {
+            // The blocks are allocated without ids.
+            // They are given an id when they are given to an OakNativeMemoryAllocator.
             this.blocks.add(new Block(blockSize));
         }
     }

@@ -16,7 +16,6 @@ import com.oath.oak.OakOutOfMemoryException;
 import com.oath.oak.OakSerializer;
 import com.oath.oak.ValueUtils;
 import org.junit.Before;
-import org.junit.Ignore;
 import org.junit.Test;
 
 import static junit.framework.TestCase.assertNull;
