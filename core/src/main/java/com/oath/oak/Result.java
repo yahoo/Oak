@@ -10,19 +10,17 @@ class Result<V> {
     final ValueUtils.ValueResult operationResult;
     // In case of success, the hasValue flag is set, and the value is written in value.
     final V value;              // stored value
-    final boolean hasValue;         // stored flag
 
     static <V> Result<V> withValue(V value) {
-        return new Result<>(SUCCESS, true, value);
+        return new Result<>(SUCCESS, value);
     }
 
     static <V> Result<V> withFlag(ValueUtils.ValueResult flag) {
-        return new Result<>(flag, false, null);
+        return new Result<>(flag, null);
     }
 
-    private Result(ValueUtils.ValueResult operationResult, boolean hasValue, V value) {
+    private Result(ValueUtils.ValueResult operationResult, V value) {
         this.operationResult = operationResult;
         this.value = value;
-        this.hasValue = hasValue;
     }
 }

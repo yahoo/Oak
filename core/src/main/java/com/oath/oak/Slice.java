@@ -21,19 +21,23 @@ public class Slice {
         this.buffer = buffer;
     }
 
-    public Slice(int blockID, int position, int length, MemoryManager memoryManager) {
-        this(blockID, memoryManager.getByteBufferFromBlockID(blockID, position, length).duplicate());
+    Slice(int blockID, int position, int length, MemoryManager memoryManager) {
+        this(blockID, memoryManager.getByteBufferFromBlockID(blockID, position, length));
+    }
+
+    Slice duplicate() {
+        return new Slice(blockID, buffer.duplicate());
     }
 
     public ByteBuffer getByteBuffer() {
         return buffer;
     }
 
-    public int getBlockID() {
+    int getBlockID() {
         return blockID;
     }
 
-    void initHeader(){
+    void initHeader() {
         buffer.putInt(buffer.position(), FREE.value);
     }
 }

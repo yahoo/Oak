@@ -5,9 +5,9 @@ import org.junit.Before;
 import org.junit.Ignore;
 import org.junit.Test;
 
-import java.util.ConcurrentModificationException;
 import java.util.Iterator;
 import java.util.Map;
+import java.util.NoSuchElementException;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -214,7 +214,7 @@ public class IteratorModificationTest {
             }
             try {
                 iterator.next();
-            } catch (ConcurrentModificationException e) {
+            } catch (NoSuchElementException e) {
                 passed.set(true);
             }
         });
@@ -260,7 +260,7 @@ public class IteratorModificationTest {
                 if (iterator.next() == null) {
                     passed.set(true);
                 }
-            } catch (ConcurrentModificationException e) {
+            } catch (NoSuchElementException e) {
                 passed.set(true);
             }
         });

@@ -6,8 +6,6 @@
 
 package com.oath.oak;
 
-import java.nio.ByteBuffer;
-
 // this is the interface to be implemented to replace the OakNativeMemoryAllocator
 // this is about allocation of a new ByteBuffer (which need to be DirectByteBuffer
 // in order to continue supporting off-heap)
@@ -16,15 +14,11 @@ import java.nio.ByteBuffer;
 public interface OakMemoryAllocator {
 
     // Allocates ByteBuffer of the given size, thread safe.
-    ByteBuffer allocate(int size);
-
     Slice allocateSlice(int size);
 
     // Releases ByteBuffer (makes it available for reuse) without other GC consideration.
     // IMPORTANT: it is assumed free will get ByteBuffers only initially allocated from this
     // Allocator!
-    void free(ByteBuffer bb);
-
     void freeSlice(Slice slice);
 
     // Is invoked when entire OakMap is closed

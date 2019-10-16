@@ -17,7 +17,7 @@ import static org.junit.Assert.assertNull;
 public class ConcurrentPutRemoveTest {
     private static final long DURATION = 1000;
     private OakMap<Integer, Integer> oak;
-    private static final int NUM_THREADS = 1;
+    private static final int NUM_THREADS = 16;
     private static final int K = 1024;
     private static final int NUM_OF_ENTRIES = 10 * K;
     private ArrayList<Thread> threads;
@@ -69,7 +69,6 @@ public class ConcurrentPutRemoveTest {
         }
     }
 
-    @Ignore
     @Test
     public void testMain() throws InterruptedException {
         for (int i = 0; i < NUM_THREADS; i++) {

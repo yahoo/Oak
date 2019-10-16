@@ -393,7 +393,7 @@ public class Chunk<K, V> {
     }
 
     void releaseValue(long newValueReference) {
-        memoryManager.releaseSlice(buildValueSlice(newValueReference));
+        memoryManager.releaseSlice(buildValueSlice(newValueReference).duplicate());
     }
 
     /**

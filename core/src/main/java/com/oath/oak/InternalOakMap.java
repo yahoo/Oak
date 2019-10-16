@@ -962,7 +962,8 @@ class InternalOakMap<K, V> {
             initState(isDescending, lo, loInclusive, hi, hiInclusive);
 
             if (state == null) {
-                throw new ConcurrentModificationException();
+                // There are no more elements in Oak after nextKey, so throw NoSuchElementException
+                throw new NoSuchElementException();
             }
         }
 
@@ -994,6 +995,7 @@ class InternalOakMap<K, V> {
                     advanceState();
                     return advance(needsKey, true);
                 }
+                currentValue = currentValue.duplicate();
             }
             advanceState();
             return new AbstractMap.SimpleImmutableEntry<>(bb, currentValue);

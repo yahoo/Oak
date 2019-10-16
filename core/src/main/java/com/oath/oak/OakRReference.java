@@ -14,16 +14,18 @@ import java.util.ConcurrentModificationException;
 import java.util.function.Function;
 
 /*
- * The OakRKeyReference allows reuse of the same OakRBuffer implementation object and is used for
+ * The OakRReference allows reuse of the same OakRBuffer implementation object and is used for
  * Oak's StreamIterators, where the iterated OakRBuffers can be used only once.
  * This class is actually a reference into internal BB object rather than new BB object.
- * It references the internal BB object as far as OakRKeyReference wasn't moved to point on other BB.
+ * It references the internal BB object as far as OakRReference wasn't moved to point on other BB.
  *
- * The OakRKeyReference is intended to be used in threads that are for iterations only
- * and are not involved in concurrent/parallel reading/updating the mappings
+ * The OakRReference is intended to be used in threads that are for iterations only and are not involved in
+ * concurrent/parallel reading/updating the mappings
+ *
+ * Unlike other ephemeral objects, even if OakRReference references a value it does not have to acquire a read lock
+ * before each access since it can only be used without other concurrent writes in the background.
  * */
 
-// TODO: No method acquires a read lock
 public class OakRReference implements OakRBuffer {
 
     private int blockID = OakNativeMemoryAllocator.INVALID_BLOCK_ID;
@@ -32,9 +34,8 @@ public class OakRReference implements OakRBuffer {
     private final MemoryManager memoryManager;
     private final int headerSize;
 
-    // The OakRKeyReferBufferImpl user accesses OakRKeyReferBufferImpl
-    // as it would be a ByteBuffer with initially zero position.
-    // We translate it to the relevant ByteBuffer position, by adding keyPosition to any given index
+    // The OakRReference user accesses OakRReference as it would be a ByteBuffer with initially zero position.
+    // We translate it to the relevant ByteBuffer position, by adding keyPosition and the header size to any given index
 
     OakRReference(MemoryManager memoryManager, int headerSize) {
         this.memoryManager = memoryManager;

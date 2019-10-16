@@ -38,12 +38,9 @@ public class ValueUtils {
 
     private static Unsafe unsafe = UnsafeUtils.unsafe;
 
-    //One duplication
-    //Instead of duplicating the buffer and then slicing it, since it is a private environment, no need to duplicate
-
     /**
      * This method only works when the byte buffer is thread local, i.e., not reachable by other threads.
-     * Using this assumption, we save one object creation.
+     * Using this assumption, we save one object allocation.
      *
      * @param bb the Byte Buffer of the value
      * @return the byte buffer of the value without its header.
@@ -61,6 +58,7 @@ public class ValueUtils {
      * Similar to #getValueByteBufferNoHeaderPrivate(ByteBuffer bb), without the assumption of a thread local
      * environment.
      * Creates two new objects instead of one.
+     * It is used when calling user's function in a concurrent setting.
      *
      * @param bb the Byte Buffer of the value
      * @return the byte buffer of the value without its header.
@@ -219,32 +217,6 @@ public class ValueUtils {
         return Result.withValue(transformation);
     }
 
-    /**
-     * Replaces the value written in the Slice referenced by {@code lookup} with {@code newVal}.
-     * {@code chuck} is used iff {@code newValue} takes more space than the old value.
-     * If the value moves, the old slice is marked as moved and freed.
-     *
-     * @param chunk         the chunk with the entry to which the value is linked to
-     * @param lookUp        has the Slice of the value and the entry index
-     * @param newVal        the new value to write
-     * @param serializer    value serializer
-     * @param memoryManager the memory manager to free a slice with is not needed after the value moved
-     * @param <V>           the type of the value
-     * @return {@code SUCCESS} if the value was written off-heap successfully,
-     * {@code FAILURE} if the value is deleted (cannot be overwritten),
-     * {@code RETRY} if the value was moved, or if the chuck is frozen/released (prevents the moving of the value).
-     */
-    public static <V> ValueResult put(Chunk<?, V> chunk, Chunk.LookUp lookUp, V newVal, OakSerializer<V> serializer,
-                                      MemoryManager memoryManager) {
-        ValueResult res = lockWrite(lookUp.valueSlice.getByteBuffer());
-        if (res != SUCCESS) {
-            return res;
-        }
-        res = innerPut(chunk, lookUp, newVal, serializer, memoryManager);
-        unlockWrite(lookUp.valueSlice.getByteBuffer());
-        return res;
-    }
-
     private static <V> ValueResult innerPut(Chunk<?, V> chunk, Chunk.LookUp lookUp, V newVal,
                                             OakSerializer<V> serializer, MemoryManager memoryManager) {
         ByteBuffer bb = lookUp.valueSlice.getByteBuffer();
@@ -270,8 +242,6 @@ public class ValueUtils {
             chunk.unpublish();
         }
         ByteBuffer dup = getValueByteBufferNoHeader(bb);
-        // It seems like I have to change bb here or else I expose the header to the user
-        // Duplicating bb instead
         serializer.serialize(newVal, dup);
         return SUCCESS;
     }
@@ -335,14 +305,26 @@ public class ValueUtils {
     }
 
     /**
-     * @return Along side the return value of put, in case exchange went successfully, it also returns the value that
+     * Replaces the value written in the Slice referenced by {@code lookup} with {@code newValue}.
+     * {@code chuck} is used iff {@code newValue} takes more space than the old value does.
+     * If the value moves, the old slice is marked as moved and freed.
+     *
+     * @param chunk                       the chunk with the entry to which the value is linked to
+     * @param lookUp                      has the Slice of the value and the entry index
+     * @param newValue                    the new value to write
+     * @param valueDeserializeTransformer used to read the previous value
+     * @param serializer                  value serializer to write {@code newValue}
+     * @param memoryManager               the memory manager to free a slice with is not needed after the value moved
+     * @param <V>                         the type of the value
+     * @return {@code SUCCESS} if the value was written off-heap successfully,
+     * {@code FAILURE} if the value is deleted (cannot be overwritten),
+     * {@code RETRY} if the value was moved, or if the chuck is frozen/released (prevents the moving of the value).
+     * Along side the flag of the result, in case the exchange succeeded, it also returns the value that
      * was written before the exchange.
-     * @see #put(Chunk, Chunk.LookUp, Object, OakSerializer, MemoryManager)
      */
     static <V> Result<V> exchange(Chunk<?, V> chunk, Chunk.LookUp lookUp, V newValue,
-                                                                Function<ByteBuffer, V> valueDeserializeTransformer,
-                                                                OakSerializer<V> serializer,
-                                                                MemoryManager memoryManager) {
+                                  Function<ByteBuffer, V> valueDeserializeTransformer,
+                                  OakSerializer<V> serializer, MemoryManager memoryManager) {
         ValueResult result = lockWrite(lookUp.valueSlice.getByteBuffer());
         if (result != SUCCESS) {
             return Result.withFlag(result);
@@ -351,7 +333,7 @@ public class ValueUtils {
                 valueDeserializeTransformer.apply(getValueByteBufferNoHeader(lookUp.valueSlice.getByteBuffer())) : null;
         result = innerPut(chunk, lookUp, newValue, serializer, memoryManager);
         unlockWrite(lookUp.valueSlice.getByteBuffer());
-        if(result != SUCCESS){
+        if (result != SUCCESS) {
             return Result.withFlag(result);
         }
         return Result.withValue(v);
@@ -362,7 +344,7 @@ public class ValueUtils {
      * @return {@code SUCCESS} if the exchange went successfully,
      * {@code FAILURE} if the value is deleted or if the value does not equal to {@code oldValue}
      * {@code RETRY} for the same reasons as put
-     * @see #put(Chunk, Chunk.LookUp, Object, OakSerializer, MemoryManager)
+     * @see #exchange(Chunk, Chunk.LookUp, Object, Function, OakSerializer, MemoryManager)
      */
     static <V> ValueResult compareExchange(Chunk<?, V> chunk, Chunk.LookUp lookUp, V oldValue, V newValue,
                                            Function<ByteBuffer, V> valueDeserializeTransformer,

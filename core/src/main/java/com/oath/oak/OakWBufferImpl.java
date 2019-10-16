@@ -9,6 +9,8 @@ package com.oath.oak;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 
+// An instance of OakWBufferImpl is only used when the write lock of the value referenced by it is already acquired.
+// This is the reason no lock is acquired in each access.
 public class OakWBufferImpl implements OakWBuffer {
 
     private final ByteBuffer bb;

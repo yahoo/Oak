@@ -35,12 +35,12 @@ public class MemoryManager {
     // needs to be known. Currently allocateSlice() is used for keys and
     // allocate() is used for values.
     public Slice allocateSlice(int bytes) {
-        return ((OakNativeMemoryAllocator)keysMemoryAllocator).allocateSlice(bytes);
+        return keysMemoryAllocator.allocateSlice(bytes);
     }
 
     public void releaseSlice(Slice slice) {
         // keys aren't going to be released until GC part is taken care for
-        ((OakNativeMemoryAllocator)keysMemoryAllocator).freeSlice(slice);
+        keysMemoryAllocator.freeSlice(slice);
     }
 
     // When some read only buffer needs to be read from a random block
