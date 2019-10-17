@@ -70,7 +70,7 @@ class MyBufferOak {
             int keyPosition = key.buffer.position();
             int keyLength = key.buffer.capacity();
             int serializedKeyPosition = serializedKey.position();
-            int serializedKeyLength = serializedKey.getInt(keyPosition);
+            int serializedKeyLength = serializedKey.getInt(serializedKeyPosition);
             // The order of the arguments is crucial and should match the signature of this function
             // (compareKeyAndSerializedKey).
             // Thus key.buffer with its parameters should be passed, and only then serializedKey with its parameters.
