@@ -1,7 +1,7 @@
 package com.oath.oak.synchrobench.maps;
 
 import com.oath.oak.NativeAllocator.OakNativeMemoryAllocator;
-import com.oath.oak.OakMemoryAllocator;
+import com.oath.oak.OakBlockMemoryAllocator;
 import com.oath.oak.synchrobench.contention.abstractions.CompositionalOakMap;
 import com.oath.oak.synchrobench.contention.benchmark.Parameters;
 
@@ -15,7 +15,7 @@ import java.util.function.Consumer;
 
 public class YoniList2<K extends MyBuffer, V extends MyBuffer> implements CompositionalOakMap<K, V> {
     private ConcurrentSkipListMap<Object, Cell> skipListMap;
-    private OakMemoryAllocator allocator;
+    private OakNativeMemoryAllocator allocator;
 
 
     private Comparator<Object> comparator;
@@ -33,7 +33,7 @@ public class YoniList2<K extends MyBuffer, V extends MyBuffer> implements Compos
                 if (key2 instanceof MyBuffer) {
                     return MyBufferOak.keysComparator.compareKeys((MyBuffer) o1, (MyBuffer) key2);
                 } else {
-                    return -1 * MyBufferOak.keysComparator.compareSerializedKeyAndKey((ByteBuffer) key2, (MyBuffer) o1);
+                    return MyBufferOak.keysComparator.compareKeyAndSerializedKey((MyBuffer) o1, (ByteBuffer) key2);
                 }
 
             } else if (o2 instanceof MyBuffer) {
@@ -42,7 +42,7 @@ public class YoniList2<K extends MyBuffer, V extends MyBuffer> implements Compos
                 if (key1 instanceof MyBuffer) {
                     return MyBufferOak.keysComparator.compareKeys((MyBuffer) key1, (MyBuffer) o2);
                 } else {
-                    return MyBufferOak.keysComparator.compareSerializedKeyAndKey((ByteBuffer) key1, (MyBuffer) o2);
+                    return -1 * MyBufferOak.keysComparator.compareKeyAndSerializedKey((MyBuffer) o2, (ByteBuffer) key1);
                 }
             } else if (o1 instanceof YoniList2.Cell && o2 instanceof YoniList2.Cell) {
                 Cell cell1 = (Cell) o1;
@@ -55,10 +55,10 @@ public class YoniList2<K extends MyBuffer, V extends MyBuffer> implements Compos
                 } else if (key1 instanceof ByteBuffer && key2 instanceof ByteBuffer) {
                     return MyBufferOak.keysComparator.compareSerializedKeys((ByteBuffer) key1, (ByteBuffer) key2);
                 } else if (key1 instanceof MyBuffer && key2 instanceof ByteBuffer) {
-                    return -1 * MyBufferOak.keysComparator.compareSerializedKeyAndKey((ByteBuffer) key2,
-                            (MyBuffer) key1);
+                    return MyBufferOak.keysComparator.compareKeyAndSerializedKey((MyBuffer) key1, (ByteBuffer) key2);
                 } else {
-                    return MyBufferOak.keysComparator.compareSerializedKeyAndKey((ByteBuffer) key1, (MyBuffer) key2);
+                    return -1 * MyBufferOak.keysComparator.compareKeyAndSerializedKey((MyBuffer) key2,
+                            (ByteBuffer) key1);
                 }
             } else {
                 throw new UnsupportedOperationException();
