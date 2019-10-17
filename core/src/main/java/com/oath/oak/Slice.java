@@ -15,10 +15,13 @@ import static com.oath.oak.ValueUtils.LockStates.FREE;
 public class Slice {
     private final int blockID;
     private final ByteBuffer buffer;
+    // This field is only used for sanity checks purposes and it should not be used, nor changed.
+    private final int originalPosition;
 
     public Slice(int blockID, ByteBuffer buffer) {
         this.blockID = blockID;
         this.buffer = buffer;
+        this.originalPosition = buffer.position();
     }
 
     Slice(int blockID, int position, int length, MemoryManager memoryManager) {
@@ -39,5 +42,9 @@ public class Slice {
 
     void initHeader() {
         buffer.putInt(buffer.position(), FREE.value);
+    }
+
+    boolean validatePosition() {
+        return originalPosition == buffer.position();
     }
 }

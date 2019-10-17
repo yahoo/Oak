@@ -229,6 +229,7 @@ public class ValueUtils {
             ByteBuffer dup = bb.duplicate();
             dup.position(dup.position() + ValueUtils.VALUE_HEADER_SIZE);
             Slice s = lookUp.valueSlice;
+            assert s.validatePosition();
             Slice sDup = new Slice(s.getBlockID(), dup);
             memoryManager.releaseSlice(sDup);
             s = memoryManager.allocateSlice(capacity + VALUE_HEADER_SIZE);
@@ -299,6 +300,7 @@ public class ValueUtils {
         }
         // The previous value matches, so the slice is deleted
         bb.putInt(bb.position(), DELETED.value);
+        assert s.validatePosition();
         Slice sDup = new Slice(s.getBlockID(), dup);
         memoryManager.releaseSlice(sDup);
         return Result.withValue(v);
