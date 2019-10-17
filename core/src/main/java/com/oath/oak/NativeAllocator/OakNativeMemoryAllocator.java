@@ -125,7 +125,7 @@ public class OakNativeMemoryAllocator implements OakBlockMemoryAllocator {
             if (bestFit.slice.getByteBuffer().remaining() > (REUSE_MAX_MULTIPLIER * size)) {
                 break;     // all remaining buffers are too big
             }
-            // If multiple thread got the same bestFit only one can use it (the one which succeeds in removing it
+            // If multiple threads got the same bestFit only one can use it (the one which succeeds in removing it
             // from the free list).
             // The rest restart the while loop.
             if (freeList.remove(bestFit)) {

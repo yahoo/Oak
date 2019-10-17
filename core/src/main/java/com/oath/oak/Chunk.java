@@ -175,8 +175,7 @@ public class Chunk<K, V> {
         final int oldVersion;
         final int newVersion;
 
-        OpData(int entryIndex, long oldValueReference, long newValueReference,
-               int oldVersion, int newVersion) {
+        OpData(int entryIndex, long oldValueReference, long newValueReference, int oldVersion, int newVersion) {
             this.entryIndex = entryIndex;
             this.newValueReference = newValueReference;
             this.oldValueReference = oldValueReference;
@@ -206,7 +205,6 @@ public class Chunk<K, V> {
                 Unsafe.ARRAY_INT_BASE_OFFSET + (item + offset.value) * Unsafe.ARRAY_INT_INDEX_SCALE,
                 expected, value);
     }
-
 
     /**
      * write key in slice
@@ -859,7 +857,7 @@ public class Chunk<K, V> {
             int entriesToCopy = entryIndexEnd - entryIndexStart + 1;
 
             // try to find a continuous interval to copy
-            // we cannot enlarge interval: if key is removed (value reference is DELETED_VALUE) or
+            // we cannot enlarge interval: if key is removed (value reference is INVALID_VALUE_REFERENCE) or
             // if this chunk already has all entries to start with
             if (!isValueDeleted && (sortedEntryIndex + entriesToCopy * FIELDS < maxIdx)) {
                 // we can enlarge the interval, if it is otherwise possible:

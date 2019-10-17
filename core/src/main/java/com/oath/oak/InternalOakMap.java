@@ -321,7 +321,7 @@ class InternalOakMap<K, V> {
     }
 
     private boolean updateVersionAfterLinking(Chunk<K, V> c, LookUp lookUp) {
-        if (c.completeLinking(lookUp) == INVALID_VALUE_REFERENCE) {
+        if (c.completeLinking(lookUp) == INVALID_VERSION) {
             rebalance(c);
             return true;
         }
