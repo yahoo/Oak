@@ -8,112 +8,122 @@ package com.oath.oak;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
-import java.util.function.Function;
 
 public class OakWBufferImpl implements OakWBuffer {
 
-    private final Handle handle;
+    private Slice s;
+    private ByteBuffer bb;
+    private final NovaValueOperations operator;
 
-    OakWBufferImpl(Handle handle) {
-        this.handle = handle;
+    OakWBufferImpl(Slice s, NovaValueOperations operator) {
+        this.s = s;
+        this.bb = s.getByteBuffer();
+        this.operator = operator;
     }
 
+    private int valuePosition() {
+        return bb.position() + operator.getHeaderSize();
+    }
 
     @Override
     public int capacity() {
-        return handle.capacity();
-    }
-
-    @Override
-    public ByteBuffer getByteBuffer() {
-        return handle.getSlicedByteBuffer();
+        return bb.remaining() - operator.getHeaderSize();
     }
 
     @Override
     public byte get(int index) {
-        return handle.get(index);
+        if (index < 0) throw new IndexOutOfBoundsException();
+        return bb.get(index + valuePosition());
     }
 
     @Override
     public OakWBuffer put(int index, byte b) {
-        handle.put(index, b);
+        if (index < 0) throw new IndexOutOfBoundsException();
+        bb.put(index + valuePosition(), b);
         return this;
     }
 
     @Override
     public ByteOrder order() {
-        return handle.order();
+        return bb.order();
     }
 
     @Override
     public char getChar(int index) {
-        return handle.getChar(index);
+        if (index < 0) throw new IndexOutOfBoundsException();
+        return bb.getChar(index + valuePosition());
     }
 
     @Override
     public OakWBuffer putChar(int index, char value) {
-        handle.putChar(index, value);
+        if (index < 0) throw new IndexOutOfBoundsException();
+        bb.putChar(index + valuePosition(), value);
         return this;
     }
 
     @Override
     public short getShort(int index) {
-        return handle.getShort(index);
+        if (index < 0) throw new IndexOutOfBoundsException();
+        return bb.getShort(index + valuePosition());
     }
 
     @Override
     public OakWBuffer putShort(int index, short value) {
-        handle.putShort(index, value);
+        if (index < 0) throw new IndexOutOfBoundsException();
+        bb.putShort(index + valuePosition(), value);
         return this;
     }
 
     @Override
     public int getInt(int index) {
-        return handle.getInt(index);
+        if (index < 0) throw new IndexOutOfBoundsException();
+        return bb.getInt(index + valuePosition());
     }
 
     @Override
     public OakWBuffer putInt(int index, int value) {
-        handle.putInt(index, value);
+        if (index < 0) throw new IndexOutOfBoundsException();
+        bb.putInt(index + valuePosition(), value);
         return this;
     }
 
     @Override
     public long getLong(int index) {
-        return handle.getLong(index);
+        if (index < 0) throw new IndexOutOfBoundsException();
+        return bb.getLong(index + valuePosition());
     }
 
     @Override
     public OakWBuffer putLong(int index, long value) {
-        handle.putLong(index, value);
+        if (index < 0) throw new IndexOutOfBoundsException();
+        bb.putLong(index + valuePosition(), value);
         return this;
     }
 
     @Override
     public float getFloat(int index) {
-        return handle.getFloat(index);
+        if (index < 0) throw new IndexOutOfBoundsException();
+        return bb.getFloat(index + valuePosition());
     }
 
     @Override
     public OakWBuffer putFloat(int index, float value) {
-        handle.putFloat(index, value);
+        if (index < 0) throw new IndexOutOfBoundsException();
+        bb.putFloat(index + valuePosition(), value);
         return this;
     }
 
     @Override
     public double getDouble(int index) {
-        return handle.getDouble(index);
+        if (index < 0) throw new IndexOutOfBoundsException();
+        return bb.getDouble(index + valuePosition());
     }
 
     @Override
     public OakWBuffer putDouble(int index, double value) {
-        handle.putDouble(index, value);
+        if (index < 0) throw new IndexOutOfBoundsException();
+        bb.putDouble(index + valuePosition(), value);
         return this;
-    }
-
-    @Override
-    public <T> T transform(Function<ByteBuffer, T> transformer) {
-        return handle.transform(transformer);
     }
 
 }

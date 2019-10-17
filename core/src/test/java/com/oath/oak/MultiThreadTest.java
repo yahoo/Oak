@@ -207,7 +207,6 @@ public class MultiThreadTest {
             for (i = 0; i < 6 * maxItemsPerChunk; i++) {
                 oak.zc().putIfAbsent(i, i);
                 value = oak.get(i);
-                //TODO YONIGO - value can be null because of remove
                 assertEquals(i, value);
             }
 

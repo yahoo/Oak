@@ -8,36 +8,95 @@ package com.oath.oak;
 
 import sun.misc.Unsafe;
 
-import java.lang.reflect.Constructor;
 import java.nio.ByteBuffer;
 import java.util.EmptyStackException;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicMarkableReference;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Consumer;
+
+import static com.oath.oak.NovaManager.INVALID_VERSION;
+import static com.oath.oak.NovaValueUtils.Result.*;
+import static com.oath.oak.NativeAllocator.OakNativeMemoryAllocator.INVALID_BLOCK_ID;
+import static com.oath.oak.UnsafeUtils.intsToLong;
+
+import static com.oath.oak.UnsafeUtils.longToInts;
 
 public class Chunk<K, V> {
 
     /*-------------- Constants --------------*/
 
-    static final int NONE = 0;    // constant for "no index", etc. MUST BE 0!
+    /***
+     * This enum is used to access the different fields in each entry.
+     * The value associated with each entry signifies the offset of the field relative to the entry's beginning.
+     */
+    enum OFFSET {
+        /***
+         * NEXT - the next index of this entry (one integer)
+         *
+         * VALUE_REFERENCE - the blockID, length and position of the value pointed from this entry (size of two
+         * integers, one long). Equals to DELETED_VALUE if no value is point.
+         *
+         * VALUE_POSITION
+         *
+         * VALUE_BLOCK_AND_LENGTH - this value holds both the blockID and the length of the value pointed by the entry.
+         * Using VALUE_LENGTH_MASK and VALUE_BLOCK_SHIFT the blockID and length can be extracted.
+         * Currently, the length of a value is limited to 8MB, and blockID is limited to 512 blocks
+         * (with the current block size of 256MB, the total memory is up to 128GB).
+         *
+         * VALUE_BLOCK
+         *
+         * VALUE_LENGTH
+         *
+         * KEY_POSITION
+         *
+         * KEY_BLOCK_AND_LENGTH - similar to VALUE_BLOCK_AND_LENGTH, but using KEY_LENGTH_MASK and KEY_BLOCK_SHIFT.
+         * The length of a key is limited to 32KB.
+         *
+         * KEY_BLOCK
+         *
+         * KEY_LENGTH
+         *
+         * VALUE_VERSION - as the name suggests this is the version of the value reference by VALUE_REFERENCE.
+         * It initially equals to INVALID_VERSION.
+         * If an entry with version v is removed, then this field is CASed to be -v after the value is marked
+         * off-heap and the value reference becomes INVALID_VALUE.
+         */
+        NEXT(0), VALUE_REFERENCE(1), VALUE_POSITION(1), VALUE_BLOCK_AND_LENGTH(2), VALUE_BLOCK(2),
+        VALUE_LENGTH(2), KEY_REFERENCE(3), KEY_POSITION(3), KEY_BLOCK_AND_LENGTH(4), KEY_BLOCK(4),
+        KEY_LENGTH(4), VALUE_VERSION(5);
 
+        public final int value;
+
+        OFFSET(int value) {
+            this.value = value;
+        }
+    }
+
+    enum State {
+        INFANT,
+        NORMAL,
+        FROZEN,
+        RELEASED
+    }
+
+    static final int NONE = 0;    // an entry with NONE as its next pointer, points to a null entry
+    static final int INVALID_ENTRY_INDEX = -1;
+    static final long INVALID_VALUE = 0;
+    private static final int BLOCK_ID_LENGTH_ARRAY_INDEX = 0;
+    private static final int POSITION_ARRAY_INDEX = 1;
     // location of the first (head) node - just a next pointer
     private static final int HEAD_NODE = 0;
     // index of first item in array, after head (not necessarily first in list!)
     private static final int FIRST_ITEM = 1;
 
-    private static final int FIELDS = 4;  // # of fields in each item of key array
-    private static final int OFFSET_NEXT = 0;
-    private static final int OFFSET_KEY_POSITION = 1;
-    private static final int OFFSET_KEY_LENGTH = 2;
-    private static final int OFFSET_HANDLE_INDEX = 3;
-    // key block is not used as an offset, rather as request differentiation,
+    private static final int FIELDS = 6;  // # of fields in each item of entries array
     // key block is part of key length integer, thus key length is limited to 65KB
-    private static final int OFFSET_KEY_BLOCK = 4;
-    private static final int KEY_LENGTH_MASK = 0xffff; // 16 lower bits
-    private static final int KEY_BLOCK_SHIFT = 16;
+    static final int KEY_LENGTH_MASK = 0xffff; // 16 lower bits
+    static final int KEY_BLOCK_SHIFT = 16;
+    // Assume the length of a value is up to 8MB because there can be up to 512 blocks
+    static final int VALUE_LENGTH_MASK = 0x7fffff;
+    static final int VALUE_BLOCK_SHIFT = 23;
 
     // used for checking if rebalance is needed
     private static final double REBALANCE_PROB_PERC = 30;
@@ -48,8 +107,8 @@ public class Chunk<K, V> {
     // defaults
     public static final int MAX_ITEMS_DEFAULT = 4096;
 
-    private static final Unsafe unsafe;
-    private final MemoryManager memoryManager;
+    private static final Unsafe unsafe = UnsafeUtils.unsafe;
+    private final NovaManager memoryManager;
     ByteBuffer minKey;       // minimal key that can be put in this chunk
     AtomicMarkableReference<Chunk<K, V>> next;
     OakComparator<K> comparator;
@@ -61,10 +120,8 @@ public class Chunk<K, V> {
     private AtomicReference<Rebalancer<K, V>> rebalancer;
     private final int[] entries;    // array is initialized to 0, i.e., NONE - this is important!
 
-    private final Handle[] handles;
     private AtomicInteger pendingOps;
     private final AtomicInteger entryIndex;    // points to next free index of entry array
-    private final AtomicInteger handleIndex;   // points to next free index of entry array
     private final Statistics statistics;
     // # of sorted items at entry-array's beginning (resulting from split)
     private AtomicInteger sortedCount;
@@ -73,19 +130,9 @@ public class Chunk<K, V> {
     // for writing the keys into the bytebuffers
     private final OakSerializer<K> keySerializer;
     private final OakSerializer<V> valueSerializer;
+    private final NovaValueOperations operator;
 
     /*-------------- Constructors --------------*/
-
-    // static constructor - access and create a new instance of Unsafe
-    static {
-        try {
-            Constructor<Unsafe> unsafeConstructor = Unsafe.class.getDeclaredConstructor();
-            unsafeConstructor.setAccessible(true);
-            unsafe = unsafeConstructor.newInstance();
-        } catch (Exception ex) {
-            throw new RuntimeException(ex);
-        }
-    }
 
     /**
      * Create a new chunk
@@ -93,15 +140,13 @@ public class Chunk<K, V> {
      * @param minKey  minimal key to be placed in chunk
      * @param creator the chunk that is responsible for this chunk creation
      */
-    Chunk(ByteBuffer minKey, Chunk<K, V> creator, OakComparator<K> comparator, MemoryManager memoryManager,
-          int maxItems, AtomicInteger externalSize,
-          OakSerializer<K> keySerializer, OakSerializer<V> valueSerializer) {
+    Chunk(ByteBuffer minKey, Chunk<K, V> creator, OakComparator<K> comparator, NovaManager memoryManager,
+          int maxItems, AtomicInteger externalSize, OakSerializer<K> keySerializer, OakSerializer<V> valueSerializer,
+          NovaValueOperations operator) {
         this.memoryManager = memoryManager;
         this.maxItems = maxItems;
         this.entries = new int[maxItems * FIELDS + FIRST_ITEM];
         this.entryIndex = new AtomicInteger(FIRST_ITEM);
-        this.handles = new Handle[maxItems + FIRST_ITEM];
-        this.handleIndex = new AtomicInteger(FIRST_ITEM);
 
         this.sortedCount = new AtomicInteger(0);
         this.minKey = minKey;
@@ -120,28 +165,23 @@ public class Chunk<K, V> {
 
         this.keySerializer = keySerializer;
         this.valueSerializer = valueSerializer;
-    }
-
-    enum State {
-        INFANT,
-        NORMAL,
-        FROZEN,
-        RELEASED
+        this.operator = operator;
     }
 
     static class OpData {
-        final Operation op;
         final int entryIndex;
-        final int handleIndex;
-        int prevHandleIndex;
-        final Consumer<OakWBuffer> computer;
+        final long newValueReference;
+        long oldValueReference;
+        final int oldVersion;
+        final int newVersion;
 
-        OpData(Operation op, int entryIndex, int handleIndex, int prevHandleIndex, Consumer<OakWBuffer> computer) {
-            this.op = op;
+        OpData(int entryIndex, long oldValueReference, long newValueReference,
+               int oldVersion, int newVersion) {
             this.entryIndex = entryIndex;
-            this.handleIndex = handleIndex;
-            this.prevHandleIndex = prevHandleIndex;
-            this.computer = computer;
+            this.newValueReference = newValueReference;
+            this.oldValueReference = oldValueReference;
+            this.oldVersion = oldVersion;
+            this.newVersion = newVersion;
         }
     }
 
@@ -155,9 +195,15 @@ public class Chunk<K, V> {
     /**
      * performs CAS from 'expected' to 'value' for field at specified offset of given item in key array
      */
-    private boolean casEntriesArray(int item, int offset, int expected, int value) {
+    boolean casEntriesArrayInt(int item, OFFSET offset, int expected, int value) {
         return unsafe.compareAndSwapInt(entries,
-                Unsafe.ARRAY_INT_BASE_OFFSET + (item + offset) * Unsafe.ARRAY_INT_INDEX_SCALE,
+                Unsafe.ARRAY_INT_BASE_OFFSET + (item + offset.value) * Unsafe.ARRAY_INT_INDEX_SCALE,
+                expected, value);
+    }
+
+    boolean casEntriesArrayLong(int item, OFFSET offset, long expected, long value) {
+        return unsafe.compareAndSwapLong(entries,
+                Unsafe.ARRAY_INT_BASE_OFFSET + (item + offset.value) * Unsafe.ARRAY_INT_INDEX_SCALE,
                 expected, value);
     }
 
@@ -167,14 +213,13 @@ public class Chunk<K, V> {
      **/
     private void writeKey(K key, int ei) {
         int keySize = keySerializer.calculateSize(key);
-        Slice s
-                = memoryManager.allocateSlice(keySize);
+        Slice s = memoryManager.allocateSlice(keySize, true);
         // byteBuffer.slice() is set so it protects us from the overwrites of the serializer
         keySerializer.serialize(key, s.getByteBuffer().slice());
 
-        setEntryField(ei, OFFSET_KEY_BLOCK, s.getBlockID());
-        setEntryField(ei, OFFSET_KEY_POSITION, s.getByteBuffer().position());
-        setEntryField(ei, OFFSET_KEY_LENGTH, keySize);
+        setEntryFieldInt(ei, OFFSET.KEY_BLOCK, s.getBlockID());
+        setEntryFieldInt(ei, OFFSET.KEY_POSITION, s.getByteBuffer().position());
+        setEntryFieldInt(ei, OFFSET.KEY_LENGTH, keySize);
     }
 
     /**
@@ -188,9 +233,11 @@ public class Chunk<K, V> {
             return null;
         }
 
-        int blockID = getEntryField(entryIndex, OFFSET_KEY_BLOCK);
-        int keyPosition = getEntryField(entryIndex, OFFSET_KEY_POSITION);
-        int length = getEntryField(entryIndex, OFFSET_KEY_LENGTH);
+        long keyReference = getKeyReference(entryIndex);
+        int[] keyArray = longToInts(keyReference);
+        int blockID = keyArray[0] >> KEY_BLOCK_SHIFT;
+        int keyPosition = keyArray[1];
+        int length = keyArray[0] & KEY_LENGTH_MASK;
 
         return memoryManager.getByteBufferFromBlockID(blockID, keyPosition, length);
     }
@@ -201,25 +248,44 @@ public class Chunk<K, V> {
      * The thread-local ByteBuffer can be reused by different threads, however as long as
      * a thread is invoked the ByteBuffer is related solely to this thread.
      */
-    void setKeyRefer(int entryIndex, OakRKeyReference keyReferBuffer) {
+    void setKeyRefer(int entryIndex, OakRReference keyReferBuffer) {
         if (entryIndex == Chunk.NONE) {
             return;
         }
-        int blockID = getEntryField(entryIndex, OFFSET_KEY_BLOCK);
-        int keyPosition = getEntryField(entryIndex, OFFSET_KEY_POSITION);
-        int length = getEntryField(entryIndex, OFFSET_KEY_LENGTH);
-        keyReferBuffer.setKeyReference(blockID, keyPosition, length);
+        long keyReference = getKeyReference(entryIndex);
+        int[] keyArray = longToInts(keyReference);
+        int blockID = keyArray[BLOCK_ID_LENGTH_ARRAY_INDEX] >> KEY_BLOCK_SHIFT;
+        int keyPosition = keyArray[POSITION_ARRAY_INDEX];
+        int length = keyArray[BLOCK_ID_LENGTH_ARRAY_INDEX] & KEY_LENGTH_MASK;
+        keyReferBuffer.setReference(blockID, keyPosition, length);
+    }
+
+    boolean setValueRefer(int entryIndex, OakRReference value) {
+        if (entryIndex == Chunk.NONE) {
+            return false;
+        }
+        long valueReference = getValueReference(entryIndex);
+        if (valueReference == INVALID_VALUE) {
+            return false;
+        }
+        int[] valueArray = longToInts(valueReference);
+        int blockID = valueArray[BLOCK_ID_LENGTH_ARRAY_INDEX] >> VALUE_BLOCK_SHIFT;
+        int keyPosition = valueArray[POSITION_ARRAY_INDEX];
+        int length = valueArray[BLOCK_ID_LENGTH_ARRAY_INDEX] & VALUE_LENGTH_MASK;
+        value.setReference(blockID, keyPosition, length);
+        return true;
     }
 
     /**
      * release key in slice, currently not in use, waiting for GC to be arranged
      **/
     void releaseKey(int entryIndex) {
-        int blockID = getEntryField(entryIndex, OFFSET_KEY_BLOCK);
-        int keyPosition = getEntryField(entryIndex, OFFSET_KEY_POSITION);
-        int length = getEntryField(entryIndex, OFFSET_KEY_LENGTH);
-        ByteBuffer bb = memoryManager.getByteBufferFromBlockID(blockID, keyPosition, length);
-        Slice s = new Slice(blockID, bb);
+        long keyReference = getKeyReference(entryIndex);
+        int[] keyArray = longToInts(keyReference);
+        int blockID = keyArray[0] >> KEY_BLOCK_SHIFT;
+        int keyPosition = keyArray[1];
+        int length = keyArray[0] & KEY_LENGTH_MASK;
+        Slice s = new Slice(blockID, keyPosition, length, memoryManager);
 
         memoryManager.releaseSlice(s);
     }
@@ -234,82 +300,197 @@ public class Chunk<K, V> {
         return readKey(maxEntry);
     }
 
+    private int getValueVersion(int item) {
+        return getEntryFieldInt(item, OFFSET.VALUE_VERSION);
+    }
+
     /**
      * gets the field of specified offset for given item in entry array
      */
-    private int getEntryField(int item, int offset) {
+    private int getEntryFieldInt(int item, OFFSET offset) {
         switch (offset) {
-            case OFFSET_KEY_LENGTH:
+            case KEY_LENGTH:
                 // return two low bytes of the key length index int
-                return (entries[item + OFFSET_KEY_LENGTH] & KEY_LENGTH_MASK);
-            case OFFSET_KEY_BLOCK:
+                return (entries[item + offset.value] & KEY_LENGTH_MASK);
+            case KEY_BLOCK:
                 // offset must be OFFSET_KEY_BLOCK, return 2 high bytes of the int inside key length
                 // right-shift force, fill empty with zeroes
-                return (entries[item + OFFSET_KEY_LENGTH] >>> KEY_BLOCK_SHIFT);
+                return (entries[item + offset.value] >>> KEY_BLOCK_SHIFT);
+            case VALUE_LENGTH:
+                return (entries[item + offset.value] & VALUE_LENGTH_MASK);
+            case VALUE_BLOCK:
+                return (entries[item + offset.value] >>> VALUE_BLOCK_SHIFT);
             default:
-                return entries[item + offset];
+                return entries[item + offset.value];
         }
+    }
+
+    // Atomically reads two integers of the entries array.
+    // Should be used with OFFSET.VALUE_REFERENCE and OFFSET.KEY_REFERENCE
+    private long getEntryFieldLong(int item, OFFSET offset) {
+        long arrayOffset = Unsafe.ARRAY_INT_BASE_OFFSET + (item + offset.value) * Unsafe.ARRAY_INT_INDEX_SCALE;
+        assert arrayOffset % 8 == 0;
+        return unsafe.getLongVolatile(entries, arrayOffset);
     }
 
     /**
      * * sets the field of specified offset to 'value' for given item in entry array
      */
-    private void setEntryField(int item, int offset, int value) {
-        assert item + offset >= 0;
+    private void setEntryFieldInt(int item, OFFSET offset, int value) {
+        assert item + offset.value >= 0;
         switch (offset) {
-            case OFFSET_KEY_LENGTH:
+            case KEY_LENGTH:
                 // OFFSET_KEY_LENGTH and OFFSET_KEY_BLOCK should be less then 16 bits long
                 // *2 in order to get read of the signed vs unsigned limits
                 assert value < Short.MAX_VALUE * 2;
-                // set two low bytes of the handle index int
-                entries[item + OFFSET_KEY_LENGTH] =
-                        (entries[item + OFFSET_KEY_LENGTH]) | (value & KEY_LENGTH_MASK);
+                // set two low bytes of the key block id and length index
+                entries[item + offset.value] =
+                        (entries[item + offset.value]) | (value & KEY_LENGTH_MASK);
                 return;
-            case OFFSET_KEY_BLOCK:
+            case KEY_BLOCK:
                 // OFFSET_KEY_LENGTH and OFFSET_KEY_BLOCK should be less then 16 bits long
                 // *2 in order to get read of the signed vs unsigned limits
                 assert value < Short.MAX_VALUE * 2;
                 // offset must be OFFSET_KEY_BLOCK,
                 // set 2 high bytes of the int inside OFFSET_KEY_LENGTH
                 assert value > 0; // block id can never be 0
-                entries[item + OFFSET_KEY_LENGTH] =
-                        (entries[item + OFFSET_KEY_LENGTH]) | (value << KEY_BLOCK_SHIFT);
+                entries[item + offset.value] =
+                        (entries[item + offset.value]) | (value << KEY_BLOCK_SHIFT);
+                return;
+            case VALUE_LENGTH:
+                // make sure the length is at most 2^23 and at least 0
+                assert (value & VALUE_LENGTH_MASK) == value;
+                entries[item + offset.value] =
+                        (entries[item + offset.value]) | (value & VALUE_LENGTH_MASK);
+                return;
+            case VALUE_BLOCK:
+                assert value > 0; // block id can never be 0
+                assert ((value << VALUE_BLOCK_SHIFT) >>> VALUE_BLOCK_SHIFT) == value; // value is up to 2^9
+                entries[item + offset.value] =
+                        (entries[item + offset.value]) | (value << VALUE_BLOCK_SHIFT);
                 return;
             default:
-                entries[item + offset] = value;
-                return;
+                entries[item + offset.value] = value;
         }
+    }
+
+    private void setEntryFieldLong(int item, OFFSET offset, long value) {
+        long arrayOffset = Unsafe.ARRAY_INT_BASE_OFFSET + (item + offset.value) * Unsafe.ARRAY_INT_INDEX_SCALE;
+        assert arrayOffset % 8 == 0;
+        unsafe.putLongVolatile(entries, arrayOffset, value);
     }
 
     /**
      * gets the value for the given item, or 'null' if it doesn't exist
      */
-    Handle getHandle(int entryIndex) {
+    Slice getValueSlice(int entryIndex) {
+        return buildValueSlice(getValueReference(entryIndex));
+    }
 
-        int hi = getEntryField(entryIndex, OFFSET_HANDLE_INDEX);
-
-        // if no value for item - return null
-        assert hi != 0; // because we got to it from linked list
-        if (hi < 0) {
+    Slice buildValueSlice(long valueReference) {
+        if (valueReference == INVALID_VALUE) {
             return null;
-        } else {
-            return handles[hi];
+        }
+        int[] valueArray = UnsafeUtils.longToInts(valueReference);
+        return new Slice(valueArray[BLOCK_ID_LENGTH_ARRAY_INDEX] >>> VALUE_BLOCK_SHIFT,
+                valueArray[POSITION_ARRAY_INDEX], valueArray[BLOCK_ID_LENGTH_ARRAY_INDEX] & VALUE_LENGTH_MASK,
+                memoryManager);
+    }
+
+    // Atomically reads the value reference from the entry array
+    long getValueReference(int entryIndex) {
+        return getEntryFieldLong(entryIndex, OFFSET.VALUE_REFERENCE);
+    }
+
+    long getValueReferenceAndVersion(int entryIndex, int[] version) {
+        long valueReference;
+        int v;
+        do {
+            v = getValueVersion(entryIndex);
+            valueReference = getValueReference(entryIndex);
+        } while (v != getValueVersion(entryIndex));
+        version[0] = v;
+        return valueReference;
+    }
+
+    static boolean isValueThere(int[] valueArray) {
+        return (valueArray[0] >>> VALUE_BLOCK_SHIFT) == INVALID_BLOCK_ID;
+    }
+
+    int completeLinking(LookUp lookUp) {
+        int entryVersion = lookUp.version;
+        // no need to complete a thing
+        if (entryVersion > INVALID_VERSION) {
+            return entryVersion;
+        }
+        if (!publish()) {
+            return INVALID_VERSION;
+        }
+        try {
+            Slice valueSlice = buildValueSlice(lookUp.valueReference);
+            int offHeapVersion = operator.getOffHeapVersion(valueSlice);
+            casEntriesArrayInt(lookUp.entryIndex, OFFSET.VALUE_VERSION, entryVersion, offHeapVersion);
+            lookUp.version = offHeapVersion;
+            return offHeapVersion;
+        } finally {
+            unpublish();
         }
     }
 
-    int getHandleIndex(int entryIndex) {
-        return getEntryField(entryIndex, OFFSET_HANDLE_INDEX);
+    NovaValueUtils.Result finalizeDeletion(LookUp lookUp) {
+        int version = lookUp.version;
+        if (version <= INVALID_VERSION) {
+            return FALSE;
+        }
+        if (!publish()) {
+            return RETRY;
+        }
+        try {
+            if (!casEntriesArrayLong(lookUp.entryIndex, OFFSET.VALUE_REFERENCE, lookUp.valueReference, INVALID_VALUE)) {
+                return FALSE;
+            }
+            if (!casEntriesArrayInt(lookUp.entryIndex, OFFSET.VALUE_VERSION, version, -version)) {
+                return FALSE;
+            }
+            externalSize.decrementAndGet();
+            statistics.decrementAddedCount();
+            return TRUE;
+        } finally {
+            unpublish();
+        }
+    }
+
+    // Atomically reads the value reference from the entry array
+    long getKeyReference(int entryIndex) {
+        return getEntryFieldLong(entryIndex, OFFSET.KEY_REFERENCE);
+    }
+
+    // Use this function to release an unreachable value reference
+    void releaseValue(long newValueReference) {
+        memoryManager.releaseSlice(buildValueSlice(newValueReference));
     }
 
     /**
      * look up key
+     *
+     * @param key the key to look up
+     * @return a LookUp object describing the condition of the value associated with {@code key}.
+     * If {@code lookup == null}, there is no entry with that key in this chuck.
+     * If {@code lookup.valueReference == INVALID_VALUE}, it means that there is an entry with that key (can be
+     * reused in case
+     * of {@code put}, but there is no value attached to this key (it can happen if this entry is in the midst of
+     * being inserted, or some thread removed this key and no reblanace occurred leaving the entry in the chunk).
+     * It implies that {@code lookup.valueSlice = null}.
+     * If {@code lookup.valueSlice == null && lookup.valueReference != INVALID_VALUE} it means that the value is
+     * marked off-heap as deleted, but the connection between the entry and the value was not unlinked yet.
      */
     LookUp lookUp(K key) {
         // binary search sorted part of key array to quickly find node to start search at
         // it finds previous-to-key so start with its next
-        int curr = getEntryField(binaryFind(key), OFFSET_NEXT);
+        int curr = getEntryFieldInt(binaryFind(key), OFFSET.NEXT);
         int cmp;
         // iterate until end of list (or key is found)
+
         while (curr != NONE) {
             // compare current item's key to searched key
             cmp = comparator.compareKeyAndSerializedKey(key, readKey(curr));
@@ -320,19 +501,27 @@ public class Chunk<K, V> {
             }
             // if keys are equal - we've found the item
             else if (cmp == 0) {
-                int hi = getEntryField(curr, OFFSET_HANDLE_INDEX);
-                if (hi < 0) {
-                    return new LookUp(null, curr, -1);
+                long valueReference;
+                int[] version = new int[1];
+                // Atomic snapshot of version and value reference
+                valueReference = getValueReferenceAndVersion(curr, version);
+                Slice valueSlice = buildValueSlice(valueReference);
+                if (valueSlice == null) {
+                    // There is no value associated with the given key
+                    assert valueReference == INVALID_VALUE;
+                    return new LookUp(null, valueReference, curr, version[0]);
                 }
-                Handle h = handles[hi];
-                if (h.isDeleted()) {
-                    return new LookUp(null, curr, hi);
+                NovaValueUtils.Result result = operator.isValueDeleted(valueSlice, version[0]);
+                if (result == TRUE) {
+                    // There is a deleted value associated with the given key
+                    return new LookUp(null, valueReference, curr, version[0]);
                 }
-                return new LookUp(h, curr, hi);
+                // If result == RETRY, I ignore it, since it will be discovered later down the line as well
+                return new LookUp(valueSlice, valueReference, curr, version[0]);
             }
             // otherwise- proceed to next item
             else {
-                curr = getEntryField(curr, OFFSET_NEXT);
+                curr = getEntryFieldInt(curr, OFFSET.NEXT);
             }
         }
         return null;
@@ -340,14 +529,28 @@ public class Chunk<K, V> {
 
     static class LookUp {
 
-        final Handle handle;
+        /**
+         * valueSlice is used for easier access to the off-heap memory. The location pointed by it is the one
+         * referenced by valueReference.
+         * If it is {@code null} it means the value is deleted or marked as deleted but still referenced by
+         * valueReference.
+         */
+        Slice valueSlice;
+        /**
+         * valueReference is composed of 3 numbers: block ID, value position and value length. All these numbers are
+         * squashed together into a long using the VALUE masks, shifts and indices.
+         * When it equals to {@code INVALID_VALUE} is means that there is no value referenced from entryIndex.
+         * This field is usually used for CAS purposes since it sits in each entry.
+         */
+        final long valueReference;
         final int entryIndex;
-        final int handleIndex;
+        int version;
 
-        LookUp(Handle handle, int entryIndex, int handleIndex) {
-            this.handle = handle;
+        LookUp(Slice valueSlice, long valueReference, int entryIndex, int version) {
+            this.valueSlice = valueSlice;
+            this.valueReference = valueReference;
             this.entryIndex = entryIndex;
-            this.handleIndex = handleIndex;
+            this.version = version;
         }
     }
 
@@ -367,8 +570,9 @@ public class Chunk<K, V> {
         }
 
         // optimization: compare with last key to avoid binary search
-        if (comparator.compareKeyAndSerializedKey(key, readKey((sortedCount - 1) * FIELDS + FIRST_ITEM)) > 0)
+        if (comparator.compareKeyAndSerializedKey(key, readKey((sortedCount - 1) * FIELDS + FIRST_ITEM)) > 0) {
             return (sortedCount - 1) * FIELDS + FIRST_ITEM;
+        }
 
         int start = 0;
         int end = sortedCount;
@@ -410,39 +614,27 @@ public class Chunk<K, V> {
         pendingOps.decrementAndGet();
     }
 
-    /**
-     * allocate value handle
-     *
-     * @return if chunk is full return -1, otherwise return new handle index
-     */
-    int allocateHandle() {
-        int hi = handleIndex.getAndIncrement();
-        if (hi + 1 > handles.length) {
-            return -1;
-        }
-        handles[hi] = new Handle();
-        return hi;
-    }
-
     int allocateEntryAndKey(K key) {
         int ei = entryIndex.getAndAdd(FIELDS);
         if (ei + FIELDS > entries.length) {
-            return -1;
+            return INVALID_ENTRY_INDEX;
         }
 
         // key and value must be set before linking to the list so it will make sense when reached before put is done
-        setEntryField(ei, OFFSET_HANDLE_INDEX, -1); // set value index to -1, value is init to null
+        // setting the value reference to DELETED_VALUE atomically
+        setEntryFieldLong(ei, OFFSET.VALUE_REFERENCE, INVALID_VALUE);
+        setEntryFieldInt(ei, OFFSET.VALUE_VERSION, INVALID_VERSION);
         writeKey(key, ei);
         return ei;
     }
 
     int linkEntry(int ei, K key) {
         int prev, curr, cmp;
-        int anchor = -1;
+        int anchor = INVALID_ENTRY_INDEX;
 
         while (true) {
             // start iterating from quickly-found node (by binary search) in sorted part of order-array
-            if (anchor == -1) {
+            if (anchor == INVALID_ENTRY_INDEX) {
                 anchor = binaryFind(key);
             }
             curr = anchor;
@@ -450,7 +642,7 @@ public class Chunk<K, V> {
             // iterate items until key's position is found
             while (true) {
                 prev = curr;
-                curr = getEntryField(prev, OFFSET_NEXT);    // index of next item in list
+                curr = getEntryFieldInt(prev, OFFSET.NEXT);    // index of next item in list
 
                 // if no item, done searching - add to end of list
                 if (curr == NONE) {
@@ -472,8 +664,8 @@ public class Chunk<K, V> {
 
             // link to list between next and previous
             // first change this key's next to point to curr
-            setEntryField(ei, OFFSET_NEXT, curr); // no need for CAS since put is not even published yet
-            if (casEntriesArray(prev, OFFSET_NEXT, curr, ei)) {
+            setEntryFieldInt(ei, OFFSET.NEXT, curr); // no need for CAS since put is not even published yet
+            if (casEntriesArrayInt(prev, OFFSET.NEXT, curr, ei)) {
                 // Here is the single place where we do enter a new entry to the chunk, meaning
                 // there is none else simultaneously inserting the same key
                 // (we were the first to insert this key).
@@ -499,14 +691,24 @@ public class Chunk<K, V> {
     }
 
     /**
-     * write value in place
+     * write value off-heap. The lock is initialized in this function as well.
+     *
+     * @param value the value to write off-heap
+     * @return a value reference for the newly allocated slice
      **/
-    void writeValue(int hi, V value) {
-        assert hi >= 0;
-        ByteBuffer byteBuffer = memoryManager.allocate(valueSerializer.calculateSize(value));
-        // just allocated bytebuffer is ensured to have position 0
-        valueSerializer.serialize(value, byteBuffer.slice());
-        handles[hi].setValue(byteBuffer);
+    long writeValue(V value, int[] version) {
+        // the length of the given value plus its header
+        int valueLength = valueSerializer.calculateSize(value) + operator.getHeaderSize();
+        Slice slice = memoryManager.allocateSlice(valueLength, false);
+        version[0] = slice.getByteBuffer().getInt(slice.getByteBuffer().position());
+        // initializing the header lock to be free
+        slice.initHeader(operator);
+        // since this is a private environment, we can only use ByteBuffer::slice, instead of ByteBuffer::duplicate
+        // and then ByteBuffer::slice
+        valueSerializer.serialize(value, operator.getValueByteBufferNoHeaderPrivate(slice));
+        // combines the blockID with the value's length (including the header)
+        int valueBlockAndLength = (slice.getBlockID() << VALUE_BLOCK_SHIFT) | (valueLength & VALUE_LENGTH_MASK);
+        return intsToLong(valueBlockAndLength, slice.getByteBuffer().position());
     }
 
     int getMaxItems() {
@@ -514,73 +716,30 @@ public class Chunk<K, V> {
     }
 
     /**
-     * Updates a linked entry to point to handle or otherwise removes such a link. The handle in
-     * turn has the value. For linkage this is an insert linearization point.
+     * Updates a linked entry to point to a new value reference or otherwise removes such a link. For linkage this is
+     * an insert linearization point.
      * All the relevant data can be found inside opData.
      * <p>
-     * return true if operation was successful, false to indicate restart required
+     * if someone else got to it first (helping rebalancer or other operation), returns the old handle
      */
-    boolean pointToValue(OpData opData) {
 
-        // try to perform the CAS according to operation data (opData)
-        if (pointToValueCAS(opData)) {
-            return true;
+    NovaValueUtils.Result linkValue(OpData opData) {
+        if (!casEntriesArrayLong(opData.entryIndex, OFFSET.VALUE_REFERENCE, opData.oldValueReference,
+                opData.newValueReference)) {
+            return FALSE;
         }
-
-        // the straight forward helping didn't work, check why
-        Operation operation = opData.op;
-
-        // the operation is remove, means we tried to change the handle index we knew about to -1
-        // the old handle index is no longer there so we have nothing to do. Note that in case of non-ZC removal the
-        // loop in remove() will lookup the key again so we will still return the previous value
-        if (operation == Operation.REMOVE) {
-            return true; // this is a remove, no need to try again and return doesn't matter
+        casEntriesArrayInt(opData.entryIndex, OFFSET.VALUE_VERSION, opData.oldVersion, opData.newVersion);
+        if (opData.oldValueReference == INVALID_VALUE) {
+            assert opData.newValueReference != INVALID_VALUE;
+            statistics.incrementAddedCount();
+            externalSize.incrementAndGet();
+        } else {
+            assert false;
+            assert opData.newValueReference == INVALID_VALUE;
+            externalSize.decrementAndGet();
+            statistics.decrementAddedCount();
         }
-
-        // the operation is either NO_OP, PUT, PUT_IF_ABSENT, COMPUTE
-        int expectedHandleIdx = opData.handleIndex;
-        int foundHandleIdx = getEntryField(opData.entryIndex, OFFSET_HANDLE_INDEX);
-
-        if (foundHandleIdx == expectedHandleIdx) {
-            return true; // someone helped
-        } else if (foundHandleIdx < 0) {
-            // the handle was deleted, retry the attach
-            opData.prevHandleIndex = -1;
-            return pointToValue(opData); // remove completed, try again
-        } else if (operation == Operation.PUT_IF_ABSENT) {
-            return false;
-        } else if (operation == Operation.COMPUTE) {
-            Handle h = handles[foundHandleIdx];
-            boolean succ = h.compute(opData.computer);
-            if (!succ) {
-                // we tried to perform the compute but the handle was deleted,
-                // we can get to pointToValue with Operation.COMPUTE only from PIACIP
-                // retry to make a put and to attach the new handle
-                opData.prevHandleIndex = foundHandleIdx;
-                return pointToValue(opData);
-            }
-        }
-        // This is a put, in which case operation should restart,
-        // or PIACIP compute happened, which should return false
-        return false;
-    }
-
-    /**
-     * used by put/putIfAbsent/remove and rebalancer
-     */
-    private boolean pointToValueCAS(OpData opData) {
-        if (casEntriesArray(opData.entryIndex, OFFSET_HANDLE_INDEX, opData.prevHandleIndex, opData.handleIndex)) {
-            // update statistics only by thread that CASed
-            if (opData.prevHandleIndex < 0 && opData.handleIndex > 0) { // previously a remove
-                statistics.incrementAddedCount();
-                externalSize.incrementAndGet();
-            } else if (opData.prevHandleIndex > 0 && opData.handleIndex == -1) { // removing
-                statistics.decrementAddedCount();
-                externalSize.decrementAndGet();
-            }
-            return true;
-        }
-        return false;
+        return TRUE;
     }
 
     /**
@@ -631,24 +790,19 @@ public class Chunk<K, V> {
     }
 
     final int getFirstItemEntryIndex() {
-        return getEntryField(HEAD_NODE, OFFSET_NEXT);
+        return getEntryFieldInt(HEAD_NODE, OFFSET.NEXT);
     }
 
     private int getLastItemEntryIndex() {
         // find the last sorted entry
         int sortedCount = this.sortedCount.get();
         int entryIndex = sortedCount == 0 ? HEAD_NODE : (sortedCount - 1) * (FIELDS) + 1;
-        int nextEntryIndex = getEntryField(entryIndex, OFFSET_NEXT);
+        int nextEntryIndex = getEntryFieldInt(entryIndex, OFFSET.NEXT);
         while (nextEntryIndex != Chunk.NONE) {
             entryIndex = nextEntryIndex;
-            nextEntryIndex = getEntryField(entryIndex, OFFSET_NEXT);
+            nextEntryIndex = getEntryFieldInt(entryIndex, OFFSET.NEXT);
         }
         return entryIndex;
-    }
-
-
-    void freeHandle(int handleIndex) {
-        handles[handleIndex].remove(memoryManager, null, null);
     }
 
     /**
@@ -675,7 +829,6 @@ public class Chunk<K, V> {
 
         // use local variables and just set the atomic variables once at the end
         int sortedEntryIndex = entryIndex.get();
-        int currentHandleIdx = handleIndex.get();
 
         // check that we are not beyond allowed number of entries to copy from source chunk
         int maxIdx = maxCapacity * FIELDS + 1;
@@ -686,26 +839,27 @@ public class Chunk<K, V> {
 
         // set the next entry index from where we start to copy
         if (sortedEntryIndex != FIRST_ITEM) {
-            setEntryField(sortedEntryIndex - FIELDS, OFFSET_NEXT, sortedEntryIndex);
+            setEntryFieldInt(sortedEntryIndex - FIELDS, OFFSET.NEXT, sortedEntryIndex);
         } else {
-            setEntryField(HEAD_NODE, OFFSET_NEXT, FIRST_ITEM);
+            setEntryFieldInt(HEAD_NODE, OFFSET.NEXT, FIRST_ITEM);
         }
 
         int entryIndexStart = srcEntryIdx;
         int entryIndexEnd = entryIndexStart - 1;
         int srcPrevEntryIdx = NONE;
-        int currSrcHandleIndex;
         boolean isFirstInInterval = true;
 
         while (true) {
-            currSrcHandleIndex = srcChunk.getEntryField(srcEntryIdx, OFFSET_HANDLE_INDEX);
-            boolean isHandleDeleted = (currSrcHandleIndex > 0) && srcChunk.handles[currSrcHandleIndex].isDeleted();
+            int[] currSrcValueVersion = new int[1];
+            long currSrcValueReference = srcChunk.getValueReferenceAndVersion(srcEntryIdx, currSrcValueVersion);
+            boolean isValueDeleted = (currSrcValueReference == INVALID_VALUE) ||
+                    operator.isValueDeleted(buildValueSlice(currSrcValueReference), currSrcValueVersion[0]) != FALSE;
             int entriesToCopy = entryIndexEnd - entryIndexStart + 1;
 
             // try to find a continuous interval to copy
-            // we cannot enlarge interval: if key is removed (handle index is -1) or
+            // we cannot enlarge interval: if key is removed (value reference is DELETED_VALUE) or
             // if this chunk already has all entries to start with
-            if ((currSrcHandleIndex > 0) && (!isHandleDeleted) && (sortedEntryIndex + entriesToCopy * FIELDS < maxIdx)) {
+            if (!isValueDeleted && (sortedEntryIndex + entriesToCopy * FIELDS < maxIdx)) {
                 // we can enlarge the interval, if it is otherwise possible:
                 // if this is first entry in the interval (we need to copy one entry anyway) OR
                 // if (on the source chunk) current entry idx directly follows the previous entry idx
@@ -713,7 +867,7 @@ public class Chunk<K, V> {
                     entryIndexEnd++;
                     isFirstInInterval = false;
                     srcPrevEntryIdx = srcEntryIdx;
-                    srcEntryIdx = srcChunk.getEntryField(srcEntryIdx, OFFSET_NEXT);
+                    srcEntryIdx = srcChunk.getEntryFieldInt(srcEntryIdx, OFFSET.NEXT);
                     if (srcEntryIdx != NONE) {
                         continue;
                     }
@@ -722,37 +876,30 @@ public class Chunk<K, V> {
             }
 
             entriesToCopy = entryIndexEnd - entryIndexStart + 1;
-            if (entriesToCopy > 0) { // copy continuous interval (TODO: with arraycopy)
+            if (entriesToCopy > 0) {
                 for (int i = 0; i < entriesToCopy; ++i) {
                     int offset = i * FIELDS;
                     // next should point to the next item
-                    entries[sortedEntryIndex + offset + OFFSET_NEXT]
+                    entries[sortedEntryIndex + offset + OFFSET.NEXT.value]
                             = sortedEntryIndex + offset + FIELDS;
 
-                    // copy the values of key position, key block index + key length => 2 integers via array copy
+                    // copy both the key and the value references the value's version => 5 integers via array copy
+                    // the first field in an entry is next, and it is not copied since it was assign
+                    // therefore, to copy the rest of the entry we use the offset of next (which we assume is 0) and
+                    // add 1 to start the copying from the subsequent field of the entry.
                     System.arraycopy(srcChunk.entries,  // source array
-                            entryIndexStart + offset + OFFSET_KEY_POSITION,
-                            entries,                        // destination aray
-                            sortedEntryIndex + offset + OFFSET_KEY_POSITION, (FIELDS - 2));
-
-                    // copy handle
-                    int srcChunkHandleIdx = srcChunk.entries[entryIndexStart + offset + OFFSET_HANDLE_INDEX];
-                    assert srcChunk.handles.length > srcChunkHandleIdx;
-                    assert srcChunkHandleIdx > 0;
-                    assert handles.length > currentHandleIdx;
-                    assert currentHandleIdx > 0;
-                    entries[sortedEntryIndex + offset + OFFSET_HANDLE_INDEX] = currentHandleIdx;
-                    handles[currentHandleIdx] = srcChunk.handles[srcChunkHandleIdx];
-                    currentHandleIdx++;
+                            entryIndexStart + offset + OFFSET.NEXT.value + 1,
+                            entries,                        // destination array
+                            sortedEntryIndex + offset + OFFSET.NEXT.value + 1, (FIELDS - 1));
                 }
 
                 sortedEntryIndex += entriesToCopy * FIELDS; // update
             }
 
-            if (currSrcHandleIndex < 0 || isHandleDeleted) { // if now this is a removed item
+            if (isValueDeleted) { // if now this is a removed item
                 // don't copy it, continue to next item
                 srcPrevEntryIdx = srcEntryIdx;
-                srcEntryIdx = srcChunk.getEntryField(srcEntryIdx, OFFSET_NEXT);
+                srcEntryIdx = srcChunk.getEntryFieldInt(srcEntryIdx, OFFSET.NEXT);
             }
 
             if (srcEntryIdx == NONE || sortedEntryIndex >= maxIdx) {
@@ -768,10 +915,9 @@ public class Chunk<K, V> {
 
         // next of last item in serial should point to null
         int setIdx = sortedEntryIndex > FIRST_ITEM ? sortedEntryIndex - FIELDS : HEAD_NODE;
-        setEntryField(setIdx, OFFSET_NEXT, NONE);
+        setEntryFieldInt(setIdx, OFFSET.NEXT, NONE);
         // update index and counter
         entryIndex.set(sortedEntryIndex);
-        handleIndex.set(currentHandleIdx);
         sortedCount.set(sortedEntryIndex / FIELDS);
         statistics.updateInitialSortedCount(sortedCount.get());
         return srcEntryIdx; // if NONE then we finished copying old chunk, else we reached max in new chunk
@@ -857,40 +1003,49 @@ public class Chunk<K, V> {
         private int next;
 
         AscendingIter() {
-            next = getEntryField(HEAD_NODE, OFFSET_NEXT);
-            int handle = getEntryField(next, OFFSET_HANDLE_INDEX);
-            while (next != Chunk.NONE && handle < 0) {
-                next = getEntryField(next, OFFSET_NEXT);
-                handle = getEntryField(next, OFFSET_HANDLE_INDEX);
+            next = getEntryFieldInt(HEAD_NODE, OFFSET.NEXT);
+            long valueReference = INVALID_VALUE;
+            if (next != Chunk.NONE) {
+                valueReference = getEntryFieldLong(next, OFFSET.VALUE_REFERENCE);
+            }
+            while (next != Chunk.NONE && valueReference == INVALID_VALUE) {
+                next = getEntryFieldInt(next, OFFSET.NEXT);
+                if (next != Chunk.NONE) {
+                    valueReference = getEntryFieldLong(next, OFFSET.VALUE_REFERENCE);
+                }
             }
         }
 
         AscendingIter(K from, boolean inclusive) {
-            next = getEntryField(binaryFind(from), OFFSET_NEXT);
+            next = getEntryFieldInt(binaryFind(from), OFFSET.NEXT);
 
-            int handle = getEntryField(next, OFFSET_HANDLE_INDEX);
-
+            long valueReference = INVALID_VALUE;
             int compare = -1;
-            if (next != Chunk.NONE)
+            if (next != Chunk.NONE) {
                 compare = comparator.compareKeyAndSerializedKey(from, readKey(next));
+                valueReference = getEntryFieldLong(next, OFFSET.VALUE_REFERENCE);
+            }
 
-            while (next != Chunk.NONE &&
-                    (compare > 0 ||
-                            (compare >= 0 && !inclusive) ||
-                            handle < 0)) {
-                next = getEntryField(next, OFFSET_NEXT);
-                handle = getEntryField(next, OFFSET_HANDLE_INDEX);
-                if (next != Chunk.NONE)
+            while (next != Chunk.NONE && (compare > 0 || (compare >= 0 && !inclusive) || valueReference == INVALID_VALUE)) {
+                next = getEntryFieldInt(next, OFFSET.NEXT);
+                if (next != Chunk.NONE) {
+                    valueReference = getEntryFieldLong(next, OFFSET.VALUE_REFERENCE);
                     compare = comparator.compareKeyAndSerializedKey(from, readKey(next));
+                }
             }
         }
 
         private void advance() {
-            next = getEntryField(next, OFFSET_NEXT);
-            int handle = getEntryField(next, OFFSET_HANDLE_INDEX);
-            while (next != Chunk.NONE && handle < 0) {
-                next = getEntryField(next, OFFSET_NEXT);
-                handle = getEntryField(next, OFFSET_HANDLE_INDEX);
+            next = getEntryFieldInt(next, OFFSET.NEXT);
+            long valueReference = INVALID_VALUE;
+            if (next != Chunk.NONE) {
+                valueReference = getEntryFieldLong(next, OFFSET.VALUE_REFERENCE);
+            }
+            while (next != Chunk.NONE && valueReference == INVALID_VALUE) {
+                next = getEntryFieldInt(next, OFFSET.NEXT);
+                if (next != Chunk.NONE) {
+                    valueReference = getEntryFieldLong(next, OFFSET.VALUE_REFERENCE);
+                }
             }
         }
 
@@ -948,12 +1103,16 @@ public class Chunk<K, V> {
                 return;
             }
             next = stack.pop();
-            int handle = getEntryField(next, OFFSET_HANDLE_INDEX);
-            while (next != Chunk.NONE && handle < 0) {
-//            while (next != Chunk.NONE && (handle < 0 || (handle > 0 && handles[handle].isDeleted()))) {
+            long valueReference = INVALID_VALUE;
+            if (next != Chunk.NONE) {
+                valueReference = getEntryFieldLong(next, OFFSET.VALUE_REFERENCE);
+            }
+            while (next != Chunk.NONE && valueReference == INVALID_VALUE) {
                 if (!stack.empty()) {
                     next = stack.pop();
-                    handle = getEntryField(next, OFFSET_HANDLE_INDEX);
+                    if (next != Chunk.NONE) {
+                        valueReference = getEntryFieldLong(next, OFFSET.VALUE_REFERENCE);
+                    }
                 } else {
                     next = Chunk.NONE;
                     return;
@@ -966,27 +1125,27 @@ public class Chunk<K, V> {
          */
         private void traverseLinkedList() {
             assert stack.size() == 1; // ancor is in the stack
-            if (prevAnchor == getEntryField(anchor, OFFSET_NEXT)) {
+            if (prevAnchor == getEntryFieldInt(anchor, OFFSET.NEXT)) {
                 // there is no next;
                 next = Chunk.NONE;
                 return;
             }
-            next = getEntryField(anchor, OFFSET_NEXT);
+            next = getEntryFieldInt(anchor, OFFSET.NEXT);
             if (from == null) {
                 while (next != Chunk.NONE) {
                     stack.push(next);
-                    next = getEntryField(next, OFFSET_NEXT);
+                    next = getEntryFieldInt(next, OFFSET.NEXT);
                 }
             } else {
                 if (inclusive) {
                     while (next != Chunk.NONE && comparator.compareKeyAndSerializedKey(from, readKey(next)) >= 0) {
                         stack.push(next);
-                        next = getEntryField(next, OFFSET_NEXT);
+                        next = getEntryFieldInt(next, OFFSET.NEXT);
                     }
                 } else {
                     while (next != Chunk.NONE && comparator.compareKeyAndSerializedKey(from, readKey(next)) > 0) {
                         stack.push(next);
-                        next = getEntryField(next, OFFSET_NEXT);
+                        next = getEntryFieldInt(next, OFFSET.NEXT);
                     }
                 }
             }
@@ -1043,7 +1202,7 @@ public class Chunk<K, V> {
      * just a simple stack of int, implemented with int array
      */
 
-    class IntStack {
+    static class IntStack {
 
         private final int[] stack;
         private int top;
@@ -1084,7 +1243,7 @@ public class Chunk<K, V> {
     /**
      * This class contains information about chunk utilization.
      */
-    class Statistics {
+    static class Statistics {
         private final AtomicInteger addedCount = new AtomicInteger(0);
         private int initialSortedCount = 0;
 

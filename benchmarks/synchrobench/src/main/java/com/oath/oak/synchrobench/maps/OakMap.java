@@ -3,6 +3,7 @@ package com.oath.oak.synchrobench.maps;
 
 import com.oath.oak.Chunk;
 import com.oath.oak.NativeAllocator.OakNativeMemoryAllocator;
+import com.oath.oak.NovaManager;
 import com.oath.oak.OakMapBuilder;
 import com.oath.oak.synchrobench.contention.abstractions.CompositionalOakMap;
 import com.oath.oak.synchrobench.contention.benchmark.Parameters;
@@ -14,9 +15,12 @@ public class OakMap<K extends MyBuffer, V extends MyBuffer> implements Compositi
     private OakMapBuilder<MyBuffer, MyBuffer> builder;
     private MyBuffer minKey;
     private OakNativeMemoryAllocator ma;
+    private static final long KB = 1024L;
+    private static final long GB = KB * KB * KB;
+    private static final long OAK_MAX_OFF_MEMORY = 256 * GB;
 
     public OakMap() {
-        ma = new OakNativeMemoryAllocator((long) Integer.MAX_VALUE * 32);
+        ma = new OakNativeMemoryAllocator(OAK_MAX_OFF_MEMORY);
         if (Parameters.detailedStats) {
             ma.collectStats();
         }
@@ -30,6 +34,10 @@ public class OakMap<K extends MyBuffer, V extends MyBuffer> implements Compositi
                 .setChunkMaxItems(Chunk.MAX_ITEMS_DEFAULT)
                 .setMemoryAllocator(ma);
         oak = builder.build();
+    }
+
+    public OakNativeMemoryAllocator getMemoryAllocator() {
+        return ma;
     }
 
     @Override
@@ -52,7 +60,11 @@ public class OakMap<K extends MyBuffer, V extends MyBuffer> implements Compositi
 
     @Override
     public void removeOak(K key) {
-        oak.remove(key);
+        if (Parameters.zeroCopy) {
+            oak.zc().remove(key);
+        } else {
+            oak.remove(key);
+        }
     }
 
     @Override
@@ -92,7 +104,11 @@ public class OakMap<K extends MyBuffer, V extends MyBuffer> implements Compositi
     private boolean createAndScanView(com.oath.oak.OakMap<MyBuffer, MyBuffer> subMap, int length) {
         Iterator iter;
         if (Parameters.zeroCopy) {
-            iter = subMap.zc().keySet().iterator();
+            if (Parameters.streamIteration) {
+                iter = subMap.zc().keyStreamSet().iterator();
+            } else {
+                iter = subMap.zc().keySet().iterator();
+            }
         } else {
             iter = subMap.keySet().iterator();
         }

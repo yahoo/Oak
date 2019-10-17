@@ -30,7 +30,8 @@ public class OakMapBuilder<K, V> {
     // Off-heap fields
     private int chunkMaxItems;
     private long memoryCapacity;
-    private OakMemoryAllocator memoryAllocator;
+    private OakBlockMemoryAllocator memoryAllocator;
+    private NovaValueOperations operator;
 
     public OakMapBuilder() {
         this.keySerializer = null;
@@ -43,6 +44,7 @@ public class OakMapBuilder<K, V> {
         this.chunkMaxItems = Chunk.MAX_ITEMS_DEFAULT;
         this.memoryCapacity = MAX_MEM_CAPACITY;
         this.memoryAllocator = null;
+        this.operator = new NovaValueOperationsImpl();
     }
 
     public OakMapBuilder<K, V> setKeySerializer(OakSerializer<K> keySerializer) {
@@ -75,7 +77,7 @@ public class OakMapBuilder<K, V> {
         return this;
     }
 
-    public OakMapBuilder<K, V> setMemoryAllocator(OakMemoryAllocator ma) {
+    public OakMapBuilder<K, V> setMemoryAllocator(OakBlockMemoryAllocator ma) {
         this.memoryAllocator = ma;
         return this;
     }
@@ -86,14 +88,14 @@ public class OakMapBuilder<K, V> {
             this.memoryAllocator = new OakNativeMemoryAllocator(memoryCapacity);
         }
 
-        MemoryManager memoryManager = new MemoryManager(memoryAllocator);
+        NovaManager memoryManager = new NovaManager((OakNativeMemoryAllocator) memoryAllocator);
 
         return new OakMap<>(
                 minKey,
                 keySerializer,
                 valueSerializer,
                 comparator, chunkMaxItems,
-                memoryManager);
+                memoryManager, operator);
     }
 
 }

@@ -35,14 +35,15 @@ class Rebalancer<K, V> {
     private int chunksInRange;
     private int itemsInRange;
     private final boolean offHeap;
-    private final MemoryManager memoryManager;
+    private final NovaManager memoryManager;
     private final OakSerializer<K> keySerializer;
     private final OakSerializer<V> valueSerializer;
+    private final NovaValueOperations operator;
 
     /*-------------- Constructors --------------*/
 
-    Rebalancer(Chunk<K, V> chunk, boolean offHeap, MemoryManager memoryManager,
-               OakSerializer<K> keySerializer, OakSerializer<V> valueSerializer) {
+    Rebalancer(Chunk<K, V> chunk, boolean offHeap, NovaManager memoryManager,
+               OakSerializer<K> keySerializer, OakSerializer<V> valueSerializer, NovaValueOperations operator) {
         this.entriesLowThreshold = (int) (chunk.getMaxItems() * LOW_THRESHOLD);
         this.maxRangeToAppend = (int) (chunk.getMaxItems() * APPEND_THRESHOLD);
         this.maxAfterMergeItems = (int) (chunk.getMaxItems() * MAX_AFTER_MERGE_PART);
@@ -55,16 +56,7 @@ class Rebalancer<K, V> {
         itemsInRange = first.getStatistics().getCompactedCount();
         this.keySerializer = keySerializer;
         this.valueSerializer = valueSerializer;
-    }
-
-    static class RebalanceResult {
-        final boolean success;
-        final Handle oldHandle;     // non-null handle means someone helped with insertion
-
-        RebalanceResult(boolean success, Handle handle) {
-            this.success = success;
-            this.oldHandle = handle;
-        }
+        this.operator = operator;
     }
 
     /*-------------- Methods --------------*/
@@ -119,11 +111,11 @@ class Rebalancer<K, V> {
      * @return if managed to CAS to newChunk list of rebalance
      * if we did then the put was inserted
      */
-    RebalanceResult createNewChunks() {
+    boolean createNewChunks() {
 
         assert offHeap;
         if (this.newChunks.get() != null) {
-            return new RebalanceResult(false, null); // this was done by another thread already
+            return false; // this was done by another thread already
         }
 
         List<Chunk<K, V>> frozenChunks = engagedChunks.get();
@@ -132,10 +124,8 @@ class Rebalancer<K, V> {
 
         Chunk<K, V> firstFrozen = iterFrozen.next();
         Chunk<K, V> currFrozen = firstFrozen;
-        Chunk<K, V> currNewChunk = new Chunk<>(firstFrozen.minKey, firstFrozen, firstFrozen.comparator,
-                memoryManager,
-                currFrozen.getMaxItems(), currFrozen.externalSize,
-                keySerializer, valueSerializer);
+        Chunk<K, V> currNewChunk = new Chunk<>(firstFrozen.minKey, firstFrozen, firstFrozen.comparator, memoryManager,
+                currFrozen.getMaxItems(), currFrozen.externalSize, keySerializer, valueSerializer, operator);
 
         int ei = firstFrozen.getFirstItemEntryIndex();
         List<Chunk<K, V>> newChunks = new LinkedList<>();
@@ -178,7 +168,7 @@ class Rebalancer<K, V> {
 
                     Chunk<K, V> c = new Chunk<>(newMinKey, firstFrozen, currFrozen.comparator, memoryManager,
                             currFrozen.getMaxItems(), currFrozen.externalSize,
-                            keySerializer, valueSerializer);
+                            keySerializer, valueSerializer, operator);
                     currNewChunk.next.set(c, false);
                     newChunks.add(currNewChunk);
                     currNewChunk = c;
@@ -190,8 +180,7 @@ class Rebalancer<K, V> {
         newChunks.add(currNewChunk);
 
         // if fail here, another thread succeeded, and op is effectively gone
-        boolean cas = this.newChunks.compareAndSet(null, newChunks);
-        return new RebalanceResult(cas, null);
+        return this.newChunks.compareAndSet(null, newChunks);
     }
 
     private boolean canAppendSuffix(List<Chunk<K, V>> frozenSuffix, int maxCount) {

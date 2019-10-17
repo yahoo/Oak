@@ -1,7 +1,7 @@
 package com.oath.oak.synchrobench.contention.benchmark;
 
 /**
- * Parameters of the Java version of the 
+ * Parameters of the Java version of the
  * Synchrobench benchmark.
  *
  * @author Vincent Gramoli
@@ -23,13 +23,14 @@ public class Parameters {
     	iterations = 1,
 		keySize = 4,
         valSize = 4;
-    
+
     public static boolean detailedStats = false;
 	static boolean change = false;
+	public static boolean streamIteration = false;
 
 	public static boolean zeroCopy = false;
 
 	public static KeyDist keyDistribution = KeyDist.RANDOM;
 
-    static String benchClassName = "skiplists.lockfree.NonBlockingFriendlySkipListMap";
+    static String benchClassName = "com.oath.oak.synchrobench.maps.OakMap";
 }

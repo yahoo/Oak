@@ -3,6 +3,7 @@ package com.oath.oak.synchrobench.contention.benchmark;
 
 import com.oath.oak.synchrobench.contention.abstractions.CompositionalOakMap;
 import com.oath.oak.synchrobench.maps.MyBuffer;
+import com.oath.oak.synchrobench.maps.OakMap;
 
 import java.lang.reflect.Method;
 import java.util.Random;
@@ -90,19 +91,20 @@ public class ThreadLoopOak implements Runnable {
     public void run() {
 
         boolean change = Parameters.change;
-        int size = 100;
+        int size = 10000;
 
 
         MyBuffer key = new MyBuffer(Parameters.keySize);
 
         Integer newInt = -1;
         while (!stop) {
-            newInt = (Parameters.keyDistribution == Parameters.KeyDist.RANDOM) ? rand.nextInt(Parameters.range) : newInt + 1;
+            newInt = (Parameters.keyDistribution == Parameters.KeyDist.RANDOM) ? rand.nextInt(Parameters.range) :
+                    newInt + 1;
             key.buffer.putInt(0, newInt);
 
             int coin = rand.nextInt(1000);
             if (coin < cdf[0]) { // -a
-                if(!change){
+                if (!change) {
                     bench.removeOak(key);
                     numRemove++;
                 } else {
@@ -115,13 +117,13 @@ public class ThreadLoopOak implements Runnable {
             } else if (coin < cdf[1]) { // -u
                 MyBuffer newKey = new MyBuffer(Parameters.keySize);
                 MyBuffer newVal = new MyBuffer(Parameters.valSize);
-                newKey.buffer.putInt(0,newInt);
-                newVal.buffer.putInt(0,newInt);
+                newKey.buffer.putInt(0, newInt);
+                newVal.buffer.putInt(0, newInt);
                 if (!change) {
-                    bench.putOak(newKey,newVal);
+                    bench.putOak(newKey, newVal);
                     numAdd++;
                 } else {
-                    if (bench.putIfAbsentOak(newKey,newVal)) {
+                    if (bench.putIfAbsentOak(newKey, newVal)) {
                         numAdd++;
                     } else {
                         failures++;
@@ -132,18 +134,20 @@ public class ThreadLoopOak implements Runnable {
                     bench.computeOak(key);
                     numSize++;
                 } else {
-                    if (bench.computeIfPresentOak(key)) {
-                        numSize++;
-                    } else {
-                        failures++;
-                    }
+                    MyBuffer newKey = new MyBuffer(Parameters.keySize);
+                    MyBuffer newVal = new MyBuffer(Parameters.valSize);
+                    newKey.buffer.putInt(0, newInt);
+                    newVal.buffer.putInt(0, newInt);
+                    bench.putIfAbsentComputeIfPresentOak(newKey, newVal);
+                    numSize++;
                 }
             } else {
                 if (!change) {
-                    if (bench.getOak(key))
+                    if (bench.getOak(key)) {
                         numContains++;
-                    else
+                    } else {
                         failures++;
+                    }
                 } else {
                     if (bench.ascendOak(key, size)) {
                         numContains++;

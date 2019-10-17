@@ -12,6 +12,9 @@ class MyBufferOak {
         @Override
         public void serialize(MyBuffer key, ByteBuffer targetBuffer) {
             int cap = key.buffer.capacity();
+            if(cap != 100 && cap != 4 && cap != 1000){
+                throw new AssertionError();
+            }
             int pos = targetBuffer.position();
             // write the capacity in the beginning of the buffer
             targetBuffer.putInt(pos, cap);
@@ -42,7 +45,9 @@ class MyBufferOak {
             int n = Math.min(len1, len2);
             for (int i = 0; i < n; i += Integer.BYTES) {
                 int cmp = Integer.compare(buffer1.getInt(base1 + i), buffer2.getInt(base2 + i));
-                if (cmp != 0) return cmp;
+                if (cmp != 0) {
+                    return cmp;
+                }
             }
             return (len1 - len2);
         }
@@ -65,11 +70,15 @@ class MyBufferOak {
 
         @Override
         public int compareKeyAndSerializedKey(MyBuffer key, ByteBuffer serializedKey) {
-            int pos1 = key.buffer.position();
-            int cap1 = key.buffer.capacity();
-            int pos2 = serializedKey.position();
-            int cap2 = serializedKey.getInt(pos1);
-            return compare(serializedKey, pos1 + Integer.BYTES, cap1, key.buffer, pos2, cap2);
+            int keyPosition = key.buffer.position();
+            int keyLength = key.buffer.capacity();
+            int serializedKeyPosition = serializedKey.position();
+            int serializedKeyLength = serializedKey.getInt(serializedKeyPosition);
+            // The order of the arguments is crucial and should match the signature of this function
+            // (compareKeyAndSerializedKey).
+            // Thus key.buffer with its parameters should be passed, and only then serializedKey with its parameters.
+            return compare(key.buffer, keyPosition, keyLength, serializedKey, serializedKeyPosition + Integer.BYTES,
+                    serializedKeyLength);
 
         }
     };

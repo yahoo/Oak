@@ -11,27 +11,19 @@ import java.nio.ByteBuffer;
 
 
 public class MemoryManager {
-    private final OakMemoryAllocator keysMemoryAllocator;
-    private final OakMemoryAllocator valuesMemoryAllocator;
+    private final OakBlockMemoryAllocator keysMemoryAllocator;
+    private final OakBlockMemoryAllocator valuesMemoryAllocator;
 
-    public MemoryManager(OakMemoryAllocator memoryAllocator) {
+    public MemoryManager(OakBlockMemoryAllocator memoryAllocator) {
         assert memoryAllocator != null;
 
         this.valuesMemoryAllocator = memoryAllocator;
         this.keysMemoryAllocator = memoryAllocator;
     }
 
-    public ByteBuffer allocate(int size) {
-        return valuesMemoryAllocator.allocate(size);
-    }
-
     public void close() {
         valuesMemoryAllocator.close();
         keysMemoryAllocator.close();
-    }
-
-    void release(ByteBuffer bb) {
-        valuesMemoryAllocator.free(bb);
     }
 
     // how many memory is allocated for this OakMap
@@ -43,7 +35,7 @@ public class MemoryManager {
     // needs to be known. Currently allocateSlice() is used for keys and
     // allocate() is used for values.
     public Slice allocateSlice(int bytes) {
-        return ((OakNativeMemoryAllocator)keysMemoryAllocator).allocateSlice(bytes);
+        return ((OakNativeMemoryAllocator)keysMemoryAllocator).allocateSlice(bytes, true);
     }
 
     public void releaseSlice(Slice slice) {
