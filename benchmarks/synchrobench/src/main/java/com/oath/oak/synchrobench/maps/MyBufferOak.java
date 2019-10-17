@@ -12,9 +12,6 @@ class MyBufferOak {
         @Override
         public void serialize(MyBuffer key, ByteBuffer targetBuffer) {
             int cap = key.buffer.capacity();
-            if(cap != 100 && cap != 4 && cap != 1000){
-                throw new AssertionError();
-            }
             int pos = targetBuffer.position();
             // write the capacity in the beginning of the buffer
             targetBuffer.putInt(pos, cap);

@@ -626,7 +626,7 @@ class InternalOakMap<K, V> {
         }
     }
 
-    OakRBuffer zcGet(K key) {
+    OakRBuffer get(K key) {
         if (key == null) {
             throw new NullPointerException();
         }
@@ -875,14 +875,14 @@ class InternalOakMap<K, V> {
             return null;
         }
         int[] valueArray = longToInts(valuerReference);
-        return memoryManager.getSliceFromBlockID(valueArray[0] >>> VALUE_BLOCK_SHIFT, valueArray[1],
-                valueArray[0] & VALUE_LENGTH_MASK);
+        return memoryManager.getSliceFromBlockID(valueArray[BLOCK_ID_LENGTH_ARRAY_INDEX] >>> VALUE_BLOCK_SHIFT,
+                valueArray[POSITION_ARRAY_INDEX], valueArray[BLOCK_ID_LENGTH_ARRAY_INDEX] & VALUE_LENGTH_MASK);
     }
 
     private ByteBuffer getKeyByteBuffer(long keyReference) {
         int[] keyArray = longToInts(keyReference);
-        return memoryManager.getByteBufferFromBlockID(keyArray[0] >>> KEY_BLOCK_SHIFT, keyArray[1],
-                keyArray[0] & KEY_LENGTH_MASK);
+        return memoryManager.getByteBufferFromBlockID(keyArray[BLOCK_ID_LENGTH_ARRAY_INDEX] >>> KEY_BLOCK_SHIFT,
+                keyArray[POSITION_ARRAY_INDEX], keyArray[BLOCK_ID_LENGTH_ARRAY_INDEX] & KEY_LENGTH_MASK);
     }
 
     private static class IteratorState<K, V> {

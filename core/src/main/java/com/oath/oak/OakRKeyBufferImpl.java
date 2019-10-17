@@ -10,8 +10,10 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.function.Function;
 
+import static com.oath.oak.Chunk.BLOCK_ID_LENGTH_ARRAY_INDEX;
 import static com.oath.oak.Chunk.KEY_BLOCK_SHIFT;
 import static com.oath.oak.Chunk.KEY_LENGTH_MASK;
+import static com.oath.oak.Chunk.POSITION_ARRAY_INDEX;
 import static com.oath.oak.UnsafeUtils.longToInts;
 
 public class OakRKeyBufferImpl implements OakRBuffer {
@@ -23,18 +25,18 @@ public class OakRKeyBufferImpl implements OakRBuffer {
     OakRKeyBufferImpl(long keyReference, NovaManager memoryManager) {
         this.keyReference = keyReference;
         this.memoryManager = memoryManager;
-        this.initialPosition = longToInts(keyReference)[1];
+        this.initialPosition = longToInts(keyReference)[POSITION_ARRAY_INDEX];
     }
 
     private ByteBuffer getKeyBuffer() {
         int[] keyArray = longToInts(keyReference);
-        return memoryManager.getByteBufferFromBlockID(keyArray[0] >>> KEY_BLOCK_SHIFT, keyArray[1],
-                keyArray[0] & KEY_LENGTH_MASK);
+        return memoryManager.getByteBufferFromBlockID(keyArray[BLOCK_ID_LENGTH_ARRAY_INDEX] >>> KEY_BLOCK_SHIFT, keyArray[POSITION_ARRAY_INDEX],
+                keyArray[BLOCK_ID_LENGTH_ARRAY_INDEX] & KEY_LENGTH_MASK);
     }
 
     @Override
     public int capacity() {
-        return longToInts(keyReference)[0] & KEY_LENGTH_MASK;
+        return longToInts(keyReference)[BLOCK_ID_LENGTH_ARRAY_INDEX] & KEY_LENGTH_MASK;
     }
 
     @Override

@@ -3,7 +3,6 @@ package com.oath.oak.synchrobench.maps;
 
 import com.oath.oak.Chunk;
 import com.oath.oak.NativeAllocator.OakNativeMemoryAllocator;
-import com.oath.oak.NovaManager;
 import com.oath.oak.OakMapBuilder;
 import com.oath.oak.synchrobench.contention.abstractions.CompositionalOakMap;
 import com.oath.oak.synchrobench.contention.benchmark.Parameters;

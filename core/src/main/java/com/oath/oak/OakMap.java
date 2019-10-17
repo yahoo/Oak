@@ -519,7 +519,7 @@ public class OakMap<K, V> extends AbstractMap<K, V> implements AutoCloseable, Co
         public OakRBuffer get(K key) {
             m.checkKey(key);
 
-            return m.internalOakMap.zcGet(key);
+            return m.internalOakMap.get(key);
         }
 
         public boolean remove(K key) {

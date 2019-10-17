@@ -32,8 +32,8 @@ public class OakNativeMemoryAllocator implements OakBlockMemoryAllocator {
         }
     }
 
-    // When allocating n bytes and there are buffers in the free list, only free buffers of size <= n * REUSE_MAX_MULTIPLIER
-    // will be recycled
+    // When allocating n bytes and there are buffers in the free list, only free buffers of size <= n *
+    // REUSE_MAX_MULTIPLIER will be recycled
     // This parameter may be tuned for performance vs off-heap memory utilization
     private static final int REUSE_MAX_MULTIPLIER = 2;
     public static final int INVALID_BLOCK_ID = 0;

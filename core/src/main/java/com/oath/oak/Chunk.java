@@ -17,7 +17,6 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static com.oath.oak.NovaManager.INVALID_VERSION;
 import static com.oath.oak.NovaValueUtils.NovaResult.*;
-import static com.oath.oak.NativeAllocator.OakNativeMemoryAllocator.INVALID_BLOCK_ID;
 import static com.oath.oak.UnsafeUtils.intsToLong;
 
 import static com.oath.oak.UnsafeUtils.longToInts;
@@ -83,8 +82,8 @@ public class Chunk<K, V> {
     static final int NONE = 0;    // an entry with NONE as its next pointer, points to a null entry
     static final int INVALID_ENTRY_INDEX = -1;
     static final long INVALID_VALUE_REFERENCE = 0;
-    private static final int BLOCK_ID_LENGTH_ARRAY_INDEX = 0;
-    private static final int POSITION_ARRAY_INDEX = 1;
+    static final int BLOCK_ID_LENGTH_ARRAY_INDEX = 0;
+    static final int POSITION_ARRAY_INDEX = 1;
     // location of the first (head) node - just a next pointer
     private static final int HEAD_NODE = 0;
     // index of first item in array, after head (not necessarily first in list!)
@@ -233,9 +232,9 @@ public class Chunk<K, V> {
 
         long keyReference = getKeyReference(entryIndex);
         int[] keyArray = longToInts(keyReference);
-        int blockID = keyArray[0] >> KEY_BLOCK_SHIFT;
-        int keyPosition = keyArray[1];
-        int length = keyArray[0] & KEY_LENGTH_MASK;
+        int blockID = keyArray[BLOCK_ID_LENGTH_ARRAY_INDEX] >> KEY_BLOCK_SHIFT;
+        int keyPosition = keyArray[POSITION_ARRAY_INDEX];
+        int length = keyArray[BLOCK_ID_LENGTH_ARRAY_INDEX] & KEY_LENGTH_MASK;
 
         return memoryManager.getByteBufferFromBlockID(blockID, keyPosition, length);
     }
@@ -280,9 +279,9 @@ public class Chunk<K, V> {
     void releaseKey(int entryIndex) {
         long keyReference = getKeyReference(entryIndex);
         int[] keyArray = longToInts(keyReference);
-        int blockID = keyArray[0] >> KEY_BLOCK_SHIFT;
-        int keyPosition = keyArray[1];
-        int length = keyArray[0] & KEY_LENGTH_MASK;
+        int blockID = keyArray[BLOCK_ID_LENGTH_ARRAY_INDEX] >> KEY_BLOCK_SHIFT;
+        int keyPosition = keyArray[POSITION_ARRAY_INDEX];
+        int length = keyArray[BLOCK_ID_LENGTH_ARRAY_INDEX] & KEY_LENGTH_MASK;
         Slice s = new Slice(blockID, keyPosition, length, memoryManager);
 
         memoryManager.releaseSlice(s);
@@ -378,13 +377,6 @@ public class Chunk<K, V> {
         unsafe.putLongVolatile(entries, arrayOffset, value);
     }
 
-    /**
-     * gets the value for the given item, or 'null' if it doesn't exist
-     */
-    Slice getValueSlice(int entryIndex) {
-        return buildValueSlice(getValueReference(entryIndex));
-    }
-
     Slice buildValueSlice(long valueReference) {
         if (valueReference == INVALID_VALUE_REFERENCE) {
             return null;
@@ -409,10 +401,6 @@ public class Chunk<K, V> {
         } while (v != getValueVersion(entryIndex));
         version[0] = v;
         return valueReference;
-    }
-
-    static boolean isValueThere(int[] valueArray) {
-        return (valueArray[0] >>> VALUE_BLOCK_SHIFT) == INVALID_BLOCK_ID;
     }
 
     int completeLinking(LookUp lookUp) {

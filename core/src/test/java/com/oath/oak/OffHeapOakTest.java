@@ -59,8 +59,7 @@ public class OffHeapOakTest {
         for (int i = 0; i < NUM_THREADS; i++) {
             threads.get(i).join();
         }
-        assertTrue(threadException == null || threadException instanceof ConcurrentModificationException
-                || threadException instanceof NoSuchElementException);
+        assertNull(threadException);
 
         for (Integer i = 0; i < 6 * maxItemsPerChunk; i++) {
             Integer value = oak.get(i);

@@ -12,6 +12,8 @@ import java.util.ConcurrentModificationException;
 import java.util.Map;
 import java.util.function.Function;
 
+import static com.oath.oak.Chunk.BLOCK_ID_LENGTH_ARRAY_INDEX;
+import static com.oath.oak.Chunk.POSITION_ARRAY_INDEX;
 import static com.oath.oak.Chunk.VALUE_BLOCK_SHIFT;
 import static com.oath.oak.Chunk.VALUE_LENGTH_MASK;
 import static com.oath.oak.NovaValueUtils.NovaResult.*;
@@ -37,8 +39,8 @@ public class OakRValueBufferImpl implements OakRBuffer {
 
     private Slice getValueSlice() {
         int[] valueArray = UnsafeUtils.longToInts(valueReference);
-        return memoryManager.getSliceFromBlockID(valueArray[0] >>> VALUE_BLOCK_SHIFT, valueArray[1],
-                valueArray[0] & VALUE_LENGTH_MASK);
+        return memoryManager.getSliceFromBlockID(valueArray[BLOCK_ID_LENGTH_ARRAY_INDEX] >>> VALUE_BLOCK_SHIFT,
+                valueArray[POSITION_ARRAY_INDEX], valueArray[BLOCK_ID_LENGTH_ARRAY_INDEX] & VALUE_LENGTH_MASK);
     }
 
     private ByteBuffer getByteBuffer() {
@@ -46,12 +48,12 @@ public class OakRValueBufferImpl implements OakRBuffer {
     }
 
     private int valuePosition() {
-        return UnsafeUtils.longToInts(valueReference)[1] + operator.getHeaderSize();
+        return UnsafeUtils.longToInts(valueReference)[POSITION_ARRAY_INDEX] + operator.getHeaderSize();
     }
 
     @Override
     public int capacity() {
-        return (UnsafeUtils.longToInts(valueReference)[0] & VALUE_LENGTH_MASK) - operator.getHeaderSize();
+        return (UnsafeUtils.longToInts(valueReference)[BLOCK_ID_LENGTH_ARRAY_INDEX] & VALUE_LENGTH_MASK) - operator.getHeaderSize();
     }
 
     @Override
@@ -200,7 +202,7 @@ public class OakRValueBufferImpl implements OakRBuffer {
         operator.unlockRead(valueSlice, version);
     }
 
-    private void lookupValueReference(){
+    private void lookupValueReference() {
         Chunk.LookUp lookUp = internalOakMap.getValueFromIndex(keyReference);
         if (lookUp == null || lookUp.valueSlice == null) {
             throw new ConcurrentModificationException();

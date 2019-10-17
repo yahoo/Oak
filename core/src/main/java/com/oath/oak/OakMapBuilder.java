@@ -88,7 +88,7 @@ public class OakMapBuilder<K, V> {
             this.memoryAllocator = new OakNativeMemoryAllocator(memoryCapacity);
         }
 
-        NovaManager memoryManager = new NovaManager((OakNativeMemoryAllocator) memoryAllocator);
+        NovaManager memoryManager = new NovaManager(memoryAllocator);
 
         return new OakMap<>(
                 minKey,

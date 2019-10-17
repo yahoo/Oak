@@ -16,9 +16,9 @@ public class NovaManager implements Closeable {
     private ThreadIndexCalculator threadIndexCalculator;
     private List<List<Slice>> releaseLists;
     private AtomicInteger globalNovaNumber;
-    private OakNativeMemoryAllocator allocator;
+    private OakBlockMemoryAllocator allocator;
 
-    NovaManager(OakNativeMemoryAllocator allocator) {
+    NovaManager(OakBlockMemoryAllocator allocator) {
         this.threadIndexCalculator = ThreadIndexCalculator.newInstance();
         this.releaseLists = new CopyOnWriteArrayList<>();
         for (int i = 0; i < ThreadIndexCalculator.MAX_THREADS; i++) {
@@ -26,10 +26,6 @@ public class NovaManager implements Closeable {
         }
         globalNovaNumber = new AtomicInteger(1);
         this.allocator = allocator;
-    }
-
-    public OakNativeMemoryAllocator getAllocator(){
-        return allocator;
     }
 
     @Override
