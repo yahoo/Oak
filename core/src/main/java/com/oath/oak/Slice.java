@@ -8,13 +8,14 @@ package com.oath.oak;
 
 import java.nio.ByteBuffer;
 
-import static com.oath.oak.ValueUtils.LockStates.FREE;
+import static com.oath.oak.NovaValueOperationsImpl.LockStates.FREE;
+
 
 // Slice is a "small part" of a bigger block of the underlying managed memory.
 // Slice is allocated for data (key or value) and can be de-allocated later
 public class Slice {
     private final int blockID;
-    private final ByteBuffer buffer;
+    private ByteBuffer buffer;
     // This field is only used for sanity checks purposes and it should not be used, nor changed.
     private final int originalPosition;
 
@@ -24,7 +25,7 @@ public class Slice {
         this.originalPosition = buffer.position();
     }
 
-    Slice(int blockID, int position, int length, MemoryManager memoryManager) {
+    Slice(int blockID, int position, int length, NovaManager memoryManager) {
         this(blockID, memoryManager.getByteBufferFromBlockID(blockID, position, length));
     }
 
@@ -40,8 +41,13 @@ public class Slice {
         return blockID;
     }
 
-    void initHeader() {
-        buffer.putInt(buffer.position(), FREE.value);
+    void initHeader(NovaValueUtils operator) {
+        buffer.putInt(buffer.position() + operator.getLockLocation(), FREE.value);
+    }
+
+    public Slice readOnly() {
+        buffer = buffer.asReadOnlyBuffer();
+        return this;
     }
 
     boolean validatePosition() {

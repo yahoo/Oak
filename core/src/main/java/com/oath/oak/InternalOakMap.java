@@ -21,11 +21,10 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
-import static com.oath.oak.Chunk.INVALID_ENTRY_INDEX;
-import static com.oath.oak.Chunk.INVALID_VALUE_REFERENCE;
-import static com.oath.oak.ValueUtils.ValueResult.FAILURE;
-import static com.oath.oak.ValueUtils.ValueResult.MOVED;
-import static com.oath.oak.ValueUtils.ValueResult.SUCCESS;
+import static com.oath.oak.Chunk.*;
+import static com.oath.oak.NovaManager.INVALID_VERSION;
+import static com.oath.oak.NovaValueUtils.NovaResult.*;
+import static com.oath.oak.UnsafeUtils.longToInts;
 
 class InternalOakMap<K, V> {
 
@@ -35,7 +34,7 @@ class InternalOakMap<K, V> {
     private final AtomicReference<Chunk<K, V>> head;
     private final ByteBuffer minKey;
     private final OakComparator<K> comparator;
-    private final MemoryManager memoryManager;
+    private final NovaManager memoryManager;
     private final AtomicInteger size;
     private final OakSerializer<K> keySerializer;
     private final OakSerializer<V> valueSerializer;
@@ -43,18 +42,16 @@ class InternalOakMap<K, V> {
     // OakMaps (including subMaps and Views) when all of the above are closed,
     // his map can be closed and memory released.
     private final AtomicInteger referenceCount = new AtomicInteger(1);
+    private final NovaValueOperations operator;
     /*-------------- Constructors --------------*/
 
     /**
      * init with capacity = 2g
      */
 
-    InternalOakMap(K minKey,
-                   OakSerializer<K> keySerializer,
-                   OakSerializer<V> valueSerializer,
-                   OakComparator<K> oakComparator,
-                   MemoryManager memoryManager,
-                   int chunkMaxItems) {
+    InternalOakMap(K minKey, OakSerializer<K> keySerializer, OakSerializer<V> valueSerializer,
+                   OakComparator<K> oakComparator, NovaManager memoryManager, int chunkMaxItems,
+                   NovaValueOperations operator) {
 
         this.size = new AtomicInteger(0);
         this.memoryManager = memoryManager;
@@ -89,9 +86,10 @@ class InternalOakMap<K, V> {
         this.skiplist = new ConcurrentSkipListMap<>(mixedKeyComparator);
 
         Chunk<K, V> head = new Chunk<>(this.minKey, null, this.comparator, memoryManager, chunkMaxItems,
-                this.size, keySerializer, valueSerializer);
+                this.size, keySerializer, valueSerializer, operator);
         this.skiplist.put(head.minKey, head);    // add first chunk (head) into skiplist
         this.head = new AtomicReference<>(head);
+        this.operator = operator;
     }
 
     /*-------------- Closable --------------*/
@@ -160,16 +158,14 @@ class InternalOakMap<K, V> {
 
     /**
      * @param c - Chunk to rebalance
-     * @return - returns {@code true} if this thread managed to CAS to newChunk list of rebalance (the result of
-     * {@code rebalancer.createNewChunks}). {@code false} otherwise.
      */
-    private boolean rebalance(Chunk<K, V> c) {
+    private void rebalance(Chunk<K, V> c) {
 
         if (c == null) {
-            return false;
+            return;
         }
         Rebalancer<K, V> rebalancer = new Rebalancer<>(c, true, memoryManager, keySerializer,
-                valueSerializer);
+                valueSerializer, operator);
 
         rebalancer = rebalancer.engageChunks(); // maybe we encountered a different rebalancer
 
@@ -178,7 +174,7 @@ class InternalOakMap<K, V> {
         // will be redirected to help the rebalance procedure
         rebalancer.freeze();
 
-        boolean result = rebalancer.createNewChunks(); // split or compact
+        rebalancer.createNewChunks(); // split or compact
         // if returned true then this thread was responsible for the creation of the new chunks
         // and it inserted the put
 
@@ -191,8 +187,6 @@ class InternalOakMap<K, V> {
         updateIndexAndNormalize(engaged, newChunks);
 
         engaged.forEach(Chunk::release);
-
-        return result;
     }
 
     private void checkRebalance(Chunk<K, V> c) {
@@ -238,6 +232,7 @@ class InternalOakMap<K, V> {
             }
             // chunk is not in list (someone else already updated list), so we're done with this part
             if (curr == null) {
+                //TODO Never reached
                 break;
             }
 
@@ -301,13 +296,36 @@ class InternalOakMap<K, V> {
         }
     }
 
-    // Returns old value reference if someone helped before pointToValue happened, or DELETED_VALUE otherwise
-    private boolean finishAfterPublishing(Chunk.OpData opData, Chunk<K, V> c) {
-        // set pointer to value
-        boolean result = c.pointToValue(opData);
-        c.unpublish();
-        checkRebalance(c);
-        return result;
+    private boolean inTheMiddleOfRebalance(Chunk<K, V> c) {
+        State state = c.state();
+        if (state == State.INFANT) {
+            // the infant is already connected so rebalancer won't add this put
+            rebalance(c.creator());
+            return true;
+        }
+        if (state == State.FROZEN || state == State.RELEASED) {
+            rebalance(c);
+            return true;
+        }
+        return false;
+    }
+
+    private boolean finalizeDeletion(Chunk<K, V> c, LookUp lookUp) {
+        if (lookUp != null) {
+            if (c.finalizeDeletion(lookUp) == RETRY) {
+                rebalance(c);
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean updateVersionAfterLinking(Chunk<K, V> c, LookUp lookUp) {
+        if (c.completeLinking(lookUp) == INVALID_VALUE_REFERENCE) {
+            rebalance(c);
+            return true;
+        }
+        return false;
     }
 
     /*-------------- OakMap Methods --------------*/
@@ -317,72 +335,72 @@ class InternalOakMap<K, V> {
             throw new NullPointerException();
         }
 
-        Chunk<K, V> c = findChunk(key); // find chunk matching key
-        Chunk.LookUp lookUp = c.lookUp(key);
-        // If there is a matching value reference for the given key, and it is not marked as deleted, then this put
-        // changes the slice pointed by this value reference.
-        if (lookUp != null && lookUp.valueSlice != null) {
-            Result<V> res = ValueUtils.exchange(c, lookUp, value, transformer, valueSerializer, memoryManager);
-            if (res.operationResult == SUCCESS) {
-                return res.value;
+        while (true) {
+            Chunk<K, V> c = findChunk(key); // find chunk matching key
+            Chunk.LookUp lookUp = c.lookUp(key);
+            // If there is a matching value reference for the given key, and it is not marked as deleted, then this put
+            // changes the slice pointed by this value reference.
+            if (lookUp != null && lookUp.valueSlice != null) {
+                if (updateVersionAfterLinking(c, lookUp)) {
+                    continue;
+                }
+                Result<V> res = operator.exchange(c, lookUp, value, transformer, valueSerializer, memoryManager);
+                if (res.operationResult == TRUE) {
+                    return res.value;
+                }
+                // Exchange failed because the value was deleted/moved between lookup and exchange. Continue with
+                // insertion.
+                continue;
             }
-            // Exchange failed because the value was deleted/moved between lookup and exchange. Continue with insertion.
-            return put(key, value, transformer);
-        }
 
-        // if chunk is frozen or infant, we can't add to it
-        // we need to help rebalancer first, then proceed
-        Chunk.State state = c.state();
-        if (state == Chunk.State.INFANT) {
-            // the infant is already connected so rebalancer won't add this put
-            rebalance(c.creator());
-            return put(key, value, transformer);
-        }
-        if (state == Chunk.State.FROZEN || state == Chunk.State.RELEASED) {
-            rebalance(c);
-            return put(key, value, transformer);
-        }
-
-        int ei;
-        long oldReference = INVALID_VALUE_REFERENCE;
-        if (lookUp != null) {
-            ei = lookUp.entryIndex;
-            assert ei > 0;
-            oldReference = lookUp.valueReference;
-        } else {
-            ei = c.allocateEntryAndKey(key);
-            if (ei == INVALID_ENTRY_INDEX) {
-                rebalance(c);
-                return put(key, value, transformer);
+            // if chunk is frozen or infant, we can't add to it
+            // we need to help rebalancer first, then proceed
+            if (inTheMiddleOfRebalance(c) || finalizeDeletion(c, lookUp)) {
+                continue;
             }
-            int prevEi = c.linkEntry(ei, key);
-            if (prevEi != ei) {
-                ei = prevEi;
-                oldReference = c.getValueReference(prevEi);
-                // We can use the old reference *only* when it is DELETED_VALUE,
-                // otherwise operation should restart
-                if (oldReference != INVALID_VALUE_REFERENCE) {
-                    return put(key, value, transformer);
+            int oldVersion = lookUp == null ? INVALID_VERSION : -Math.abs(lookUp.version);
+
+            int ei;
+            if (lookUp != null) {
+                ei = lookUp.entryIndex;
+                assert ei > 0;
+            } else {
+                ei = c.allocateEntryAndKey(key);
+                if (ei == INVALID_ENTRY_INDEX) {
+                    rebalance(c);
+                    continue;
+                }
+                int prevEi = c.linkEntry(ei, key);
+                if (prevEi != ei) {
+                    c.releaseKey(ei);
+                    if (c.getValueReference(prevEi) != INVALID_VALUE_REFERENCE) {
+                        continue;
+                    }
+                    ei = prevEi;
                 }
             }
+
+            int[] version = new int[1];
+            long newValueReference = c.writeValue(value, version); // write value in place
+
+            Chunk.OpData opData = new Chunk.OpData(ei, INVALID_VALUE_REFERENCE, newValueReference, oldVersion,
+                    version[0]);
+
+            if (!c.publish()) {
+                c.releaseValue(newValueReference);
+                rebalance(c);
+                continue;
+            }
+
+            if (c.linkValue(opData) != TRUE) {
+                c.releaseValue(newValueReference);
+                c.unpublish();
+            } else {
+                c.unpublish();
+                checkRebalance(c);
+                return null;
+            }
         }
-
-        long newValueReference = c.writeValue(value); // write value in place
-
-        Chunk.OpData opData = new Chunk.OpData(Operation.PUT, ei, newValueReference, oldReference, null);
-
-        // publish put
-        if (!c.publish()) {
-            c.releaseValue(newValueReference);
-            rebalance(c);
-            return put(key, value, transformer);
-        }
-
-        if (!finishAfterPublishing(opData, c)) {
-            return put(key, value, transformer);
-        }
-
-        return null;
     }
 
     Result<V> putIfAbsent(K key, V value, Function<ByteBuffer, V> transformer) {
@@ -390,177 +408,167 @@ class InternalOakMap<K, V> {
             throw new NullPointerException();
         }
 
-        Chunk<K, V> c = findChunk(key); // find chunk matching key
-        Chunk.LookUp lookUp = c.lookUp(key);
-        if (lookUp != null && lookUp.valueSlice != null) {
-            if (transformer == null) {
-                return Result.withFlag(FAILURE);
+        while (true) {
+            Chunk<K, V> c = findChunk(key); // find chunk matching key
+            Chunk.LookUp lookUp = c.lookUp(key);
+
+            if (lookUp != null && lookUp.valueSlice != null) {
+                if (updateVersionAfterLinking(c, lookUp)) {
+                    continue;
+                }
+                if (transformer == null) {
+                    return Result.withFlag(FALSE);
+                }
+                Result<V> res = operator.transform(lookUp.valueSlice, transformer, lookUp.version);
+                if (res.operationResult == TRUE) {
+                    return res;
+                }
+                continue;
             }
-            Result<V> res = ValueUtils.transform(lookUp.valueSlice, transformer);
-            if (res.operationResult == SUCCESS) {
-                return res;
+
+            // if chunk is frozen or infant, we can't add to it
+            // we need to help rebalancer first, then proceed
+            if (inTheMiddleOfRebalance(c) || finalizeDeletion(c, lookUp)) {
+                continue;
             }
-            return putIfAbsent(key, value, transformer);
-        }
+            int oldVersion = lookUp == null ? INVALID_VERSION : -Math.abs(lookUp.version);
 
-        // if chunk is frozen or infant, we can't add to it
-        // we need to help rebalancer first, then proceed
-        Chunk.State state = c.state();
-        if (state == Chunk.State.INFANT) {
-            // the infant is already connected so rebalancer won't add this put
-            rebalance(c.creator());
-            return putIfAbsent(key, value, transformer);
-        }
-        if (state == Chunk.State.FROZEN || state == Chunk.State.RELEASED) {
-            rebalance(c);
-            return putIfAbsent(key, value, transformer);
-        }
+            // Now the entry's version is invalid
 
-
-        int ei;
-        long oldReference = INVALID_VALUE_REFERENCE;
-
-        // Is there already an entry associated with this key?
-        if (lookUp != null) {
-            // There's an entry for this key, but it isn't linked to any value (in which case valueReference is
-            // DELETED_VALUE)
-            // or it's linked to a deleted value that is referenced by valueReference (a valid one)
-            ei = lookUp.entryIndex;
-            assert ei > 0;
-            oldReference = lookUp.valueReference;
-        } else {
-            ei = c.allocateEntryAndKey(key);
-            if (ei == INVALID_ENTRY_INDEX) {
-                rebalance(c);
-                return putIfAbsent(key, value, transformer);
-            }
-            int prevEi = c.linkEntry(ei, key);
-            if (prevEi != ei) {
-                // some other thread linked its entry with the same key.
-                oldReference = c.getValueReference(prevEi);
-                Slice oldSlice = c.buildValueSlice(oldReference);
-                if (oldSlice != null) {
-                    if (transformer == null) {
-                        return Result.withFlag(FAILURE);
+            int ei;
+            if (lookUp != null) {
+                // There's an entry for this key, but it isn't linked to any value (in which case valueReference is
+                // DELETED_VALUE)
+                // or it's linked to a deleted value that is referenced by valueReference (a valid one)
+                ei = lookUp.entryIndex;
+                assert ei > 0;
+            } else {
+                ei = c.allocateEntryAndKey(key);
+                if (ei == INVALID_ENTRY_INDEX) {
+                    rebalance(c);
+                    continue;
+                }
+                int prevEi = c.linkEntry(ei, key);
+                if (prevEi != ei) {
+                    c.releaseKey(ei);
+                    // some other thread linked its entry with the same key.
+                    int[] otherVersion = new int[1];
+                    Slice otherSlice = c.buildValueSlice(c.getValueReferenceAndVersion(prevEi, otherVersion));
+                    if (otherSlice != null) {
+                        if (transformer == null) {
+                            return Result.withFlag(FALSE);
+                        }
+                        Result<V> res = operator.transform(otherSlice, transformer, otherVersion[0]);
+                        if (res.operationResult == TRUE) {
+                            return res;
+                        }
+                        continue;
+                    } else {
+                        // both threads compete for the put
+                        ei = prevEi;
                     }
-                    Result<V> res = ValueUtils.transform(oldSlice, transformer);
-                    if (res.operationResult == SUCCESS) {
-                        return res;
-                    }
-                    return putIfAbsent(key, value, transformer);
-                } else {
-                    // both threads compete for the put
-                    ei = prevEi;
                 }
             }
+
+            int[] version = new int[1];
+            long newValueReference = c.writeValue(value, version); // write value in place
+
+            Chunk.OpData opData = new Chunk.OpData(ei, INVALID_VALUE_REFERENCE, newValueReference, oldVersion,
+                    version[0]);
+
+            if (!c.publish()) {
+                c.releaseValue(newValueReference);
+                rebalance(c);
+                continue;
+            }
+
+            if (c.linkValue(opData) != TRUE) {
+                c.releaseValue(newValueReference);
+                c.unpublish();
+            } else {
+                c.unpublish();
+                checkRebalance(c);
+                return transformer == null ? Result.withFlag(TRUE) : Result.withValue(null);
+            }
         }
-
-        long newValueReference = c.writeValue(value); // write value in place
-
-        Chunk.OpData opData = new Chunk.OpData(Operation.PUT_IF_ABSENT, ei, newValueReference, oldReference, null);
-
-        // publish put
-        if (!c.publish()) {
-            c.releaseValue(newValueReference);
-            rebalance(c);
-            return putIfAbsent(key, value, transformer);
-        }
-
-        if (!finishAfterPublishing(opData, c)) {
-            c.releaseValue(newValueReference);
-            return putIfAbsent(key, value, transformer);
-        }
-
-        return transformer != null ? Result.withValue(null) : Result.withFlag(SUCCESS);
     }
 
-
     boolean putIfAbsentComputeIfPresent(K key, V value, Consumer<OakWBuffer> computer) {
-
         if (key == null || value == null || computer == null) {
             throw new NullPointerException();
         }
 
-        Chunk<K, V> c = findChunk(key); // find chunk matching key
-        Chunk.LookUp lookUp = c.lookUp(key);
-        if (lookUp != null && lookUp.valueSlice != null) {
-            ValueUtils.ValueResult res = ValueUtils.compute(lookUp.valueSlice, computer);
-            if (res == SUCCESS) {
-                // compute was successful and the value wasn't found deleted; in case
-                // this value was already found as deleted, continue to allocate a new value slice
-                return false;
-            } else if (res == MOVED) {
-                return putIfAbsentComputeIfPresent(key, value, computer);
-            }
-        }
-
-        // if chunk is frozen or infant, we can't add to it
-        // we need to help rebalancer first, then proceed
-        Chunk.State state = c.state();
-        if (state == Chunk.State.INFANT) {
-            // the infant is already connected so rebalancer won't add this put
-            rebalance(c.creator());
-            return putIfAbsentComputeIfPresent(key, value, computer);
-        }
-        if (state == Chunk.State.FROZEN || state == Chunk.State.RELEASED) {
-            rebalance(c);
-            return putIfAbsentComputeIfPresent(key, value, computer);
-        }
-
-        // we come here when no key was found, which can be in 3 cases:
-        // 1. no entry in the linked list at all
-        // 2. entry in the linked list, but the value reference is DELETED_VALUE
-        // 3. entry in the linked list, the value referenced is marked as deleted
-        int ei;
-        long oldReference = INVALID_VALUE_REFERENCE;
-        if (lookUp != null) {
-            ei = lookUp.entryIndex;
-            assert ei > 0;
-            oldReference = lookUp.valueReference;
-        } else {
-            ei = c.allocateEntryAndKey(key);
-            if (ei == INVALID_ENTRY_INDEX) {
-                rebalance(c);
-                return putIfAbsentComputeIfPresent(key, value, computer);
-            }
-            int prevEi = c.linkEntry(ei, key);
-            if (prevEi != ei) {
-                oldReference = c.getValueReference(prevEi);
-                if (oldReference != 0) {
-                    ValueUtils.ValueResult res = ValueUtils.compute(c.buildValueSlice(oldReference), computer);
-                    if (res == SUCCESS) {
-                        // compute was successful and the value wasn't found deleted; in case
-                        // this value was already found as deleted, continue to allocate a new value slice
-                        return false;
-                    } else if (res == MOVED) {
-                        return putIfAbsentComputeIfPresent(key, value, computer);
-                    }
-                } else {
-                    ei = prevEi;
+        while (true) {
+            Chunk<K, V> c = findChunk(key); // find chunk matching key
+            Chunk.LookUp lookUp = c.lookUp(key);
+            if (lookUp != null && lookUp.valueSlice != null) {
+                if (updateVersionAfterLinking(c, lookUp)) {
+                    continue;
+                }
+                NovaValueUtils.NovaResult res = operator.compute(lookUp.valueSlice, computer, lookUp.version);
+                if (res == TRUE) {
+                    // compute was successful and the value wasn't found deleted; in case
+                    // this value was already found as deleted, continue to allocate a new value slice
+                    return false;
+                } else if (res == RETRY) {
+                    continue;
                 }
             }
+
+            if (inTheMiddleOfRebalance(c) || finalizeDeletion(c, lookUp)) {
+                continue;
+            }
+            int oldVersion = lookUp == null ? INVALID_VERSION : -Math.abs(lookUp.version);
+
+            // we come here when no key was found, which can be in 3 cases:
+            // 1. no entry in the linked list at all
+            // 2. entry in the linked list, but the value reference is INVALID_VALUE_REFERENCE
+            // 3. entry in the linked list, the value referenced is marked as deleted
+            int ei;
+            if (lookUp != null) {
+                ei = lookUp.entryIndex;
+                assert ei > 0;
+            } else {
+                ei = c.allocateEntryAndKey(key);
+                if (ei == INVALID_ENTRY_INDEX) {
+                    rebalance(c);
+                    continue;
+                }
+                int prevEi = c.linkEntry(ei, key);
+                if (prevEi != ei) {
+                    c.releaseKey(ei);
+                    if (c.getValueReference(prevEi) != INVALID_VALUE_REFERENCE) {
+                        continue;
+                    } else {
+                        ei = prevEi;
+                    }
+                }
+            }
+
+            int[] version = new int[1];
+            long newValueReference = c.writeValue(value, version); // write value in place
+
+            Chunk.OpData opData = new Chunk.OpData(ei, INVALID_VALUE_REFERENCE, newValueReference, oldVersion,
+                    version[0]);
+
+            if (!c.publish()) {
+                c.releaseValue(newValueReference);
+                rebalance(c);
+                continue;
+            }
+
+            if (c.linkValue(opData) != TRUE) {
+                c.releaseValue(newValueReference);
+                c.unpublish();
+            } else {
+                c.unpublish();
+                checkRebalance(c);
+                return true;
+            }
         }
-
-        long newValueReference = c.writeValue(value); // write value in place
-
-        Chunk.OpData opData = new Chunk.OpData(Operation.COMPUTE, ei, newValueReference, oldReference, computer);
-
-        // publish put
-        if (!c.publish()) {
-            c.releaseValue(newValueReference);
-            rebalance(c);
-            return putIfAbsentComputeIfPresent(key, value, computer);
-        }
-
-        boolean res = finishAfterPublishing(opData, c);
-        if (!res) {
-            // lost a race
-            c.releaseValue(newValueReference);
-        }
-        return res;
     }
 
-    V remove(K key, V oldValue, Function<ByteBuffer, V> transformer) {
+    Result<V> remove(K key, V oldValue, Function<ByteBuffer, V> transformer) {
         if (key == null) {
             throw new NullPointerException();
         }
@@ -574,75 +582,114 @@ class InternalOakMap<K, V> {
             Chunk<K, V> c = findChunk(key); // find chunk matching key
             Chunk.LookUp lookUp = c.lookUp(key);
 
-            if (lookUp == null || lookUp.valueSlice == null) {
+            if (lookUp == null) {
                 // There is no such key. If we did logical deletion and someone else did the physical deletion,
                 // then the old value is saved in v. Otherwise v is (correctly) null
-                return v;
+                return transformer == null ? Result.withFlag(logicallyDeleted ? TRUE : FALSE) : Result.withValue(v);
+            } else if (lookUp.valueSlice == null) {
+                if (c.finalizeDeletion(lookUp) != RETRY) {
+                    return transformer == null ? Result.withFlag(logicallyDeleted ? TRUE : FALSE) : Result.withValue(v);
+                }
+                continue;
+            }
+
+            if (inTheMiddleOfRebalance(c) || updateVersionAfterLinking(c, lookUp)) {
+                continue;
             }
 
             if (logicallyDeleted) {
                 // This is the case where we logically deleted this entry (marked the value as deleted), but someone
                 // reused the entry before we unlinked it. We have the previous value saved in v.
-                return v;
+                return transformer == null ? Result.withFlag(TRUE) : Result.withValue(v);
             } else {
-                Result<V> removeResult = ValueUtils.remove(lookUp.valueSlice, memoryManager, oldValue, transformer);
-                if (removeResult.operationResult == FAILURE) {
+                Result<V> removeResult = operator.remove(lookUp.valueSlice, memoryManager, lookUp.version, oldValue,
+                        transformer);
+                if (removeResult.operationResult == FALSE) {
                     // we didn't succeed to remove the value: it didn't contain oldValue, or was already marked
                     // as deleted by someone else)
-                    return null;
-                } else if (removeResult.operationResult == MOVED) {
-                    return remove(key, oldValue, transformer);
+                    return Result.withFlag(FALSE);
+                } else if (removeResult.operationResult == RETRY) {
+                    continue;
                 }
                 // we have marked this value as deleted (successful remove)
                 logicallyDeleted = true;
                 v = removeResult.value;
             }
 
-            // if chunk is frozen or infant, we can't update it (remove deleted key, set value reference to
-            // DELETED_VALUE)
-            // we need to help rebalancer first, then proceed
-            Chunk.State state = c.state();
-            if (state == Chunk.State.INFANT) {
-                // the infant is already connected so rebalancer won't add this put
-                rebalance(c.creator());
-                continue;
-            }
-            if (state == Chunk.State.FROZEN || state == Chunk.State.RELEASED) {
-                if (!rebalance(c)) {
-                    continue;
-                }
-                return v;
-            }
-
-
             assert lookUp.entryIndex > 0;
             assert lookUp.valueReference != INVALID_VALUE_REFERENCE;
-            Chunk.OpData opData = new Chunk.OpData(Operation.REMOVE, lookUp.entryIndex, INVALID_VALUE_REFERENCE,
-                    lookUp.valueReference, null);
 
             // publish
-            if (!c.publish()) {
-                if (!rebalance(c)) {
-                    continue;
-                }
-                return v;
+            if (c.finalizeDeletion(lookUp) == RETRY) {
+                rebalance(c);
             }
-
-            finishAfterPublishing(opData, c);
         }
     }
 
-    OakRBuffer get(K key) {
+    OakRBuffer zcGet(K key) {
         if (key == null) {
             throw new NullPointerException();
         }
-
-        Chunk<K, V> c = findChunk(key); // find chunk matching key
-        Chunk.LookUp lookUp = c.lookUp(key);
-        if (lookUp == null || lookUp.valueSlice == null) {
-            return null;
+        while (true) {
+            Chunk<K, V> c = findChunk(key); // find chunk matching key
+            Chunk.LookUp lookUp = c.lookUp(key);
+            if (lookUp == null || lookUp.valueSlice == null) {
+                return null;
+            }
+            if (updateVersionAfterLinking(c, lookUp)) {
+                continue;
+            }
+            long keyReference = c.getKeyReference(lookUp.entryIndex);
+            return new OakRValueBufferImpl(lookUp.valueReference, lookUp.version, keyReference, operator,
+                    memoryManager, this);
         }
-        return new OakRValueBufferImpl(lookUp.valueSlice.getByteBuffer().asReadOnlyBuffer());
+    }
+
+    boolean computeIfPresent(K key, Consumer<OakWBuffer> computer) {
+        if (key == null || computer == null) {
+            throw new NullPointerException();
+        }
+
+        while (true) {
+            Chunk<K, V> c = findChunk(key); // find chunk matching key
+            Chunk.LookUp lookUp = c.lookUp(key);
+
+            if (lookUp != null && lookUp.valueSlice != null) {
+                if (updateVersionAfterLinking(c, lookUp)) {
+                    continue;
+                }
+                NovaValueUtils.NovaResult res = operator.compute(lookUp.valueSlice, computer, lookUp.version);
+                if (res == TRUE) {
+                    // compute was successful and handle wasn't found deleted; in case
+                    // this handle was already found as deleted, continue to construct another handle
+                    return true;
+                } else if (res == RETRY) {
+                    continue;
+                }
+            }
+            return false;
+        }
+    }
+
+    LookUp getValueFromIndex(long keyReference) {
+        K deserializedKey = keySerializer.deserialize(getKeyByteBuffer(keyReference));
+        while (true) {
+            Chunk<K, V> c = findChunk(deserializedKey); // find chunk matching key
+            Chunk.LookUp lookUp = c.lookUp(deserializedKey);
+            if (lookUp == null || lookUp.valueSlice == null) {
+                return null;
+            }
+
+            if (updateVersionAfterLinking(c, lookUp)) {
+                continue;
+            }
+            return lookUp;
+        }
+    }
+
+    private <T> T getValueTransformation(ByteBuffer key, Function<ByteBuffer, T> transformer) {
+        K deserializedKey = keySerializer.deserialize(key);
+        return getValueTransformation(deserializedKey, transformer);
     }
 
     <T> T getValueTransformation(K key, Function<ByteBuffer, T> transformer) {
@@ -650,22 +697,23 @@ class InternalOakMap<K, V> {
             throw new NullPointerException();
         }
 
-        Chunk<K, V> c = findChunk(key); // find chunk matching key
-        Chunk.LookUp lookUp = c.lookUp(key);
-        if (lookUp == null || lookUp.valueSlice == null) {
-            return null;
+        while (true) {
+            Chunk<K, V> c = findChunk(key); // find chunk matching key
+            Chunk.LookUp lookUp = c.lookUp(key);
+            if (lookUp == null || lookUp.valueSlice == null) {
+                return null;
+            }
+
+            if (updateVersionAfterLinking(c, lookUp)) {
+                continue;
+            }
+            Result<T> res = operator.transform(lookUp.valueSlice, transformer, lookUp.version);
+            if (res.operationResult == RETRY) {
+                continue;
+            }
+            return res.value;
         }
 
-        Result<T> res = ValueUtils.transform(lookUp.valueSlice, transformer);
-        if (res.operationResult == MOVED) {
-            return getValueTransformation(key, transformer);
-        }
-        return res.value;
-    }
-
-    private <T> T getValueTransformation(ByteBuffer key, Function<ByteBuffer, T> transformer) {
-        K deserializedKey = keySerializer.deserialize(key);
-        return getValueTransformation(deserializedKey, transformer);
     }
 
     <T> T getKeyTransformation(K key, Function<ByteBuffer, T> transformer) {
@@ -736,24 +784,6 @@ class InternalOakMap<K, V> {
         return (serializedMaxKey != null) ? transformer.apply(serializedMaxKey) : null;
     }
 
-    boolean computeIfPresent(K key, Consumer<OakWBuffer> computer) {
-        if (key == null || computer == null) {
-            throw new NullPointerException();
-        }
-
-        Chunk<K, V> c = findChunk(key); // find chunk matching key
-        Chunk.LookUp lookUp = c.lookUp(key);
-        if (lookUp == null || lookUp.valueSlice == null) {
-            return false;
-        }
-
-        ValueUtils.ValueResult res = ValueUtils.compute(lookUp.valueSlice, computer);
-        if (res == MOVED) {
-            return computeIfPresent(key, computer);
-        }
-        return res == SUCCESS;
-    }
-
     // encapsulates finding of the chunk in the skip list and later chunk list traversal
     private Chunk<K, V> findChunk(K key) {
         Chunk<K, V> c = skiplist.floorEntry(key).getValue();
@@ -770,10 +800,10 @@ class InternalOakMap<K, V> {
             }
 
             // will return null if the value is deleted
-            Result<V> entry = ValueUtils.exchange(c, lookUp, value, valueDeserializeTransformer, valueSerializer,
+            Result<V> result = operator.exchange(c, lookUp, value, valueDeserializeTransformer, valueSerializer,
                     memoryManager);
-            if (entry.operationResult != MOVED) {
-                return entry.value;
+            if (result.operationResult != RETRY) {
+                return result.value;
             }
         }
     }
@@ -786,12 +816,13 @@ class InternalOakMap<K, V> {
                 return false;
             }
 
-            ValueUtils.ValueResult result = ValueUtils.compareExchange(c, lookUp, oldValue, newValue,
-                    valueDeserializeTransformer, valueSerializer,
-                    memoryManager);
-            if (result != MOVED) {
-                return result == SUCCESS;
+            // res can be null if handle was deleted between lookup and the next call
+            NovaValueUtils.NovaResult res = operator.compareExchange(c, lookUp, oldValue, newValue,
+                    valueDeserializeTransformer, valueSerializer, memoryManager);
+            if (res == RETRY) {
+                continue;
             }
+            return res == TRUE;
         }
     }
 
@@ -824,8 +855,14 @@ class InternalOakMap<K, V> {
         }
         K keyDeserialized = keySerializer.deserialize(prevKey.slice());
 
-        Result<V> valueDeserialized = ValueUtils.transform(c.getValueSlice(prevIndex), valueSerializer::deserialize);
-        if (valueDeserialized.operationResult != SUCCESS) {
+        int[] valueVersion = new int[1];
+        long valueReference = c.getValueReferenceAndVersion(prevIndex, valueVersion);
+        if (valueReference == INVALID_VALUE_REFERENCE) {
+            return lowerEntry(key);
+        }
+        Result<V> valueDeserialized = operator.transform(getValueSlice(valueReference), valueSerializer::deserialize,
+                valueVersion[0]);
+        if (valueDeserialized.operationResult != TRUE) {
             return lowerEntry(key);
         }
         return new AbstractMap.SimpleImmutableEntry<>(keyDeserialized, valueDeserialized.value);
@@ -833,6 +870,20 @@ class InternalOakMap<K, V> {
 
     /*-------------- Iterators --------------*/
 
+    private Slice getValueSlice(long valuerReference) {
+        if (valuerReference == INVALID_VALUE_REFERENCE) {
+            return null;
+        }
+        int[] valueArray = longToInts(valuerReference);
+        return memoryManager.getSliceFromBlockID(valueArray[0] >>> VALUE_BLOCK_SHIFT, valueArray[1],
+                valueArray[0] & VALUE_LENGTH_MASK);
+    }
+
+    private ByteBuffer getKeyByteBuffer(long keyReference) {
+        int[] keyArray = longToInts(keyReference);
+        return memoryManager.getByteBufferFromBlockID(keyArray[0] >>> KEY_BLOCK_SHIFT, keyArray[1],
+                keyArray[0] & KEY_LENGTH_MASK);
+    }
 
     private static class IteratorState<K, V> {
 
@@ -904,8 +955,7 @@ class InternalOakMap<K, V> {
          * Initializes ascending iterator for entire range.
          */
         Iter(K lo, boolean loInclusive, K hi, boolean hiInclusive, boolean isDescending) {
-            if (lo != null && hi != null &&
-                    comparator.compare(lo, hi) > 0) {
+            if (lo != null && hi != null && comparator.compare(lo, hi) > 0) {
                 throw new IllegalArgumentException("inconsistent range");
             }
 
@@ -973,8 +1023,11 @@ class InternalOakMap<K, V> {
         /**
          * Advances next to higher entry.
          * Return previous index
+         *
+         * @return The first long is the key's reference, the integer is the value's version and the second long is
+         * the value's reference. If {@code needsValue == false}, then the value of the map entry is {@code null}.
          */
-        Map.Entry<ByteBuffer, Slice> advance(boolean needsKey, boolean needsValue) {
+        Map.Entry<Long, Map.Entry<Integer, Long>> advance(boolean needsValue) {
 
             if (state == null) {
                 throw new NoSuchElementException();
@@ -986,18 +1039,30 @@ class InternalOakMap<K, V> {
                 initAfterRebalance();
             }
 
-            ByteBuffer bb = needsKey ? state.getChunk().readKey(state.getIndex()).slice() : null;
-            Slice currentValue = null;
+            long keyReference = state.getChunk().getKeyReference(state.getIndex());
+            long valueReference;
+            int[] valueVersion = new int[1];
+            Map.Entry<Integer, Long> value = null;
             if (needsValue) {
-                currentValue = state.getChunk().getValueSlice(state.getIndex());
-                if (currentValue == null || ValueUtils.isValueDeleted(currentValue)) {
+                valueReference = state.getChunk().getValueReferenceAndVersion(state.getIndex(), valueVersion);
+                if (valueReference != INVALID_VALUE_REFERENCE) {
+                    valueVersion[0] = state.getChunk().completeLinking(new LookUp(null, valueReference,
+                            state.getIndex(), valueVersion[0]));
+                    // TODO: check the first clause
+                    // If we could not complete the linking or if the value is deleted, advance to the next value
+                    if (valueVersion[0] == INVALID_VERSION || operator.isValueDeleted(getValueSlice(valueReference),
+                            valueVersion[0]) != FALSE) {
+                        advanceState();
+                        return advance(true);
+                    }
+                } else {
                     advanceState();
-                    return advance(needsKey, true);
+                    return advance(true);
                 }
-                currentValue = currentValue.duplicate();
+                value = new AbstractMap.SimpleImmutableEntry<>(valueVersion[0], valueReference);
             }
             advanceState();
-            return new AbstractMap.SimpleImmutableEntry<>(bb, currentValue);
+            return new AbstractMap.SimpleImmutableEntry<>(keyReference, value);
         }
 
         /**
@@ -1121,24 +1186,28 @@ class InternalOakMap<K, V> {
 
     class ValueIterator extends Iter<OakRBuffer> {
 
-        ValueIterator(K lo, boolean loInclusive, K hi, boolean hiInclusive, boolean isDescending) {
+        private final InternalOakMap<K, V> internalOakMap;
+
+        ValueIterator(K lo, boolean loInclusive, K hi, boolean hiInclusive, boolean isDescending, InternalOakMap<K,
+                V> internalOakMap) {
             super(lo, loInclusive, hi, hiInclusive, isDescending);
+            this.internalOakMap = internalOakMap;
         }
 
         @Override
         public OakRBuffer next() {
-            Slice valueSlice = advance(false, true).getValue();
-            if (valueSlice == null) {
-                return null;
-            }
-
-            return new OakRValueBufferImpl(valueSlice.getByteBuffer().asReadOnlyBuffer());
+            Map.Entry<Long, Map.Entry<Integer, Long>> nextItem = advance(true);
+            long keyReference = nextItem.getKey();
+            long valueReference = nextItem.getValue().getValue();
+            int version = nextItem.getValue().getKey();
+            return new OakRValueBufferImpl(valueReference, version, keyReference, operator, memoryManager,
+                    internalOakMap);
         }
     }
 
     class ValueStreamIterator extends Iter<OakRBuffer> {
 
-        private OakRReference value = new OakRReference(memoryManager, ValueUtils.VALUE_HEADER_SIZE);
+        private OakRReference value = new OakRReference(memoryManager, operator.getHeaderSize());
 
         ValueStreamIterator(K lo, boolean loInclusive, K hi, boolean hiInclusive, boolean isDescending) {
             super(lo, loInclusive, hi, hiInclusive, isDescending);
@@ -1165,21 +1234,24 @@ class InternalOakMap<K, V> {
         }
 
         public T next() {
-            Map.Entry<ByteBuffer, Slice> nextItem = advance(true, true);
-            Slice valueSlice = nextItem.getValue();
-            assert valueSlice != null;
-            Result<T> res = ValueUtils.transform(valueSlice, transformer);
-            if (res.operationResult == FAILURE) {
-                // If this value is deleted, try the next one
+            Map.Entry<Long, Map.Entry<Integer, Long>> nextItem = advance(true);
+            long keyReference = nextItem.getKey();
+            long valueReference = nextItem.getValue().getValue();
+            Slice valueSlice = getValueSlice(valueReference);
+            int version = nextItem.getValue().getKey();
+            Result<T> res = operator.transform(valueSlice, transformer, version);
+            // If this value is deleted, try the next one
+            if (res.operationResult == FALSE) {
                 return next();
             }
             // if the value was moved, fetch it from the
-            else if (res.operationResult == MOVED) {
-                T result = getValueTransformation(nextItem.getKey(), transformer);
+            else if (res.operationResult == RETRY) {
+                T result = getValueTransformation(getKeyByteBuffer(keyReference), transformer);
                 if (result == null) {
                     // the value was deleted, try the next one
                     return next();
                 }
+                return result;
             }
             return res.value;
         }
@@ -1187,25 +1259,30 @@ class InternalOakMap<K, V> {
 
     class EntryIterator extends Iter<Map.Entry<OakRBuffer, OakRBuffer>> {
 
-        EntryIterator(K lo, boolean loInclusive, K hi, boolean hiInclusive, boolean isDescending) {
+        private final InternalOakMap<K, V> internalOakMap;
+
+        EntryIterator(K lo, boolean loInclusive, K hi, boolean hiInclusive, boolean isDescending, InternalOakMap<K,
+                V> internalOakMap) {
             super(lo, loInclusive, hi, hiInclusive, isDescending);
+            this.internalOakMap = internalOakMap;
         }
 
         public Map.Entry<OakRBuffer, OakRBuffer> next() {
-            Map.Entry<ByteBuffer, Slice> pair = advance(true, true);
-            if (pair.getValue() == null) {
-                return null;
-            }
+            Map.Entry<Long, Map.Entry<Integer, Long>> nextItem = advance(true);
+            long keyReference = nextItem.getKey();
+            long valueReference = nextItem.getValue().getValue();
+            int version = nextItem.getValue().getKey();
             return new AbstractMap.SimpleImmutableEntry<>(
-                    new OakRKeyBufferImpl(pair.getKey().asReadOnlyBuffer()),
-                    new OakRValueBufferImpl(pair.getValue().getByteBuffer().asReadOnlyBuffer()));
+                    new OakRKeyBufferImpl(keyReference, memoryManager),
+                    new OakRValueBufferImpl(valueReference, version, keyReference, operator, memoryManager,
+                            internalOakMap));
         }
     }
 
     class EntryStreamIterator extends Iter<Map.Entry<OakRBuffer, OakRBuffer>> {
 
         private OakRReference key = new OakRReference(memoryManager, 0);
-        private OakRReference value = new OakRReference(memoryManager, ValueUtils.VALUE_HEADER_SIZE);
+        private OakRReference value = new OakRReference(memoryManager, operator.getHeaderSize());
 
         EntryStreamIterator(K lo, boolean loInclusive, K hi, boolean hiInclusive, boolean isDescending) {
             super(lo, loInclusive, hi, hiInclusive, isDescending);
@@ -1232,30 +1309,38 @@ class InternalOakMap<K, V> {
         }
 
         public T next() {
-
-            Map.Entry<ByteBuffer, Slice> pair = advance(true, true);
-            ByteBuffer serializedKey = pair.getKey();
-            Slice valueSlice = pair.getValue();
+            Map.Entry<Long, Map.Entry<Integer, Long>> nextItem = advance(true);
+            long keyReference = nextItem.getKey();
+            long valueReference = nextItem.getValue().getValue();
+            Slice valueSlice = getValueSlice(valueReference);
+            int version = nextItem.getValue().getKey();
             assert valueSlice != null;
-            ValueUtils.ValueResult res = ValueUtils.lockRead(valueSlice);
+            NovaValueUtils.NovaResult res = operator.lockRead(valueSlice, version);
             ByteBuffer serializedValue;
-            // the value is deleted, try the next one
-            if (res == FAILURE) {
+            if (res == FALSE) {
                 return next();
-            } else if (res == MOVED) {
+            } else if (res == RETRY) {
                 do {
-                    serializedValue = getValueTransformation(serializedKey, byteBuffer -> byteBuffer);
-                    if (serializedValue == null) {
+                    LookUp lookUp = getValueFromIndex(keyReference);
+                    if (lookUp == null || lookUp.valueSlice == null) {
                         return next();
                     }
-                } while (ValueUtils.lockRead(serializedValue) == MOVED);
-            } else {
-                serializedValue = ValueUtils.getValueByteBufferNoHeader(valueSlice.getByteBuffer()).asReadOnlyBuffer();
+                    res = operator.lockRead(lookUp.valueSlice, lookUp.version);
+                    if (res == TRUE) {
+                        valueReference = lookUp.valueReference;
+                        valueSlice = lookUp.valueSlice;
+                        version = lookUp.version;
+                        break;
+                    }
+                } while (true);
             }
-            Map.Entry<ByteBuffer, ByteBuffer> entry = new AbstractMap.SimpleEntry<>(serializedKey, serializedValue);
+            serializedValue = operator.getValueByteBufferNoHeader(valueSlice.readOnly());
+            Map.Entry<ByteBuffer, ByteBuffer> entry =
+                    new AbstractMap.SimpleEntry<>(getKeyByteBuffer(keyReference).asReadOnlyBuffer(), serializedValue);
 
             T transformation = transformer.apply(entry);
-            ValueUtils.unlockRead(valueSlice);
+            valueSlice = getValueSlice(valueReference);
+            operator.unlockRead(valueSlice, version);
             return transformation;
         }
     }
@@ -1270,8 +1355,8 @@ class InternalOakMap<K, V> {
         @Override
         public OakRBuffer next() {
 
-            Map.Entry<ByteBuffer, Slice> pair = advance(true, false);
-            return new OakRKeyBufferImpl(pair.getKey().asReadOnlyBuffer());
+            Map.Entry<Long, ?> pair = advance(false);
+            return new OakRKeyBufferImpl(pair.getKey(), memoryManager);
 
         }
     }
@@ -1280,8 +1365,8 @@ class InternalOakMap<K, V> {
 
         private OakRReference key = new OakRReference(memoryManager, 0);
 
-        KeyStreamIterator(boolean loInclusive, boolean hiInclusive, boolean isDescending) {
-            super(null, loInclusive, null, hiInclusive, isDescending);
+        KeyStreamIterator(K lo, boolean loInclusive, K hi, boolean hiInclusive, boolean isDescending) {
+            super(lo, loInclusive, hi, hiInclusive, isDescending);
         }
 
         @Override
@@ -1302,9 +1387,8 @@ class InternalOakMap<K, V> {
         }
 
         public T next() {
-            Map.Entry<ByteBuffer, Slice> pair = advance(true, false);
-            ByteBuffer serializedKey = pair.getKey();
-            return transformer.apply(serializedKey);
+            Map.Entry<Long, ?> pair = advance(false);
+            return transformer.apply(getKeyByteBuffer(pair.getKey()).asReadOnlyBuffer());
         }
     }
 
@@ -1312,12 +1396,12 @@ class InternalOakMap<K, V> {
 
     Iterator<OakRBuffer> valuesBufferViewIterator(K lo, boolean loInclusive, K hi, boolean hiInclusive,
                                                   boolean isDescending) {
-        return new ValueIterator(lo, loInclusive, hi, hiInclusive, isDescending);
+        return new ValueIterator(lo, loInclusive, hi, hiInclusive, isDescending, this);
     }
 
     Iterator<Map.Entry<OakRBuffer, OakRBuffer>> entriesBufferViewIterator(K lo, boolean loInclusive, K hi,
                                                                           boolean hiInclusive, boolean isDescending) {
-        return new EntryIterator(lo, loInclusive, hi, hiInclusive, isDescending);
+        return new EntryIterator(lo, loInclusive, hi, hiInclusive, isDescending, this);
     }
 
     Iterator<OakRBuffer> keysBufferViewIterator(K lo, boolean loInclusive, K hi, boolean hiInclusive,
@@ -1335,9 +1419,9 @@ class InternalOakMap<K, V> {
         return new EntryStreamIterator(lo, loInclusive, hi, hiInclusive, isDescending);
     }
 
-    Iterator<OakRBuffer> keysStreamIterator(boolean loInclusive, boolean hiInclusive,
+    Iterator<OakRBuffer> keysStreamIterator(K lo, boolean loInclusive, K hi, boolean hiInclusive,
                                             boolean isDescending) {
-        return new KeyStreamIterator(loInclusive, hiInclusive, isDescending);
+        return new KeyStreamIterator(lo, loInclusive, hi, hiInclusive, isDescending);
     }
 
     <T> Iterator<T> valuesTransformIterator(K lo, boolean loInclusive, K hi, boolean hiInclusive,
@@ -1355,6 +1439,5 @@ class InternalOakMap<K, V> {
                                           Function<ByteBuffer, T> transformer) {
         return new KeyTransformIterator<>(lo, loInclusive, hi, hiInclusive, isDescending, transformer);
     }
-
 
 }

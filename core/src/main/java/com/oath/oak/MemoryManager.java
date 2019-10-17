@@ -11,10 +11,10 @@ import java.nio.ByteBuffer;
 
 
 public class MemoryManager {
-    private final OakMemoryAllocator keysMemoryAllocator;
-    private final OakMemoryAllocator valuesMemoryAllocator;
+    private final OakBlockMemoryAllocator keysMemoryAllocator;
+    private final OakBlockMemoryAllocator valuesMemoryAllocator;
 
-    public MemoryManager(OakMemoryAllocator memoryAllocator) {
+    public MemoryManager(OakBlockMemoryAllocator memoryAllocator) {
         assert memoryAllocator != null;
 
         this.valuesMemoryAllocator = memoryAllocator;
@@ -35,7 +35,7 @@ public class MemoryManager {
     // needs to be known. Currently allocateSlice() is used for keys and
     // allocate() is used for values.
     public Slice allocateSlice(int bytes) {
-        return keysMemoryAllocator.allocateSlice(bytes);
+        return ((OakNativeMemoryAllocator)keysMemoryAllocator).allocateSlice(bytes, true);
     }
 
     public void releaseSlice(Slice slice) {

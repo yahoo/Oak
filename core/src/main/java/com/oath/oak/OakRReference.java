@@ -31,13 +31,13 @@ public class OakRReference implements OakRBuffer {
     private int blockID = OakNativeMemoryAllocator.INVALID_BLOCK_ID;
     private int position = -1;
     private int length = -1;
-    private final MemoryManager memoryManager;
+    private final NovaManager memoryManager;
     private final int headerSize;
 
     // The OakRReference user accesses OakRReference as it would be a ByteBuffer with initially zero position.
     // We translate it to the relevant ByteBuffer position, by adding keyPosition and the header size to any given index
 
-    OakRReference(MemoryManager memoryManager, int headerSize) {
+    OakRReference(NovaManager memoryManager, int headerSize) {
         this.memoryManager = memoryManager;
         this.headerSize = headerSize;
     }
@@ -118,8 +118,8 @@ public class OakRReference implements OakRBuffer {
     // srcPosition = 0 if to start from the beginning
     @Override
     public void unsafeCopyBufferToIntArray(int srcPosition, int[] dstArray, int countInts) {
-        UnsafeUtils.unsafeCopyBufferToIntArray(getTemporaryPerThreadByteBuffer(), srcPosition + position + headerSize
-                , dstArray, countInts);
+        UnsafeUtils.unsafeCopyBufferToIntArray(getTemporaryPerThreadByteBuffer().slice(),
+                srcPosition + position + headerSize, dstArray, countInts);
 
     }
 

@@ -23,7 +23,7 @@ public class OakMemoryManagerTest {
 
     @Before
     public void setUp() {
-        OakMemoryAllocator keysMemoryAllocator = new OakNativeMemoryAllocator(128);
+        OakBlockMemoryAllocator keysMemoryAllocator = new OakNativeMemoryAllocator(128);
         memoryManager = new MemoryManager(keysMemoryAllocator);
     }
 

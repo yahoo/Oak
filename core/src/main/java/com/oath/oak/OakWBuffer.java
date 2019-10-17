@@ -22,14 +22,6 @@ public interface OakWBuffer {
      */
     int capacity() throws NullPointerException;
 
-    /**
-     * Going to be deprecated!!!!!!!!!
-     *
-     * @return the actual ByteBuffer
-     */
-    @Deprecated
-    ByteBuffer getByteBuffer();
-
     // -- Singleton get/put methods --
 
     /**

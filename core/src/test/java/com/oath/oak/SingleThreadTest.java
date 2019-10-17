@@ -137,6 +137,7 @@ public class SingleThreadTest {
         }
         for (int i = 0; i < 4 * maxItemsPerChunk; i++) {
             oak.zc().put(i, i);
+            assertEquals(0, oak.get(0).intValue());
         }
         for (Integer i = 0; i < 4 * maxItemsPerChunk; i++) {
             value = oak.get(i);

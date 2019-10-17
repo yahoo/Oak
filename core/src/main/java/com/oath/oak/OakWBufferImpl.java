@@ -13,24 +13,23 @@ import java.nio.ByteOrder;
 // This is the reason no lock is acquired in each access.
 public class OakWBufferImpl implements OakWBuffer {
 
-    private final ByteBuffer bb;
+    private Slice s;
+    private ByteBuffer bb;
+    private final NovaValueOperations operator;
 
-    OakWBufferImpl(ByteBuffer bb) {
-        this.bb = bb;
+    OakWBufferImpl(Slice s, NovaValueOperations operator) {
+        this.s = s;
+        this.bb = s.getByteBuffer();
+        this.operator = operator;
     }
 
     private int valuePosition() {
-        return bb.position() + ValueUtils.VALUE_HEADER_SIZE;
+        return bb.position() + operator.getHeaderSize();
     }
 
     @Override
     public int capacity() {
-        return bb.remaining() - ValueUtils.VALUE_HEADER_SIZE;
-    }
-
-    @Override
-    public ByteBuffer getByteBuffer() {
-        return bb;
+        return bb.remaining() - operator.getHeaderSize();
     }
 
     @Override

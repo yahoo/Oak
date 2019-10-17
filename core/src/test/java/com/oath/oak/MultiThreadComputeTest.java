@@ -134,7 +134,7 @@ public class MultiThreadComputeTest {
         }
     }
 
-    @Test
+    @Test(timeout = 10000)
     public void testThreadsCompute() throws InterruptedException {
         for (int i = 0; i < NUM_THREADS; i++) {
             threads.add(new Thread(new MultiThreadComputeTest.RunThreads(latch)));

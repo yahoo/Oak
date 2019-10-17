@@ -37,7 +37,7 @@ public class OakMap<K, V> extends AbstractMap<K, V> implements AutoCloseable, Co
      * For any externally used Oak class (OakMap, Iterator, OakBuffer- or OakTransform- View),
      * this specific class is responsible to wrap the internal methods with attach-detach.
      * */
-    private final MemoryManager memoryManager;
+    private final NovaManager memoryManager;
     private final Function<ByteBuffer, K> keyDeserializeTransformer;
     private final Function<ByteBuffer, V> valueDeserializeTransformer;
     private final Function<Map.Entry<ByteBuffer, ByteBuffer>, Map.Entry<K, V>> entryDeserializeTransformer;
@@ -52,12 +52,12 @@ public class OakMap<K, V> extends AbstractMap<K, V> implements AutoCloseable, Co
 
     // internal constructor, to create OakMap use OakMapBuilder
     OakMap(K minKey, OakSerializer<K> keySerializer, OakSerializer<V> valueSerializer, OakComparator<K> oakComparator,
-           int chunkMaxItems, MemoryManager mm) {
+           int chunkMaxItems, NovaManager mm, NovaValueOperations operator) {
 
         this.memoryManager = mm;
         this.comparator = oakComparator;
         this.internalOakMap = new InternalOakMap<>(minKey, keySerializer, valueSerializer, oakComparator,
-                this.memoryManager, chunkMaxItems);
+                this.memoryManager, chunkMaxItems, operator);
 
         this.fromKey = null;
         this.fromInclusive = false;
@@ -72,7 +72,7 @@ public class OakMap<K, V> extends AbstractMap<K, V> implements AutoCloseable, Co
     }
 
     // set constructor, mostly used for subMap
-    private OakMap(InternalOakMap<K, V> internalOakMap, MemoryManager memoryManager,
+    private OakMap(InternalOakMap<K, V> internalOakMap, NovaManager memoryManager,
                    Function<ByteBuffer, K> keyDeserializeTransformer,
                    Function<ByteBuffer, V> valueDeserializeTransformer,
                    Function<Map.Entry<ByteBuffer, ByteBuffer>, Map.Entry<K, V>> entryDeserializeTransformer,
@@ -145,7 +145,6 @@ public class OakMap<K, V> extends AbstractMap<K, V> implements AutoCloseable, Co
         if (value == null) {
             throw new NullPointerException();
         }
-
         return internalOakMap.put(key, value, valueDeserializeTransformer);
     }
 
@@ -161,8 +160,7 @@ public class OakMap<K, V> extends AbstractMap<K, V> implements AutoCloseable, Co
     @Override
     public V remove(Object key) {
         checkKey((K) key);
-
-        return internalOakMap.remove((K) key, null, valueDeserializeTransformer);
+        return internalOakMap.remove((K) key, null, valueDeserializeTransformer).value;
     }
 
     /* ------ SortedMap API methods ------ */
@@ -216,8 +214,7 @@ public class OakMap<K, V> extends AbstractMap<K, V> implements AutoCloseable, Co
     @Override
     public boolean remove(Object key, Object value) {
         checkKey((K) key);
-
-        return (value != null) && (internalOakMap.remove((K) key, (V) value, valueDeserializeTransformer) != null);
+        return (value != null) && (internalOakMap.remove((K) key, (V) value, valueDeserializeTransformer).operationResult == NovaValueUtils.NovaResult.TRUE);
     }
 
 
@@ -270,7 +267,6 @@ public class OakMap<K, V> extends AbstractMap<K, V> implements AutoCloseable, Co
         if (value == null) {
             throw new NullPointerException();
         }
-
         return internalOakMap.putIfAbsent(key, value, valueDeserializeTransformer).value;
     }
 
@@ -500,7 +496,7 @@ public class OakMap<K, V> extends AbstractMap<K, V> implements AutoCloseable, Co
         return new OakZeroCopyMap<>(this);
     }
 
-    public MemoryManager getMemoryManager() {
+    public NovaManager getMemoryManager() {
         return memoryManager;
     }
 
@@ -523,13 +519,13 @@ public class OakMap<K, V> extends AbstractMap<K, V> implements AutoCloseable, Co
         public OakRBuffer get(K key) {
             m.checkKey(key);
 
-            return m.internalOakMap.get(key);
+            return m.internalOakMap.zcGet(key);
         }
 
-        public void remove(K key) {
+        public boolean remove(K key) {
             m.checkKey(key);
 
-            m.internalOakMap.remove(key, null, null);
+            return m.internalOakMap.remove(key, null, null).operationResult == NovaValueUtils.NovaResult.TRUE;
         }
 
         public boolean putIfAbsent(K key, V value) {
@@ -538,7 +534,7 @@ public class OakMap<K, V> extends AbstractMap<K, V> implements AutoCloseable, Co
                 throw new NullPointerException();
             }
 
-            return m.internalOakMap.putIfAbsent(key, value, null).operationResult == ValueUtils.ValueResult.SUCCESS;
+            return m.internalOakMap.putIfAbsent(key, value, null).operationResult == NovaValueUtils.NovaResult.TRUE;
         }
 
         public boolean computeIfPresent(K key, Consumer<OakWBuffer> computer) {
@@ -656,7 +652,7 @@ public class OakMap<K, V> extends AbstractMap<K, V> implements AutoCloseable, Co
     }
 
     private Iterator<OakRBuffer> keysStreamIterator() {
-        return internalOakMap.keysStreamIterator(fromInclusive, toInclusive, isDescending);
+        return internalOakMap.keysStreamIterator(fromKey, fromInclusive, toKey, toInclusive, isDescending);
     }
 
 

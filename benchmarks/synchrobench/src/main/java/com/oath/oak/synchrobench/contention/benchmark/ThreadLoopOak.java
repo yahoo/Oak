@@ -3,6 +3,7 @@ package com.oath.oak.synchrobench.contention.benchmark;
 
 import com.oath.oak.synchrobench.contention.abstractions.CompositionalOakMap;
 import com.oath.oak.synchrobench.maps.MyBuffer;
+import com.oath.oak.synchrobench.maps.OakMap;
 
 import java.lang.reflect.Method;
 import java.util.Random;
@@ -90,7 +91,7 @@ public class ThreadLoopOak implements Runnable {
     public void run() {
 
         boolean change = Parameters.change;
-        int size = 100;
+        int size = 10000;
 
 
         MyBuffer key = new MyBuffer(Parameters.keySize);

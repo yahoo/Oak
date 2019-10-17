@@ -3,6 +3,7 @@ package com.oath.oak.synchrobench.maps;
 
 import com.oath.oak.Chunk;
 import com.oath.oak.NativeAllocator.OakNativeMemoryAllocator;
+import com.oath.oak.NovaManager;
 import com.oath.oak.OakMapBuilder;
 import com.oath.oak.synchrobench.contention.abstractions.CompositionalOakMap;
 import com.oath.oak.synchrobench.contention.benchmark.Parameters;
@@ -59,7 +60,11 @@ public class OakMap<K extends MyBuffer, V extends MyBuffer> implements Compositi
 
     @Override
     public void removeOak(K key) {
-        oak.remove(key);
+        if (Parameters.zeroCopy) {
+            oak.zc().remove(key);
+        } else {
+            oak.remove(key);
+        }
     }
 
     @Override
