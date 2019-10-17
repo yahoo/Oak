@@ -500,6 +500,10 @@ public class OakMap<K, V> extends AbstractMap<K, V> implements AutoCloseable, Co
         return new OakZeroCopyMap<>(this);
     }
 
+    public MemoryManager getMemoryManager() {
+        return memoryManager;
+    }
+
     public static class OakZeroCopyMap<K, V> implements ZeroCopyMap<K, V> {
         private OakMap<K, V> m;
 
@@ -534,7 +538,7 @@ public class OakMap<K, V> extends AbstractMap<K, V> implements AutoCloseable, Co
                 throw new NullPointerException();
             }
 
-            return m.internalOakMap.putIfAbsent(key, value, null).flag;
+            return m.internalOakMap.putIfAbsent(key, value, null).operationResult == ValueUtils.ValueResult.SUCCESS;
         }
 
         public boolean computeIfPresent(K key, Consumer<OakWBuffer> computer) {
@@ -652,7 +656,7 @@ public class OakMap<K, V> extends AbstractMap<K, V> implements AutoCloseable, Co
     }
 
     private Iterator<OakRBuffer> keysStreamIterator() {
-        return internalOakMap.keysStreamIterator(fromKey, fromInclusive, toKey, toInclusive, isDescending);
+        return internalOakMap.keysStreamIterator(fromInclusive, toInclusive, isDescending);
     }
 
 

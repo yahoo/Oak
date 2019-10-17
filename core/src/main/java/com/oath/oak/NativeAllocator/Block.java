@@ -7,18 +7,22 @@
 package com.oath.oak.NativeAllocator;
 
 import com.oath.oak.OakOutOfMemoryException;
+import com.oath.oak.Slice;
 import com.oath.oak.ThreadIndexCalculator;
 import sun.misc.Cleaner;
+
 import java.lang.reflect.Field;
 import java.nio.ByteBuffer;
 import java.util.concurrent.atomic.AtomicInteger;
+
+import static com.oath.oak.NativeAllocator.OakNativeMemoryAllocator.INVALID_BLOCK_ID;
 
 class Block {
 
     private final ByteBuffer buffer;
     private final int capacity;
     private final AtomicInteger allocated = new AtomicInteger(0);
-    private final int id; // placeholder might need to be set in the future
+    private int id; // placeholder might need to be set in the future
 
     // in order to avoid creating a new ByteBBuffer per each reading
     // (for example binary search through the keys)
@@ -28,31 +32,36 @@ class Block {
     private ByteBuffer[] byteBufferPerThread;
 
     Block(long capacity) {
-      assert capacity > 0;
-      assert capacity <= Integer.MAX_VALUE; // This is exactly 2GB
-      this.capacity = (int) capacity;
-      this.threadIndexCalculator = ThreadIndexCalculator.newInstance();
-      this.byteBufferPerThread = new ByteBuffer[ThreadIndexCalculator.MAX_THREADS];
-      this.id = OakNativeMemoryAllocator.INVALID_BLOCK_ID;
-      // Pay attention in allocateDirect the data is *zero'd out*
-      // which has an overhead in clearing and you end up touching every page
-      this.buffer = ByteBuffer.allocateDirect(this.capacity);
+        assert capacity > 0;
+        assert capacity <= Integer.MAX_VALUE; // This is exactly 2GB
+        this.capacity = (int) capacity;
+        this.threadIndexCalculator = ThreadIndexCalculator.newInstance();
+        this.byteBufferPerThread = new ByteBuffer[ThreadIndexCalculator.MAX_THREADS];
+        this.id = INVALID_BLOCK_ID;
+        // Pay attention in allocateDirect the data is *zero'd out*
+        // which has an overhead in clearing and you end up touching every page
+        this.buffer = ByteBuffer.allocateDirect(this.capacity);
+    }
+
+    void setID(int id) {
+        this.id = id;
     }
 
     // Block manages its linear allocation. Thread safe.
     // The returned buffer doesn't have all zero bytes.
-    ByteBuffer allocate(int size) {
+    Slice allocate(int size) {
         int now = allocated.getAndAdd(size);
         if (now + size > this.capacity) {
-             allocated.getAndAdd(-size);
+            allocated.getAndAdd(-size);
             throw new OakOutOfMemoryException();
         }
-        // the duplicate is needed for thread safeness, otherwise (in single threaded environment)
-        // the setting of position and limit could happen on the main buffer itself
-        ByteBuffer bb = buffer.duplicate();
-        bb.position(now);
+        // The position and limit of this thread's buffer are changed.
+        // This means that a thread cannot allocate two slices from the same block at the same time without
+        // duplicating one of them.
+        ByteBuffer bb = getMyBuffer();
         bb.limit(now + size);
-        return bb;
+        bb.position(now);
+        return new Slice(id, bb);
     }
 
     // use when this Block is no longer in any use, not thread safe
@@ -88,17 +97,21 @@ class Block {
         cleaner.clean();
     }
 
-    public ByteBuffer getReadOnlyBufferForThread(int position, int length) {
+    private ByteBuffer getMyBuffer() {
         int idx = threadIndexCalculator.getIndex();
         if (byteBufferPerThread[idx] == null) {
             // the new buffer object is needed for thread safeness, otherwise
             // (in single threaded environment)
             // the setting of position and limit could happen on the main buffer itself
-            // but it hapens only once per thread id
-            byteBufferPerThread[idx] = buffer.asReadOnlyBuffer();
+            // but it happens only once per thread id
+            byteBufferPerThread[idx] = buffer.duplicate();
         }
 
-        ByteBuffer bb = byteBufferPerThread[idx];
+        return byteBufferPerThread[idx];
+    }
+
+    ByteBuffer getBufferForThread(int position, int length) {
+        ByteBuffer bb = getMyBuffer();
         bb.limit(position + length);
         bb.position(position);
         // on purpose not creating a ByteBuffer slice() here,
@@ -111,5 +124,4 @@ class Block {
         return capacity;
     }
 
-    public int getID() {return id;}
 }

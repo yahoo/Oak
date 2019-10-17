@@ -6,10 +6,10 @@ import sun.nio.ch.DirectBuffer;
 import java.lang.reflect.Constructor;
 import java.nio.ByteBuffer;
 
-public final class UnsafeUtils {
+final class UnsafeUtils {
 
 
-    static private Unsafe unsafe;
+    static Unsafe unsafe;
 
     static private final long INT_ARRAY_OFFSET;
     static private final long BYTE_ARRAY_OFFSET;
@@ -27,9 +27,10 @@ public final class UnsafeUtils {
         BYTE_ARRAY_OFFSET = unsafe.arrayBaseOffset(byte[].class);
     }
 
-    private UnsafeUtils(){};
+    private UnsafeUtils() {
+    }
 
-    public static void unsafeCopyBufferToIntArray(ByteBuffer srcByteBuffer, int position, int[] dstArray, int countInts) {
+    static void unsafeCopyBufferToIntArray(ByteBuffer srcByteBuffer, int position, int[] dstArray, int countInts) {
         if (srcByteBuffer.isDirect()) {
             long bbAddress = ((DirectBuffer) srcByteBuffer).address();
             unsafe.copyMemory(null, bbAddress + position, dstArray, INT_ARRAY_OFFSET, countInts * Integer.BYTES);
@@ -40,7 +41,7 @@ public final class UnsafeUtils {
 
     }
 
-    public static void unsafeCopyIntArrayToBuffer(int[] srcArray, ByteBuffer dstByteBuffer, int position, int countInts) {
+    static void unsafeCopyIntArrayToBuffer(int[] srcArray, ByteBuffer dstByteBuffer, int position, int countInts) {
 
         if (dstByteBuffer.isDirect()) {
             long bbAddress = ((DirectBuffer) dstByteBuffer).address();
@@ -48,5 +49,24 @@ public final class UnsafeUtils {
         } else {
             unsafe.copyMemory(srcArray, INT_ARRAY_OFFSET, dstByteBuffer.array(), BYTE_ARRAY_OFFSET + position, countInts * Integer.BYTES);
         }
+    }
+
+    /**
+     * Combines two integers to one long where the first argument is in the high 4 bytes.
+     * Uses OR so the sign of the integers should not matter.
+     */
+    static long intsToLong(int i1, int i2) {
+        long newLong = 0;
+        newLong |= ((long) i1) << 32;
+        newLong |= ((long) i2) & 0xffffffffL;
+        return newLong;
+    }
+
+    // maybe change to >>> instead of & 0xffffffffL
+    static int[] longToInts(long l) {
+        int[] res = new int[2];
+        res[1] = (int) (l & 0xffffffffL);
+        res[0] = (int) ((l >> 32) & 0xffffffffL);
+        return res;
     }
 }

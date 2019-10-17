@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2018 Oath Inc.
  * Licensed under the terms of the Apache 2.0 license.
  * Please see LICENSE file in the project root for terms.
@@ -13,29 +13,31 @@ import java.util.function.Function;
 
 public class OakRValueBufferImpl implements OakRBuffer {
 
-    private Handle handle;
+    private ByteBuffer bb;
 
-    OakRValueBufferImpl(Handle handle) {
-        this.handle = handle;
+    OakRValueBufferImpl(ByteBuffer bb) {
+        this.bb = bb;
     }
 
-    void setHandle(Handle handle) {
-        this.handle = handle;
+    private int valuePosition() {
+        return bb.position() + ValueUtils.VALUE_HEADER_SIZE;
     }
 
     @Override
     public int capacity() {
         start();
-        int capacity = handle.capacity();
+        int capacity = bb.remaining() - ValueUtils.VALUE_HEADER_SIZE;
         end();
         return capacity;
     }
 
-
     @Override
     public byte get(int index) {
         start();
-        byte b = handle.get(index);
+        if (index < 0) {
+            throw new IndexOutOfBoundsException();
+        }
+        byte b = bb.get(index + valuePosition());
         end();
         return b;
     }
@@ -44,7 +46,7 @@ public class OakRValueBufferImpl implements OakRBuffer {
     public ByteOrder order() {
         ByteOrder order;
         start();
-        order = handle.order();
+        order = bb.order();
         end();
         return order;
     }
@@ -53,7 +55,10 @@ public class OakRValueBufferImpl implements OakRBuffer {
     public char getChar(int index) {
         char c;
         start();
-        c = handle.getChar(index);
+        if (index < 0) {
+            throw new IndexOutOfBoundsException();
+        }
+        c = bb.getChar(index + valuePosition());
         end();
         return c;
     }
@@ -62,7 +67,10 @@ public class OakRValueBufferImpl implements OakRBuffer {
     public short getShort(int index) {
         short s;
         start();
-        s = handle.getShort(index);
+        if (index < 0) {
+            throw new IndexOutOfBoundsException();
+        }
+        s = bb.getShort(index + valuePosition());
         end();
         return s;
     }
@@ -71,7 +79,10 @@ public class OakRValueBufferImpl implements OakRBuffer {
     public int getInt(int index) {
         int i;
         start();
-        i = handle.getInt(index);
+        if (index < 0) {
+            throw new IndexOutOfBoundsException();
+        }
+        i = bb.getInt(index + valuePosition());
         end();
         return i;
     }
@@ -80,7 +91,10 @@ public class OakRValueBufferImpl implements OakRBuffer {
     public long getLong(int index) {
         long l;
         start();
-        l = handle.getLong(index);
+        if (index < 0) {
+            throw new IndexOutOfBoundsException();
+        }
+        l = bb.getLong(index + valuePosition());
         end();
         return l;
     }
@@ -89,7 +103,10 @@ public class OakRValueBufferImpl implements OakRBuffer {
     public float getFloat(int index) {
         float f;
         start();
-        f = handle.getFloat(index);
+        if (index < 0) {
+            throw new IndexOutOfBoundsException();
+        }
+        f = bb.getFloat(index + valuePosition());
         end();
         return f;
     }
@@ -98,7 +115,10 @@ public class OakRValueBufferImpl implements OakRBuffer {
     public double getDouble(int index) {
         double d;
         start();
-        d = handle.getDouble(index);
+        if (index < 0) {
+            throw new IndexOutOfBoundsException();
+        }
+        d = bb.getDouble(index + valuePosition());
         end();
         return d;
     }
@@ -114,7 +134,7 @@ public class OakRValueBufferImpl implements OakRBuffer {
         if (transformer == null) {
             throw new NullPointerException();
         }
-        T retVal = handle.transform(transformer);
+        T retVal = ValueUtils.transform(bb, transformer);
         if (retVal == null) {
             throw new ConcurrentModificationException();
         }
@@ -124,20 +144,21 @@ public class OakRValueBufferImpl implements OakRBuffer {
     @Override
     public void unsafeCopyBufferToIntArray(int srcPosition, int[] dstArray, int countInts) {
         start();
-        handle.unsafeBufferToIntArrayCopy(srcPosition, dstArray, countInts);
+        ByteBuffer dup = ValueUtils.getValueByteBufferNoHeader(bb);
+        ValueUtils.unsafeBufferToIntArrayCopy(dup, srcPosition, dstArray, countInts);
         end();
     }
 
     private void start() {
-        handle.readLock();
-        if (handle.isDeleted()) {
-            handle.readUnLock();
+        // if the value was moved a ConcurrentModificationException is thrown
+        ValueUtils.ValueResult res = ValueUtils.lockRead(bb);
+        if (res != ValueUtils.ValueResult.SUCCESS) {
             throw new ConcurrentModificationException();
         }
     }
 
     private void end() {
-        handle.readUnLock();
+        ValueUtils.unlockRead(bb);
     }
 
 }

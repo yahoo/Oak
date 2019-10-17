@@ -3,10 +3,10 @@
 dir=`pwd`
 output=${dir}/output
 java=java
-jarfile="target/oak-benchmarks-synchrobench-0.1.4-SNAPSHOT.jar"
+jarfile="target/oak-benchmarks-synchrobench-0.1.6-SNAPSHOT.jar"
 
 thread="01 04 08 12"
-size="5000000"
+size="10000000"
 keysize="100"
 valuesize="1000"
 #writes="0 50"
@@ -16,11 +16,11 @@ iterations="5"
 duration="30000"
 #gcAlgorithms="-XX:+UseParallelOldGC -XX:+UseConcMarkSweepGC -XX:+UseG1GC"
 
-declare -A heap_limit=(["OakMap"]="8g"
+declare -A heap_limit=(["OakMap"]="12g"
                        ["JavaSkipListMap"]="20g"
                       )
 
-directMemSize="12g"
+directMemSize="20g"
 
 if [ ! -d "${output}" ]; then
   mkdir $output

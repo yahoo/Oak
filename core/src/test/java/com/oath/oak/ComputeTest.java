@@ -21,7 +21,7 @@ public class ComputeTest {
 
     private static int NUM_THREADS = 16;
 
-    static OakMap<ByteBuffer, ByteBuffer> oak;
+    private static OakMap<ByteBuffer, ByteBuffer> oak;
     private static final long K = 1024;
 
     private static int keySize = 10;

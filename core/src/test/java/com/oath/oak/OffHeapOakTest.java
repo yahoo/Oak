@@ -11,12 +11,16 @@ import org.junit.Before;
 import org.junit.Test;
 
 import java.util.ArrayList;
+import java.util.ConcurrentModificationException;
 import java.util.Map;
+import java.util.NoSuchElementException;
 import java.util.concurrent.CountDownLatch;
 
 import static junit.framework.TestCase.assertNotNull;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
 
 public class OffHeapOakTest {
     private OakMap<Integer, Integer> oak;
@@ -91,14 +95,18 @@ public class OffHeapOakTest {
                 e.printStackTrace();
             }
 
-            for (Map.Entry<Integer, Integer> entry : oak.entrySet()) {
-                if (entry == null) {
-                    continue;
+            try {
+                for (Map.Entry<Integer, Integer> entry : oak.entrySet()) {
+                    if (entry == null) {
+                        continue;
+                    }
+                    assertEquals(
+                            "\nOn should be empty: Key " + entry.getKey()
+                                    + ", Value " + entry.getValue(),
+                            0, entry.getValue() - entry.getKey());
                 }
-                assertEquals(
-                        "\nOn should be empty: Key " + entry.getKey()
-                                + ", Value " + entry.getValue(),
-                        0, entry.getValue() - entry.getKey());
+            } catch (NoSuchElementException ignored) {
+
             }
 
             // todo - perhaps check with non-zc versions
@@ -109,19 +117,22 @@ public class OffHeapOakTest {
             for (int i = 0; i < 6 * maxItemsPerChunk; i++) {
                 oak.zc().remove(i);
             }
-
-            for (Map.Entry<Integer, Integer> entry : oak.entrySet()) {
-                if (entry == null) {
-                    continue;
+            try {
+                for (Map.Entry<Integer, Integer> entry : oak.entrySet()) {
+                    if (entry == null) {
+                        continue;
+                    }
+                    assertNotNull("\nAfter initial pass of put and remove got entry NULL", entry);
+                    assertNotNull("\nAfter initial pass of put and remove got value NULL for key " + entry.getKey(),
+                            entry.getValue());
+                    assertEquals(
+                            "\nAfter initial pass of put and remove (range 0-"
+                                    + (6 * maxItemsPerChunk) + "): Key " + entry.getKey()
+                                    + ", Value " + entry.getValue(),
+                            0, entry.getValue() - entry.getKey());
                 }
-                assertNotNull("\nAfter initial pass of put and remove got entry NULL", entry);
-                assertNotNull("\nAfter initial pass of put and remove got value NULL for key " + entry.getKey(),
-                        entry.getValue());
-                assertEquals(
-                        "\nAfter initial pass of put and remove (range 0-"
-                                + (6 * maxItemsPerChunk) + "): Key " + entry.getKey()
-                                + ", Value " + entry.getValue(),
-                        0, entry.getValue() - entry.getKey());
+            } catch (NoSuchElementException ignored) {
+
             }
 
             for (int i = 0; i < 6 * maxItemsPerChunk; i++) {
@@ -131,16 +142,19 @@ public class OffHeapOakTest {
             for (int i = 0; i < 6 * maxItemsPerChunk; i++) {
                 oak.zc().remove(i);
             }
-
-            for (Map.Entry<Integer, Integer> entry : oak.entrySet()) {
-                if (entry == null) {
-                    continue;
+            try {
+                for (Map.Entry<Integer, Integer> entry : oak.entrySet()) {
+                    if (entry == null) {
+                        continue;
+                    }
+                    assertNotNull(entry.getValue());
+                    assertEquals(
+                            "\nAfter second pass of put and remove: Key " + entry.getKey()
+                                    + ", Value " + entry.getValue(),
+                            0, entry.getValue() - entry.getKey());
                 }
-                assertNotNull(entry.getValue());
-                assertEquals(
-                        "\nAfter second pass of put and remove: Key " + entry.getKey()
-                                + ", Value " + entry.getValue(),
-                        0, entry.getValue() - entry.getKey());
+            } catch (NoSuchElementException ignored) {
+
             }
 
 

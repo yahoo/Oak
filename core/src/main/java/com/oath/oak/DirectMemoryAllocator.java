@@ -2,7 +2,9 @@ package com.oath.oak;
 
 import java.nio.ByteBuffer;
 
-public class DirectMemoryAllocator implements OakMemoryAllocator{
+import static com.oath.oak.NativeAllocator.OakNativeMemoryAllocator.INVALID_BLOCK_ID;
+
+public class DirectMemoryAllocator implements OakMemoryAllocator {
 
     public DirectMemoryAllocator() {
 
@@ -12,8 +14,15 @@ public class DirectMemoryAllocator implements OakMemoryAllocator{
         return ByteBuffer.allocateDirect(size);
     }
 
+    public Slice allocateSlice(int size) {
+        return new Slice(INVALID_BLOCK_ID, allocate(size));
+    }
 
     public void free(ByteBuffer bb) {
+
+    }
+
+    public void freeSlice(Slice slice) {
 
     }
 

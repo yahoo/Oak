@@ -57,16 +57,6 @@ class Rebalancer<K, V> {
         this.valueSerializer = valueSerializer;
     }
 
-    static class RebalanceResult {
-        final boolean success;
-        final Handle oldHandle;     // non-null handle means someone helped with insertion
-
-        RebalanceResult(boolean success, Handle handle) {
-            this.success = success;
-            this.oldHandle = handle;
-        }
-    }
-
     /*-------------- Methods --------------*/
 
     Rebalancer<K, V> engageChunks() {
@@ -119,11 +109,11 @@ class Rebalancer<K, V> {
      * @return if managed to CAS to newChunk list of rebalance
      * if we did then the put was inserted
      */
-    RebalanceResult createNewChunks() {
+    boolean createNewChunks() {
 
         assert offHeap;
         if (this.newChunks.get() != null) {
-            return new RebalanceResult(false, null); // this was done by another thread already
+            return false; // this was done by another thread already
         }
 
         List<Chunk<K, V>> frozenChunks = engagedChunks.get();
@@ -132,10 +122,8 @@ class Rebalancer<K, V> {
 
         Chunk<K, V> firstFrozen = iterFrozen.next();
         Chunk<K, V> currFrozen = firstFrozen;
-        Chunk<K, V> currNewChunk = new Chunk<>(firstFrozen.minKey, firstFrozen, firstFrozen.comparator,
-                memoryManager,
-                currFrozen.getMaxItems(), currFrozen.externalSize,
-                keySerializer, valueSerializer);
+        Chunk<K, V> currNewChunk = new Chunk<>(firstFrozen.minKey, firstFrozen, firstFrozen.comparator, memoryManager,
+                currFrozen.getMaxItems(), currFrozen.externalSize, keySerializer, valueSerializer);
 
         int ei = firstFrozen.getFirstItemEntryIndex();
         List<Chunk<K, V>> newChunks = new LinkedList<>();
@@ -190,8 +178,7 @@ class Rebalancer<K, V> {
         newChunks.add(currNewChunk);
 
         // if fail here, another thread succeeded, and op is effectively gone
-        boolean cas = this.newChunks.compareAndSet(null, newChunks);
-        return new RebalanceResult(cas, null);
+        return this.newChunks.compareAndSet(null, newChunks);
     }
 
     private boolean canAppendSuffix(List<Chunk<K, V>> frozenSuffix, int maxCount) {

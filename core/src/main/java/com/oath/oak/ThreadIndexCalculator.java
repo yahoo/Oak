@@ -6,12 +6,13 @@ import java.util.concurrent.atomic.AtomicInteger;
 public class ThreadIndexCalculator {
 
     public static final int MAX_THREADS = 32;
-    private ThreadLocal<Integer> local = ThreadLocal.withInitial(()->-1);
-    AtomicInteger[] indices = new AtomicInteger[MAX_THREADS];
+    private static final int INVALID_THREAD_ID = -1;
+    private ThreadLocal<Integer> local = ThreadLocal.withInitial(() -> INVALID_THREAD_ID);
+    private AtomicInteger[] indices = new AtomicInteger[MAX_THREADS];
 
     private ThreadIndexCalculator() {
-        for (Integer i=0; i < MAX_THREADS; ++i) {
-            indices[i] = new AtomicInteger(-1);
+        for (int i = 0; i < MAX_THREADS; ++i) {
+            indices[i] = new AtomicInteger(INVALID_THREAD_ID);
         }
     }
 
@@ -19,12 +20,12 @@ public class ThreadIndexCalculator {
     public int getIndex() {
 
         int localInt = local.get();
-        if (localInt != -1) {
+        if (localInt != INVALID_THREAD_ID) {
             return localInt;
         }
         int tid = (int) Thread.currentThread().getId();
         int i = tid % MAX_THREADS;
-        while(!indices[i].compareAndSet(-1, tid)) {
+        while (!indices[i].compareAndSet(INVALID_THREAD_ID, tid)) {
             //TODO get out of loop sometime
             i = (i + 1) % MAX_THREADS;
         }
@@ -33,8 +34,8 @@ public class ThreadIndexCalculator {
     }
 
     public void releaseIndex() {
-        indices[local.get()].set(-1);
-        local.set(-1);
+        indices[local.get()].set(INVALID_THREAD_ID);
+        local.set(INVALID_THREAD_ID);
     }
 
     public static ThreadIndexCalculator newInstance() {
