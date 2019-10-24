@@ -85,7 +85,7 @@ public class OakValueSerializerImplementation implements OakSerializer<V>
 ```
 
 ### Minimal Key
-OakMap requires a minimal key that can represent negative infinity according in the user-defined comparision among the keys. The requested minimal key is of type 'K', and is considered by the given comparator to be smaller than every other key (serialized or not). The minimal key is passed as a parameter during builder creation.
+OakMap requires a minimal key that can represent negative infinity according in the user-defined comparison among the keys. The requested minimal key is of type 'K', and is considered by the given comparator to be smaller than every other key (serialized or not). The minimal key is passed as a parameter during builder creation.
 
 ### Comparator
 After a Key-Value pair is inserted into OakMap, it is kept in a serialized (buffered) state. However, OakMap's API gets the input key as an object, the serialization of which is deferred until it proves to be required.
