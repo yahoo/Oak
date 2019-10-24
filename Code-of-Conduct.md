@@ -31,7 +31,7 @@ Participants remain in good standing when they do not engage in misconduct or ha
 * **Don't dox.** Revealing private information about other participants without explicit permission.
 * **Don't intimidate.** Threats of violence or intimidation of any project member.
 * **Don't creep.** Unwanted sexual attention or content unsuited for the subject of this project.
-* **Don't distupt.** Sustained disruptions in a discussion.
+* **Don't disrupt.** Sustained disruptions in a discussion.
 * **Let us help.** Refusal to assist the Response Team to resolve an issue in the community.
 
 We do not list all forms of harassment, nor imply some forms of harassment are not worthy of action. Any participant who *feels* harassed or *observes* harassment, should report the incident. Victim of harassment should not address grievances in the public forum, as this often intensifies the problem. Report it, and let us address it off-line.
