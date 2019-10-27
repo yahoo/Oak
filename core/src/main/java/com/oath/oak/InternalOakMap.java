@@ -7,6 +7,7 @@
 package com.oath.oak;
 
 
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.AbstractMap;
 import java.util.Comparator;
@@ -22,7 +23,7 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 
 import static com.oath.oak.Chunk.*;
-import static com.oath.oak.NovaManager.INVALID_VERSION;
+import static com.oath.oak.NovaValueOperations.INVALID_VERSION;
 import static com.oath.oak.NovaValueUtils.NovaResult.*;
 import static com.oath.oak.UnsafeUtils.longToInts;
 
@@ -34,7 +35,7 @@ class InternalOakMap<K, V> {
     private final AtomicReference<Chunk<K, V>> head;
     private final ByteBuffer minKey;
     private final OakComparator<K> comparator;
-    private final NovaManager memoryManager;
+    private final MemoryManager memoryManager;
     private final AtomicInteger size;
     private final OakSerializer<K> keySerializer;
     private final OakSerializer<V> valueSerializer;
@@ -50,7 +51,7 @@ class InternalOakMap<K, V> {
      */
 
     InternalOakMap(K minKey, OakSerializer<K> keySerializer, OakSerializer<V> valueSerializer,
-                   OakComparator<K> oakComparator, NovaManager memoryManager, int chunkMaxItems,
+                   OakComparator<K> oakComparator, MemoryManager memoryManager, int chunkMaxItems,
                    NovaValueOperations operator) {
 
         this.size = new AtomicInteger(0);
@@ -102,7 +103,11 @@ class InternalOakMap<K, V> {
         // once reference count is zeroed, the map meant to be deleted and should not be used.
         // reference count will never grow again
         if (res == 0) {
-            memoryManager.close();
+            try {
+                memoryManager.close();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
         }
     }
 

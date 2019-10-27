@@ -9,32 +9,29 @@ package com.oath.oak;
 import com.oath.oak.NativeAllocator.OakNativeMemoryAllocator;
 import org.junit.Before;
 import org.junit.Test;
-import org.mockito.stubbing.Answer;
 
 import java.nio.ByteBuffer;
 
 import static org.junit.Assert.assertEquals;
-import static org.mockito.ArgumentMatchers.anyInt;
-import static org.mockito.Mockito.*;
 
-public class OakMemoryManagerTest {
+public class OakOldMemoryManagerTest {
 
-    private MemoryManager memoryManager;
+    private OldMemoryManager oldMemoryManager;
 
     @Before
     public void setUp() {
         OakBlockMemoryAllocator keysMemoryAllocator = new OakNativeMemoryAllocator(128);
-        memoryManager = new MemoryManager(keysMemoryAllocator);
+        oldMemoryManager = new OldMemoryManager(keysMemoryAllocator);
     }
 
     @Test
     public void allocate() {
-        ByteBuffer bb = memoryManager.allocateSlice(4).getByteBuffer();
+        ByteBuffer bb = oldMemoryManager.allocateSlice(4).getByteBuffer();
         assertEquals(4, bb.remaining());
-        assertEquals(4, memoryManager.allocated());
+        assertEquals(4, oldMemoryManager.allocated());
 
-        bb = memoryManager.allocateSlice(4).getByteBuffer();
+        bb = oldMemoryManager.allocateSlice(4).getByteBuffer();
         assertEquals(4, bb.remaining());
-        assertEquals(8, memoryManager.allocated());
+        assertEquals(8, oldMemoryManager.allocated());
     }
 }

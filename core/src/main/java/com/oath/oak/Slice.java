@@ -24,7 +24,7 @@ public class Slice {
         this.originalPosition = buffer.position();
     }
 
-    Slice(int blockID, int position, int length, NovaManager memoryManager) {
+    Slice(int blockID, int position, int length, MemoryManager memoryManager) {
         this(blockID, memoryManager.getByteBufferFromBlockID(blockID, position, length));
     }
 

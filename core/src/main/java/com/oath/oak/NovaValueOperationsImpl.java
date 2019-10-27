@@ -4,14 +4,11 @@ import sun.misc.Unsafe;
 import sun.nio.ch.DirectBuffer;
 
 import java.nio.ByteBuffer;
-import java.util.AbstractMap;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
 import static com.oath.oak.Chunk.VALUE_BLOCK_SHIFT;
 import static com.oath.oak.Chunk.VALUE_LENGTH_MASK;
-import static com.oath.oak.NovaManager.INVALID_VERSION;
-import static com.oath.oak.NovaManager.NOVA_HEADER_SIZE;
 import static com.oath.oak.NovaValueOperationsImpl.LockStates.DELETED;
 import static com.oath.oak.NovaValueOperationsImpl.LockStates.FREE;
 import static com.oath.oak.NovaValueOperationsImpl.LockStates.LOCKED;
@@ -67,7 +64,7 @@ public class NovaValueOperationsImpl implements NovaValueOperations {
 
     @Override
     public <V> NovaResult put(Chunk<?, V> chunk, Chunk.LookUp lookUp, V newVal, OakSerializer<V> serializer,
-                              NovaManager memoryManager) {
+                              MemoryManager memoryManager) {
         NovaResult result = lockWrite(lookUp.valueSlice, lookUp.version);
         if (result != TRUE) {
             return result;
@@ -78,7 +75,7 @@ public class NovaValueOperationsImpl implements NovaValueOperations {
     }
 
     private <V> Slice innerPut(Chunk<?, V> chunk, Chunk.LookUp lookUp, V newVal, OakSerializer<V> serializer,
-                               NovaManager memoryManager) {
+                               MemoryManager memoryManager) {
         Slice s = lookUp.valueSlice;
         int capacity = serializer.calculateSize(newVal);
         if (capacity + getHeaderSize() > s.getByteBuffer().remaining()) {
@@ -89,7 +86,7 @@ public class NovaValueOperationsImpl implements NovaValueOperations {
         return s;
     }
 
-    private <V> Slice moveValue(Chunk<?, V> chunk, Chunk.LookUp lookUp, int capacity, NovaManager memoryManager) {
+    private <V> Slice moveValue(Chunk<?, V> chunk, Chunk.LookUp lookUp, int capacity, MemoryManager memoryManager) {
         Slice s = lookUp.valueSlice;
         putInt(s, getLockLocation(), MOVED.value);
         memoryManager.releaseSlice(s);
@@ -115,7 +112,7 @@ public class NovaValueOperationsImpl implements NovaValueOperations {
     }
 
     @Override
-    public <V> Result<V> remove(Slice s, NovaManager memoryManager, int version, V oldValue,
+    public <V> Result<V> remove(Slice s, MemoryManager memoryManager, int version, V oldValue,
                                 Function<ByteBuffer, V> transformer) {
         // No need to check the old value
         if (oldValue == null) {
@@ -149,7 +146,7 @@ public class NovaValueOperationsImpl implements NovaValueOperations {
     @Override
     public <V> Result<V> exchange(Chunk<?, V> chunk, Chunk.LookUp lookUp, V value,
                                   Function<ByteBuffer, V> valueDeserializeTransformer, OakSerializer<V> serializer,
-                                  NovaManager memoryManager) {
+                                  MemoryManager memoryManager) {
         NovaResult result = lockWrite(lookUp.valueSlice, lookUp.version);
         if (result != TRUE) {
             return Result.withFlag(result);
@@ -166,7 +163,7 @@ public class NovaValueOperationsImpl implements NovaValueOperations {
     @Override
     public <V> NovaResult compareExchange(Chunk<?, V> chunk, Chunk.LookUp lookUp, V expected, V value,
                                           Function<ByteBuffer, V> valueDeserializeTransformer,
-                                          OakSerializer<V> serializer, NovaManager memoryManager) {
+                                          OakSerializer<V> serializer, MemoryManager memoryManager) {
         NovaResult result = lockWrite(lookUp.valueSlice, lookUp.version);
         if (result != TRUE) {
             return result;

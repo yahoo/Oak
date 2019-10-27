@@ -19,10 +19,10 @@ import static com.oath.oak.UnsafeUtils.longToInts;
 public class OakRKeyBufferImpl implements OakRBuffer {
 
     private final long keyReference;
-    private final NovaManager memoryManager;
+    private final MemoryManager memoryManager;
     private final int initialPosition;
 
-    OakRKeyBufferImpl(long keyReference, NovaManager memoryManager) {
+    OakRKeyBufferImpl(long keyReference, MemoryManager memoryManager) {
         this.keyReference = keyReference;
         this.memoryManager = memoryManager;
         this.initialPosition = longToInts(keyReference)[POSITION_ARRAY_INDEX];

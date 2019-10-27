@@ -15,7 +15,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicMarkableReference;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static com.oath.oak.NovaManager.INVALID_VERSION;
+import static com.oath.oak.NovaValueOperations.INVALID_VERSION;
 import static com.oath.oak.NovaValueUtils.NovaResult.*;
 import static com.oath.oak.UnsafeUtils.intsToLong;
 
@@ -107,7 +107,7 @@ public class Chunk<K, V> {
     public static final int MAX_ITEMS_DEFAULT = 4096;
 
     private static final Unsafe unsafe = UnsafeUtils.unsafe;
-    private final NovaManager memoryManager;
+    private final MemoryManager memoryManager;
     ByteBuffer minKey;       // minimal key that can be put in this chunk
     AtomicMarkableReference<Chunk<K, V>> next;
     OakComparator<K> comparator;
@@ -139,7 +139,7 @@ public class Chunk<K, V> {
      * @param minKey  minimal key to be placed in chunk
      * @param creator the chunk that is responsible for this chunk creation
      */
-    Chunk(ByteBuffer minKey, Chunk<K, V> creator, OakComparator<K> comparator, NovaManager memoryManager,
+    Chunk(ByteBuffer minKey, Chunk<K, V> creator, OakComparator<K> comparator, MemoryManager memoryManager,
           int maxItems, AtomicInteger externalSize, OakSerializer<K> keySerializer, OakSerializer<V> valueSerializer,
           NovaValueOperations operator) {
         this.memoryManager = memoryManager;

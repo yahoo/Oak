@@ -9,10 +9,8 @@ import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicInteger;
 
-public class NovaManager implements Closeable {
+public class NovaManager implements MemoryManager {
     static final int RELEASE_LIST_LIMIT = 1024;
-    static final int NOVA_HEADER_SIZE = 4;
-    static final int INVALID_VERSION = 0;
     private ThreadIndexCalculator threadIndexCalculator;
     private List<List<Slice>> releaseLists;
     private AtomicInteger globalNovaNumber;
@@ -33,7 +31,8 @@ public class NovaManager implements Closeable {
         allocator.close();
     }
 
-    boolean isClosed() {
+    @Override
+    public boolean isClosed() {
         return allocator.isClosed();
     }
 
@@ -41,18 +40,21 @@ public class NovaManager implements Closeable {
         return globalNovaNumber.get();
     }
 
+    @Override
     public long allocated() {
         return allocator.allocated();
     }
 
-    Slice allocateSlice(int size, boolean isKey) {
+    @Override
+    public Slice allocateSlice(int size, boolean isKey) {
         Slice s = allocator.allocateSlice(size, isKey);
         assert s.getByteBuffer().remaining() >= size;
         s.getByteBuffer().putInt(s.getByteBuffer().position(), getCurrentVersion());
         return s;
     }
 
-    void releaseSlice(Slice s) {
+    @Override
+    public void releaseSlice(Slice s) {
         int idx = threadIndexCalculator.getIndex();
         List<Slice> myReleaseList = this.releaseLists.get(idx);
         myReleaseList.add(s.duplicate());
@@ -65,11 +67,13 @@ public class NovaManager implements Closeable {
         }
     }
 
-    Slice getSliceFromBlockID(Integer BlockID, int bufferPosition, int bufferLength) {
+    @Override
+    public Slice getSliceFromBlockID(int BlockID, int bufferPosition, int bufferLength) {
         return new Slice(BlockID, getByteBufferFromBlockID(BlockID, bufferPosition, bufferLength));
     }
 
-    ByteBuffer getByteBufferFromBlockID(Integer BlockID, int bufferPosition, int bufferLength) {
+    @Override
+    public ByteBuffer getByteBufferFromBlockID(int BlockID, int bufferPosition, int bufferLength) {
         return allocator.readByteBufferFromBlockID(BlockID, bufferPosition, bufferLength);
     }
 

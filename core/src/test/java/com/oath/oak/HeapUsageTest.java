@@ -9,6 +9,7 @@ package com.oath.oak;
 import org.junit.Ignore;
 import org.junit.Test;
 
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
@@ -168,7 +169,11 @@ public class HeapUsageTest {
 
                 double percent = (100.0 * (heapSize - heapFreeSize)) / (oak.getMemoryManager().allocated() * 1.0);
                 System.out.println("\non/off heap used: " + String.format("%.2f%%", percent));
-                oak.getMemoryManager().close();
+                try {
+                    oak.getMemoryManager().close();
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
             }
         }
         assert true;
