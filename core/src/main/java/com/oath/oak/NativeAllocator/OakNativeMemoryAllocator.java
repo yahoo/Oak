@@ -140,6 +140,7 @@ public class OakNativeMemoryAllocator implements OakBlockMemoryAllocator {
         // freeList is empty or there is no suitable slice
         while (s == null) {
             try {
+                // The ByteBuffer inside this slice is the thread's ByteBuffer
                 s = currentBlock.allocate(size);
             } catch (OakOutOfMemoryException e) {
                 // there is no space in current block

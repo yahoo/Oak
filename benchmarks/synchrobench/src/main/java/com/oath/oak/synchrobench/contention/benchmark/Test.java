@@ -189,7 +189,11 @@ public class Test {
 
         System.out.println("\n" + message);
         System.out.println((float) (heapSize - heapFreeSize) / (1024 * 1024));
-        System.out.println((float) (((OakMap) oakBench).getMemoryAllocator().allocated()) / (1024 * 1024));
+        try {
+            System.out.println((float) (((OakMap) oakBench).getMemoryAllocator().allocated()) / (1024 * 1024));
+        } catch (ClassCastException ignored) {
+            System.out.println("Cannot Print Off-Heap Stats for non-Oak Maps.");
+        }
     }
 
     /**
@@ -311,8 +315,8 @@ public class Test {
                 switch (currentArg) {
                     case "--help":
                     case "-h":
-                    printUsage();
-                    System.exit(0);
+                        printUsage();
+                        System.exit(0);
                     case "--verbose":
                     case "-e":
                         Parameters.detailedStats = true;

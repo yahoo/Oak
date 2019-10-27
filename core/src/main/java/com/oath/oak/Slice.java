@@ -28,7 +28,7 @@ public class Slice {
         this(blockID, memoryManager.getByteBufferFromBlockID(blockID, position, length));
     }
 
-    Slice duplicate() {
+    public Slice duplicate() {
         return new Slice(blockID, buffer.duplicate());
     }
 
