@@ -31,10 +31,23 @@ public class Chunk<K, V> {
      */
     enum OFFSET {
         /***
-         * NEXT - the next index of this entry (one integer)
+         * NEXT - the next index of this entry (one integer). Must be with offset 0, otherwise, copying an entire
+         * entry should be fixed (In function {@code copyPartNoKeys}, search for "LABEL").
+         *
+         * KEY_REFERENCE - the blockID, length and position of the value pointed from this entry (size of two 
+         * integers, one long).
+         *
+         * KEY_POSITION
+         *
+         * KEY_BLOCK_AND_LENGTH - similar to VALUE_BLOCK_AND_LENGTH, but using KEY_LENGTH_MASK and KEY_BLOCK_SHIFT.
+         * The length of a key is limited to 32KB.
+         *
+         * KEY_BLOCK
+         *
+         * KEY_LENGTH
          *
          * VALUE_REFERENCE - the blockID, length and position of the value pointed from this entry (size of two
-         * integers, one long). Equals to DELETED_VALUE if no value is point.
+         * integers, one long). Equals to INVALID_VALUE_REFERENCE if no value is point.
          *
          * VALUE_POSITION
          *
@@ -47,23 +60,15 @@ public class Chunk<K, V> {
          *
          * VALUE_LENGTH
          *
-         * KEY_POSITION
-         *
-         * KEY_BLOCK_AND_LENGTH - similar to VALUE_BLOCK_AND_LENGTH, but using KEY_LENGTH_MASK and KEY_BLOCK_SHIFT.
-         * The length of a key is limited to 32KB.
-         *
-         * KEY_BLOCK
-         *
-         * KEY_LENGTH
          *
          * VALUE_VERSION - as the name suggests this is the version of the value reference by VALUE_REFERENCE.
          * It initially equals to INVALID_VERSION.
          * If an entry with version v is removed, then this field is CASed to be -v after the value is marked
          * off-heap and the value reference becomes INVALID_VALUE.
          */
-        NEXT(0), VALUE_REFERENCE(1), VALUE_POSITION(1), VALUE_BLOCK_AND_LENGTH(2), VALUE_BLOCK(2),
-        VALUE_LENGTH(2), KEY_REFERENCE(3), KEY_POSITION(3), KEY_BLOCK_AND_LENGTH(4), KEY_BLOCK(4),
-        KEY_LENGTH(4), VALUE_VERSION(5);
+        NEXT(0), KEY_REFERENCE(1), KEY_POSITION(1), KEY_BLOCK_AND_LENGTH(2), KEY_BLOCK(2), KEY_LENGTH(2),
+        VALUE_REFERENCE(3), VALUE_POSITION(3), VALUE_BLOCK_AND_LENGTH(4), VALUE_BLOCK(4), VALUE_LENGTH(4),
+        VALUE_VERSION(5);
 
         public final int value;
 
@@ -432,7 +437,8 @@ public class Chunk<K, V> {
             return RETRY;
         }
         try {
-            if (!casEntriesArrayLong(lookUp.entryIndex, OFFSET.VALUE_REFERENCE, lookUp.valueReference, INVALID_VALUE_REFERENCE)) {
+            if (!casEntriesArrayLong(lookUp.entryIndex, OFFSET.VALUE_REFERENCE, lookUp.valueReference,
+                    INVALID_VALUE_REFERENCE)) {
                 return FALSE;
             }
             if (!casEntriesArrayInt(lookUp.entryIndex, OFFSET.VALUE_VERSION, version, -version)) {
@@ -871,6 +877,7 @@ public class Chunk<K, V> {
                     entries[sortedEntryIndex + offset + OFFSET.NEXT.value]
                             = sortedEntryIndex + offset + FIELDS;
 
+                    // LABEL: using next as the base of the entry
                     // copy both the key and the value references the value's version => 5 integers via array copy
                     // the first field in an entry is next, and it is not copied since it was assign
                     // therefore, to copy the rest of the entry we use the offset of next (which we assume is 0) and
