@@ -237,7 +237,6 @@ class InternalOakMap<K, V> {
             }
             // chunk is not in list (someone else already updated list), so we're done with this part
             if (curr == null) {
-                //TODO Never reached
                 break;
             }
 
@@ -363,6 +362,16 @@ class InternalOakMap<K, V> {
             if (inTheMiddleOfRebalance(c) || finalizeDeletion(c, lookUp)) {
                 continue;
             }
+            /* If {@code lookUp == null} i.e., there is no entry with that key in Oak, the previous version
+            associated with the entry is INVALID_VERSION.
+            Otherwise, there is an entry with the given key and its value is deleted (or at least in the process of
+            being deleted). After calling {@code finalizeDeletion(Chunk<K, V>, LookUp)}, the version of this entry
+            should be negative.
+            Concurrent insertions, however, may cause the version to become valid again.
+            Thus, to ensure that the operation behaves as if it itself unlinked the deleted value, we take the minus
+            the absolute value of the version written in lookUp (this way, if the version is already negative, it
+            remains negative).
+             */
             int oldVersion = lookUp == null ? INVALID_VERSION : -Math.abs(lookUp.version);
 
             int ei;
@@ -381,6 +390,7 @@ class InternalOakMap<K, V> {
                     if (c.getValueReference(prevEi) != INVALID_VALUE_REFERENCE) {
                         continue;
                     }
+                    // We use an existing entry only if its value reference is INVALID_VALUE_REFERENCE
                     ei = prevEi;
                 }
             }
@@ -436,9 +446,17 @@ class InternalOakMap<K, V> {
             if (inTheMiddleOfRebalance(c) || finalizeDeletion(c, lookUp)) {
                 continue;
             }
+            /* If {@code lookUp == null} i.e., there is no entry with that key in Oak, the previous version
+            associated with the entry is INVALID_VERSION.
+            Otherwise, there is an entry with the given key and its value is deleted (or at least in the process of
+            being deleted). After calling {@code finalizeDeletion(Chunk<K, V>, LookUp)}, the version of this entry
+            should be negative.
+            Concurrent insertions, however, may cause the version to become valid again.
+            Thus, to ensure that the operation behaves as if it itself unlinked the deleted value, we take the minus
+            the absolute value of the version written in lookUp (this way, if the version is already negative, it
+            remains negative).
+             */
             int oldVersion = lookUp == null ? INVALID_VERSION : -Math.abs(lookUp.version);
-
-            // Now the entry's version is invalid
 
             int ei;
             if (lookUp != null) {
@@ -523,6 +541,16 @@ class InternalOakMap<K, V> {
             if (inTheMiddleOfRebalance(c) || finalizeDeletion(c, lookUp)) {
                 continue;
             }
+            /* If {@code lookUp == null} i.e., there is no entry with that key in Oak, the previous version
+            associated with the entry is INVALID_VERSION.
+            Otherwise, there is an entry with the given key and its value is deleted (or at least in the process of
+            being deleted). After calling {@code finalizeDeletion(Chunk<K, V>, LookUp)}, the version of this entry
+            should be negative.
+            Concurrent insertions, however, may cause the version to become valid again.
+            Thus, to ensure that the operation behaves as if it itself unlinked the deleted value, we take the minus
+            the absolute value of the version written in lookUp (this way, if the version is already negative, it
+            remains negative).
+             */
             int oldVersion = lookUp == null ? INVALID_VERSION : -Math.abs(lookUp.version);
 
             // we come here when no key was found, which can be in 3 cases:
