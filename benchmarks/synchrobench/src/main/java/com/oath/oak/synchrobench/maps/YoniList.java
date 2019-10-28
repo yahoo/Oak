@@ -98,14 +98,14 @@ public class YoniList<K extends MyBuffer, V extends MyBuffer> implements Composi
             Slice keybb = allocator.allocateSlice(MyBufferOak.serializer.calculateSize(key), true).duplicate();
             MyBufferOak.serializer.serialize(key, keybb.getByteBuffer());
             newCell.key.set(keybb);
-            Slice valuebb = allocator.allocateSlice(MyBufferOak.serializer.calculateSize(value), false);
+            Slice valuebb = allocator.allocateSlice(MyBufferOak.serializer.calculateSize(value), false).duplicate();
             MyBufferOak.serializer.serialize(value, valuebb.getByteBuffer());
             if (!newCell.value.compareAndSet(null, valuebb)) {
                 allocator.freeSlice(valuebb);
             }
         } else {
             if (prevValue.value.get() == null) {
-                Slice valuebb = allocator.allocateSlice(MyBufferOak.serializer.calculateSize(value), false);
+                Slice valuebb = allocator.allocateSlice(MyBufferOak.serializer.calculateSize(value), false).duplicate();
                 MyBufferOak.serializer.serialize(value, valuebb.getByteBuffer());
                 if (!prevValue.value.compareAndSet(null, valuebb)) {
                     allocator.freeSlice(valuebb);
@@ -129,7 +129,7 @@ public class YoniList<K extends MyBuffer, V extends MyBuffer> implements Composi
             Slice keybb = allocator.allocateSlice(MyBufferOak.serializer.calculateSize(key), true).duplicate();
             MyBufferOak.serializer.serialize(key, keybb.getByteBuffer());
             newCell.key.set(keybb);
-            Slice valuebb = allocator.allocateSlice(MyBufferOak.serializer.calculateSize(value), false);
+            Slice valuebb = allocator.allocateSlice(MyBufferOak.serializer.calculateSize(value), false).duplicate();
             MyBufferOak.serializer.serialize(value, valuebb.getByteBuffer());
             if (!newCell.value.compareAndSet(null, valuebb)) {
                 allocator.freeSlice(valuebb);
@@ -252,7 +252,7 @@ public class YoniList<K extends MyBuffer, V extends MyBuffer> implements Composi
             Slice keybb = allocator.allocateSlice(MyBufferOak.serializer.calculateSize(key), true).duplicate();
             MyBufferOak.serializer.serialize(key, keybb.getByteBuffer());
             retval.key.set(keybb);
-            Slice valuebb = allocator.allocateSlice(MyBufferOak.serializer.calculateSize(value), false);
+            Slice valuebb = allocator.allocateSlice(MyBufferOak.serializer.calculateSize(value), false).duplicate();
             MyBufferOak.serializer.serialize(value, valuebb.getByteBuffer());
             if (!retval.value.compareAndSet(null, valuebb)) {
                 allocator.freeSlice(valuebb);
