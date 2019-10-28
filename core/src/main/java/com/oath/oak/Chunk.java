@@ -215,7 +215,7 @@ public class Chunk<K, V> {
      **/
     private void writeKey(K key, int ei) {
         int keySize = keySerializer.calculateSize(key);
-        Slice s = memoryManager.allocateSlice(keySize, true);
+        Slice s = memoryManager.allocateSlice(keySize, MemoryManager.Allocate.KEY);
         // byteBuffer.slice() is set so it protects us from the overwrites of the serializer
         keySerializer.serialize(key, s.getByteBuffer().slice());
 
@@ -397,6 +397,16 @@ public class Chunk<K, V> {
         return getEntryFieldLong(entryIndex, OFFSET.VALUE_REFERENCE);
     }
 
+    /**
+     * Atomically reads both the value reference and its value. It does that by using the atomic snapshot technique
+     * (reading the version, then the reference, and finally the version again, checking that it matches the version
+     * read previously). Since a snapshot is used, the LP is when reading the value reference, if the versions match,
+     * otherwise, the operation restarts.
+     *
+     * @param entryIndex The entry of which the reference and version are read
+     * @param version    an output parameter to return the version
+     * @return the read value reference
+     */
     long getValueReferenceAndVersion(int entryIndex, int[] version) {
         long valueReference;
         int v;
@@ -408,6 +418,24 @@ public class Chunk<K, V> {
         return valueReference;
     }
 
+    /**
+     * This function completes the insertion of a value to Oak. When inserting a value, the value reference is CASed
+     * inside the entry and only then the version is CASed. Thus, there can be a time in which the version is
+     * INVALID_VERSION or a negative one. In this function, the version is CASed to complete the insertion.
+     * <p>
+     * The version written to entry is the version written in the off-heap memory. There is no worry of concurrent
+     * removals since these removals will have to first call this function as well, and they eventually change the
+     * version as well.
+     *
+     * @param lookUp - It holds the entry to CAS, the previously written version of this entry and the value
+     *               reference from which the correct version is read.
+     * @return a version is returned.
+     * If it is {@code INVALID_VERSION} it means that a CAS was not preformed. Otherwise, a positive version is
+     * returned, and it the version written to the entry (maybe by some other thread).
+     * <p>
+     * Note that the version in the input param {@code lookUp} is updated to be the right one if a valid version was
+     * returned.
+     */
     int completeLinking(LookUp lookUp) {
         int entryVersion = lookUp.version;
         // no need to complete a thing
@@ -428,25 +456,34 @@ public class Chunk<K, V> {
         }
     }
 
-    NovaValueUtils.NovaResult finalizeDeletion(LookUp lookUp) {
+    /**
+     * As written in {@code completeLinking(LookUp)}, when changing an entry, the value reference is CASed first and
+     * later the value version, and the same applies when removing a value. However, there is another step before
+     * changing an entry to remove a value and it is marking the value off-heap (the LP). This function is used to
+     * first CAS the value reference to {@code INVALID_VALUE_REFERENCE} and then CAS the version to be a negative one.
+     * Other threads seeing a marked value call this function before they proceed (e.g., before performing a
+     * successful {@code putIfAbsent}).
+     *
+     * @param lookUp - holds the entry to change, the old value reference to CAS out, and the current value version.
+     * @return {@code true} if a rebalance is needed
+     */
+    boolean finalizeDeletion(LookUp lookUp) {
         int version = lookUp.version;
         if (version <= INVALID_VERSION) {
-            return FALSE;
+            return false;
         }
         if (!publish()) {
-            return RETRY;
+            return true;
         }
         try {
-            if (!casEntriesArrayLong(lookUp.entryIndex, OFFSET.VALUE_REFERENCE, lookUp.valueReference,
-                    INVALID_VALUE_REFERENCE)) {
-                return FALSE;
-            }
+            casEntriesArrayLong(lookUp.entryIndex, OFFSET.VALUE_REFERENCE, lookUp.valueReference,
+                    INVALID_VALUE_REFERENCE);
             if (!casEntriesArrayInt(lookUp.entryIndex, OFFSET.VALUE_VERSION, version, -version)) {
-                return FALSE;
+                return false;
             }
             externalSize.decrementAndGet();
             statistics.decrementAddedCount();
-            return TRUE;
+            return false;
         } finally {
             unpublish();
         }
@@ -508,7 +545,7 @@ public class Chunk<K, V> {
                     // There is a deleted value associated with the given key
                     return new LookUp(null, valueReference, curr, version[0]);
                 }
-                // If result == RETRY, I ignore it, since it will be discovered later down the line as well
+                // If result == RETRY, we ignore it, since it will be discovered later down the line as well
                 return new LookUp(valueSlice, valueReference, curr, version[0]);
             }
             // otherwise- proceed to next item
@@ -531,11 +568,20 @@ public class Chunk<K, V> {
         /**
          * valueReference is composed of 3 numbers: block ID, value position and value length. All these numbers are
          * squashed together into a long using the VALUE masks, shifts and indices.
-         * When it equals to {@code INVALID_VALUE} is means that there is no value referenced from entryIndex.
+         * When it equals to {@code INVALID_VALUE_REFERENCE} is means that there is no value referenced from entryIndex.
          * This field is usually used for CAS purposes since it sits in each entry.
          */
         final long valueReference;
         final int entryIndex;
+        /**
+         * This is the version of the value referenced by {@code valueReference}.
+         * If {@code valueReference == INVALID_VALUE_REFERENCE}, then:
+         * {@code version <= INVALID_VERSION} if the removal was completed.
+         * {@code version > INVALID_VERSION} if the removal was not completed.
+         * else
+         * {@code version <= INVALID_VERSION} if the insertion was not completed.
+         * {@code version > INVALID_VERSION} if the insertion was completed.
+         */
         int version;
 
         LookUp(Slice valueSlice, long valueReference, int entryIndex, int version) {
@@ -692,7 +738,7 @@ public class Chunk<K, V> {
         // the length of the given value plus its header
         int valueLength = valueSerializer.calculateSize(value) + operator.getHeaderSize();
         // The allocated slice is actually the thread's copy moved to point to the newly allocated slice
-        Slice slice = memoryManager.allocateSlice(valueLength, false);
+        Slice slice = memoryManager.allocateSlice(valueLength, MemoryManager.Allocate.VALUE);
         version[0] = slice.getByteBuffer().getInt(slice.getByteBuffer().position());
         // initializing the header lock to be free
         slice.initHeader(operator);
@@ -710,29 +756,24 @@ public class Chunk<K, V> {
     }
 
     /**
-     * Updates a linked entry to point to a new value reference or otherwise removes such a link. For linkage this is
-     * an insert linearization point.
-     * All the relevant data can be found inside opData.
-     * <p>
-     * if someone else got to it first (helping rebalancer or other operation), returns the old handle
+     * This function does the physical CAS of the value reference, which is the LP of the insertion. It then tries to
+     * complete the insertion (@see #completeLinking(LookUp)).
+     * This is also the only place in which the size of Oak is updated.
+     *
+     * @param opData - holds the entry to which the value reference is linked, the old and new value references and
+     *               the old and new value versions.
+     * @return {@code true} if the value reference was CASed successfully.
      */
-
     NovaValueUtils.NovaResult linkValue(OpData opData) {
         if (!casEntriesArrayLong(opData.entryIndex, OFFSET.VALUE_REFERENCE, opData.oldValueReference,
                 opData.newValueReference)) {
             return FALSE;
         }
         casEntriesArrayInt(opData.entryIndex, OFFSET.VALUE_VERSION, opData.oldVersion, opData.newVersion);
-        if (opData.oldValueReference == INVALID_VALUE_REFERENCE) {
-            assert opData.newValueReference != INVALID_VALUE_REFERENCE;
-            statistics.incrementAddedCount();
-            externalSize.incrementAndGet();
-        } else {
-            assert false;
-            assert opData.newValueReference == INVALID_VALUE_REFERENCE;
-            externalSize.decrementAndGet();
-            statistics.decrementAddedCount();
-        }
+        assert opData.oldValueReference == INVALID_VALUE_REFERENCE;
+        assert opData.newValueReference != INVALID_VALUE_REFERENCE;
+        statistics.incrementAddedCount();
+        externalSize.incrementAndGet();
         return TRUE;
     }
 

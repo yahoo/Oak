@@ -5,11 +5,15 @@ import java.nio.ByteBuffer;
 
 public interface MemoryManager extends Closeable {
 
+    enum Allocate {
+        KEY, VALUE;
+    }
+
     boolean isClosed();
 
     long allocated();
 
-    Slice allocateSlice(int size, boolean isKey);
+    Slice allocateSlice(int size, Allocate allocate);
 
     void releaseSlice(Slice s);
 

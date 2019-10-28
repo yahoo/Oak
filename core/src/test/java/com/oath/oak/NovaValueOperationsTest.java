@@ -21,7 +21,7 @@ public class NovaValueOperationsTest {
     @Before
     public void init() {
         novaManager = new NovaManager(new OakNativeMemoryAllocator(128));
-        s = novaManager.allocateSlice(20, false);
+        s = novaManager.allocateSlice(20, MemoryManager.Allocate.VALUE);
         putInt(0, 1);
         putInt(operator.getLockLocation(), 0);
     }

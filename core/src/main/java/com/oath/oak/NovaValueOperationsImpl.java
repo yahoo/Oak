@@ -90,7 +90,7 @@ public class NovaValueOperationsImpl implements NovaValueOperations {
         Slice s = lookUp.valueSlice;
         putInt(s, getLockLocation(), MOVED.value);
         memoryManager.releaseSlice(s);
-        s = memoryManager.allocateSlice(capacity + getHeaderSize(), false);
+        s = memoryManager.allocateSlice(capacity + getHeaderSize(), MemoryManager.Allocate.VALUE);
         putInt(s, getLockLocation(), LOCKED.value);
         int valueBlockAndLength =
                 (s.getBlockID() << VALUE_BLOCK_SHIFT) | ((capacity + getHeaderSize()) & VALUE_LENGTH_MASK);

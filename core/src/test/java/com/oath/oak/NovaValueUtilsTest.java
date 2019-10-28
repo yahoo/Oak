@@ -14,14 +14,13 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 public class NovaValueUtilsTest {
-    private NovaManager novaManager;
     private Slice s;
     private final NovaValueUtils operator = new NovaValueOperationsImpl();
 
     @Before
     public void init() {
-        novaManager = new NovaManager(new OakNativeMemoryAllocator(128));
-        s = novaManager.allocateSlice(16, false);
+        NovaManager novaManager = new NovaManager(new OakNativeMemoryAllocator(128));
+        s = novaManager.allocateSlice(16, MemoryManager.Allocate.VALUE);
         s.getByteBuffer().putInt(s.getByteBuffer().position(), 1);
     }
 
