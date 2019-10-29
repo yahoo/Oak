@@ -223,7 +223,7 @@ public class YoniList<K extends MyBuffer, V extends MyBuffer> implements Composi
             Cell prevValue = (Cell) prevValueO;
             // cell is in map but maybe not initialized yet
             if (prevValue.value.get() == null) {
-                Slice valuebb = allocator.allocateSlice(MyBufferOak.serializer.calculateSize(value), false);
+                Slice valuebb = allocator.allocateSlice(MyBufferOak.serializer.calculateSize(value), false).duplicate();
                 MyBufferOak.serializer.serialize(value, valuebb.getByteBuffer());
                 if (!prevValue.value.compareAndSet(null, valuebb)) {
                     allocator.freeSlice(valuebb);
