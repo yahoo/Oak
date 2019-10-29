@@ -18,6 +18,9 @@ public class YoniList<K extends MyBuffer, V extends MyBuffer> implements Composi
     private ConcurrentSkipListMap<Object, Cell> skipListMap;
     private OakBlockMemoryAllocator allocator;
     private Comparator<Object> comparator;
+    private static final long KB = 1024L;
+    private static final long GB = KB * KB * KB;
+    private static final long OAK_MAX_OFF_MEMORY = 256 * GB;
 
     public YoniList() {
 
@@ -69,7 +72,7 @@ public class YoniList<K extends MyBuffer, V extends MyBuffer> implements Composi
         };
 
         skipListMap = new ConcurrentSkipListMap<>(comparator);
-        allocator = new OakNativeMemoryAllocator((long) Integer.MAX_VALUE * 16);
+        allocator = new OakNativeMemoryAllocator(OAK_MAX_OFF_MEMORY);
     }
 
     @Override
