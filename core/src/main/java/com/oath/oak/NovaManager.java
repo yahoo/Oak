@@ -47,7 +47,7 @@ public class NovaManager implements MemoryManager {
 
     @Override
     public Slice allocateSlice(int size, Allocate allocate) {
-        Slice s = allocator.allocateSlice(size, allocate == Allocate.KEY);
+        Slice s = allocator.allocateSlice(size, allocate);
         assert s.getByteBuffer().remaining() >= size;
         s.getByteBuffer().putInt(s.getByteBuffer().position(), getCurrentVersion());
         return s;

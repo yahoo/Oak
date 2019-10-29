@@ -6,6 +6,7 @@
 
 package com.oath.oak.NativeAllocator;
 
+import com.oath.oak.MemoryManager;
 import com.oath.oak.OakBlockMemoryAllocator;
 import com.oath.oak.OakOutOfMemoryException;
 import com.oath.oak.Slice;
@@ -99,14 +100,14 @@ public class OakNativeMemoryAllocator implements OakBlockMemoryAllocator {
 
     @Deprecated
     public ByteBuffer allocate(int size) {
-        return allocateSlice(size, true).getByteBuffer();
+        return allocateSlice(size, MemoryManager.Allocate.KEY).getByteBuffer();
     }
 
     // Allocates ByteBuffer of the given size, either from freeList or (if it is still possible)
     // within current block bounds.
     // Otherwise new block is allocated within Oak memory bounds. Thread safe.
     @Override
-    public Slice allocateSlice(int size, boolean isKey) {
+    public Slice allocateSlice(int size, MemoryManager.Allocate allocate) {
 
         FreeChuck myDummy = dummies[threadIndexCalculator.getIndex()];
         // While the free list is not empty there can be a suitable free chunk to reuse.
@@ -164,7 +165,7 @@ public class OakNativeMemoryAllocator implements OakBlockMemoryAllocator {
             }
         }
         allocated.addAndGet(size);
-        if (isKey) {
+        if (allocate == MemoryManager.Allocate.KEY) {
             keysAllocated.incrementAndGet();
         } else {
             valuesAllocated.incrementAndGet();

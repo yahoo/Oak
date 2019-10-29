@@ -16,7 +16,7 @@ import java.nio.ByteBuffer;
 public interface OakBlockMemoryAllocator {
 
     // Allocates ByteBuffer of the given size, thread safe.
-    Slice allocateSlice(int size, boolean isKey);
+    Slice allocateSlice(int size, MemoryManager.Allocate allocate);
 
     // Releases ByteBuffer (makes it available for reuse) without other GC consideration.
     // IMPORTANT: it is assumed free will get ByteBuffers only initially allocated from this

@@ -35,7 +35,7 @@ public class OldMemoryManager {
     // needs to be known. Currently allocateSlice() is used for keys and
     // allocate() is used for values.
     public Slice allocateSlice(int bytes) {
-        return ((OakNativeMemoryAllocator)keysMemoryAllocator).allocateSlice(bytes, true);
+        return ((OakNativeMemoryAllocator)keysMemoryAllocator).allocateSlice(bytes, MemoryManager.Allocate.KEY);
     }
 
     public void releaseSlice(Slice slice) {

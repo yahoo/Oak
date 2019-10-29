@@ -1,5 +1,6 @@
 package com.oath.oak.synchrobench.maps;
 
+import com.oath.oak.MemoryManager;
 import com.oath.oak.NativeAllocator.OakNativeMemoryAllocator;
 import com.oath.oak.OakBlockMemoryAllocator;
 import com.oath.oak.Slice;
@@ -98,17 +99,20 @@ public class YoniList<K extends MyBuffer, V extends MyBuffer> implements Composi
         Cell prevValue = skipListMap.putIfAbsent(newCell, newCell);
 
         if (prevValue == null) {
-            Slice keybb = allocator.allocateSlice(MyBufferOak.serializer.calculateSize(key), true).duplicate();
+            Slice keybb = allocator.allocateSlice(MyBufferOak.serializer.calculateSize(key),
+                    MemoryManager.Allocate.KEY).duplicate();
             MyBufferOak.serializer.serialize(key, keybb.getByteBuffer());
             newCell.key.set(keybb);
-            Slice valuebb = allocator.allocateSlice(MyBufferOak.serializer.calculateSize(value), false).duplicate();
+            Slice valuebb = allocator.allocateSlice(MyBufferOak.serializer.calculateSize(value),
+                    MemoryManager.Allocate.VALUE).duplicate();
             MyBufferOak.serializer.serialize(value, valuebb.getByteBuffer());
             if (!newCell.value.compareAndSet(null, valuebb)) {
                 allocator.freeSlice(valuebb);
             }
         } else {
             if (prevValue.value.get() == null) {
-                Slice valuebb = allocator.allocateSlice(MyBufferOak.serializer.calculateSize(value), false).duplicate();
+                Slice valuebb = allocator.allocateSlice(MyBufferOak.serializer.calculateSize(value),
+                        MemoryManager.Allocate.VALUE).duplicate();
                 MyBufferOak.serializer.serialize(value, valuebb.getByteBuffer());
                 if (!prevValue.value.compareAndSet(null, valuebb)) {
                     allocator.freeSlice(valuebb);
@@ -129,10 +133,12 @@ public class YoniList<K extends MyBuffer, V extends MyBuffer> implements Composi
         newCell.key.set(key);
         Cell prevValue = skipListMap.putIfAbsent(newCell, newCell);
         if (prevValue == null) {
-            Slice keybb = allocator.allocateSlice(MyBufferOak.serializer.calculateSize(key), true).duplicate();
+            Slice keybb = allocator.allocateSlice(MyBufferOak.serializer.calculateSize(key),
+                    MemoryManager.Allocate.KEY).duplicate();
             MyBufferOak.serializer.serialize(key, keybb.getByteBuffer());
             newCell.key.set(keybb);
-            Slice valuebb = allocator.allocateSlice(MyBufferOak.serializer.calculateSize(value), false).duplicate();
+            Slice valuebb = allocator.allocateSlice(MyBufferOak.serializer.calculateSize(value),
+                    MemoryManager.Allocate.VALUE).duplicate();
             MyBufferOak.serializer.serialize(value, valuebb.getByteBuffer());
             if (!newCell.value.compareAndSet(null, valuebb)) {
                 allocator.freeSlice(valuebb);
@@ -226,7 +232,8 @@ public class YoniList<K extends MyBuffer, V extends MyBuffer> implements Composi
             Cell prevValue = (Cell) prevValueO;
             // cell is in map but maybe not initialized yet
             if (prevValue.value.get() == null) {
-                Slice valuebb = allocator.allocateSlice(MyBufferOak.serializer.calculateSize(value), false).duplicate();
+                Slice valuebb = allocator.allocateSlice(MyBufferOak.serializer.calculateSize(value),
+                        MemoryManager.Allocate.VALUE).duplicate();
                 MyBufferOak.serializer.serialize(value, valuebb.getByteBuffer());
                 if (!prevValue.value.compareAndSet(null, valuebb)) {
                     allocator.freeSlice(valuebb);
@@ -252,10 +259,12 @@ public class YoniList<K extends MyBuffer, V extends MyBuffer> implements Composi
 
         // If we only added and didnt do any compute, still have to init cell
         if (retval.value.get() == null) {
-            Slice keybb = allocator.allocateSlice(MyBufferOak.serializer.calculateSize(key), true).duplicate();
+            Slice keybb = allocator.allocateSlice(MyBufferOak.serializer.calculateSize(key),
+                    MemoryManager.Allocate.KEY).duplicate();
             MyBufferOak.serializer.serialize(key, keybb.getByteBuffer());
             retval.key.set(keybb);
-            Slice valuebb = allocator.allocateSlice(MyBufferOak.serializer.calculateSize(value), false).duplicate();
+            Slice valuebb = allocator.allocateSlice(MyBufferOak.serializer.calculateSize(value),
+                    MemoryManager.Allocate.VALUE).duplicate();
             MyBufferOak.serializer.serialize(value, valuebb.getByteBuffer());
             if (!retval.value.compareAndSet(null, valuebb)) {
                 allocator.freeSlice(valuebb);

@@ -703,8 +703,8 @@ class InternalOakMap<K, V> {
                 }
                 ValueUtils.ValueResult res = operator.compute(lookUp.valueSlice, computer, lookUp.version);
                 if (res == TRUE) {
-                    // compute was successful and handle wasn't found deleted; in case
-                    // this handle was already found as deleted, continue to construct another handle
+                    // compute was successful and the value wasn't found deleted; in case
+                    // this value was already marked as deleted, continue to construct another slice
                     return true;
                 } else if (res == RETRY) {
                     continue;
@@ -859,7 +859,6 @@ class InternalOakMap<K, V> {
                 return false;
             }
 
-            // res can be null if handle was deleted between lookup and the next call
             ValueUtils.ValueResult res = operator.compareExchange(c, lookUp, oldValue, newValue,
                     valueDeserializeTransformer, valueSerializer, memoryManager);
             if (res == RETRY) {
@@ -1091,10 +1090,13 @@ class InternalOakMap<K, V> {
                 if (valueReference != INVALID_VALUE_REFERENCE) {
                     valueVersion[0] = state.getChunk().completeLinking(new LookUp(null, valueReference,
                             state.getIndex(), valueVersion[0]));
-                    // TODO: check the first clause
+                    // The CAS could not complete due to concurrent rebalance, so rebalance and try again
+                    if(valueVersion[0] == INVALID_VERSION){
+                        rebalance(state.getChunk());
+                        return advance(true);
+                    }
                     // If we could not complete the linking or if the value is deleted, advance to the next value
-                    if (valueVersion[0] == INVALID_VERSION || operator.isValueDeleted(getValueSlice(valueReference),
-                            valueVersion[0]) != FALSE) {
+                    if (operator.isValueDeleted(getValueSlice(valueReference), valueVersion[0]) != FALSE) {
                         advanceState();
                         return advance(true);
                     }
