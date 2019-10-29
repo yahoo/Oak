@@ -2,6 +2,7 @@ package com.oath.oak;
 
 import com.oath.oak.NativeAllocator.OakNativeMemoryAllocator;
 import org.junit.Before;
+import org.junit.Ignore;
 import org.junit.Test;
 
 import java.util.concurrent.BrokenBarrierException;
@@ -9,19 +10,20 @@ import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static com.oath.oak.NovaValueUtils.NovaResult.*;
+import static com.oath.oak.ValueUtils.ValueResult.*;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
-public class NovaValueUtilsTest {
+public class ValueUtilsSimpleTest {
     private Slice s;
-    private final NovaValueUtils operator = new NovaValueOperationsImpl();
+    private final ValueUtils operator = new ValueUtilsImpl();
 
     @Before
     public void init() {
         NovaManager novaManager = new NovaManager(new OakNativeMemoryAllocator(128));
         s = novaManager.allocateSlice(16, MemoryManager.Allocate.VALUE);
         s.getByteBuffer().putInt(s.getByteBuffer().position(), 1);
+        s.initHeader(operator);
     }
 
     @Test

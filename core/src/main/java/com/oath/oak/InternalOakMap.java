@@ -23,8 +23,8 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 
 import static com.oath.oak.Chunk.*;
-import static com.oath.oak.NovaValueOperations.INVALID_VERSION;
-import static com.oath.oak.NovaValueUtils.NovaResult.*;
+import static com.oath.oak.ValueUtils.INVALID_VERSION;
+import static com.oath.oak.ValueUtils.ValueResult.*;
 import static com.oath.oak.UnsafeUtils.longToInts;
 
 class InternalOakMap<K, V> {
@@ -43,7 +43,7 @@ class InternalOakMap<K, V> {
     // OakMaps (including subMaps and Views) when all of the above are closed,
     // his map can be closed and memory released.
     private final AtomicInteger referenceCount = new AtomicInteger(1);
-    private final NovaValueOperations operator;
+    private final ValueUtils operator;
     /*-------------- Constructors --------------*/
 
     /**
@@ -52,7 +52,7 @@ class InternalOakMap<K, V> {
 
     InternalOakMap(K minKey, OakSerializer<K> keySerializer, OakSerializer<V> valueSerializer,
                    OakComparator<K> oakComparator, MemoryManager memoryManager, int chunkMaxItems,
-                   NovaValueOperations operator) {
+                   ValueUtils operator) {
 
         this.size = new AtomicInteger(0);
         this.memoryManager = memoryManager;
@@ -324,6 +324,15 @@ class InternalOakMap<K, V> {
         return false;
     }
 
+    /**
+     * This function completes the insertion of the value reference in the variable {@code lookUp}, and updates the
+     * value's version in {@code lookUp}. In case, the linking cannot be done (i.e., a concurrent rebalance), than
+     * rebalance is called.
+     *
+     * @param c      - the chuck pointed by {@code lookUp}
+     * @param lookUp - holds the value reference, old version, and relevant entry to update
+     * @return whether the caller method should restart (if a rebalance was executed).
+     */
     private boolean updateVersionAfterLinking(Chunk<K, V> c, LookUp lookUp) {
         if (c.completeLinking(lookUp) == INVALID_VERSION) {
             rebalance(c);
@@ -528,7 +537,7 @@ class InternalOakMap<K, V> {
                 if (updateVersionAfterLinking(c, lookUp)) {
                     continue;
                 }
-                NovaValueUtils.NovaResult res = operator.compute(lookUp.valueSlice, computer, lookUp.version);
+                ValueUtils.ValueResult res = operator.compute(lookUp.valueSlice, computer, lookUp.version);
                 if (res == TRUE) {
                     // compute was successful and the value wasn't found deleted; in case
                     // this value was already found as deleted, continue to allocate a new value slice
@@ -692,7 +701,7 @@ class InternalOakMap<K, V> {
                 if (updateVersionAfterLinking(c, lookUp)) {
                     continue;
                 }
-                NovaValueUtils.NovaResult res = operator.compute(lookUp.valueSlice, computer, lookUp.version);
+                ValueUtils.ValueResult res = operator.compute(lookUp.valueSlice, computer, lookUp.version);
                 if (res == TRUE) {
                     // compute was successful and handle wasn't found deleted; in case
                     // this handle was already found as deleted, continue to construct another handle
@@ -851,7 +860,7 @@ class InternalOakMap<K, V> {
             }
 
             // res can be null if handle was deleted between lookup and the next call
-            NovaValueUtils.NovaResult res = operator.compareExchange(c, lookUp, oldValue, newValue,
+            ValueUtils.ValueResult res = operator.compareExchange(c, lookUp, oldValue, newValue,
                     valueDeserializeTransformer, valueSerializer, memoryManager);
             if (res == RETRY) {
                 continue;
@@ -1349,7 +1358,7 @@ class InternalOakMap<K, V> {
             Slice valueSlice = getValueSlice(valueReference);
             int version = nextItem.getValue().getKey();
             assert valueSlice != null;
-            NovaValueUtils.NovaResult res = operator.lockRead(valueSlice, version);
+            ValueUtils.ValueResult res = operator.lockRead(valueSlice, version);
             ByteBuffer serializedValue;
             if (res == FALSE) {
                 return next();

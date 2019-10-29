@@ -52,7 +52,7 @@ public class OakMap<K, V> extends AbstractMap<K, V> implements AutoCloseable, Co
 
     // internal constructor, to create OakMap use OakMapBuilder
     OakMap(K minKey, OakSerializer<K> keySerializer, OakSerializer<V> valueSerializer, OakComparator<K> oakComparator,
-           int chunkMaxItems, MemoryManager mm, NovaValueOperations operator) {
+           int chunkMaxItems, MemoryManager mm, ValueUtils operator) {
 
         this.memoryManager = mm;
         this.comparator = oakComparator;
@@ -214,7 +214,7 @@ public class OakMap<K, V> extends AbstractMap<K, V> implements AutoCloseable, Co
     @Override
     public boolean remove(Object key, Object value) {
         checkKey((K) key);
-        return (value != null) && (internalOakMap.remove((K) key, (V) value, valueDeserializeTransformer).operationResult == NovaValueUtils.NovaResult.TRUE);
+        return (value != null) && (internalOakMap.remove((K) key, (V) value, valueDeserializeTransformer).operationResult == ValueUtils.ValueResult.TRUE);
     }
 
 
@@ -525,7 +525,7 @@ public class OakMap<K, V> extends AbstractMap<K, V> implements AutoCloseable, Co
         public boolean remove(K key) {
             m.checkKey(key);
 
-            return m.internalOakMap.remove(key, null, null).operationResult == NovaValueUtils.NovaResult.TRUE;
+            return m.internalOakMap.remove(key, null, null).operationResult == ValueUtils.ValueResult.TRUE;
         }
 
         public boolean putIfAbsent(K key, V value) {
@@ -534,7 +534,7 @@ public class OakMap<K, V> extends AbstractMap<K, V> implements AutoCloseable, Co
                 throw new NullPointerException();
             }
 
-            return m.internalOakMap.putIfAbsent(key, value, null).operationResult == NovaValueUtils.NovaResult.TRUE;
+            return m.internalOakMap.putIfAbsent(key, value, null).operationResult == ValueUtils.ValueResult.TRUE;
         }
 
         public boolean computeIfPresent(K key, Consumer<OakWBuffer> computer) {

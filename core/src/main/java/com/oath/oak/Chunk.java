@@ -15,8 +15,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicMarkableReference;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static com.oath.oak.NovaValueOperations.INVALID_VERSION;
-import static com.oath.oak.NovaValueUtils.NovaResult.*;
+import static com.oath.oak.ValueUtils.INVALID_VERSION;
+import static com.oath.oak.ValueUtils.ValueResult.*;
 import static com.oath.oak.UnsafeUtils.intsToLong;
 
 import static com.oath.oak.UnsafeUtils.longToInts;
@@ -134,7 +134,7 @@ public class Chunk<K, V> {
     // for writing the keys into the bytebuffers
     private final OakSerializer<K> keySerializer;
     private final OakSerializer<V> valueSerializer;
-    private final NovaValueOperations operator;
+    private final ValueUtils operator;
 
     /*-------------- Constructors --------------*/
 
@@ -146,7 +146,7 @@ public class Chunk<K, V> {
      */
     Chunk(ByteBuffer minKey, Chunk<K, V> creator, OakComparator<K> comparator, MemoryManager memoryManager,
           int maxItems, AtomicInteger externalSize, OakSerializer<K> keySerializer, OakSerializer<V> valueSerializer,
-          NovaValueOperations operator) {
+          ValueUtils operator) {
         this.memoryManager = memoryManager;
         this.maxItems = maxItems;
         this.entries = new int[maxItems * FIELDS + FIRST_ITEM];
@@ -540,7 +540,7 @@ public class Chunk<K, V> {
                     assert valueReference == INVALID_VALUE_REFERENCE;
                     return new LookUp(null, valueReference, curr, version[0]);
                 }
-                NovaValueUtils.NovaResult result = operator.isValueDeleted(valueSlice, version[0]);
+                ValueUtils.ValueResult result = operator.isValueDeleted(valueSlice, version[0]);
                 if (result == TRUE) {
                     // There is a deleted value associated with the given key
                     return new LookUp(null, valueReference, curr, version[0]);
@@ -764,7 +764,7 @@ public class Chunk<K, V> {
      *               the old and new value versions.
      * @return {@code true} if the value reference was CASed successfully.
      */
-    NovaValueUtils.NovaResult linkValue(OpData opData) {
+    ValueUtils.ValueResult linkValue(OpData opData) {
         if (!casEntriesArrayLong(opData.entryIndex, OFFSET.VALUE_REFERENCE, opData.oldValueReference,
                 opData.newValueReference)) {
             return FALSE;

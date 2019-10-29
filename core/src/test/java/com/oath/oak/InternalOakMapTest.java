@@ -23,7 +23,7 @@ public class InternalOakMapTest {
         int chunkMaxItems = 100;
 
         testMap = new InternalOakMap<>(Integer.MIN_VALUE, IntegerOakMap.serializer, IntegerOakMap.serializer,
-                IntegerOakMap.comparator, memoryManager, chunkMaxItems, new NovaValueOperationsImpl());
+                IntegerOakMap.comparator, memoryManager, chunkMaxItems, new ValueUtilsImpl());
     }
 
 

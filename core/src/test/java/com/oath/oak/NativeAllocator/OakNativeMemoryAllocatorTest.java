@@ -10,7 +10,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import com.oath.oak.IntegerOakMap;
-import com.oath.oak.NovaValueOperationsImpl;
+import com.oath.oak.ValueUtilsImpl;
 import com.oath.oak.OakMap;
 import com.oath.oak.OakMapBuilder;
 import com.oath.oak.OakOutOfMemoryException;
@@ -26,7 +26,7 @@ import static org.mockito.Mockito.when;
 
 public class OakNativeMemoryAllocatorTest {
     private static int valueSizeAfterSerialization = 4 * 1024 * 1024;
-    private static NovaValueOperationsImpl operator = new NovaValueOperationsImpl();
+    private static ValueUtilsImpl operator = new ValueUtilsImpl();
 
     public static class CheckOakCapacityValueSerializer implements OakSerializer<Integer> {
 

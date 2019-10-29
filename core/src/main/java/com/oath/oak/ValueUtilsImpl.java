@@ -9,17 +9,17 @@ import java.util.function.Function;
 
 import static com.oath.oak.Chunk.VALUE_BLOCK_SHIFT;
 import static com.oath.oak.Chunk.VALUE_LENGTH_MASK;
-import static com.oath.oak.NovaValueOperationsImpl.LockStates.DELETED;
-import static com.oath.oak.NovaValueOperationsImpl.LockStates.FREE;
-import static com.oath.oak.NovaValueOperationsImpl.LockStates.LOCKED;
-import static com.oath.oak.NovaValueOperationsImpl.LockStates.MOVED;
-import static com.oath.oak.NovaValueUtils.NovaResult.FALSE;
-import static com.oath.oak.NovaValueUtils.NovaResult.RETRY;
-import static com.oath.oak.NovaValueUtils.NovaResult.TRUE;
+import static com.oath.oak.ValueUtilsImpl.LockStates.DELETED;
+import static com.oath.oak.ValueUtilsImpl.LockStates.FREE;
+import static com.oath.oak.ValueUtilsImpl.LockStates.LOCKED;
+import static com.oath.oak.ValueUtilsImpl.LockStates.MOVED;
+import static com.oath.oak.ValueUtils.ValueResult.FALSE;
+import static com.oath.oak.ValueUtils.ValueResult.RETRY;
+import static com.oath.oak.ValueUtils.ValueResult.TRUE;
 import static com.oath.oak.UnsafeUtils.intsToLong;
 import static java.lang.Long.reverseBytes;
 
-public class NovaValueOperationsImpl implements NovaValueOperations {
+public class ValueUtilsImpl implements ValueUtils {
     enum LockStates {
         FREE(0), LOCKED(1), DELETED(2), MOVED(3);
 
@@ -52,7 +52,7 @@ public class NovaValueOperationsImpl implements NovaValueOperations {
     @Override
     public <T> Result<T> transform(Slice s, Function<ByteBuffer, T> transformer,
                                    int version) {
-        NovaResult result = lockRead(s, version);
+        ValueResult result = lockRead(s, version);
         if (result != TRUE) {
             return Result.withFlag(result);
         }
@@ -63,9 +63,9 @@ public class NovaValueOperationsImpl implements NovaValueOperations {
     }
 
     @Override
-    public <V> NovaResult put(Chunk<?, V> chunk, Chunk.LookUp lookUp, V newVal, OakSerializer<V> serializer,
-                              MemoryManager memoryManager) {
-        NovaResult result = lockWrite(lookUp.valueSlice, lookUp.version);
+    public <V> ValueResult put(Chunk<?, V> chunk, Chunk.LookUp lookUp, V newVal, OakSerializer<V> serializer,
+                               MemoryManager memoryManager) {
+        ValueResult result = lockWrite(lookUp.valueSlice, lookUp.version);
         if (result != TRUE) {
             return result;
         }
@@ -101,8 +101,8 @@ public class NovaValueOperationsImpl implements NovaValueOperations {
     }
 
     @Override
-    public NovaResult compute(Slice s, Consumer<OakWBuffer> computer, int version) {
-        NovaResult result = lockWrite(s, version);
+    public ValueResult compute(Slice s, Consumer<OakWBuffer> computer, int version) {
+        ValueResult result = lockWrite(s, version);
         if (result != TRUE) {
             return result;
         }
@@ -117,7 +117,7 @@ public class NovaValueOperationsImpl implements NovaValueOperations {
         // No need to check the old value
         if (oldValue == null) {
             // try to delete
-            NovaResult result = deleteValue(s, version);
+            ValueResult result = deleteValue(s, version);
             if (result != TRUE) {
                 return Result.withFlag(result);
             }
@@ -127,7 +127,7 @@ public class NovaValueOperationsImpl implements NovaValueOperations {
             return Result.withValue(v);
         } else {
             // We first have to read the oldValue and only then decide whether it should be deleted.
-            NovaResult result = lockWrite(s, version);
+            ValueResult result = lockWrite(s, version);
             if (result != TRUE) {
                 return Result.withFlag(result);
             }
@@ -147,7 +147,7 @@ public class NovaValueOperationsImpl implements NovaValueOperations {
     public <V> Result<V> exchange(Chunk<?, V> chunk, Chunk.LookUp lookUp, V value,
                                   Function<ByteBuffer, V> valueDeserializeTransformer, OakSerializer<V> serializer,
                                   MemoryManager memoryManager) {
-        NovaResult result = lockWrite(lookUp.valueSlice, lookUp.version);
+        ValueResult result = lockWrite(lookUp.valueSlice, lookUp.version);
         if (result != TRUE) {
             return Result.withFlag(result);
         }
@@ -161,10 +161,10 @@ public class NovaValueOperationsImpl implements NovaValueOperations {
     }
 
     @Override
-    public <V> NovaResult compareExchange(Chunk<?, V> chunk, Chunk.LookUp lookUp, V expected, V value,
-                                          Function<ByteBuffer, V> valueDeserializeTransformer,
-                                          OakSerializer<V> serializer, MemoryManager memoryManager) {
-        NovaResult result = lockWrite(lookUp.valueSlice, lookUp.version);
+    public <V> ValueResult compareExchange(Chunk<?, V> chunk, Chunk.LookUp lookUp, V expected, V value,
+                                           Function<ByteBuffer, V> valueDeserializeTransformer,
+                                           OakSerializer<V> serializer, MemoryManager memoryManager) {
+        ValueResult result = lockWrite(lookUp.valueSlice, lookUp.version);
         if (result != TRUE) {
             return result;
         }
@@ -210,20 +210,20 @@ public class NovaValueOperationsImpl implements NovaValueOperations {
     }
 
     @Override
-    public NovaResult lockRead(Slice s, int version) {
+    public ValueResult lockRead(Slice s, int version) {
         int lockState;
         assert version > INVALID_VERSION;
         do {
             int oldVersion = getInt(s, 0);
             if (oldVersion != version) {
-                return NovaResult.RETRY;
+                return ValueResult.RETRY;
             }
             lockState = getInt(s, getLockLocation());
             if (oldVersion != getInt(s, 0)) {
-                return NovaResult.RETRY;
+                return ValueResult.RETRY;
             }
             if (lockState == DELETED.value) {
-                return NovaResult.FALSE;
+                return ValueResult.FALSE;
             }
             if (lockState == MOVED.value) {
                 return RETRY;
@@ -234,7 +234,7 @@ public class NovaValueOperationsImpl implements NovaValueOperations {
     }
 
     @Override
-    public NovaResult unlockRead(Slice s, int version) {
+    public ValueResult unlockRead(Slice s, int version) {
         int lockState;
         assert version > INVALID_VERSION;
         do {
@@ -246,19 +246,19 @@ public class NovaValueOperationsImpl implements NovaValueOperations {
     }
 
     @Override
-    public NovaResult lockWrite(Slice s, int version) {
+    public ValueResult lockWrite(Slice s, int version) {
         assert version > INVALID_VERSION;
         do {
             int oldVersion = getInt(s, 0);
             if (oldVersion != version) {
-                return NovaResult.RETRY;
+                return ValueResult.RETRY;
             }
             int lockState = getInt(s, getLockLocation());
             if (oldVersion != getInt(s, 0)) {
-                return NovaResult.RETRY;
+                return ValueResult.RETRY;
             }
             if (lockState == DELETED.value) {
-                return NovaResult.FALSE;
+                return ValueResult.FALSE;
             }
             if (lockState == MOVED.value) {
                 return RETRY;
@@ -268,25 +268,25 @@ public class NovaValueOperationsImpl implements NovaValueOperations {
     }
 
     @Override
-    public NovaResult unlockWrite(Slice s) {
+    public ValueResult unlockWrite(Slice s) {
         putInt(s, getLockLocation(), FREE.value);
         return TRUE;
     }
 
     @Override
-    public NovaResult deleteValue(Slice s, int version) {
+    public ValueResult deleteValue(Slice s, int version) {
         assert version > INVALID_VERSION;
         do {
             int oldVersion = getInt(s, 0);
             if (oldVersion != version) {
-                return NovaResult.RETRY;
+                return ValueResult.RETRY;
             }
             int lockState = getInt(s, getLockLocation());
             if (oldVersion != getInt(s, 0)) {
-                return NovaResult.RETRY;
+                return ValueResult.RETRY;
             }
             if (lockState == DELETED.value) {
-                return NovaResult.FALSE;
+                return ValueResult.FALSE;
             }
             if (lockState == MOVED.value) {
                 return RETRY;
@@ -296,22 +296,22 @@ public class NovaValueOperationsImpl implements NovaValueOperations {
     }
 
     @Override
-    public NovaResult isValueDeleted(Slice s, int version) {
+    public ValueResult isValueDeleted(Slice s, int version) {
         int oldVersion = getInt(s, 0);
         if (oldVersion != version) {
-            return NovaResult.RETRY;
+            return ValueResult.RETRY;
         }
         int lockState = getInt(s, getLockLocation());
         if (oldVersion != getInt(s, 0)) {
-            return NovaResult.RETRY;
+            return ValueResult.RETRY;
         }
         if (lockState == MOVED.value) {
-            return NovaResult.RETRY;
+            return ValueResult.RETRY;
         }
         if (lockState == DELETED.value) {
             return TRUE;
         }
-        return NovaResult.FALSE;
+        return ValueResult.FALSE;
     }
 
     @Override

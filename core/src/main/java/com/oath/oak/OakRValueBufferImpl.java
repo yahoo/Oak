@@ -9,25 +9,24 @@ package com.oath.oak;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.ConcurrentModificationException;
-import java.util.Map;
 import java.util.function.Function;
 
 import static com.oath.oak.Chunk.BLOCK_ID_LENGTH_ARRAY_INDEX;
 import static com.oath.oak.Chunk.POSITION_ARRAY_INDEX;
 import static com.oath.oak.Chunk.VALUE_BLOCK_SHIFT;
 import static com.oath.oak.Chunk.VALUE_LENGTH_MASK;
-import static com.oath.oak.NovaValueUtils.NovaResult.*;
+import static com.oath.oak.ValueUtils.ValueResult.*;
 
 // remove header
 public class OakRValueBufferImpl implements OakRBuffer {
     private long valueReference;
     private final long keyReference;
     private int version;
-    private final NovaValueOperations operator;
+    private final ValueUtils operator;
     private final MemoryManager memoryManager;
     private final InternalOakMap<?, ?> internalOakMap;
 
-    OakRValueBufferImpl(long valueReference, int valueVersion, long keyReference, NovaValueOperations operator,
+    OakRValueBufferImpl(long valueReference, int valueVersion, long keyReference, ValueUtils operator,
                         MemoryManager memoryManager, InternalOakMap<?, ?> internalOakMap) {
         this.valueReference = valueReference;
         this.keyReference = keyReference;
@@ -187,7 +186,7 @@ public class OakRValueBufferImpl implements OakRBuffer {
     }
 
     private void start(Slice valueSlice) {
-        NovaValueUtils.NovaResult res = operator.lockRead(valueSlice, version);
+        ValueUtils.ValueResult res = operator.lockRead(valueSlice, version);
         if (res == FALSE) {
             throw new ConcurrentModificationException();
         }

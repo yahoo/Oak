@@ -5,25 +5,24 @@ import org.junit.Before;
 import org.junit.Test;
 
 import java.nio.ByteBuffer;
-import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CyclicBarrier;
 
-import static com.oath.oak.NovaValueUtils.NovaResult.*;
+import static com.oath.oak.ValueUtils.ValueResult.*;
 import static org.junit.Assert.*;
 
-public class NovaValueOperationsTest {
+public class ValueUtilsTest {
     private NovaManager novaManager;
     private Slice s;
-    private final NovaValueOperations operator = new NovaValueOperationsImpl();
+    private final ValueUtils operator = new ValueUtilsImpl();
 
     @Before
     public void init() {
         novaManager = new NovaManager(new OakNativeMemoryAllocator(128));
         s = novaManager.allocateSlice(20, MemoryManager.Allocate.VALUE);
         putInt(0, 1);
-        putInt(operator.getLockLocation(), 0);
+        s.initHeader(operator);
     }
 
     private void putInt(int index, int value) {
