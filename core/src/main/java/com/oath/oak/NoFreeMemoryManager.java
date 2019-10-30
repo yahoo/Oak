@@ -7,14 +7,15 @@
 package com.oath.oak;
 
 import com.oath.oak.NativeAllocator.OakNativeMemoryAllocator;
+
 import java.nio.ByteBuffer;
 
 
-public class OldMemoryManager {
+public class NoFreeMemoryManager implements MemoryManager {
     private final OakBlockMemoryAllocator keysMemoryAllocator;
     private final OakBlockMemoryAllocator valuesMemoryAllocator;
 
-    public OldMemoryManager(OakBlockMemoryAllocator memoryAllocator) {
+    NoFreeMemoryManager(OakBlockMemoryAllocator memoryAllocator) {
         assert memoryAllocator != null;
 
         this.valuesMemoryAllocator = memoryAllocator;
@@ -31,22 +32,23 @@ public class OldMemoryManager {
         return valuesMemoryAllocator.allocated();
     }
 
-    // allocateSlice is used when the blockID (of the block from which the ByteBuffer is allocated)
-    // needs to be known. Currently allocateSlice() is used for keys and
-    // allocate() is used for values.
-    public Slice allocateSlice(int bytes) {
-        return ((OakNativeMemoryAllocator)keysMemoryAllocator).allocateSlice(bytes, MemoryManager.Allocate.KEY);
+    @Override
+    public Slice allocateSlice(int size, Allocate allocate) {
+        return keysMemoryAllocator.allocateSlice(size, allocate);
     }
 
+    public Slice allocateSlice(int size) {
+        return allocateSlice(size, MemoryManager.Allocate.KEY);
+    }
+
+    @Override
     public void releaseSlice(Slice slice) {
-        // keys aren't going to be released until GC part is taken care for
-        keysMemoryAllocator.freeSlice(slice);
     }
 
-    // When some read only buffer needs to be read from a random block
-    public ByteBuffer getByteBufferFromBlockID(Integer BlockID, int bufferPosition, int bufferLength) {
-        return ((OakNativeMemoryAllocator)keysMemoryAllocator).readByteBufferFromBlockID(
-            BlockID, bufferPosition, bufferLength);
+    @Override
+    public ByteBuffer getByteBufferFromBlockID(int blockID, int bufferPosition, int bufferLength) {
+        return keysMemoryAllocator.readByteBufferFromBlockID(
+                blockID, bufferPosition, bufferLength);
     }
 
     public boolean isClosed() {

@@ -68,13 +68,8 @@ public class NovaManager implements MemoryManager {
     }
 
     @Override
-    public Slice getSliceFromBlockID(int BlockID, int bufferPosition, int bufferLength) {
-        return new Slice(BlockID, getByteBufferFromBlockID(BlockID, bufferPosition, bufferLength));
-    }
-
-    @Override
-    public ByteBuffer getByteBufferFromBlockID(int BlockID, int bufferPosition, int bufferLength) {
-        return allocator.readByteBufferFromBlockID(BlockID, bufferPosition, bufferLength);
+    public ByteBuffer getByteBufferFromBlockID(int blockID, int bufferPosition, int bufferLength) {
+        return allocator.readByteBufferFromBlockID(blockID, bufferPosition, bufferLength);
     }
 
 }

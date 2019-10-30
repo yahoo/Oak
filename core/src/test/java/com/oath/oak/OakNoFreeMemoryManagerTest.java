@@ -14,24 +14,24 @@ import java.nio.ByteBuffer;
 
 import static org.junit.Assert.assertEquals;
 
-public class OakOldMemoryManagerTest {
+public class OakNoFreeMemoryManagerTest {
 
-    private OldMemoryManager oldMemoryManager;
+    private NoFreeMemoryManager noFreeMemoryManager;
 
     @Before
     public void setUp() {
         OakBlockMemoryAllocator keysMemoryAllocator = new OakNativeMemoryAllocator(128);
-        oldMemoryManager = new OldMemoryManager(keysMemoryAllocator);
+        noFreeMemoryManager = new NoFreeMemoryManager(keysMemoryAllocator);
     }
 
     @Test
     public void allocate() {
-        ByteBuffer bb = oldMemoryManager.allocateSlice(4).getByteBuffer();
+        ByteBuffer bb = noFreeMemoryManager.allocateSlice(4).getByteBuffer();
         assertEquals(4, bb.remaining());
-        assertEquals(4, oldMemoryManager.allocated());
+        assertEquals(4, noFreeMemoryManager.allocated());
 
-        bb = oldMemoryManager.allocateSlice(4).getByteBuffer();
+        bb = noFreeMemoryManager.allocateSlice(4).getByteBuffer();
         assertEquals(4, bb.remaining());
-        assertEquals(8, oldMemoryManager.allocated());
+        assertEquals(8, noFreeMemoryManager.allocated());
     }
 }

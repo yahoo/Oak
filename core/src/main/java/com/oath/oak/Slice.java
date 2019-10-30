@@ -44,11 +44,6 @@ public class Slice {
         buffer.putInt(buffer.position() + valueOperator.getLockLocation(), FREE.value);
     }
 
-    public Slice readOnly() {
-        buffer = buffer.asReadOnlyBuffer();
-        return this;
-    }
-
     boolean validatePosition() {
         return originalPosition == buffer.position();
     }

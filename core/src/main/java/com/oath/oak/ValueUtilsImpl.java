@@ -185,7 +185,7 @@ public class ValueUtilsImpl implements ValueUtils {
 
     @Override
     public int getLockLocation() {
-        return NOVA_HEADER_SIZE;
+        return VERSION_SIZE;
     }
 
     @Override

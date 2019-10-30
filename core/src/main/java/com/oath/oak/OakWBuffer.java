@@ -16,6 +16,12 @@ import java.nio.ReadOnlyBufferException;
 public interface OakWBuffer {
 
     /**
+     * @return the actual ByteBuffer (indexed at 0).
+     */
+    @Deprecated
+    ByteBuffer getByteBuffer();
+
+    /**
      * Returns this buffer's capacity.
      *
      * @return The capacity of this buffer

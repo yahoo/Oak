@@ -1406,7 +1406,7 @@ class InternalOakMap<K, V> {
                     }
                 } while (true);
             }
-            serializedValue = valueOperator.getValueByteBufferNoHeader(valueSlice.readOnly());
+            serializedValue = valueOperator.getValueByteBufferNoHeader(valueSlice).asReadOnlyBuffer();
             Map.Entry<ByteBuffer, ByteBuffer> entry =
                     new AbstractMap.SimpleEntry<>(getKeyByteBuffer(keyReference).asReadOnlyBuffer(), serializedValue);
 

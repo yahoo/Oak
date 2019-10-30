@@ -17,13 +17,29 @@ import static com.oath.oak.Chunk.VALUE_BLOCK_SHIFT;
 import static com.oath.oak.Chunk.VALUE_LENGTH_MASK;
 import static com.oath.oak.ValueUtils.ValueResult.*;
 
-// remove header
 public class OakRValueBufferImpl implements OakRBuffer {
+    /**
+     * These are the fields used when accessing the value stored in this buffer (the reference to it in the off-heap,
+     * and the version we expect the value to have.
+     */
     private long valueReference;
-    private final long keyReference;
     private int version;
+    /**
+     * In case the version of the value pointed by {@code valueReference} does not match {@code version}, we assume
+     * the value was moved and thus issue a search for this value. For that reason we have this field of the original
+     * key of the original value. If the value was moved, using this key we are able to find it in Oak, or determine
+     * it was deleted.
+     */
+    private final long keyReference;
     private final ValueUtils valueOperator;
+    /**
+     * Since not the actual ByteBuffer is stored, but rather the reference to it, we use the memory manager to
+     * reconstruct the ByteBuffer on demand.
+     */
     private final MemoryManager memoryManager;
+    /**
+     * In case of a search, this is the map we search in.
+     */
     private final InternalOakMap<?, ?> internalOakMap;
 
     OakRValueBufferImpl(long valueReference, int valueVersion, long keyReference, ValueUtils valueOperator,
