@@ -22,16 +22,16 @@ public class OakRValueBufferImpl implements OakRBuffer {
     private long valueReference;
     private final long keyReference;
     private int version;
-    private final ValueUtils operator;
+    private final ValueUtils valueOperator;
     private final MemoryManager memoryManager;
     private final InternalOakMap<?, ?> internalOakMap;
 
-    OakRValueBufferImpl(long valueReference, int valueVersion, long keyReference, ValueUtils operator,
+    OakRValueBufferImpl(long valueReference, int valueVersion, long keyReference, ValueUtils valueOperator,
                         MemoryManager memoryManager, InternalOakMap<?, ?> internalOakMap) {
         this.valueReference = valueReference;
         this.keyReference = keyReference;
         this.version = valueVersion;
-        this.operator = operator;
+        this.valueOperator = valueOperator;
         this.memoryManager = memoryManager;
         this.internalOakMap = internalOakMap;
     }
@@ -47,12 +47,12 @@ public class OakRValueBufferImpl implements OakRBuffer {
     }
 
     private int valuePosition() {
-        return UnsafeUtils.longToInts(valueReference)[POSITION_ARRAY_INDEX] + operator.getHeaderSize();
+        return UnsafeUtils.longToInts(valueReference)[POSITION_ARRAY_INDEX] + valueOperator.getHeaderSize();
     }
 
     @Override
     public int capacity() {
-        return (UnsafeUtils.longToInts(valueReference)[BLOCK_ID_LENGTH_ARRAY_INDEX] & VALUE_LENGTH_MASK) - operator.getHeaderSize();
+        return (UnsafeUtils.longToInts(valueReference)[BLOCK_ID_LENGTH_ARRAY_INDEX] & VALUE_LENGTH_MASK) - valueOperator.getHeaderSize();
     }
 
     @Override
@@ -166,7 +166,7 @@ public class OakRValueBufferImpl implements OakRBuffer {
         if (transformer == null) {
             throw new NullPointerException();
         }
-        Result<T> result = operator.transform(getValueSlice(), transformer, version);
+        Result<T> result = valueOperator.transform(getValueSlice(), transformer, version);
         if (result.operationResult == FALSE) {
             throw new ConcurrentModificationException();
         } else if (result.operationResult == RETRY) {
@@ -180,13 +180,13 @@ public class OakRValueBufferImpl implements OakRBuffer {
     public void unsafeCopyBufferToIntArray(int srcPosition, int[] dstArray, int countInts) {
         Slice s = getValueSlice();
         start(s);
-        ByteBuffer dup = operator.getValueByteBufferNoHeader(s);
-        operator.unsafeBufferToIntArrayCopy(dup, srcPosition, dstArray, countInts);
+        ByteBuffer dup = valueOperator.getValueByteBufferNoHeader(s);
+        valueOperator.unsafeBufferToIntArrayCopy(dup, srcPosition, dstArray, countInts);
         end(s);
     }
 
     private void start(Slice valueSlice) {
-        ValueUtils.ValueResult res = operator.lockRead(valueSlice, version);
+        ValueUtils.ValueResult res = valueOperator.lockRead(valueSlice, version);
         if (res == FALSE) {
             throw new ConcurrentModificationException();
         }
@@ -198,7 +198,7 @@ public class OakRValueBufferImpl implements OakRBuffer {
     }
 
     private void end(Slice valueSlice) {
-        operator.unlockRead(valueSlice, version);
+        valueOperator.unlockRead(valueSlice, version);
     }
 
     private void lookupValueReference() {

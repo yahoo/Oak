@@ -40,8 +40,8 @@ public class Slice {
         return blockID;
     }
 
-    void initHeader(ValueUtils operator) {
-        buffer.putInt(buffer.position() + operator.getLockLocation(), FREE.value);
+    void initHeader(ValueUtils valueOperator) {
+        buffer.putInt(buffer.position() + valueOperator.getLockLocation(), FREE.value);
     }
 
     public Slice readOnly() {

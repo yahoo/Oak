@@ -26,7 +26,7 @@ import static org.mockito.Mockito.when;
 
 public class OakNativeMemoryAllocatorTest {
     private static int valueSizeAfterSerialization = 4 * 1024 * 1024;
-    private static ValueUtilsImpl operator = new ValueUtilsImpl();
+    private static ValueUtilsImpl valueOperator = new ValueUtilsImpl();
 
     public static class CheckOakCapacityValueSerializer implements OakSerializer<Integer> {
 
@@ -168,7 +168,7 @@ public class OakNativeMemoryAllocatorTest {
 
         // (2) check the one block in the allocator
         assertEquals(ma.numOfAllocatedBlocks(), 1);
-        assertEquals((valueSizeAfterSerialization + operator.getHeaderSize()) + keysSizeAfterSerialization,
+        assertEquals((valueSizeAfterSerialization + valueOperator.getHeaderSize()) + keysSizeAfterSerialization,
                 ma.allocated());   // check the newest block allocation
         // check that what you read is the same that you wrote
         Integer resultForKey = oak.firstKey();
@@ -186,9 +186,9 @@ public class OakNativeMemoryAllocatorTest {
         // (2) check the two blocks in the allocator
         assertEquals(ma.numOfAllocatedBlocks(), 2);
         // mind no addition of the size of integer key, as it was allocated in the previous block
-        assertEquals(valueSizeAfterSerialization + operator.getHeaderSize(), ma.getCurrentBlock().allocated());
+        assertEquals(valueSizeAfterSerialization + valueOperator.getHeaderSize(), ma.getCurrentBlock().allocated());
         // check the newest block allocation
-        assertEquals((operator.getHeaderSize() + valueSizeAfterSerialization) * oak.entrySet().size() + keysSizeAfterSerialization,
+        assertEquals((valueOperator.getHeaderSize() + valueSizeAfterSerialization) * oak.entrySet().size() + keysSizeAfterSerialization,
                 ma.allocated());   // check the total allocation
         // check that what you read is the same that you wrote
         resultForKey = oak.lastKey();
@@ -206,9 +206,9 @@ public class OakNativeMemoryAllocatorTest {
         // (2) check the 3 blocks in the allocator
         assertEquals(ma.numOfAllocatedBlocks(), 3);
         // mind no addition of the size of integer key, as it was allocated in the previous block
-        assertEquals(valueSizeAfterSerialization + operator.getHeaderSize(), ma.getCurrentBlock().allocated());   //
+        assertEquals(valueSizeAfterSerialization + valueOperator.getHeaderSize(), ma.getCurrentBlock().allocated());   //
         // check the newest block allocation
-        assertEquals((valueSizeAfterSerialization + operator.getHeaderSize()) * oak.entrySet().size() + keysSizeAfterSerialization,
+        assertEquals((valueSizeAfterSerialization + valueOperator.getHeaderSize()) * oak.entrySet().size() + keysSizeAfterSerialization,
                 ma.allocated());   // check the total allocation
         // check that what you read is the same that you wrote
         resultForKey = oak.lastKey();

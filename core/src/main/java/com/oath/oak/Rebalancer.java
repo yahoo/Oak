@@ -38,12 +38,12 @@ class Rebalancer<K, V> {
     private final MemoryManager memoryManager;
     private final OakSerializer<K> keySerializer;
     private final OakSerializer<V> valueSerializer;
-    private final ValueUtils operator;
+    private final ValueUtils valueOperator;
 
     /*-------------- Constructors --------------*/
 
     Rebalancer(Chunk<K, V> chunk, boolean offHeap, MemoryManager memoryManager,
-               OakSerializer<K> keySerializer, OakSerializer<V> valueSerializer, ValueUtils operator) {
+               OakSerializer<K> keySerializer, OakSerializer<V> valueSerializer, ValueUtils valueOperator) {
         this.entriesLowThreshold = (int) (chunk.getMaxItems() * LOW_THRESHOLD);
         this.maxRangeToAppend = (int) (chunk.getMaxItems() * APPEND_THRESHOLD);
         this.maxAfterMergeItems = (int) (chunk.getMaxItems() * MAX_AFTER_MERGE_PART);
@@ -56,7 +56,7 @@ class Rebalancer<K, V> {
         itemsInRange = first.getStatistics().getCompactedCount();
         this.keySerializer = keySerializer;
         this.valueSerializer = valueSerializer;
-        this.operator = operator;
+        this.valueOperator = valueOperator;
     }
 
     /*-------------- Methods --------------*/
@@ -125,7 +125,7 @@ class Rebalancer<K, V> {
         Chunk<K, V> firstFrozen = iterFrozen.next();
         Chunk<K, V> currFrozen = firstFrozen;
         Chunk<K, V> currNewChunk = new Chunk<>(firstFrozen.minKey, firstFrozen, firstFrozen.comparator, memoryManager,
-                currFrozen.getMaxItems(), currFrozen.externalSize, keySerializer, valueSerializer, operator);
+                currFrozen.getMaxItems(), currFrozen.externalSize, keySerializer, valueSerializer, valueOperator);
 
         int ei = firstFrozen.getFirstItemEntryIndex();
         List<Chunk<K, V>> newChunks = new LinkedList<>();
@@ -168,7 +168,7 @@ class Rebalancer<K, V> {
 
                     Chunk<K, V> c = new Chunk<>(newMinKey, firstFrozen, currFrozen.comparator, memoryManager,
                             currFrozen.getMaxItems(), currFrozen.externalSize,
-                            keySerializer, valueSerializer, operator);
+                            keySerializer, valueSerializer, valueOperator);
                     currNewChunk.next.set(c, false);
                     newChunks.add(currNewChunk);
                     currNewChunk = c;

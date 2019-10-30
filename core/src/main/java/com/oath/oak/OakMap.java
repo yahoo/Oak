@@ -52,12 +52,12 @@ public class OakMap<K, V> extends AbstractMap<K, V> implements AutoCloseable, Co
 
     // internal constructor, to create OakMap use OakMapBuilder
     OakMap(K minKey, OakSerializer<K> keySerializer, OakSerializer<V> valueSerializer, OakComparator<K> oakComparator,
-           int chunkMaxItems, MemoryManager mm, ValueUtils operator) {
+           int chunkMaxItems, MemoryManager mm, ValueUtils valueOperator) {
 
         this.memoryManager = mm;
         this.comparator = oakComparator;
         this.internalOakMap = new InternalOakMap<>(minKey, keySerializer, valueSerializer, oakComparator,
-                this.memoryManager, chunkMaxItems, operator);
+                this.memoryManager, chunkMaxItems, valueOperator);
 
         this.fromKey = null;
         this.fromInclusive = false;

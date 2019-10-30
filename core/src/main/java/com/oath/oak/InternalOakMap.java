@@ -43,7 +43,8 @@ class InternalOakMap<K, V> {
     // OakMaps (including subMaps and Views) when all of the above are closed,
     // his map can be closed and memory released.
     private final AtomicInteger referenceCount = new AtomicInteger(1);
-    private final ValueUtils operator;
+    private final ValueUtils valueOperator;
+    private final static int KEY_HEADER_SIZE = 0;
     /*-------------- Constructors --------------*/
 
     /**
@@ -52,7 +53,7 @@ class InternalOakMap<K, V> {
 
     InternalOakMap(K minKey, OakSerializer<K> keySerializer, OakSerializer<V> valueSerializer,
                    OakComparator<K> oakComparator, MemoryManager memoryManager, int chunkMaxItems,
-                   ValueUtils operator) {
+                   ValueUtils valueOperator) {
 
         this.size = new AtomicInteger(0);
         this.memoryManager = memoryManager;
@@ -87,10 +88,10 @@ class InternalOakMap<K, V> {
         this.skiplist = new ConcurrentSkipListMap<>(mixedKeyComparator);
 
         Chunk<K, V> head = new Chunk<>(this.minKey, null, this.comparator, memoryManager, chunkMaxItems,
-                this.size, keySerializer, valueSerializer, operator);
+                this.size, keySerializer, valueSerializer, valueOperator);
         this.skiplist.put(head.minKey, head);    // add first chunk (head) into skiplist
         this.head = new AtomicReference<>(head);
-        this.operator = operator;
+        this.valueOperator = valueOperator;
     }
 
     /*-------------- Closable --------------*/
@@ -170,7 +171,7 @@ class InternalOakMap<K, V> {
             return;
         }
         Rebalancer<K, V> rebalancer = new Rebalancer<>(c, true, memoryManager, keySerializer,
-                valueSerializer, operator);
+                valueSerializer, valueOperator);
 
         rebalancer = rebalancer.engageChunks(); // maybe we encountered a different rebalancer
 
@@ -357,7 +358,7 @@ class InternalOakMap<K, V> {
                 if (updateVersionAfterLinking(c, lookUp)) {
                     continue;
                 }
-                Result<V> res = operator.exchange(c, lookUp, value, transformer, valueSerializer, memoryManager);
+                Result<V> res = valueOperator.exchange(c, lookUp, value, transformer, valueSerializer, memoryManager);
                 if (res.operationResult == TRUE) {
                     return res.value;
                 }
@@ -443,7 +444,7 @@ class InternalOakMap<K, V> {
                 if (transformer == null) {
                     return Result.withFlag(FALSE);
                 }
-                Result<V> res = operator.transform(lookUp.valueSlice, transformer, lookUp.version);
+                Result<V> res = valueOperator.transform(lookUp.valueSlice, transformer, lookUp.version);
                 if (res.operationResult == TRUE) {
                     return res;
                 }
@@ -490,7 +491,7 @@ class InternalOakMap<K, V> {
                         if (transformer == null) {
                             return Result.withFlag(FALSE);
                         }
-                        Result<V> res = operator.transform(otherSlice, transformer, otherVersion[0]);
+                        Result<V> res = valueOperator.transform(otherSlice, transformer, otherVersion[0]);
                         if (res.operationResult == TRUE) {
                             return res;
                         }
@@ -537,7 +538,7 @@ class InternalOakMap<K, V> {
                 if (updateVersionAfterLinking(c, lookUp)) {
                     continue;
                 }
-                ValueUtils.ValueResult res = operator.compute(lookUp.valueSlice, computer, lookUp.version);
+                ValueUtils.ValueResult res = valueOperator.compute(lookUp.valueSlice, computer, lookUp.version);
                 if (res == TRUE) {
                     // compute was successful and the value wasn't found deleted; in case
                     // this value was already found as deleted, continue to allocate a new value slice
@@ -645,7 +646,8 @@ class InternalOakMap<K, V> {
                 // reused the entry before we unlinked it. We have the previous value saved in v.
                 return transformer == null ? Result.withFlag(TRUE) : Result.withValue(v);
             } else {
-                Result<V> removeResult = operator.remove(lookUp.valueSlice, memoryManager, lookUp.version, oldValue,
+                Result<V> removeResult = valueOperator.remove(lookUp.valueSlice, memoryManager, lookUp.version,
+                        oldValue,
                         transformer);
                 if (removeResult.operationResult == FALSE) {
                     // we didn't succeed to remove the value: it didn't contain oldValue, or was already marked
@@ -683,7 +685,7 @@ class InternalOakMap<K, V> {
                 continue;
             }
             long keyReference = c.getKeyReference(lookUp.entryIndex);
-            return new OakRValueBufferImpl(lookUp.valueReference, lookUp.version, keyReference, operator,
+            return new OakRValueBufferImpl(lookUp.valueReference, lookUp.version, keyReference, valueOperator,
                     memoryManager, this);
         }
     }
@@ -701,7 +703,7 @@ class InternalOakMap<K, V> {
                 if (updateVersionAfterLinking(c, lookUp)) {
                     continue;
                 }
-                ValueUtils.ValueResult res = operator.compute(lookUp.valueSlice, computer, lookUp.version);
+                ValueUtils.ValueResult res = valueOperator.compute(lookUp.valueSlice, computer, lookUp.version);
                 if (res == TRUE) {
                     // compute was successful and the value wasn't found deleted; in case
                     // this value was already marked as deleted, continue to construct another slice
@@ -750,7 +752,7 @@ class InternalOakMap<K, V> {
             if (updateVersionAfterLinking(c, lookUp)) {
                 continue;
             }
-            Result<T> res = operator.transform(lookUp.valueSlice, transformer, lookUp.version);
+            Result<T> res = valueOperator.transform(lookUp.valueSlice, transformer, lookUp.version);
             if (res.operationResult == RETRY) {
                 continue;
             }
@@ -843,7 +845,7 @@ class InternalOakMap<K, V> {
             }
 
             // will return null if the value is deleted
-            Result<V> result = operator.exchange(c, lookUp, value, valueDeserializeTransformer, valueSerializer,
+            Result<V> result = valueOperator.exchange(c, lookUp, value, valueDeserializeTransformer, valueSerializer,
                     memoryManager);
             if (result.operationResult != RETRY) {
                 return result.value;
@@ -859,7 +861,7 @@ class InternalOakMap<K, V> {
                 return false;
             }
 
-            ValueUtils.ValueResult res = operator.compareExchange(c, lookUp, oldValue, newValue,
+            ValueUtils.ValueResult res = valueOperator.compareExchange(c, lookUp, oldValue, newValue,
                     valueDeserializeTransformer, valueSerializer, memoryManager);
             if (res == RETRY) {
                 continue;
@@ -902,7 +904,8 @@ class InternalOakMap<K, V> {
         if (valueReference == INVALID_VALUE_REFERENCE) {
             return lowerEntry(key);
         }
-        Result<V> valueDeserialized = operator.transform(getValueSlice(valueReference), valueSerializer::deserialize,
+        Result<V> valueDeserialized = valueOperator.transform(getValueSlice(valueReference),
+                valueSerializer::deserialize,
                 valueVersion[0]);
         if (valueDeserialized.operationResult != TRUE) {
             return lowerEntry(key);
@@ -925,6 +928,16 @@ class InternalOakMap<K, V> {
         int[] keyArray = longToInts(keyReference);
         return memoryManager.getByteBufferFromBlockID(keyArray[BLOCK_ID_LENGTH_ARRAY_INDEX] >>> KEY_BLOCK_SHIFT,
                 keyArray[POSITION_ARRAY_INDEX], keyArray[BLOCK_ID_LENGTH_ARRAY_INDEX] & KEY_LENGTH_MASK);
+    }
+
+    private OakRReference setKeyReference(long keyReference, OakRReference key) {
+        int[] keyArray = longToInts(keyReference);
+        int blockID = keyArray[BLOCK_ID_LENGTH_ARRAY_INDEX] >> KEY_BLOCK_SHIFT;
+        int keyPosition = keyArray[POSITION_ARRAY_INDEX];
+        int length = keyArray[BLOCK_ID_LENGTH_ARRAY_INDEX] & KEY_LENGTH_MASK;
+
+        key.setReference(blockID, keyPosition, length);
+        return key;
     }
 
     private static class IteratorState<K, V> {
@@ -963,6 +976,17 @@ class InternalOakMap<K, V> {
         }
 
     }
+
+    private static class IterItem {
+        long keyReference;
+        long valueReference;
+        int valueVersion;
+    }
+
+    // This array holds for each thread a container instance so Iter::advance() could return the keyRefernece,
+    // valueReference and version Reference, without the need to allocate any objects.
+    private final IterItem[] iterItemsDummies = new IterItem[ThreadIndexCalculator.MAX_THREADS];
+    private final ThreadIndexCalculator iterThreadIndexCalculator = ThreadIndexCalculator.newInstance();
 
     /**
      * Base of iterator classes:
@@ -1069,8 +1093,11 @@ class InternalOakMap<K, V> {
          * @return The first long is the key's reference, the integer is the value's version and the second long is
          * the value's reference. If {@code needsValue == false}, then the value of the map entry is {@code null}.
          */
-        Map.Entry<Long, Map.Entry<Integer, Long>> advance(boolean needsValue) {
-
+        IterItem advance(boolean needsValue) {
+            if (iterItemsDummies[iterThreadIndexCalculator.getIndex()] == null) {
+                iterItemsDummies[iterThreadIndexCalculator.getIndex()] = new IterItem();
+            }
+            IterItem myItem = iterItemsDummies[iterThreadIndexCalculator.getIndex()];
             if (state == null) {
                 throw new NoSuchElementException();
             }
@@ -1084,19 +1111,18 @@ class InternalOakMap<K, V> {
             long keyReference = state.getChunk().getKeyReference(state.getIndex());
             long valueReference;
             int[] valueVersion = new int[1];
-            Map.Entry<Integer, Long> value = null;
             if (needsValue) {
                 valueReference = state.getChunk().getValueReferenceAndVersion(state.getIndex(), valueVersion);
                 if (valueReference != INVALID_VALUE_REFERENCE) {
                     valueVersion[0] = state.getChunk().completeLinking(new LookUp(null, valueReference,
                             state.getIndex(), valueVersion[0]));
                     // The CAS could not complete due to concurrent rebalance, so rebalance and try again
-                    if(valueVersion[0] == INVALID_VERSION){
+                    if (valueVersion[0] == INVALID_VERSION) {
                         rebalance(state.getChunk());
                         return advance(true);
                     }
                     // If we could not complete the linking or if the value is deleted, advance to the next value
-                    if (operator.isValueDeleted(getValueSlice(valueReference), valueVersion[0]) != FALSE) {
+                    if (valueOperator.isValueDeleted(getValueSlice(valueReference), valueVersion[0]) != FALSE) {
                         advanceState();
                         return advance(true);
                     }
@@ -1104,10 +1130,12 @@ class InternalOakMap<K, V> {
                     advanceState();
                     return advance(true);
                 }
-                value = new AbstractMap.SimpleImmutableEntry<>(valueVersion[0], valueReference);
+                myItem.valueReference = valueReference;
+                myItem.valueVersion = valueVersion[0];
             }
             advanceState();
-            return new AbstractMap.SimpleImmutableEntry<>(keyReference, value);
+            myItem.keyReference = keyReference;
+            return myItem;
         }
 
         /**
@@ -1241,18 +1269,18 @@ class InternalOakMap<K, V> {
 
         @Override
         public OakRBuffer next() {
-            Map.Entry<Long, Map.Entry<Integer, Long>> nextItem = advance(true);
-            long keyReference = nextItem.getKey();
-            long valueReference = nextItem.getValue().getValue();
-            int version = nextItem.getValue().getKey();
-            return new OakRValueBufferImpl(valueReference, version, keyReference, operator, memoryManager,
+            IterItem myItem = advance(true);
+            long keyReference = myItem.keyReference;
+            long valueReference = myItem.valueReference;
+            int version = myItem.valueVersion;
+            return new OakRValueBufferImpl(valueReference, version, keyReference, valueOperator, memoryManager,
                     internalOakMap);
         }
     }
 
     class ValueStreamIterator extends Iter<OakRBuffer> {
 
-        private OakRReference value = new OakRReference(memoryManager, operator.getHeaderSize());
+        private OakRReference value = new OakRReference(memoryManager, valueOperator.getHeaderSize());
 
         ValueStreamIterator(K lo, boolean loInclusive, K hi, boolean hiInclusive, boolean isDescending) {
             super(lo, loInclusive, hi, hiInclusive, isDescending);
@@ -1279,12 +1307,12 @@ class InternalOakMap<K, V> {
         }
 
         public T next() {
-            Map.Entry<Long, Map.Entry<Integer, Long>> nextItem = advance(true);
-            long keyReference = nextItem.getKey();
-            long valueReference = nextItem.getValue().getValue();
+            IterItem myItem = advance(true);
+            long keyReference = myItem.keyReference;
+            long valueReference = myItem.valueReference;
             Slice valueSlice = getValueSlice(valueReference);
-            int version = nextItem.getValue().getKey();
-            Result<T> res = operator.transform(valueSlice, transformer, version);
+            int version = myItem.valueVersion;
+            Result<T> res = valueOperator.transform(valueSlice, transformer, version);
             // If this value is deleted, try the next one
             if (res.operationResult == FALSE) {
                 return next();
@@ -1313,21 +1341,20 @@ class InternalOakMap<K, V> {
         }
 
         public Map.Entry<OakRBuffer, OakRBuffer> next() {
-            Map.Entry<Long, Map.Entry<Integer, Long>> nextItem = advance(true);
-            long keyReference = nextItem.getKey();
-            long valueReference = nextItem.getValue().getValue();
-            int version = nextItem.getValue().getKey();
-            return new AbstractMap.SimpleImmutableEntry<>(
-                    new OakRKeyBufferImpl(keyReference, memoryManager),
-                    new OakRValueBufferImpl(valueReference, version, keyReference, operator, memoryManager,
-                            internalOakMap));
+            IterItem myItem = advance(true);
+            long keyReference = myItem.keyReference;
+            long valueReference = myItem.valueReference;
+            int version = myItem.valueVersion;
+            return new AbstractMap.SimpleImmutableEntry<>(setKeyReference(keyReference,
+                    new OakRReference(memoryManager, KEY_HEADER_SIZE)), new OakRValueBufferImpl(valueReference,
+                    version, keyReference, valueOperator, memoryManager, internalOakMap));
         }
     }
 
     class EntryStreamIterator extends Iter<Map.Entry<OakRBuffer, OakRBuffer>> {
 
-        private OakRReference key = new OakRReference(memoryManager, 0);
-        private OakRReference value = new OakRReference(memoryManager, operator.getHeaderSize());
+        private OakRReference key = new OakRReference(memoryManager, KEY_HEADER_SIZE);
+        private OakRReference value = new OakRReference(memoryManager, valueOperator.getHeaderSize());
 
         EntryStreamIterator(K lo, boolean loInclusive, K hi, boolean hiInclusive, boolean isDescending) {
             super(lo, loInclusive, hi, hiInclusive, isDescending);
@@ -1354,13 +1381,13 @@ class InternalOakMap<K, V> {
         }
 
         public T next() {
-            Map.Entry<Long, Map.Entry<Integer, Long>> nextItem = advance(true);
-            long keyReference = nextItem.getKey();
-            long valueReference = nextItem.getValue().getValue();
+            IterItem myItem = advance(true);
+            long keyReference = myItem.keyReference;
+            long valueReference = myItem.valueReference;
             Slice valueSlice = getValueSlice(valueReference);
-            int version = nextItem.getValue().getKey();
+            int version = myItem.valueVersion;
             assert valueSlice != null;
-            ValueUtils.ValueResult res = operator.lockRead(valueSlice, version);
+            ValueUtils.ValueResult res = valueOperator.lockRead(valueSlice, version);
             ByteBuffer serializedValue;
             if (res == FALSE) {
                 return next();
@@ -1370,7 +1397,7 @@ class InternalOakMap<K, V> {
                     if (lookUp == null || lookUp.valueSlice == null) {
                         return next();
                     }
-                    res = operator.lockRead(lookUp.valueSlice, lookUp.version);
+                    res = valueOperator.lockRead(lookUp.valueSlice, lookUp.version);
                     if (res == TRUE) {
                         valueReference = lookUp.valueReference;
                         valueSlice = lookUp.valueSlice;
@@ -1379,13 +1406,13 @@ class InternalOakMap<K, V> {
                     }
                 } while (true);
             }
-            serializedValue = operator.getValueByteBufferNoHeader(valueSlice.readOnly());
+            serializedValue = valueOperator.getValueByteBufferNoHeader(valueSlice.readOnly());
             Map.Entry<ByteBuffer, ByteBuffer> entry =
                     new AbstractMap.SimpleEntry<>(getKeyByteBuffer(keyReference).asReadOnlyBuffer(), serializedValue);
 
             T transformation = transformer.apply(entry);
             valueSlice = getValueSlice(valueReference);
-            operator.unlockRead(valueSlice, version);
+            valueOperator.unlockRead(valueSlice, version);
             return transformation;
         }
     }
@@ -1400,15 +1427,15 @@ class InternalOakMap<K, V> {
         @Override
         public OakRBuffer next() {
 
-            Map.Entry<Long, ?> pair = advance(false);
-            return new OakRKeyBufferImpl(pair.getKey(), memoryManager);
+            IterItem myItem = advance(false);
+            return setKeyReference(myItem.keyReference, new OakRReference(memoryManager, KEY_HEADER_SIZE));
 
         }
     }
 
     public class KeyStreamIterator extends Iter<OakRBuffer> {
 
-        private OakRReference key = new OakRReference(memoryManager, 0);
+        private OakRReference key = new OakRReference(memoryManager, KEY_HEADER_SIZE);
 
         KeyStreamIterator(K lo, boolean loInclusive, K hi, boolean hiInclusive, boolean isDescending) {
             super(lo, loInclusive, hi, hiInclusive, isDescending);
@@ -1432,8 +1459,8 @@ class InternalOakMap<K, V> {
         }
 
         public T next() {
-            Map.Entry<Long, ?> pair = advance(false);
-            return transformer.apply(getKeyByteBuffer(pair.getKey()).asReadOnlyBuffer());
+            IterItem myItem = advance(false);
+            return transformer.apply(getKeyByteBuffer(myItem.keyReference).asReadOnlyBuffer());
         }
     }
 

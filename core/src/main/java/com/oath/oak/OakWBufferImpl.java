@@ -15,21 +15,21 @@ public class OakWBufferImpl implements OakWBuffer {
 
     private Slice s;
     private ByteBuffer bb;
-    private final ValueUtils operator;
+    private final ValueUtils valueOperator;
 
-    OakWBufferImpl(Slice s, ValueUtils operator) {
+    OakWBufferImpl(Slice s, ValueUtils valueOperator) {
         this.s = s;
         this.bb = s.getByteBuffer();
-        this.operator = operator;
+        this.valueOperator = valueOperator;
     }
 
     private int valuePosition() {
-        return bb.position() + operator.getHeaderSize();
+        return bb.position() + valueOperator.getHeaderSize();
     }
 
     @Override
     public int capacity() {
-        return bb.remaining() - operator.getHeaderSize();
+        return bb.remaining() - valueOperator.getHeaderSize();
     }
 
     @Override

@@ -9,10 +9,11 @@ package com.oath.oak;
 import java.nio.ByteBuffer;
 
 // this is the interface to be implemented to replace the OakNativeMemoryAllocator
-// this is about allocation of a new ByteBuffer (which need to be DirectByteBuffer
-// in order to continue supporting off-heap)
-// allocator is also getting a ByteBuffer to reuse the memory, given ByteBuffer is
-// no longer in use by any thread
+// this is about allocation of a new Slice (which has inside it a DirectByteBuffer in order to continue supporting
+// off-heap memory).
+// allocator is also getting a Slice to reuse the memory, given this Slice is no longer in use by any thread.
+// Note that Slice cannot be merged into a single Slice, and a Slice currently is not split.
+
 public interface OakBlockMemoryAllocator {
 
     // Allocates ByteBuffer of the given size, thread safe.

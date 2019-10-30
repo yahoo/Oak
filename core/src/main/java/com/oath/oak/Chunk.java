@@ -134,7 +134,7 @@ public class Chunk<K, V> {
     // for writing the keys into the bytebuffers
     private final OakSerializer<K> keySerializer;
     private final OakSerializer<V> valueSerializer;
-    private final ValueUtils operator;
+    private final ValueUtils valueOperator;
 
     /*-------------- Constructors --------------*/
 
@@ -146,7 +146,7 @@ public class Chunk<K, V> {
      */
     Chunk(ByteBuffer minKey, Chunk<K, V> creator, OakComparator<K> comparator, MemoryManager memoryManager,
           int maxItems, AtomicInteger externalSize, OakSerializer<K> keySerializer, OakSerializer<V> valueSerializer,
-          ValueUtils operator) {
+          ValueUtils valueOperator) {
         this.memoryManager = memoryManager;
         this.maxItems = maxItems;
         this.entries = new int[maxItems * FIELDS + FIRST_ITEM];
@@ -169,7 +169,7 @@ public class Chunk<K, V> {
 
         this.keySerializer = keySerializer;
         this.valueSerializer = valueSerializer;
-        this.operator = operator;
+        this.valueOperator = valueOperator;
     }
 
     static class OpData {
@@ -272,9 +272,9 @@ public class Chunk<K, V> {
         }
         int[] valueArray = longToInts(valueReference);
         int blockID = valueArray[BLOCK_ID_LENGTH_ARRAY_INDEX] >> VALUE_BLOCK_SHIFT;
-        int keyPosition = valueArray[POSITION_ARRAY_INDEX];
+        int valuePosition = valueArray[POSITION_ARRAY_INDEX];
         int length = valueArray[BLOCK_ID_LENGTH_ARRAY_INDEX] & VALUE_LENGTH_MASK;
-        value.setReference(blockID, keyPosition, length);
+        value.setReference(blockID, valuePosition, length);
         return true;
     }
 
@@ -447,7 +447,7 @@ public class Chunk<K, V> {
         }
         try {
             Slice valueSlice = buildValueSlice(lookUp.valueReference);
-            int offHeapVersion = operator.getOffHeapVersion(valueSlice);
+            int offHeapVersion = valueOperator.getOffHeapVersion(valueSlice);
             casEntriesArrayInt(lookUp.entryIndex, OFFSET.VALUE_VERSION, entryVersion, offHeapVersion);
             lookUp.version = offHeapVersion;
             return offHeapVersion;
@@ -540,7 +540,7 @@ public class Chunk<K, V> {
                     assert valueReference == INVALID_VALUE_REFERENCE;
                     return new LookUp(null, valueReference, curr, version[0]);
                 }
-                ValueUtils.ValueResult result = operator.isValueDeleted(valueSlice, version[0]);
+                ValueUtils.ValueResult result = valueOperator.isValueDeleted(valueSlice, version[0]);
                 if (result == TRUE) {
                     // There is a deleted value associated with the given key
                     return new LookUp(null, valueReference, curr, version[0]);
@@ -736,16 +736,16 @@ public class Chunk<K, V> {
      **/
     long writeValue(V value, int[] version) {
         // the length of the given value plus its header
-        int valueLength = valueSerializer.calculateSize(value) + operator.getHeaderSize();
+        int valueLength = valueSerializer.calculateSize(value) + valueOperator.getHeaderSize();
         // The allocated slice is actually the thread's copy moved to point to the newly allocated slice
         Slice slice = memoryManager.allocateSlice(valueLength, MemoryManager.Allocate.VALUE);
         version[0] = slice.getByteBuffer().getInt(slice.getByteBuffer().position());
         // initializing the header lock to be free
-        slice.initHeader(operator);
+        slice.initHeader(valueOperator);
         // since this is a private environment, we can only use ByteBuffer::slice, instead of ByteBuffer::duplicate
         // and then ByteBuffer::slice
         // This is the only place where we create a new object (for the serializer).
-        valueSerializer.serialize(value, operator.getValueByteBufferNoHeaderPrivate(slice));
+        valueSerializer.serialize(value, valueOperator.getValueByteBufferNoHeaderPrivate(slice));
         // combines the blockID with the value's length (including the header)
         int valueBlockAndLength = (slice.getBlockID() << VALUE_BLOCK_SHIFT) | (valueLength & VALUE_LENGTH_MASK);
         return intsToLong(valueBlockAndLength, slice.getByteBuffer().position());
@@ -888,7 +888,7 @@ public class Chunk<K, V> {
             int[] currSrcValueVersion = new int[1];
             long currSrcValueReference = srcChunk.getValueReferenceAndVersion(srcEntryIdx, currSrcValueVersion);
             boolean isValueDeleted = (currSrcValueReference == INVALID_VALUE_REFERENCE) ||
-                    operator.isValueDeleted(buildValueSlice(currSrcValueReference), currSrcValueVersion[0]) != FALSE;
+                    valueOperator.isValueDeleted(buildValueSlice(currSrcValueReference), currSrcValueVersion[0]) != FALSE;
             int entriesToCopy = entryIndexEnd - entryIndexStart + 1;
 
             // try to find a continuous interval to copy
