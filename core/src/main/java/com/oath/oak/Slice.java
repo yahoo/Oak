@@ -14,7 +14,7 @@ import static com.oath.oak.ValueUtilsImpl.LockStates.FREE;
 // Slice is allocated for data (key or value) and can be de-allocated later
 public class Slice {
     private final int blockID;
-    private ByteBuffer buffer;
+    private final ByteBuffer buffer;
     // This field is only used for sanity checks purposes and it should not be used, nor changed.
     private final int originalPosition;
 
