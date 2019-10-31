@@ -1,0 +1,2158 @@
+Total Heap: 40GB
+-------------------------------------------------------------------------------
+Synchrobench-java
+A benchmark-suite to evaluate synchronization techniques
+-------------------------------------------------------------------------------
+
+Benchmark parameters
+--------------------
+  Detailed stats:          	disabled
+  Number of threads:       	1
+  Length:                  	10 ms
+  Write ratio:             	0 %
+  WriteAll ratio:          	0 %
+  Snapshot ratio:          	0 %
+  Size:                    	30000000 elts
+  Range:                   	60000000 elts
+  WarmUp:                  	0 s
+  Iterations:              	3
+  Key size:              	100 Bytes
+  Val size:              	1000 Bytes
+  Change:                	false
+  Buffer view:            	false
+  Benchmark:               	com.oath.oak.synchrobench.maps.OakMap
+
+Before
+11.231285
+0.0
+Initialization complete in (s) 329.116 operations 41588295
+
+After
+788.10583
+31929.016
+-------------------------------------------------------------------------------
+Benchmark statistics
+-------------------------------------------------------------------------------
+  Average traversal length: 	NaN
+  Struct Modifications:     	0
+  Throughput (ops/s):       	9272.727272727274
+  Elapsed time (s):         	0.011
+  Operations:               	102	( 100 %)
+    effective updates:     	0	( 0.00 %)
+    |--add successful:     	0	( 0.00 %)
+    |--remove succ.:       	0	( 0.00 %)
+    |--addAll succ.:       	0	( 0.00 %)
+    |--removeAll succ.:    	0	( 0.00 %)
+    size successful:       	0	( 0.00 %)
+    contains succ.:        	47	( 46.08 %)
+    unsuccessful ops:      	55	( 53.92 %)
+  Final size:              	30000000
+  Expected size:           	30000000
+
+Before
+0.8724518
+0.0
+Initialization complete in (s) 391.163 operations 41587791
+
+After
+779.9187
+31929.016
+-------------------------------------------------------------------------------
+Benchmark statistics
+-------------------------------------------------------------------------------
+  Average traversal length: 	NaN
+  Struct Modifications:     	0
+  Throughput (ops/s):       	23900.0
+  Elapsed time (s):         	0.01
+  Operations:               	239	( 100 %)
+    effective updates:     	0	( 0.00 %)
+    |--add successful:     	0	( 0.00 %)
+    |--remove succ.:       	0	( 0.00 %)
+    |--addAll succ.:       	0	( 0.00 %)
+    |--removeAll succ.:    	0	( 0.00 %)
+    size successful:       	0	( 0.00 %)
+    contains succ.:        	107	( 44.77 %)
+    unsuccessful ops:      	132	( 55.23 %)
+  Final size:              	30000000
+  Expected size:           	30000000
+
+Before
+0.87161255
+0.0
+Initialization complete in (s) 366.941 operations 41585936
+
+After
+786.2261
+31929.016
+-------------------------------------------------------------------------------
+Benchmark statistics
+-------------------------------------------------------------------------------
+  Average traversal length: 	NaN
+  Struct Modifications:     	0
+  Throughput (ops/s):       	29636.36363636364
+  Elapsed time (s):         	0.011
+  Operations:               	326	( 100 %)
+    effective updates:     	0	( 0.00 %)
+    |--add successful:     	0	( 0.00 %)
+    |--remove succ.:       	0	( 0.00 %)
+    |--addAll succ.:       	0	( 0.00 %)
+    |--removeAll succ.:    	0	( 0.00 %)
+    size successful:       	0	( 0.00 %)
+    contains succ.:        	163	( 50.00 %)
+    unsuccessful ops:      	163	( 50.00 %)
+  Final size:              	30000000
+  Expected size:           	30000000
+-------------------------------------------------------------------------------
+Iteration statistics
+-------------------------------------------------------------------------------
+  Iterations:                 	3
+  Total throughput (mebiops/s): 0.05989941683682529
+  |--Mean:                    	0.01996647227894176
+  |--Mean Total Size:         	3.0E7
+  |--Variance:                	6.6851969592186E-5
+  |--Standard deviation pop:  	0.008176305375423914
+  |--Standard error:          	0.0047205921094775815
+  |--Margin of error (95% CL):	0.00925236053457606
+-------------------------------------------------------------------------------
+Synchrobench-java
+A benchmark-suite to evaluate synchronization techniques
+-------------------------------------------------------------------------------
+
+Benchmark parameters
+--------------------
+  Detailed stats:          	disabled
+  Number of threads:       	1
+  Length:                  	10 ms
+  Write ratio:             	0 %
+  WriteAll ratio:          	0 %
+  Snapshot ratio:          	0 %
+  Size:                    	30000000 elts
+  Range:                   	60000000 elts
+  WarmUp:                  	0 s
+  Iterations:              	3
+  Key size:              	100 Bytes
+  Val size:              	1000 Bytes
+  Change:                	false
+  Buffer view:            	false
+  Benchmark:               	com.oath.oak.synchrobench.maps.YoniList
+
+Before
+10.867401
+Cannot Print Off-Heap Stats for non-Oak Maps.
+Exception in thread "main" java.lang.OutOfMemoryError: GC overhead limit exceeded
+	at java.nio.DirectByteBuffer.duplicate(DirectByteBuffer.java:217)
+	at com.oath.oak.Slice.duplicate(Slice.java:32)
+	at com.oath.oak.synchrobench.maps.YoniList.putIfAbsentOak(YoniList.java:141)
+	at com.oath.oak.synchrobench.maps.YoniList.putIfAbsentOak(YoniList.java:18)
+	at com.oath.oak.synchrobench.contention.benchmark.Test.fill(Test.java:108)
+	at com.oath.oak.synchrobench.contention.benchmark.Test.execute(Test.java:208)
+	at com.oath.oak.synchrobench.contention.benchmark.Test.main(Test.java:280)
+-------------------------------------------------------------------------------
+Synchrobench-java
+A benchmark-suite to evaluate synchronization techniques
+-------------------------------------------------------------------------------
+
+Benchmark parameters
+--------------------
+  Detailed stats:          	disabled
+  Number of threads:       	1
+  Length:                  	10 ms
+  Write ratio:             	0 %
+  WriteAll ratio:          	0 %
+  Snapshot ratio:          	0 %
+  Size:                    	30000000 elts
+  Range:                   	60000000 elts
+  WarmUp:                  	0 s
+  Iterations:              	3
+  Key size:              	100 Bytes
+  Val size:              	1000 Bytes
+  Change:                	false
+  Buffer view:            	false
+  Benchmark:               	com.oath.oak.synchrobench.maps.JavaSkipListMap
+
+Before
+10.713371
+Cannot Print Off-Heap Stats for non-Oak Maps.
+Exception in thread "main" java.lang.OutOfMemoryError: Java heap space
+	at java.nio.HeapByteBuffer.<init>(HeapByteBuffer.java:57)
+	at java.nio.ByteBuffer.allocate(ByteBuffer.java:335)
+	at com.oath.oak.synchrobench.maps.MyBuffer.<init>(MyBuffer.java:11)
+	at com.oath.oak.synchrobench.contention.benchmark.Test.fill(Test.java:106)
+	at com.oath.oak.synchrobench.contention.benchmark.Test.execute(Test.java:208)
+	at com.oath.oak.synchrobench.contention.benchmark.Test.main(Test.java:280)
+Total Heap: 50GB
+-------------------------------------------------------------------------------
+Synchrobench-java
+A benchmark-suite to evaluate synchronization techniques
+-------------------------------------------------------------------------------
+
+Benchmark parameters
+--------------------
+  Detailed stats:          	disabled
+  Number of threads:       	1
+  Length:                  	10 ms
+  Write ratio:             	0 %
+  WriteAll ratio:          	0 %
+  Snapshot ratio:          	0 %
+  Size:                    	30000000 elts
+  Range:                   	60000000 elts
+  WarmUp:                  	0 s
+  Iterations:              	3
+  Key size:              	100 Bytes
+  Val size:              	1000 Bytes
+  Change:                	false
+  Buffer view:            	false
+  Benchmark:               	com.oath.oak.synchrobench.maps.OakMap
+
+Before
+11.231285
+0.0
+Initialization complete in (s) 351.151 operations 41591068
+
+After
+784.0536
+31929.016
+-------------------------------------------------------------------------------
+Benchmark statistics
+-------------------------------------------------------------------------------
+  Average traversal length: 	NaN
+  Struct Modifications:     	0
+  Throughput (ops/s):       	5200.0
+  Elapsed time (s):         	0.01
+  Operations:               	52	( 100 %)
+    effective updates:     	0	( 0.00 %)
+    |--add successful:     	0	( 0.00 %)
+    |--remove succ.:       	0	( 0.00 %)
+    |--addAll succ.:       	0	( 0.00 %)
+    |--removeAll succ.:    	0	( 0.00 %)
+    size successful:       	0	( 0.00 %)
+    contains succ.:        	29	( 55.77 %)
+    unsuccessful ops:      	23	( 44.23 %)
+  Final size:              	30000000
+  Expected size:           	30000000
+
+Before
+0.8718567
+0.0
+Initialization complete in (s) 359.796 operations 41592936
+
+After
+779.54047
+31929.016
+-------------------------------------------------------------------------------
+Benchmark statistics
+-------------------------------------------------------------------------------
+  Average traversal length: 	NaN
+  Struct Modifications:     	0
+  Throughput (ops/s):       	20727.272727272728
+  Elapsed time (s):         	0.011
+  Operations:               	228	( 100 %)
+    effective updates:     	0	( 0.00 %)
+    |--add successful:     	0	( 0.00 %)
+    |--remove succ.:       	0	( 0.00 %)
+    |--addAll succ.:       	0	( 0.00 %)
+    |--removeAll succ.:    	0	( 0.00 %)
+    size successful:       	0	( 0.00 %)
+    contains succ.:        	104	( 45.61 %)
+    unsuccessful ops:      	124	( 54.39 %)
+  Final size:              	30000000
+  Expected size:           	30000000
+
+Before
+0.87161255
+0.0
+Initialization complete in (s) 360.274 operations 41582701
+
+After
+786.79694
+31929.016
+-------------------------------------------------------------------------------
+Benchmark statistics
+-------------------------------------------------------------------------------
+  Average traversal length: 	NaN
+  Struct Modifications:     	0
+  Throughput (ops/s):       	40000.0
+  Elapsed time (s):         	0.01
+  Operations:               	400	( 100 %)
+    effective updates:     	0	( 0.00 %)
+    |--add successful:     	0	( 0.00 %)
+    |--remove succ.:       	0	( 0.00 %)
+    |--addAll succ.:       	0	( 0.00 %)
+    |--removeAll succ.:    	0	( 0.00 %)
+    size successful:       	0	( 0.00 %)
+    contains succ.:        	194	( 48.50 %)
+    unsuccessful ops:      	206	( 51.50 %)
+  Final size:              	30000000
+  Expected size:           	30000000
+-------------------------------------------------------------------------------
+Iteration statistics
+-------------------------------------------------------------------------------
+  Iterations:                 	3
+  Total throughput (mebiops/s): 0.06287314675071023
+  |--Mean:                    	0.02095771558357008
+  |--Mean Total Size:         	3.0E7
+  |--Variance:                	1.842812318577199E-4
+  |--Standard deviation pop:  	0.01357502235201548
+  |--Standard error:          	0.007837542809191324
+  |--Margin of error (95% CL):	0.015361583906014996
+-------------------------------------------------------------------------------
+Synchrobench-java
+A benchmark-suite to evaluate synchronization techniques
+-------------------------------------------------------------------------------
+
+Benchmark parameters
+--------------------
+  Detailed stats:          	disabled
+  Number of threads:       	1
+  Length:                  	10 ms
+  Write ratio:             	0 %
+  WriteAll ratio:          	0 %
+  Snapshot ratio:          	0 %
+  Size:                    	30000000 elts
+  Range:                   	60000000 elts
+  WarmUp:                  	0 s
+  Iterations:              	3
+  Key size:              	100 Bytes
+  Val size:              	1000 Bytes
+  Change:                	false
+  Buffer view:            	false
+  Benchmark:               	com.oath.oak.synchrobench.maps.YoniList
+
+Before
+10.867401
+Cannot Print Off-Heap Stats for non-Oak Maps.
+Initialization complete in (s) 694.375 operations 41585493
+
+After
+7668.348
+Cannot Print Off-Heap Stats for non-Oak Maps.
+-------------------------------------------------------------------------------
+Benchmark statistics
+-------------------------------------------------------------------------------
+  Average traversal length: 	NaN
+  Struct Modifications:     	0
+  Throughput (ops/s):       	15600.0
+  Elapsed time (s):         	0.01
+  Operations:               	156	( 100 %)
+    effective updates:     	0	( 0.00 %)
+    |--add successful:     	0	( 0.00 %)
+    |--remove succ.:       	0	( 0.00 %)
+    |--addAll succ.:       	0	( 0.00 %)
+    |--removeAll succ.:    	0	( 0.00 %)
+    size successful:       	0	( 0.00 %)
+    contains succ.:        	66	( 42.31 %)
+    unsuccessful ops:      	90	( 57.69 %)
+  Final size:              	30000000
+  Expected size:           	30000000
+
+Before
+0.61735535
+Cannot Print Off-Heap Stats for non-Oak Maps.
+Initialization complete in (s) 754.255 operations 41587196
+
+After
+7668.1978
+Cannot Print Off-Heap Stats for non-Oak Maps.
+-------------------------------------------------------------------------------
+Benchmark statistics
+-------------------------------------------------------------------------------
+  Average traversal length: 	NaN
+  Struct Modifications:     	0
+  Throughput (ops/s):       	35800.0
+  Elapsed time (s):         	0.01
+  Operations:               	358	( 100 %)
+    effective updates:     	0	( 0.00 %)
+    |--add successful:     	0	( 0.00 %)
+    |--remove succ.:       	0	( 0.00 %)
+    |--addAll succ.:       	0	( 0.00 %)
+    |--removeAll succ.:    	0	( 0.00 %)
+    size successful:       	0	( 0.00 %)
+    contains succ.:        	174	( 48.60 %)
+    unsuccessful ops:      	184	( 51.40 %)
+  Final size:              	30000000
+  Expected size:           	30000000
+
+Before
+0.61735535
+Cannot Print Off-Heap Stats for non-Oak Maps.
+Initialization complete in (s) 774.658 operations 41590408
+
+After
+7668.0757
+Cannot Print Off-Heap Stats for non-Oak Maps.
+-------------------------------------------------------------------------------
+Benchmark statistics
+-------------------------------------------------------------------------------
+  Average traversal length: 	NaN
+  Struct Modifications:     	0
+  Throughput (ops/s):       	30400.0
+  Elapsed time (s):         	0.01
+  Operations:               	304	( 100 %)
+    effective updates:     	0	( 0.00 %)
+    |--add successful:     	0	( 0.00 %)
+    |--remove succ.:       	0	( 0.00 %)
+    |--addAll succ.:       	0	( 0.00 %)
+    |--removeAll succ.:    	0	( 0.00 %)
+    size successful:       	0	( 0.00 %)
+    contains succ.:        	164	( 53.95 %)
+    unsuccessful ops:      	140	( 46.05 %)
+  Final size:              	30000000
+  Expected size:           	30000000
+-------------------------------------------------------------------------------
+Iteration statistics
+-------------------------------------------------------------------------------
+  Iterations:                 	3
+  Total throughput (mebiops/s): 0.07801055908203125
+  |--Mean:                    	0.026003519694010418
+  |--Mean Total Size:         	3.0E7
+  |--Variance:                	6.631631145460738E-5
+  |--Standard deviation pop:  	0.008143482759520485
+  |--Standard error:          	0.004701641963350229
+  |--Margin of error (95% CL):	0.009215218248166448
+-------------------------------------------------------------------------------
+Synchrobench-java
+A benchmark-suite to evaluate synchronization techniques
+-------------------------------------------------------------------------------
+
+Benchmark parameters
+--------------------
+  Detailed stats:          	disabled
+  Number of threads:       	1
+  Length:                  	10 ms
+  Write ratio:             	0 %
+  WriteAll ratio:          	0 %
+  Snapshot ratio:          	0 %
+  Size:                    	30000000 elts
+  Range:                   	60000000 elts
+  WarmUp:                  	0 s
+  Iterations:              	3
+  Key size:              	100 Bytes
+  Val size:              	1000 Bytes
+  Change:                	false
+  Buffer view:            	false
+  Benchmark:               	com.oath.oak.synchrobench.maps.JavaSkipListMap
+
+Before
+10.713371
+Cannot Print Off-Heap Stats for non-Oak Maps.
+Exception in thread "main" java.lang.OutOfMemoryError: Java heap space
+	at java.nio.ByteBuffer.allocate(ByteBuffer.java:335)
+	at com.oath.oak.synchrobench.maps.MyBuffer.<init>(MyBuffer.java:11)
+	at com.oath.oak.synchrobench.contention.benchmark.Test.fill(Test.java:106)
+	at com.oath.oak.synchrobench.contention.benchmark.Test.execute(Test.java:208)
+	at com.oath.oak.synchrobench.contention.benchmark.Test.main(Test.java:280)
+Total Heap: 60GB
+-------------------------------------------------------------------------------
+Synchrobench-java
+A benchmark-suite to evaluate synchronization techniques
+-------------------------------------------------------------------------------
+
+Benchmark parameters
+--------------------
+  Detailed stats:          	disabled
+  Number of threads:       	1
+  Length:                  	10 ms
+  Write ratio:             	0 %
+  WriteAll ratio:          	0 %
+  Snapshot ratio:          	0 %
+  Size:                    	30000000 elts
+  Range:                   	60000000 elts
+  WarmUp:                  	0 s
+  Iterations:              	3
+  Key size:              	100 Bytes
+  Val size:              	1000 Bytes
+  Change:                	false
+  Buffer view:            	false
+  Benchmark:               	com.oath.oak.synchrobench.maps.OakMap
+
+Before
+11.231285
+0.0
+Initialization complete in (s) 380.936 operations 41584882
+
+After
+782.35596
+31929.016
+-------------------------------------------------------------------------------
+Benchmark statistics
+-------------------------------------------------------------------------------
+  Average traversal length: 	NaN
+  Struct Modifications:     	0
+  Throughput (ops/s):       	7300.0
+  Elapsed time (s):         	0.01
+  Operations:               	73	( 100 %)
+    effective updates:     	0	( 0.00 %)
+    |--add successful:     	0	( 0.00 %)
+    |--remove succ.:       	0	( 0.00 %)
+    |--addAll succ.:       	0	( 0.00 %)
+    |--removeAll succ.:    	0	( 0.00 %)
+    size successful:       	0	( 0.00 %)
+    contains succ.:        	30	( 41.10 %)
+    unsuccessful ops:      	43	( 58.90 %)
+  Final size:              	30000000
+  Expected size:           	30000000
+
+Before
+0.8715744
+0.0
+Initialization complete in (s) 356.661 operations 41581529
+
+After
+792.0712
+31929.016
+-------------------------------------------------------------------------------
+Benchmark statistics
+-------------------------------------------------------------------------------
+  Average traversal length: 	NaN
+  Struct Modifications:     	0
+  Throughput (ops/s):       	16100.0
+  Elapsed time (s):         	0.01
+  Operations:               	161	( 100 %)
+    effective updates:     	0	( 0.00 %)
+    |--add successful:     	0	( 0.00 %)
+    |--remove succ.:       	0	( 0.00 %)
+    |--addAll succ.:       	0	( 0.00 %)
+    |--removeAll succ.:    	0	( 0.00 %)
+    size successful:       	0	( 0.00 %)
+    contains succ.:        	89	( 55.28 %)
+    unsuccessful ops:      	72	( 44.72 %)
+  Final size:              	30000000
+  Expected size:           	30000000
+
+Before
+0.87085724
+0.0
+Initialization complete in (s) 364.091 operations 41592347
+
+After
+784.7238
+31929.016
+-------------------------------------------------------------------------------
+Benchmark statistics
+-------------------------------------------------------------------------------
+  Average traversal length: 	NaN
+  Struct Modifications:     	0
+  Throughput (ops/s):       	28800.0
+  Elapsed time (s):         	0.01
+  Operations:               	288	( 100 %)
+    effective updates:     	0	( 0.00 %)
+    |--add successful:     	0	( 0.00 %)
+    |--remove succ.:       	0	( 0.00 %)
+    |--addAll succ.:       	0	( 0.00 %)
+    |--removeAll succ.:    	0	( 0.00 %)
+    size successful:       	0	( 0.00 %)
+    contains succ.:        	154	( 53.47 %)
+    unsuccessful ops:      	134	( 46.53 %)
+  Final size:              	30000000
+  Expected size:           	30000000
+-------------------------------------------------------------------------------
+Iteration statistics
+-------------------------------------------------------------------------------
+  Iterations:                 	3
+  Total throughput (mebiops/s): 0.04978179931640625
+  |--Mean:                    	0.01659393310546875
+  |--Mean Total Size:         	3.0E7
+  |--Variance:                	7.083751067208748E-5
+  |--Standard deviation pop:  	0.008416502282545136
+  |--Standard error:          	0.004859269858462534
+  |--Margin of error (95% CL):	0.009524168922586566
+-------------------------------------------------------------------------------
+Synchrobench-java
+A benchmark-suite to evaluate synchronization techniques
+-------------------------------------------------------------------------------
+
+Benchmark parameters
+--------------------
+  Detailed stats:          	disabled
+  Number of threads:       	1
+  Length:                  	10 ms
+  Write ratio:             	0 %
+  WriteAll ratio:          	0 %
+  Snapshot ratio:          	0 %
+  Size:                    	30000000 elts
+  Range:                   	60000000 elts
+  WarmUp:                  	0 s
+  Iterations:              	3
+  Key size:              	100 Bytes
+  Val size:              	1000 Bytes
+  Change:                	false
+  Buffer view:            	false
+  Benchmark:               	com.oath.oak.synchrobench.maps.YoniList
+
+Before
+10.867401
+Cannot Print Off-Heap Stats for non-Oak Maps.
+Initialization complete in (s) 578.424 operations 41596759
+
+After
+7668.089
+Cannot Print Off-Heap Stats for non-Oak Maps.
+-------------------------------------------------------------------------------
+Benchmark statistics
+-------------------------------------------------------------------------------
+  Average traversal length: 	NaN
+  Struct Modifications:     	0
+  Throughput (ops/s):       	12545.454545454546
+  Elapsed time (s):         	0.011
+  Operations:               	138	( 100 %)
+    effective updates:     	0	( 0.00 %)
+    |--add successful:     	0	( 0.00 %)
+    |--remove succ.:       	0	( 0.00 %)
+    |--addAll succ.:       	0	( 0.00 %)
+    |--removeAll succ.:    	0	( 0.00 %)
+    size successful:       	0	( 0.00 %)
+    contains succ.:        	59	( 42.75 %)
+    unsuccessful ops:      	79	( 57.25 %)
+  Final size:              	30000000
+  Expected size:           	30000000
+
+Before
+0.61735535
+Cannot Print Off-Heap Stats for non-Oak Maps.
+Initialization complete in (s) 622.376 operations 41596244
+
+After
+7668.061
+Cannot Print Off-Heap Stats for non-Oak Maps.
+-------------------------------------------------------------------------------
+Benchmark statistics
+-------------------------------------------------------------------------------
+  Average traversal length: 	NaN
+  Struct Modifications:     	0
+  Throughput (ops/s):       	24900.0
+  Elapsed time (s):         	0.01
+  Operations:               	249	( 100 %)
+    effective updates:     	0	( 0.00 %)
+    |--add successful:     	0	( 0.00 %)
+    |--remove succ.:       	0	( 0.00 %)
+    |--addAll succ.:       	0	( 0.00 %)
+    |--removeAll succ.:    	0	( 0.00 %)
+    size successful:       	0	( 0.00 %)
+    contains succ.:        	134	( 53.82 %)
+    unsuccessful ops:      	115	( 46.18 %)
+  Final size:              	30000000
+  Expected size:           	30000000
+
+Before
+0.61735535
+Cannot Print Off-Heap Stats for non-Oak Maps.
+Initialization complete in (s) 771.715 operations 41586358
+
+After
+7668.582
+Cannot Print Off-Heap Stats for non-Oak Maps.
+-------------------------------------------------------------------------------
+Benchmark statistics
+-------------------------------------------------------------------------------
+  Average traversal length: 	NaN
+  Struct Modifications:     	0
+  Throughput (ops/s):       	38545.454545454544
+  Elapsed time (s):         	0.011
+  Operations:               	424	( 100 %)
+    effective updates:     	0	( 0.00 %)
+    |--add successful:     	0	( 0.00 %)
+    |--remove succ.:       	0	( 0.00 %)
+    |--addAll succ.:       	0	( 0.00 %)
+    |--removeAll succ.:    	0	( 0.00 %)
+    size successful:       	0	( 0.00 %)
+    contains succ.:        	214	( 50.47 %)
+    unsuccessful ops:      	210	( 49.53 %)
+  Final size:              	30000000
+  Expected size:           	30000000
+-------------------------------------------------------------------------------
+Iteration statistics
+-------------------------------------------------------------------------------
+  Iterations:                 	3
+  Total throughput (mebiops/s): 0.07247057828036221
+  |--Mean:                    	0.024156859426787403
+  |--Mean Total Size:         	3.0E7
+  |--Variance:                	1.0255393773660274E-4
+  |--Standard deviation pop:  	0.010126891810254652
+  |--Standard error:          	0.00584676371270474
+  |--Margin of error (95% CL):	0.011459656876901292
+-------------------------------------------------------------------------------
+Synchrobench-java
+A benchmark-suite to evaluate synchronization techniques
+-------------------------------------------------------------------------------
+
+Benchmark parameters
+--------------------
+  Detailed stats:          	disabled
+  Number of threads:       	1
+  Length:                  	10 ms
+  Write ratio:             	0 %
+  WriteAll ratio:          	0 %
+  Snapshot ratio:          	0 %
+  Size:                    	30000000 elts
+  Range:                   	60000000 elts
+  WarmUp:                  	0 s
+  Iterations:              	3
+  Key size:              	100 Bytes
+  Val size:              	1000 Bytes
+  Change:                	false
+  Buffer view:            	false
+  Benchmark:               	com.oath.oak.synchrobench.maps.JavaSkipListMap
+
+Before
+10.713371
+Cannot Print Off-Heap Stats for non-Oak Maps.
+Initialization complete in (s) 668.288 operations 41582671
+
+After
+39253.777
+Cannot Print Off-Heap Stats for non-Oak Maps.
+-------------------------------------------------------------------------------
+Benchmark statistics
+-------------------------------------------------------------------------------
+  Average traversal length: 	NaN
+  Struct Modifications:     	0
+  Throughput (ops/s):       	43500.0
+  Elapsed time (s):         	0.01
+  Operations:               	435	( 100 %)
+    effective updates:     	0	( 0.00 %)
+    |--add successful:     	0	( 0.00 %)
+    |--remove succ.:       	0	( 0.00 %)
+    |--addAll succ.:       	0	( 0.00 %)
+    |--removeAll succ.:    	0	( 0.00 %)
+    size successful:       	0	( 0.00 %)
+    contains succ.:        	227	( 52.18 %)
+    unsuccessful ops:      	208	( 47.82 %)
+  Final size:              	30000000
+  Expected size:           	30000000
+
+Before
+0.4865036
+Cannot Print Off-Heap Stats for non-Oak Maps.
+Initialization complete in (s) 658.037 operations 41588787
+
+After
+39253.367
+Cannot Print Off-Heap Stats for non-Oak Maps.
+-------------------------------------------------------------------------------
+Benchmark statistics
+-------------------------------------------------------------------------------
+  Average traversal length: 	NaN
+  Struct Modifications:     	0
+  Throughput (ops/s):       	40100.0
+  Elapsed time (s):         	0.01
+  Operations:               	401	( 100 %)
+    effective updates:     	0	( 0.00 %)
+    |--add successful:     	0	( 0.00 %)
+    |--remove succ.:       	0	( 0.00 %)
+    |--addAll succ.:       	0	( 0.00 %)
+    |--removeAll succ.:    	0	( 0.00 %)
+    size successful:       	0	( 0.00 %)
+    contains succ.:        	210	( 52.37 %)
+    unsuccessful ops:      	191	( 47.63 %)
+  Final size:              	30000000
+  Expected size:           	30000000
+
+Before
+0.4854355
+Cannot Print Off-Heap Stats for non-Oak Maps.
+Initialization complete in (s) 608.886 operations 41588775
+
+After
+39253.895
+Cannot Print Off-Heap Stats for non-Oak Maps.
+-------------------------------------------------------------------------------
+Benchmark statistics
+-------------------------------------------------------------------------------
+  Average traversal length: 	NaN
+  Struct Modifications:     	0
+  Throughput (ops/s):       	49100.0
+  Elapsed time (s):         	0.01
+  Operations:               	491	( 100 %)
+    effective updates:     	0	( 0.00 %)
+    |--add successful:     	0	( 0.00 %)
+    |--remove succ.:       	0	( 0.00 %)
+    |--addAll succ.:       	0	( 0.00 %)
+    |--removeAll succ.:    	0	( 0.00 %)
+    size successful:       	0	( 0.00 %)
+    contains succ.:        	237	( 48.27 %)
+    unsuccessful ops:      	254	( 51.73 %)
+  Final size:              	30000000
+  Expected size:           	30000000
+-------------------------------------------------------------------------------
+Iteration statistics
+-------------------------------------------------------------------------------
+  Iterations:                 	3
+  Total throughput (mebiops/s): 0.12655258178710938
+  |--Mean:                    	0.04218419392903646
+  |--Mean Total Size:         	3.0E7
+  |--Variance:                	1.2522731493744584E-5
+  |--Standard deviation pop:  	0.003538747164427629
+  |--Standard error:          	0.0020430966279763167
+  |--Margin of error (95% CL):	0.004004469390833581
+Total Heap: 70GB
+-------------------------------------------------------------------------------
+Synchrobench-java
+A benchmark-suite to evaluate synchronization techniques
+-------------------------------------------------------------------------------
+
+Benchmark parameters
+--------------------
+  Detailed stats:          	disabled
+  Number of threads:       	1
+  Length:                  	10 ms
+  Write ratio:             	0 %
+  WriteAll ratio:          	0 %
+  Snapshot ratio:          	0 %
+  Size:                    	30000000 elts
+  Range:                   	60000000 elts
+  WarmUp:                  	0 s
+  Iterations:              	3
+  Key size:              	100 Bytes
+  Val size:              	1000 Bytes
+  Change:                	false
+  Buffer view:            	false
+  Benchmark:               	com.oath.oak.synchrobench.maps.OakMap
+
+Before
+11.593689
+0.0
+Initialization complete in (s) 329.962 operations 41595733
+
+After
+783.62775
+31929.016
+-------------------------------------------------------------------------------
+Benchmark statistics
+-------------------------------------------------------------------------------
+  Average traversal length: 	NaN
+  Struct Modifications:     	0
+  Throughput (ops/s):       	5900.0
+  Elapsed time (s):         	0.01
+  Operations:               	59	( 100 %)
+    effective updates:     	0	( 0.00 %)
+    |--add successful:     	0	( 0.00 %)
+    |--remove succ.:       	0	( 0.00 %)
+    |--addAll succ.:       	0	( 0.00 %)
+    |--removeAll succ.:    	0	( 0.00 %)
+    size successful:       	0	( 0.00 %)
+    contains succ.:        	17	( 28.81 %)
+    unsuccessful ops:      	42	( 71.19 %)
+  Final size:              	30000000
+  Expected size:           	30000000
+
+Before
+1.2563629
+0.0
+Initialization complete in (s) 323.396 operations 41583707
+
+After
+794.77527
+31929.016
+-------------------------------------------------------------------------------
+Benchmark statistics
+-------------------------------------------------------------------------------
+  Average traversal length: 	NaN
+  Struct Modifications:     	0
+  Throughput (ops/s):       	23818.18181818182
+  Elapsed time (s):         	0.011
+  Operations:               	262	( 100 %)
+    effective updates:     	0	( 0.00 %)
+    |--add successful:     	0	( 0.00 %)
+    |--remove succ.:       	0	( 0.00 %)
+    |--addAll succ.:       	0	( 0.00 %)
+    |--removeAll succ.:    	0	( 0.00 %)
+    size successful:       	0	( 0.00 %)
+    contains succ.:        	118	( 45.04 %)
+    unsuccessful ops:      	144	( 54.96 %)
+  Final size:              	30000000
+  Expected size:           	30000000
+
+Before
+1.2555618
+0.0
+Initialization complete in (s) 320.628 operations 41590489
+
+After
+787.60645
+31929.016
+-------------------------------------------------------------------------------
+Benchmark statistics
+-------------------------------------------------------------------------------
+  Average traversal length: 	NaN
+  Struct Modifications:     	0
+  Throughput (ops/s):       	52700.0
+  Elapsed time (s):         	0.01
+  Operations:               	527	( 100 %)
+    effective updates:     	0	( 0.00 %)
+    |--add successful:     	0	( 0.00 %)
+    |--remove succ.:       	0	( 0.00 %)
+    |--addAll succ.:       	0	( 0.00 %)
+    |--removeAll succ.:    	0	( 0.00 %)
+    size successful:       	0	( 0.00 %)
+    contains succ.:        	268	( 50.85 %)
+    unsuccessful ops:      	259	( 49.15 %)
+  Final size:              	30000000
+  Expected size:           	30000000
+-------------------------------------------------------------------------------
+Iteration statistics
+-------------------------------------------------------------------------------
+  Iterations:                 	3
+  Total throughput (mebiops/s): 0.07860010320490057
+  |--Mean:                    	0.026200034401633526
+  |--Mean Total Size:         	3.0E7
+  |--Variance:                	3.380754162568968E-4
+  |--Standard deviation pop:  	0.0183868272482475
+  |--Standard error:          	0.010615639661318841
+  |--Margin of error (95% CL):	0.02080665373618493
+-------------------------------------------------------------------------------
+Synchrobench-java
+A benchmark-suite to evaluate synchronization techniques
+-------------------------------------------------------------------------------
+
+Benchmark parameters
+--------------------
+  Detailed stats:          	disabled
+  Number of threads:       	1
+  Length:                  	10 ms
+  Write ratio:             	0 %
+  WriteAll ratio:          	0 %
+  Snapshot ratio:          	0 %
+  Size:                    	30000000 elts
+  Range:                   	60000000 elts
+  WarmUp:                  	0 s
+  Iterations:              	3
+  Key size:              	100 Bytes
+  Val size:              	1000 Bytes
+  Change:                	false
+  Buffer view:            	false
+  Benchmark:               	com.oath.oak.synchrobench.maps.YoniList
+
+Before
+11.089096
+Cannot Print Off-Heap Stats for non-Oak Maps.
+Initialization complete in (s) 702.082 operations 41582926
+
+After
+10415.186
+Cannot Print Off-Heap Stats for non-Oak Maps.
+-------------------------------------------------------------------------------
+Benchmark statistics
+-------------------------------------------------------------------------------
+  Average traversal length: 	NaN
+  Struct Modifications:     	0
+  Throughput (ops/s):       	16500.0
+  Elapsed time (s):         	0.01
+  Operations:               	165	( 100 %)
+    effective updates:     	0	( 0.00 %)
+    |--add successful:     	0	( 0.00 %)
+    |--remove succ.:       	0	( 0.00 %)
+    |--addAll succ.:       	0	( 0.00 %)
+    |--removeAll succ.:    	0	( 0.00 %)
+    size successful:       	0	( 0.00 %)
+    contains succ.:        	81	( 49.09 %)
+    unsuccessful ops:      	84	( 50.91 %)
+  Final size:              	30000000
+  Expected size:           	30000000
+
+Before
+0.860466
+Cannot Print Off-Heap Stats for non-Oak Maps.
+Initialization complete in (s) 752.326 operations 41594882
+
+After
+10415.053
+Cannot Print Off-Heap Stats for non-Oak Maps.
+-------------------------------------------------------------------------------
+Benchmark statistics
+-------------------------------------------------------------------------------
+  Average traversal length: 	NaN
+  Struct Modifications:     	0
+  Throughput (ops/s):       	21300.0
+  Elapsed time (s):         	0.01
+  Operations:               	213	( 100 %)
+    effective updates:     	0	( 0.00 %)
+    |--add successful:     	0	( 0.00 %)
+    |--remove succ.:       	0	( 0.00 %)
+    |--addAll succ.:       	0	( 0.00 %)
+    |--removeAll succ.:    	0	( 0.00 %)
+    size successful:       	0	( 0.00 %)
+    contains succ.:        	102	( 47.89 %)
+    unsuccessful ops:      	111	( 52.11 %)
+  Final size:              	30000000
+  Expected size:           	30000000
+
+Before
+0.860466
+Cannot Print Off-Heap Stats for non-Oak Maps.
+Initialization complete in (s) 787.284 operations 41584966
+
+After
+10415.111
+Cannot Print Off-Heap Stats for non-Oak Maps.
+-------------------------------------------------------------------------------
+Benchmark statistics
+-------------------------------------------------------------------------------
+  Average traversal length: 	NaN
+  Struct Modifications:     	0
+  Throughput (ops/s):       	24800.0
+  Elapsed time (s):         	0.01
+  Operations:               	248	( 100 %)
+    effective updates:     	0	( 0.00 %)
+    |--add successful:     	0	( 0.00 %)
+    |--remove succ.:       	0	( 0.00 %)
+    |--addAll succ.:       	0	( 0.00 %)
+    |--removeAll succ.:    	0	( 0.00 %)
+    size successful:       	0	( 0.00 %)
+    contains succ.:        	118	( 47.58 %)
+    unsuccessful ops:      	130	( 52.42 %)
+  Final size:              	30000000
+  Expected size:           	30000000
+-------------------------------------------------------------------------------
+Iteration statistics
+-------------------------------------------------------------------------------
+  Iterations:                 	3
+  Total throughput (mebiops/s): 0.05970001220703125
+  |--Mean:                    	0.019900004069010418
+  |--Mean Total Size:         	3.0E7
+  |--Variance:                	1.0527906447855961E-5
+  |--Standard deviation pop:  	0.0032446735502752754
+  |--Standard error:          	0.0018733131476838891
+  |--Margin of error (95% CL):	0.0036716937694604226
+-------------------------------------------------------------------------------
+Synchrobench-java
+A benchmark-suite to evaluate synchronization techniques
+-------------------------------------------------------------------------------
+
+Benchmark parameters
+--------------------
+  Detailed stats:          	disabled
+  Number of threads:       	1
+  Length:                  	10 ms
+  Write ratio:             	0 %
+  WriteAll ratio:          	0 %
+  Snapshot ratio:          	0 %
+  Size:                    	30000000 elts
+  Range:                   	60000000 elts
+  WarmUp:                  	0 s
+  Iterations:              	3
+  Key size:              	100 Bytes
+  Val size:              	1000 Bytes
+  Change:                	false
+  Buffer view:            	false
+  Benchmark:               	com.oath.oak.synchrobench.maps.JavaSkipListMap
+
+Before
+10.713371
+Cannot Print Off-Heap Stats for non-Oak Maps.
+Initialization complete in (s) 705.831 operations 41589717
+
+After
+39253.805
+Cannot Print Off-Heap Stats for non-Oak Maps.
+-------------------------------------------------------------------------------
+Benchmark statistics
+-------------------------------------------------------------------------------
+  Average traversal length: 	NaN
+  Struct Modifications:     	0
+  Throughput (ops/s):       	43636.36363636364
+  Elapsed time (s):         	0.011
+  Operations:               	480	( 100 %)
+    effective updates:     	0	( 0.00 %)
+    |--add successful:     	0	( 0.00 %)
+    |--remove succ.:       	0	( 0.00 %)
+    |--addAll succ.:       	0	( 0.00 %)
+    |--removeAll succ.:    	0	( 0.00 %)
+    size successful:       	0	( 0.00 %)
+    contains succ.:        	261	( 54.37 %)
+    unsuccessful ops:      	219	( 45.63 %)
+  Final size:              	30000000
+  Expected size:           	30000000
+
+Before
+0.4865036
+Cannot Print Off-Heap Stats for non-Oak Maps.
+Initialization complete in (s) 667.409 operations 41592674
+
+After
+39253.59
+Cannot Print Off-Heap Stats for non-Oak Maps.
+-------------------------------------------------------------------------------
+Benchmark statistics
+-------------------------------------------------------------------------------
+  Average traversal length: 	NaN
+  Struct Modifications:     	0
+  Throughput (ops/s):       	56400.0
+  Elapsed time (s):         	0.01
+  Operations:               	564	( 100 %)
+    effective updates:     	0	( 0.00 %)
+    |--add successful:     	0	( 0.00 %)
+    |--remove succ.:       	0	( 0.00 %)
+    |--addAll succ.:       	0	( 0.00 %)
+    |--removeAll succ.:    	0	( 0.00 %)
+    size successful:       	0	( 0.00 %)
+    contains succ.:        	286	( 50.71 %)
+    unsuccessful ops:      	278	( 49.29 %)
+  Final size:              	30000000
+  Expected size:           	30000000
+
+Before
+0.4854355
+Cannot Print Off-Heap Stats for non-Oak Maps.
+Initialization complete in (s) 644.005 operations 41597715
+
+After
+39253.477
+Cannot Print Off-Heap Stats for non-Oak Maps.
+-------------------------------------------------------------------------------
+Benchmark statistics
+-------------------------------------------------------------------------------
+  Average traversal length: 	NaN
+  Struct Modifications:     	0
+  Throughput (ops/s):       	42900.0
+  Elapsed time (s):         	0.01
+  Operations:               	429	( 100 %)
+    effective updates:     	0	( 0.00 %)
+    |--add successful:     	0	( 0.00 %)
+    |--remove succ.:       	0	( 0.00 %)
+    |--addAll succ.:       	0	( 0.00 %)
+    |--removeAll succ.:    	0	( 0.00 %)
+    size successful:       	0	( 0.00 %)
+    contains succ.:        	198	( 46.15 %)
+    unsuccessful ops:      	231	( 53.85 %)
+  Final size:              	30000000
+  Expected size:           	30000000
+-------------------------------------------------------------------------------
+Iteration statistics
+-------------------------------------------------------------------------------
+  Iterations:                 	3
+  Total throughput (mebiops/s): 0.13631473888050427
+  |--Mean:                    	0.045438246293501426
+  |--Mean Total Size:         	3.0E7
+  |--Variance:                	3.4934969297571726E-5
+  |--Standard deviation pop:  	0.005910581130275747
+  |--Standard error:          	0.003412475606631825
+  |--Margin of error (95% CL):	0.006688452188998377
+Total Heap: 80GB
+-------------------------------------------------------------------------------
+Synchrobench-java
+A benchmark-suite to evaluate synchronization techniques
+-------------------------------------------------------------------------------
+
+Benchmark parameters
+--------------------
+  Detailed stats:          	disabled
+  Number of threads:       	1
+  Length:                  	10 ms
+  Write ratio:             	0 %
+  WriteAll ratio:          	0 %
+  Snapshot ratio:          	0 %
+  Size:                    	30000000 elts
+  Range:                   	60000000 elts
+  WarmUp:                  	0 s
+  Iterations:              	3
+  Key size:              	100 Bytes
+  Val size:              	1000 Bytes
+  Change:                	false
+  Buffer view:            	false
+  Benchmark:               	com.oath.oak.synchrobench.maps.OakMap
+
+Before
+11.59417
+0.0
+Initialization complete in (s) 352.91 operations 41589838
+
+After
+781.9228
+31929.016
+-------------------------------------------------------------------------------
+Benchmark statistics
+-------------------------------------------------------------------------------
+  Average traversal length: 	NaN
+  Struct Modifications:     	0
+  Throughput (ops/s):       	13200.0
+  Elapsed time (s):         	0.01
+  Operations:               	132	( 100 %)
+    effective updates:     	0	( 0.00 %)
+    |--add successful:     	0	( 0.00 %)
+    |--remove succ.:       	0	( 0.00 %)
+    |--addAll succ.:       	0	( 0.00 %)
+    |--removeAll succ.:    	0	( 0.00 %)
+    size successful:       	0	( 0.00 %)
+    contains succ.:        	68	( 51.52 %)
+    unsuccessful ops:      	64	( 48.48 %)
+  Final size:              	30000000
+  Expected size:           	30000000
+
+Before
+1.2565536
+0.0
+Initialization complete in (s) 334.653 operations 41585314
+
+After
+792.98615
+31929.016
+-------------------------------------------------------------------------------
+Benchmark statistics
+-------------------------------------------------------------------------------
+  Average traversal length: 	NaN
+  Struct Modifications:     	0
+  Throughput (ops/s):       	22200.0
+  Elapsed time (s):         	0.01
+  Operations:               	222	( 100 %)
+    effective updates:     	0	( 0.00 %)
+    |--add successful:     	0	( 0.00 %)
+    |--remove succ.:       	0	( 0.00 %)
+    |--addAll succ.:       	0	( 0.00 %)
+    |--removeAll succ.:    	0	( 0.00 %)
+    size successful:       	0	( 0.00 %)
+    contains succ.:        	102	( 45.95 %)
+    unsuccessful ops:      	120	( 54.05 %)
+  Final size:              	30000000
+  Expected size:           	30000000
+
+Before
+1.2555618
+0.0
+Initialization complete in (s) 386.742 operations 41587935
+
+After
+784.115
+31929.016
+-------------------------------------------------------------------------------
+Benchmark statistics
+-------------------------------------------------------------------------------
+  Average traversal length: 	NaN
+  Struct Modifications:     	0
+  Throughput (ops/s):       	35700.0
+  Elapsed time (s):         	0.01
+  Operations:               	357	( 100 %)
+    effective updates:     	0	( 0.00 %)
+    |--add successful:     	0	( 0.00 %)
+    |--remove succ.:       	0	( 0.00 %)
+    |--addAll succ.:       	0	( 0.00 %)
+    |--removeAll succ.:    	0	( 0.00 %)
+    size successful:       	0	( 0.00 %)
+    contains succ.:        	170	( 47.62 %)
+    unsuccessful ops:      	187	( 52.38 %)
+  Final size:              	30000000
+  Expected size:           	30000000
+-------------------------------------------------------------------------------
+Iteration statistics
+-------------------------------------------------------------------------------
+  Iterations:                 	3
+  Total throughput (mebiops/s): 0.06780624389648438
+  |--Mean:                    	0.022602081298828125
+  |--Mean Total Size:         	3.0E7
+  |--Variance:                	7.776179700158536E-5
+  |--Standard deviation pop:  	0.008818264965489831
+  |--Standard error:          	0.005091227651611001
+  |--Margin of error (95% CL):	0.009978806197157561
+-------------------------------------------------------------------------------
+Synchrobench-java
+A benchmark-suite to evaluate synchronization techniques
+-------------------------------------------------------------------------------
+
+Benchmark parameters
+--------------------
+  Detailed stats:          	disabled
+  Number of threads:       	1
+  Length:                  	10 ms
+  Write ratio:             	0 %
+  WriteAll ratio:          	0 %
+  Snapshot ratio:          	0 %
+  Size:                    	30000000 elts
+  Range:                   	60000000 elts
+  WarmUp:                  	0 s
+  Iterations:              	3
+  Key size:              	100 Bytes
+  Val size:              	1000 Bytes
+  Change:                	false
+  Buffer view:            	false
+  Benchmark:               	com.oath.oak.synchrobench.maps.YoniList
+
+Before
+11.089096
+Cannot Print Off-Heap Stats for non-Oak Maps.
+Initialization complete in (s) 747.094 operations 41586286
+
+After
+10415.435
+Cannot Print Off-Heap Stats for non-Oak Maps.
+-------------------------------------------------------------------------------
+Benchmark statistics
+-------------------------------------------------------------------------------
+  Average traversal length: 	NaN
+  Struct Modifications:     	0
+  Throughput (ops/s):       	18818.18181818182
+  Elapsed time (s):         	0.011
+  Operations:               	207	( 100 %)
+    effective updates:     	0	( 0.00 %)
+    |--add successful:     	0	( 0.00 %)
+    |--remove succ.:       	0	( 0.00 %)
+    |--addAll succ.:       	0	( 0.00 %)
+    |--removeAll succ.:    	0	( 0.00 %)
+    size successful:       	0	( 0.00 %)
+    contains succ.:        	114	( 55.07 %)
+    unsuccessful ops:      	93	( 44.93 %)
+  Final size:              	30000000
+  Expected size:           	30000000
+
+Before
+0.860466
+Cannot Print Off-Heap Stats for non-Oak Maps.
+Initialization complete in (s) 779.63 operations 41585892
+
+After
+10415.31
+Cannot Print Off-Heap Stats for non-Oak Maps.
+-------------------------------------------------------------------------------
+Benchmark statistics
+-------------------------------------------------------------------------------
+  Average traversal length: 	NaN
+  Struct Modifications:     	0
+  Throughput (ops/s):       	22909.09090909091
+  Elapsed time (s):         	0.011
+  Operations:               	252	( 100 %)
+    effective updates:     	0	( 0.00 %)
+    |--add successful:     	0	( 0.00 %)
+    |--remove succ.:       	0	( 0.00 %)
+    |--addAll succ.:       	0	( 0.00 %)
+    |--removeAll succ.:    	0	( 0.00 %)
+    size successful:       	0	( 0.00 %)
+    contains succ.:        	133	( 52.78 %)
+    unsuccessful ops:      	119	( 47.22 %)
+  Final size:              	30000000
+  Expected size:           	30000000
+
+Before
+0.860466
+Cannot Print Off-Heap Stats for non-Oak Maps.
+Initialization complete in (s) 849.885 operations 41591989
+
+After
+10415.316
+Cannot Print Off-Heap Stats for non-Oak Maps.
+-------------------------------------------------------------------------------
+Benchmark statistics
+-------------------------------------------------------------------------------
+  Average traversal length: 	NaN
+  Struct Modifications:     	0
+  Throughput (ops/s):       	36200.0
+  Elapsed time (s):         	0.01
+  Operations:               	362	( 100 %)
+    effective updates:     	0	( 0.00 %)
+    |--add successful:     	0	( 0.00 %)
+    |--remove succ.:       	0	( 0.00 %)
+    |--addAll succ.:       	0	( 0.00 %)
+    |--removeAll succ.:    	0	( 0.00 %)
+    size successful:       	0	( 0.00 %)
+    contains succ.:        	188	( 51.93 %)
+    unsuccessful ops:      	174	( 48.07 %)
+  Final size:              	30000000
+  Expected size:           	30000000
+-------------------------------------------------------------------------------
+Iteration statistics
+-------------------------------------------------------------------------------
+  Iterations:                 	3
+  Total throughput (mebiops/s): 0.07431723854758523
+  |--Mean:                    	0.02477241284919508
+  |--Mean Total Size:         	3.0E7
+  |--Variance:                	5.007388860866412E-5
+  |--Standard deviation pop:  	0.007076290596680165
+  |--Standard error:          	0.004085498280857311
+  |--Margin of error (95% CL):	0.00800757663048033
+-------------------------------------------------------------------------------
+Synchrobench-java
+A benchmark-suite to evaluate synchronization techniques
+-------------------------------------------------------------------------------
+
+Benchmark parameters
+--------------------
+  Detailed stats:          	disabled
+  Number of threads:       	1
+  Length:                  	10 ms
+  Write ratio:             	0 %
+  WriteAll ratio:          	0 %
+  Snapshot ratio:          	0 %
+  Size:                    	30000000 elts
+  Range:                   	60000000 elts
+  WarmUp:                  	0 s
+  Iterations:              	3
+  Key size:              	100 Bytes
+  Val size:              	1000 Bytes
+  Change:                	false
+  Buffer view:            	false
+  Benchmark:               	com.oath.oak.synchrobench.maps.JavaSkipListMap
+
+Before
+10.713371
+Cannot Print Off-Heap Stats for non-Oak Maps.
+Initialization complete in (s) 619.183 operations 41582331
+
+After
+39253.453
+Cannot Print Off-Heap Stats for non-Oak Maps.
+-------------------------------------------------------------------------------
+Benchmark statistics
+-------------------------------------------------------------------------------
+  Average traversal length: 	NaN
+  Struct Modifications:     	0
+  Throughput (ops/s):       	41100.0
+  Elapsed time (s):         	0.01
+  Operations:               	411	( 100 %)
+    effective updates:     	0	( 0.00 %)
+    |--add successful:     	0	( 0.00 %)
+    |--remove succ.:       	0	( 0.00 %)
+    |--addAll succ.:       	0	( 0.00 %)
+    |--removeAll succ.:    	0	( 0.00 %)
+    size successful:       	0	( 0.00 %)
+    contains succ.:        	194	( 47.20 %)
+    unsuccessful ops:      	217	( 52.80 %)
+  Final size:              	30000000
+  Expected size:           	30000000
+
+Before
+0.4865036
+Cannot Print Off-Heap Stats for non-Oak Maps.
+Initialization complete in (s) 645.521 operations 41585582
+
+After
+39253.89
+Cannot Print Off-Heap Stats for non-Oak Maps.
+-------------------------------------------------------------------------------
+Benchmark statistics
+-------------------------------------------------------------------------------
+  Average traversal length: 	NaN
+  Struct Modifications:     	0
+  Throughput (ops/s):       	67300.0
+  Elapsed time (s):         	0.01
+  Operations:               	673	( 100 %)
+    effective updates:     	0	( 0.00 %)
+    |--add successful:     	0	( 0.00 %)
+    |--remove succ.:       	0	( 0.00 %)
+    |--addAll succ.:       	0	( 0.00 %)
+    |--removeAll succ.:    	0	( 0.00 %)
+    size successful:       	0	( 0.00 %)
+    contains succ.:        	348	( 51.71 %)
+    unsuccessful ops:      	325	( 48.29 %)
+  Final size:              	30000000
+  Expected size:           	30000000
+
+Before
+0.4854355
+Cannot Print Off-Heap Stats for non-Oak Maps.
+Initialization complete in (s) 619.277 operations 41589003
+
+After
+39253.977
+Cannot Print Off-Heap Stats for non-Oak Maps.
+-------------------------------------------------------------------------------
+Benchmark statistics
+-------------------------------------------------------------------------------
+  Average traversal length: 	NaN
+  Struct Modifications:     	0
+  Throughput (ops/s):       	49900.0
+  Elapsed time (s):         	0.01
+  Operations:               	499	( 100 %)
+    effective updates:     	0	( 0.00 %)
+    |--add successful:     	0	( 0.00 %)
+    |--remove succ.:       	0	( 0.00 %)
+    |--addAll succ.:       	0	( 0.00 %)
+    |--removeAll succ.:    	0	( 0.00 %)
+    size successful:       	0	( 0.00 %)
+    contains succ.:        	247	( 49.50 %)
+    unsuccessful ops:      	252	( 50.50 %)
+  Final size:              	30000000
+  Expected size:           	30000000
+-------------------------------------------------------------------------------
+Iteration statistics
+-------------------------------------------------------------------------------
+  Iterations:                 	3
+  Total throughput (mebiops/s): 0.15096664428710938
+  |--Mean:                    	0.05032221476236979
+  |--Mean Total Size:         	3.0E7
+  |--Variance:                	1.0778926985545292E-4
+  |--Standard deviation pop:  	0.01038216113607629
+  |--Standard error:          	0.005994143526683717
+  |--Margin of error (95% CL):	0.011748521312300085
+Total Heap: 100GB
+-------------------------------------------------------------------------------
+Synchrobench-java
+A benchmark-suite to evaluate synchronization techniques
+-------------------------------------------------------------------------------
+
+Benchmark parameters
+--------------------
+  Detailed stats:          	disabled
+  Number of threads:       	1
+  Length:                  	10 ms
+  Write ratio:             	0 %
+  WriteAll ratio:          	0 %
+  Snapshot ratio:          	0 %
+  Size:                    	30000000 elts
+  Range:                   	60000000 elts
+  WarmUp:                  	0 s
+  Iterations:              	3
+  Key size:              	100 Bytes
+  Val size:              	1000 Bytes
+  Change:                	false
+  Buffer view:            	false
+  Benchmark:               	com.oath.oak.synchrobench.maps.OakMap
+
+Before
+11.59417
+0.0
+Initialization complete in (s) 379.829 operations 41593261
+
+After
+782.21234
+31929.016
+-------------------------------------------------------------------------------
+Benchmark statistics
+-------------------------------------------------------------------------------
+  Average traversal length: 	NaN
+  Struct Modifications:     	0
+  Throughput (ops/s):       	9800.0
+  Elapsed time (s):         	0.01
+  Operations:               	98	( 100 %)
+    effective updates:     	0	( 0.00 %)
+    |--add successful:     	0	( 0.00 %)
+    |--remove succ.:       	0	( 0.00 %)
+    |--addAll succ.:       	0	( 0.00 %)
+    |--removeAll succ.:    	0	( 0.00 %)
+    size successful:       	0	( 0.00 %)
+    contains succ.:        	41	( 41.84 %)
+    unsuccessful ops:      	57	( 58.16 %)
+  Final size:              	30000000
+  Expected size:           	30000000
+
+Before
+1.2564774
+0.0
+Initialization complete in (s) 377.894 operations 41591410
+
+After
+786.84424
+31929.016
+-------------------------------------------------------------------------------
+Benchmark statistics
+-------------------------------------------------------------------------------
+  Average traversal length: 	NaN
+  Struct Modifications:     	0
+  Throughput (ops/s):       	18600.0
+  Elapsed time (s):         	0.01
+  Operations:               	186	( 100 %)
+    effective updates:     	0	( 0.00 %)
+    |--add successful:     	0	( 0.00 %)
+    |--remove succ.:       	0	( 0.00 %)
+    |--addAll succ.:       	0	( 0.00 %)
+    |--removeAll succ.:    	0	( 0.00 %)
+    size successful:       	0	( 0.00 %)
+    contains succ.:        	103	( 55.38 %)
+    unsuccessful ops:      	83	( 44.62 %)
+  Final size:              	30000000
+  Expected size:           	30000000
+
+Before
+1.2556
+0.0
+Initialization complete in (s) 386.114 operations 41588252
+
+After
+792.7064
+31929.016
+-------------------------------------------------------------------------------
+Benchmark statistics
+-------------------------------------------------------------------------------
+  Average traversal length: 	NaN
+  Struct Modifications:     	0
+  Throughput (ops/s):       	41900.0
+  Elapsed time (s):         	0.01
+  Operations:               	419	( 100 %)
+    effective updates:     	0	( 0.00 %)
+    |--add successful:     	0	( 0.00 %)
+    |--remove succ.:       	0	( 0.00 %)
+    |--addAll succ.:       	0	( 0.00 %)
+    |--removeAll succ.:    	0	( 0.00 %)
+    size successful:       	0	( 0.00 %)
+    contains succ.:        	198	( 47.26 %)
+    unsuccessful ops:      	221	( 52.74 %)
+  Final size:              	30000000
+  Expected size:           	30000000
+-------------------------------------------------------------------------------
+Iteration statistics
+-------------------------------------------------------------------------------
+  Iterations:                 	3
+  Total throughput (mebiops/s): 0.06704330444335938
+  |--Mean:                    	0.022347768147786457
+  |--Mean Total Size:         	3.0E7
+  |--Variance:                	1.6681547600051598E-4
+  |--Standard deviation pop:  	0.01291570656218683
+  |--Standard error:          	0.007456886660452783
+  |--Margin of error (95% CL):	0.014615497854487455
+-------------------------------------------------------------------------------
+Synchrobench-java
+A benchmark-suite to evaluate synchronization techniques
+-------------------------------------------------------------------------------
+
+Benchmark parameters
+--------------------
+  Detailed stats:          	disabled
+  Number of threads:       	1
+  Length:                  	10 ms
+  Write ratio:             	0 %
+  WriteAll ratio:          	0 %
+  Snapshot ratio:          	0 %
+  Size:                    	30000000 elts
+  Range:                   	60000000 elts
+  WarmUp:                  	0 s
+  Iterations:              	3
+  Key size:              	100 Bytes
+  Val size:              	1000 Bytes
+  Change:                	false
+  Buffer view:            	false
+  Benchmark:               	com.oath.oak.synchrobench.maps.YoniList
+
+Before
+11.089096
+Cannot Print Off-Heap Stats for non-Oak Maps.
+Initialization complete in (s) 734.31 operations 41590821
+
+After
+10415.117
+Cannot Print Off-Heap Stats for non-Oak Maps.
+-------------------------------------------------------------------------------
+Benchmark statistics
+-------------------------------------------------------------------------------
+  Average traversal length: 	NaN
+  Struct Modifications:     	0
+  Throughput (ops/s):       	14300.0
+  Elapsed time (s):         	0.01
+  Operations:               	143	( 100 %)
+    effective updates:     	0	( 0.00 %)
+    |--add successful:     	0	( 0.00 %)
+    |--remove succ.:       	0	( 0.00 %)
+    |--addAll succ.:       	0	( 0.00 %)
+    |--removeAll succ.:    	0	( 0.00 %)
+    size successful:       	0	( 0.00 %)
+    contains succ.:        	77	( 53.85 %)
+    unsuccessful ops:      	66	( 46.15 %)
+  Final size:              	30000000
+  Expected size:           	30000000
+
+Before
+0.8615341
+Cannot Print Off-Heap Stats for non-Oak Maps.
+Initialization complete in (s) 762.607 operations 41593593
+
+After
+10415.124
+Cannot Print Off-Heap Stats for non-Oak Maps.
+-------------------------------------------------------------------------------
+Benchmark statistics
+-------------------------------------------------------------------------------
+  Average traversal length: 	NaN
+  Struct Modifications:     	0
+  Throughput (ops/s):       	16272.727272727274
+  Elapsed time (s):         	0.011
+  Operations:               	179	( 100 %)
+    effective updates:     	0	( 0.00 %)
+    |--add successful:     	0	( 0.00 %)
+    |--remove succ.:       	0	( 0.00 %)
+    |--addAll succ.:       	0	( 0.00 %)
+    |--removeAll succ.:    	0	( 0.00 %)
+    size successful:       	0	( 0.00 %)
+    contains succ.:        	88	( 49.16 %)
+    unsuccessful ops:      	91	( 50.84 %)
+  Final size:              	30000000
+  Expected size:           	30000000
+
+Before
+0.860466
+Cannot Print Off-Heap Stats for non-Oak Maps.
+Initialization complete in (s) 778.798 operations 41586212
+
+After
+10415.175
+Cannot Print Off-Heap Stats for non-Oak Maps.
+-------------------------------------------------------------------------------
+Benchmark statistics
+-------------------------------------------------------------------------------
+  Average traversal length: 	NaN
+  Struct Modifications:     	0
+  Throughput (ops/s):       	33400.0
+  Elapsed time (s):         	0.01
+  Operations:               	334	( 100 %)
+    effective updates:     	0	( 0.00 %)
+    |--add successful:     	0	( 0.00 %)
+    |--remove succ.:       	0	( 0.00 %)
+    |--addAll succ.:       	0	( 0.00 %)
+    |--removeAll succ.:    	0	( 0.00 %)
+    size successful:       	0	( 0.00 %)
+    contains succ.:        	172	( 51.50 %)
+    unsuccessful ops:      	162	( 48.50 %)
+  Final size:              	30000000
+  Expected size:           	30000000
+-------------------------------------------------------------------------------
+Iteration statistics
+-------------------------------------------------------------------------------
+  Iterations:                 	3
+  Total throughput (mebiops/s): 0.06100914695046165
+  |--Mean:                    	0.02033638231682055
+  |--Mean Total Size:         	3.0E7
+  |--Variance:                	6.690294806472615E-5
+  |--Standard deviation pop:  	0.008179422232940794
+  |--Standard error:          	0.004722391628003977
+  |--Margin of error (95% CL):	0.009255887590887794
+-------------------------------------------------------------------------------
+Synchrobench-java
+A benchmark-suite to evaluate synchronization techniques
+-------------------------------------------------------------------------------
+
+Benchmark parameters
+--------------------
+  Detailed stats:          	disabled
+  Number of threads:       	1
+  Length:                  	10 ms
+  Write ratio:             	0 %
+  WriteAll ratio:          	0 %
+  Snapshot ratio:          	0 %
+  Size:                    	30000000 elts
+  Range:                   	60000000 elts
+  WarmUp:                  	0 s
+  Iterations:              	3
+  Key size:              	100 Bytes
+  Val size:              	1000 Bytes
+  Change:                	false
+  Buffer view:            	false
+  Benchmark:               	com.oath.oak.synchrobench.maps.JavaSkipListMap
+
+Before
+10.713371
+Cannot Print Off-Heap Stats for non-Oak Maps.
+Initialization complete in (s) 671.561 operations 41591944
+
+After
+39253.96
+Cannot Print Off-Heap Stats for non-Oak Maps.
+-------------------------------------------------------------------------------
+Benchmark statistics
+-------------------------------------------------------------------------------
+  Average traversal length: 	NaN
+  Struct Modifications:     	0
+  Throughput (ops/s):       	40800.0
+  Elapsed time (s):         	0.01
+  Operations:               	408	( 100 %)
+    effective updates:     	0	( 0.00 %)
+    |--add successful:     	0	( 0.00 %)
+    |--remove succ.:       	0	( 0.00 %)
+    |--addAll succ.:       	0	( 0.00 %)
+    |--removeAll succ.:    	0	( 0.00 %)
+    size successful:       	0	( 0.00 %)
+    contains succ.:        	207	( 50.74 %)
+    unsuccessful ops:      	201	( 49.26 %)
+  Final size:              	30000000
+  Expected size:           	30000000
+
+Before
+0.4865036
+Cannot Print Off-Heap Stats for non-Oak Maps.
+Initialization complete in (s) 611.747 operations 41589312
+
+After
+39254.0
+Cannot Print Off-Heap Stats for non-Oak Maps.
+-------------------------------------------------------------------------------
+Benchmark statistics
+-------------------------------------------------------------------------------
+  Average traversal length: 	NaN
+  Struct Modifications:     	0
+  Throughput (ops/s):       	56545.45454545455
+  Elapsed time (s):         	0.011
+  Operations:               	622	( 100 %)
+    effective updates:     	0	( 0.00 %)
+    |--add successful:     	0	( 0.00 %)
+    |--remove succ.:       	0	( 0.00 %)
+    |--addAll succ.:       	0	( 0.00 %)
+    |--removeAll succ.:    	0	( 0.00 %)
+    size successful:       	0	( 0.00 %)
+    contains succ.:        	292	( 46.95 %)
+    unsuccessful ops:      	330	( 53.05 %)
+  Final size:              	30000000
+  Expected size:           	30000000
+
+Before
+0.4854355
+Cannot Print Off-Heap Stats for non-Oak Maps.
+Initialization complete in (s) 652.934 operations 41582676
+
+After
+39253.777
+Cannot Print Off-Heap Stats for non-Oak Maps.
+-------------------------------------------------------------------------------
+Benchmark statistics
+-------------------------------------------------------------------------------
+  Average traversal length: 	NaN
+  Struct Modifications:     	0
+  Throughput (ops/s):       	43500.0
+  Elapsed time (s):         	0.01
+  Operations:               	435	( 100 %)
+    effective updates:     	0	( 0.00 %)
+    |--add successful:     	0	( 0.00 %)
+    |--remove succ.:       	0	( 0.00 %)
+    |--addAll succ.:       	0	( 0.00 %)
+    |--removeAll succ.:    	0	( 0.00 %)
+    size successful:       	0	( 0.00 %)
+    contains succ.:        	233	( 53.56 %)
+    unsuccessful ops:      	202	( 46.44 %)
+  Final size:              	30000000
+  Expected size:           	30000000
+-------------------------------------------------------------------------------
+Iteration statistics
+-------------------------------------------------------------------------------
+  Iterations:                 	3
+  Total throughput (mebiops/s): 0.13432069258256393
+  |--Mean:                    	0.04477356419418798
+  |--Mean Total Size:         	3.0E7
+  |--Variance:                	4.2988098068487815E-5
+  |--Standard deviation pop:  	0.006556530947725925
+  |--Standard error:          	0.003785414907619675
+  |--Margin of error (95% CL):	0.007419413218934563
+Total Heap: 120GB
+-------------------------------------------------------------------------------
+Synchrobench-java
+A benchmark-suite to evaluate synchronization techniques
+-------------------------------------------------------------------------------
+
+Benchmark parameters
+--------------------
+  Detailed stats:          	disabled
+  Number of threads:       	1
+  Length:                  	10 ms
+  Write ratio:             	0 %
+  WriteAll ratio:          	0 %
+  Snapshot ratio:          	0 %
+  Size:                    	30000000 elts
+  Range:                   	60000000 elts
+  WarmUp:                  	0 s
+  Iterations:              	3
+  Key size:              	100 Bytes
+  Val size:              	1000 Bytes
+  Change:                	false
+  Buffer view:            	false
+  Benchmark:               	com.oath.oak.synchrobench.maps.OakMap
+
+Before
+11.59417
+0.0
+Initialization complete in (s) 338.474 operations 41586305
+
+After
+790.41833
+31929.016
+-------------------------------------------------------------------------------
+Benchmark statistics
+-------------------------------------------------------------------------------
+  Average traversal length: 	NaN
+  Struct Modifications:     	0
+  Throughput (ops/s):       	6272.727272727273
+  Elapsed time (s):         	0.011
+  Operations:               	69	( 100 %)
+    effective updates:     	0	( 0.00 %)
+    |--add successful:     	0	( 0.00 %)
+    |--remove succ.:       	0	( 0.00 %)
+    |--addAll succ.:       	0	( 0.00 %)
+    |--removeAll succ.:    	0	( 0.00 %)
+    size successful:       	0	( 0.00 %)
+    contains succ.:        	42	( 60.87 %)
+    unsuccessful ops:      	27	( 39.13 %)
+  Final size:              	30000000
+  Expected size:           	30000000
+
+Before
+1.2562103
+0.0
+Initialization complete in (s) 412.189 operations 41594844
+
+After
+796.0987
+31929.016
+-------------------------------------------------------------------------------
+Benchmark statistics
+-------------------------------------------------------------------------------
+  Average traversal length: 	NaN
+  Struct Modifications:     	0
+  Throughput (ops/s):       	21363.636363636364
+  Elapsed time (s):         	0.011
+  Operations:               	235	( 100 %)
+    effective updates:     	0	( 0.00 %)
+    |--add successful:     	0	( 0.00 %)
+    |--remove succ.:       	0	( 0.00 %)
+    |--addAll succ.:       	0	( 0.00 %)
+    |--removeAll succ.:    	0	( 0.00 %)
+    size successful:       	0	( 0.00 %)
+    contains succ.:        	126	( 53.62 %)
+    unsuccessful ops:      	109	( 46.38 %)
+  Final size:              	30000000
+  Expected size:           	30000000
+
+Before
+1.2555618
+0.0
+Initialization complete in (s) 379.716 operations 41593425
+
+After
+786.18835
+31929.016
+-------------------------------------------------------------------------------
+Benchmark statistics
+-------------------------------------------------------------------------------
+  Average traversal length: 	NaN
+  Struct Modifications:     	0
+  Throughput (ops/s):       	40800.0
+  Elapsed time (s):         	0.01
+  Operations:               	408	( 100 %)
+    effective updates:     	0	( 0.00 %)
+    |--add successful:     	0	( 0.00 %)
+    |--remove succ.:       	0	( 0.00 %)
+    |--addAll succ.:       	0	( 0.00 %)
+    |--removeAll succ.:    	0	( 0.00 %)
+    size successful:       	0	( 0.00 %)
+    contains succ.:        	204	( 50.00 %)
+    unsuccessful ops:      	204	( 50.00 %)
+  Final size:              	30000000
+  Expected size:           	30000000
+-------------------------------------------------------------------------------
+Iteration statistics
+-------------------------------------------------------------------------------
+  Iterations:                 	3
+  Total throughput (mebiops/s): 0.06526600230823863
+  |--Mean:                    	0.021755334102746212
+  |--Mean Total Size:         	3.0E7
+  |--Variance:                	1.8166048403938804E-4
+  |--Standard deviation pop:  	0.013478148390613157
+  |--Standard error:          	0.007781612601498228
+  |--Margin of error (95% CL):	0.015251960698936527
+-------------------------------------------------------------------------------
+Synchrobench-java
+A benchmark-suite to evaluate synchronization techniques
+-------------------------------------------------------------------------------
+
+Benchmark parameters
+--------------------
+  Detailed stats:          	disabled
+  Number of threads:       	1
+  Length:                  	10 ms
+  Write ratio:             	0 %
+  WriteAll ratio:          	0 %
+  Snapshot ratio:          	0 %
+  Size:                    	30000000 elts
+  Range:                   	60000000 elts
+  WarmUp:                  	0 s
+  Iterations:              	3
+  Key size:              	100 Bytes
+  Val size:              	1000 Bytes
+  Change:                	false
+  Buffer view:            	false
+  Benchmark:               	com.oath.oak.synchrobench.maps.YoniList
+
+Before
+11.089096
+Cannot Print Off-Heap Stats for non-Oak Maps.
+Initialization complete in (s) 727.652 operations 41588775
+
+After
+10415.154
+Cannot Print Off-Heap Stats for non-Oak Maps.
+-------------------------------------------------------------------------------
+Benchmark statistics
+-------------------------------------------------------------------------------
+  Average traversal length: 	NaN
+  Struct Modifications:     	0
+  Throughput (ops/s):       	14800.0
+  Elapsed time (s):         	0.01
+  Operations:               	148	( 100 %)
+    effective updates:     	0	( 0.00 %)
+    |--add successful:     	0	( 0.00 %)
+    |--remove succ.:       	0	( 0.00 %)
+    |--addAll succ.:       	0	( 0.00 %)
+    |--removeAll succ.:    	0	( 0.00 %)
+    size successful:       	0	( 0.00 %)
+    contains succ.:        	77	( 52.03 %)
+    unsuccessful ops:      	71	( 47.97 %)
+  Final size:              	30000000
+  Expected size:           	30000000
+
+Before
+0.860466
+Cannot Print Off-Heap Stats for non-Oak Maps.
+Initialization complete in (s) 774.755 operations 41593396
+
+After
+10415.436
+Cannot Print Off-Heap Stats for non-Oak Maps.
+-------------------------------------------------------------------------------
+Benchmark statistics
+-------------------------------------------------------------------------------
+  Average traversal length: 	NaN
+  Struct Modifications:     	0
+  Throughput (ops/s):       	36200.0
+  Elapsed time (s):         	0.01
+  Operations:               	362	( 100 %)
+    effective updates:     	0	( 0.00 %)
+    |--add successful:     	0	( 0.00 %)
+    |--remove succ.:       	0	( 0.00 %)
+    |--addAll succ.:       	0	( 0.00 %)
+    |--removeAll succ.:    	0	( 0.00 %)
+    size successful:       	0	( 0.00 %)
+    contains succ.:        	182	( 50.28 %)
+    unsuccessful ops:      	180	( 49.72 %)
+  Final size:              	30000000
+  Expected size:           	30000000
+
+Before
+0.860466
+Cannot Print Off-Heap Stats for non-Oak Maps.
+Initialization complete in (s) 752.265 operations 41586656
+
+After
+10415.135
+Cannot Print Off-Heap Stats for non-Oak Maps.
+-------------------------------------------------------------------------------
+Benchmark statistics
+-------------------------------------------------------------------------------
+  Average traversal length: 	NaN
+  Struct Modifications:     	0
+  Throughput (ops/s):       	32700.0
+  Elapsed time (s):         	0.01
+  Operations:               	327	( 100 %)
+    effective updates:     	0	( 0.00 %)
+    |--add successful:     	0	( 0.00 %)
+    |--remove succ.:       	0	( 0.00 %)
+    |--addAll succ.:       	0	( 0.00 %)
+    |--removeAll succ.:    	0	( 0.00 %)
+    size successful:       	0	( 0.00 %)
+    contains succ.:        	166	( 50.76 %)
+    unsuccessful ops:      	161	( 49.24 %)
+  Final size:              	30000000
+  Expected size:           	30000000
+-------------------------------------------------------------------------------
+Iteration statistics
+-------------------------------------------------------------------------------
+  Iterations:                 	3
+  Total throughput (mebiops/s): 0.07982254028320312
+  |--Mean:                    	0.026607513427734375
+  |--Mean Total Size:         	3.0E7
+  |--Variance:                	7.989607790174584E-5
+  |--Standard deviation pop:  	0.008938460600223387
+  |--Standard error:          	0.005160622633679837
+  |--Margin of error (95% CL):	0.01011482036201248
+-------------------------------------------------------------------------------
+Synchrobench-java
+A benchmark-suite to evaluate synchronization techniques
+-------------------------------------------------------------------------------
+
+Benchmark parameters
+--------------------
+  Detailed stats:          	disabled
+  Number of threads:       	1
+  Length:                  	10 ms
+  Write ratio:             	0 %
+  WriteAll ratio:          	0 %
+  Snapshot ratio:          	0 %
+  Size:                    	30000000 elts
+  Range:                   	60000000 elts
+  WarmUp:                  	0 s
+  Iterations:              	3
+  Key size:              	100 Bytes
+  Val size:              	1000 Bytes
+  Change:                	false
+  Buffer view:            	false
+  Benchmark:               	com.oath.oak.synchrobench.maps.JavaSkipListMap
+
+Before
+10.713371
+Cannot Print Off-Heap Stats for non-Oak Maps.
+Initialization complete in (s) 619.253 operations 41589378
+
+After
+39253.613
+Cannot Print Off-Heap Stats for non-Oak Maps.
+-------------------------------------------------------------------------------
+Benchmark statistics
+-------------------------------------------------------------------------------
+  Average traversal length: 	NaN
+  Struct Modifications:     	0
+  Throughput (ops/s):       	40181.818181818184
+  Elapsed time (s):         	0.011
+  Operations:               	442	( 100 %)
+    effective updates:     	0	( 0.00 %)
+    |--add successful:     	0	( 0.00 %)
+    |--remove succ.:       	0	( 0.00 %)
+    |--addAll succ.:       	0	( 0.00 %)
+    |--removeAll succ.:    	0	( 0.00 %)
+    size successful:       	0	( 0.00 %)
+    contains succ.:        	210	( 47.51 %)
+    unsuccessful ops:      	232	( 52.49 %)
+  Final size:              	30000000
+  Expected size:           	30000000
+
+Before
+0.4865036
+Cannot Print Off-Heap Stats for non-Oak Maps.
+Initialization complete in (s) 634.027 operations 41594484
+
+After
+39253.17
+Cannot Print Off-Heap Stats for non-Oak Maps.
+-------------------------------------------------------------------------------
+Benchmark statistics
+-------------------------------------------------------------------------------
+  Average traversal length: 	NaN
+  Struct Modifications:     	0
+  Throughput (ops/s):       	43900.0
+  Elapsed time (s):         	0.01
+  Operations:               	439	( 100 %)
+    effective updates:     	0	( 0.00 %)
+    |--add successful:     	0	( 0.00 %)
+    |--remove succ.:       	0	( 0.00 %)
+    |--addAll succ.:       	0	( 0.00 %)
+    |--removeAll succ.:    	0	( 0.00 %)
+    size successful:       	0	( 0.00 %)
+    contains succ.:        	231	( 52.62 %)
+    unsuccessful ops:      	208	( 47.38 %)
+  Final size:              	30000000
+  Expected size:           	30000000
+
+Before
+0.4854355
+Cannot Print Off-Heap Stats for non-Oak Maps.
+Initialization complete in (s) 614.812 operations 41588119
+
+After
+39253.125
+Cannot Print Off-Heap Stats for non-Oak Maps.
+-------------------------------------------------------------------------------
+Benchmark statistics
+-------------------------------------------------------------------------------
+  Average traversal length: 	NaN
+  Struct Modifications:     	0
+  Throughput (ops/s):       	56800.0
+  Elapsed time (s):         	0.01
+  Operations:               	568	( 100 %)
+    effective updates:     	0	( 0.00 %)
+    |--add successful:     	0	( 0.00 %)
+    |--remove succ.:       	0	( 0.00 %)
+    |--addAll succ.:       	0	( 0.00 %)
+    |--removeAll succ.:    	0	( 0.00 %)
+    size successful:       	0	( 0.00 %)
+    contains succ.:        	274	( 48.24 %)
+    unsuccessful ops:      	294	( 51.76 %)
+  Final size:              	30000000
+  Expected size:           	30000000
+-------------------------------------------------------------------------------
+Iteration statistics
+-------------------------------------------------------------------------------
+  Iterations:                 	3
+  Total throughput (mebiops/s): 0.13435537164861505
+  |--Mean:                    	0.04478512388287168
+  |--Mean Total Size:         	3.0E7
+  |--Variance:                	4.612136995347166E-5
+  |--Standard deviation pop:  	0.006791271600626179
+  |--Standard error:          	0.003920942486761385
+  |--Margin of error (95% CL):	0.007685047274052314
