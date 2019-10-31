@@ -349,7 +349,13 @@ class InternalOakMap<K, V> {
             throw new NullPointerException();
         }
 
+        int infiLoopCount = 0;
         while (true) {
+            infiLoopCount++;
+            if (infiLoopCount > 1000) {
+                System.out.println("Stuck in put");
+                assert false;
+            }
             Chunk<K, V> c = findChunk(key); // find chunk matching key
             Chunk.LookUp lookUp = c.lookUp(key);
             // If there is a matching value reference for the given key, and it is not marked as deleted, then this put
@@ -433,7 +439,13 @@ class InternalOakMap<K, V> {
             throw new NullPointerException();
         }
 
+        int infiLoopCount = 0;
         while (true) {
+            infiLoopCount++;
+            if (infiLoopCount > 1000) {
+                System.out.println("Stuck in putIfAbsent");
+                assert false;
+            }
             Chunk<K, V> c = findChunk(key); // find chunk matching key
             Chunk.LookUp lookUp = c.lookUp(key);
 
@@ -531,7 +543,13 @@ class InternalOakMap<K, V> {
             throw new NullPointerException();
         }
 
+        int infiLoopCount = 0;
         while (true) {
+            infiLoopCount++;
+            if (infiLoopCount > 1000) {
+                System.out.println("Stuck in putIfAbsentComputeIfPresent");
+                assert false;
+            }
             Chunk<K, V> c = findChunk(key); // find chunk matching key
             Chunk.LookUp lookUp = c.lookUp(key);
             if (lookUp != null && lookUp.valueSlice != null) {
@@ -621,7 +639,13 @@ class InternalOakMap<K, V> {
         boolean logicallyDeleted = false;
         V v = null;
 
+        int infiLoopCount = 0;
         while (true) {
+            infiLoopCount++;
+            if (infiLoopCount > 1000) {
+                System.out.println("Stuck in remove");
+                assert false;
+            }
             Chunk<K, V> c = findChunk(key); // find chunk matching key
             Chunk.LookUp lookUp = c.lookUp(key);
 
@@ -647,8 +671,7 @@ class InternalOakMap<K, V> {
                 return transformer == null ? Result.withFlag(TRUE) : Result.withValue(v);
             } else {
                 Result<V> removeResult = valueOperator.remove(lookUp.valueSlice, memoryManager, lookUp.version,
-                        oldValue,
-                        transformer);
+                        oldValue, transformer);
                 if (removeResult.operationResult == FALSE) {
                     // we didn't succeed to remove the value: it didn't contain oldValue, or was already marked
                     // as deleted by someone else)
@@ -675,7 +698,13 @@ class InternalOakMap<K, V> {
         if (key == null) {
             throw new NullPointerException();
         }
+        int infiLoopCount = 0;
         while (true) {
+            infiLoopCount++;
+            if (infiLoopCount > 1000) {
+                System.out.println("Stuck in get");
+                assert false;
+            }
             Chunk<K, V> c = findChunk(key); // find chunk matching key
             Chunk.LookUp lookUp = c.lookUp(key);
             if (lookUp == null || lookUp.valueSlice == null) {
@@ -695,7 +724,13 @@ class InternalOakMap<K, V> {
             throw new NullPointerException();
         }
 
+        int infiLoopCount = 0;
         while (true) {
+            infiLoopCount++;
+            if (infiLoopCount > 1000) {
+                System.out.println("Stuck in computeIfPresent");
+                assert false;
+            }
             Chunk<K, V> c = findChunk(key); // find chunk matching key
             Chunk.LookUp lookUp = c.lookUp(key);
 
@@ -742,7 +777,13 @@ class InternalOakMap<K, V> {
             throw new NullPointerException();
         }
 
+        int infiLoopCount = 0;
         while (true) {
+            infiLoopCount++;
+            if (infiLoopCount > 1000) {
+                System.out.println("Stuck in non-zc get");
+                assert false;
+            }
             Chunk<K, V> c = findChunk(key); // find chunk matching key
             Chunk.LookUp lookUp = c.lookUp(key);
             if (lookUp == null || lookUp.valueSlice == null) {
@@ -837,7 +878,13 @@ class InternalOakMap<K, V> {
     }
 
     V replace(K key, V value, Function<ByteBuffer, V> valueDeserializeTransformer) {
+        int infiLoopCount = 0;
         while (true) {
+            infiLoopCount++;
+            if (infiLoopCount > 1000) {
+                System.out.println("Stuck in replace");
+                assert false;
+            }
             Chunk<K, V> c = findChunk(key); // find chunk matching key
             Chunk.LookUp lookUp = c.lookUp(key);
             if (lookUp == null || lookUp.valueSlice == null) {
@@ -854,7 +901,13 @@ class InternalOakMap<K, V> {
     }
 
     boolean replace(K key, V oldValue, V newValue, Function<ByteBuffer, V> valueDeserializeTransformer) {
+        int infiLoopCount = 0;
         while (true) {
+            infiLoopCount++;
+            if (infiLoopCount > 1000) {
+                System.out.println("Stuck in compare exchange");
+                assert false;
+            }
             Chunk<K, V> c = findChunk(key); // find chunk matching key
             Chunk.LookUp lookUp = c.lookUp(key);
             if (lookUp == null || lookUp.valueSlice == null) {
