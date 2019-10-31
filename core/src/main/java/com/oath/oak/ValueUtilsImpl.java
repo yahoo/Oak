@@ -4,6 +4,7 @@ import sun.misc.Unsafe;
 import sun.nio.ch.DirectBuffer;
 
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
@@ -39,9 +40,14 @@ public class ValueUtilsImpl implements ValueUtils {
     private boolean CAS(Slice s, int expectedLock, int newLock, int version) {
         long expected = intsToLong(version, expectedLock);
         long value = intsToLong(version, newLock);
+        // Since the writing is done directly to the memory, the endianness of the memory is important here.
+        // Therefore, we make sure that the values are read and written correctly.
+        if (s.getByteBuffer().order() == ByteOrder.BIG_ENDIAN) {
+            expected = reverseBytes(expected);
+            value = reverseBytes(value);
+        }
         return unsafe.compareAndSwapLong(null,
-                ((DirectBuffer) s.getByteBuffer()).address() + s.getByteBuffer().position(), reverseBytes(expected),
-                reverseBytes(value));
+                ((DirectBuffer) s.getByteBuffer()).address() + s.getByteBuffer().position(), expected, value);
     }
 
     @Override
@@ -114,30 +120,38 @@ public class ValueUtilsImpl implements ValueUtils {
     @Override
     public <V> Result<V> remove(Slice s, MemoryManager memoryManager, int version, V oldValue,
                                 Function<ByteBuffer, V> transformer) {
-        // No need to check the old value
+        // Not a conditional remove, so we can delete immediately
         if (oldValue == null) {
             // try to delete
             ValueResult result = deleteValue(s, version);
             if (result != TRUE) {
                 return Result.withFlag(result);
             }
+            // Now the value is deleted, and all other threads will treat it as deleted, but it is not yet freed, so
+            // this thread can read from it.
             // read the old value (the slice is not reclaimed yet)
             V v = transformer != null ? transformer.apply(getValueByteBufferNoHeader(s).asReadOnlyBuffer()) : null;
+            // release the slice
             memoryManager.releaseSlice(s);
+            // return TRUE with the old value
             return Result.withValue(v);
         } else {
-            // We first have to read the oldValue and only then decide whether it should be deleted.
+            // This is a conditional remove, so we first have to check whether the current value matches the expected
+            // one.
+            // We start by acquiring a write lock for reading since we do not want concurrent reads.
             ValueResult result = lockWrite(s, version);
             if (result != TRUE) {
                 return Result.withFlag(result);
             }
             V v = transformer.apply(getValueByteBufferNoHeader(s).asReadOnlyBuffer());
+            // This is where we check the equality between the expected value and the actual value
             if (!oldValue.equals(v)) {
                 unlockWrite(s);
                 return Result.withFlag(FALSE);
             }
-            // value is now deleted
+            // both values match so the value is marked as deleted. No need for a CAS since a write lock is exclusive
             putInt(s, getLockLocation(), DELETED.value);
+            // release the slice (no need to re-read it).
             memoryManager.releaseSlice(s);
             return Result.withValue(v);
         }
