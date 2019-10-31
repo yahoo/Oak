@@ -32,5 +32,5 @@ public class Parameters {
 
 	public static KeyDist keyDistribution = KeyDist.RANDOM;
 
-    static String benchClassName = "skiplists.lockfree.NonBlockingFriendlySkipListMap";
+    static String benchClassName = "com.oath.oak.synchrobench.maps.OakMap";
 }

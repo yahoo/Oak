@@ -6,7 +6,8 @@
 
 package com.oath.oak.NativeAllocator;
 
-import com.oath.oak.OakMemoryAllocator;
+import com.oath.oak.MemoryManager;
+import com.oath.oak.OakBlockMemoryAllocator;
 import com.oath.oak.OakOutOfMemoryException;
 import com.oath.oak.Slice;
 import com.oath.oak.ThreadIndexCalculator;
@@ -18,7 +19,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
-public class OakNativeMemoryAllocator implements OakMemoryAllocator {
+public class OakNativeMemoryAllocator implements OakBlockMemoryAllocator {
 
     private static class FreeChuck {
         long id;
@@ -33,7 +34,7 @@ public class OakNativeMemoryAllocator implements OakMemoryAllocator {
     }
 
     // When allocating n bytes and there are buffers in the free list, only free buffers of size <= n *
-    // RECLAIM_FACTOR will be recycled
+    // REUSE_MAX_MULTIPLIER will be recycled
     // This parameter may be tuned for performance vs off-heap memory utilization
     private static final int REUSE_MAX_MULTIPLIER = 2;
     public static final int INVALID_BLOCK_ID = 0;
@@ -70,6 +71,8 @@ public class OakNativeMemoryAllocator implements OakMemoryAllocator {
     // can be calculated, but kept for easy access
     private final AtomicLong allocated = new AtomicLong(0);
     private final AtomicLong freeCounter = new AtomicLong(0);
+    public final AtomicInteger keysAllocated = new AtomicInteger(0);
+    public final AtomicInteger valuesAllocated = new AtomicInteger(0);
 
     // flag allowing not to close the same allocator twice
     private AtomicBoolean closed = new AtomicBoolean(false);
@@ -97,14 +100,14 @@ public class OakNativeMemoryAllocator implements OakMemoryAllocator {
 
     @Deprecated
     public ByteBuffer allocate(int size) {
-        return allocateSlice(size).getByteBuffer();
+        return allocateSlice(size, MemoryManager.Allocate.KEY).getByteBuffer();
     }
 
     // Allocates ByteBuffer of the given size, either from freeList or (if it is still possible)
     // within current block bounds.
     // Otherwise new block is allocated within Oak memory bounds. Thread safe.
     @Override
-    public Slice allocateSlice(int size) {
+    public Slice allocateSlice(int size, MemoryManager.Allocate allocate) {
 
         FreeChuck myDummy = dummies[threadIndexCalculator.getIndex()];
         // While the free list is not empty there can be a suitable free chunk to reuse.
@@ -123,7 +126,7 @@ public class OakNativeMemoryAllocator implements OakMemoryAllocator {
             if (bestFit.slice.getByteBuffer().remaining() > (REUSE_MAX_MULTIPLIER * size)) {
                 break;     // all remaining buffers are too big
             }
-            // If multiple thread got the same bestFit only one can use it (the one which succeeds in removing it
+            // If multiple threads got the same bestFit only one can use it (the one which succeeds in removing it
             // from the free list).
             // The rest restart the while loop.
             if (freeList.remove(bestFit)) {
@@ -138,6 +141,7 @@ public class OakNativeMemoryAllocator implements OakMemoryAllocator {
         // freeList is empty or there is no suitable slice
         while (s == null) {
             try {
+                // The ByteBuffer inside this slice is the thread's ByteBuffer
                 s = currentBlock.allocate(size);
             } catch (OakOutOfMemoryException e) {
                 // there is no space in current block
@@ -161,6 +165,11 @@ public class OakNativeMemoryAllocator implements OakMemoryAllocator {
             }
         }
         allocated.addAndGet(size);
+        if (allocate == MemoryManager.Allocate.KEY) {
+            keysAllocated.incrementAndGet();
+        } else {
+            valuesAllocated.incrementAndGet();
+        }
         return s;
     }
 
@@ -207,14 +216,19 @@ public class OakNativeMemoryAllocator implements OakMemoryAllocator {
         return allocated.get();
     }
 
+    public int getFreeListLength() {
+        return freeList.size();
+    }
+
+
     @Override
     public boolean isClosed() {
         return closed.get();
     }
 
     // When some buffer need to be read from a random block
-    public ByteBuffer readByteBufferFromBlockID(
-            Integer blockID, int bufferPosition, int bufferLength) {
+    @Override
+    public ByteBuffer readByteBufferFromBlockID(int blockID, int bufferPosition, int bufferLength) {
         Block b = blocksArray[blockID];
         // The returned buffer is this thread's block buffer.
         // Therefore, a thread cannot read two slices from the same block without duplicating one of them.

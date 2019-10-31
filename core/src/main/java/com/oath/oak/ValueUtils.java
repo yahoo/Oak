@@ -1,368 +1,206 @@
 package com.oath.oak;
 
-import sun.misc.Unsafe;
-import sun.nio.ch.DirectBuffer;
-
 import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
-import java.util.AbstractMap;
-import java.util.Map;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
-import static com.oath.oak.Chunk.VALUE_BLOCK_SHIFT;
-import static com.oath.oak.Chunk.VALUE_LENGTH_MASK;
-import static com.oath.oak.ValueUtils.LockStates.*;
-import static com.oath.oak.ValueUtils.ValueResult.*;
-import static java.lang.Integer.reverseBytes;
+public interface ValueUtils {
 
-// All of the methods are atomic (this atomicity is achieved using read/write locks)
-public class ValueUtils {
-
-    enum LockStates {
-        FREE(0), LOCKED(1), DELETED(2), MOVED(3);
-
-        public int value;
-
-        LockStates(int value) {
-            this.value = value;
-        }
-    }
+    int VERSION_SIZE = 4;
+    int INVALID_VERSION = 0;
 
     enum ValueResult {
-        SUCCESS, FAILURE, MOVED
+        TRUE, FALSE, RETRY
+
     }
 
-    private static final int LOCK_MASK = 0x3;
-    public static final int VALUE_HEADER_SIZE = 4;
+    /**
+     * Some implementations of values which reside in the off-heap may have a header to it (e.g., the implementation of
+     * Nova Values has a header of 8 bytes).
+     */
+    int getHeaderSize();
 
-    private static Unsafe unsafe = UnsafeUtils.unsafe;
+    /**
+     * Some implementations of values which reside may have a lock in their header.
+     */
+    int getLockLocation();
+
+    int getLockSize();
 
     /**
      * This method only works when the byte buffer is thread local, i.e., not reachable by other threads.
-     * Using this assumption, we save one object allocation.
+     * Using this assumption, one can save one object allocation.
      *
-     * @param bb the Byte Buffer of the value
-     * @return the byte buffer of the value without its header.
+     * @param s the Slice of the value
+     * @return the ByteBuffer of the value without its header.
      */
-    static ByteBuffer getValueByteBufferNoHeaderPrivate(ByteBuffer bb) {
-        bb.position(bb.position() + VALUE_HEADER_SIZE);
-        ByteBuffer dup = bb.slice();
-        bb.position(bb.position() - VALUE_HEADER_SIZE);
-        return dup;
-    }
-
-    // Two duplications
+    ByteBuffer getValueByteBufferNoHeaderPrivate(Slice s);
 
     /**
-     * Similar to #getValueByteBufferNoHeaderPrivate(ByteBuffer bb), without the assumption of a thread local
+     * Similar to #getValueByteBufferNoHeaderPrivate(Slice), without the assumption of a thread local
      * environment.
-     * Creates two new objects instead of one.
      * It is used when calling user's function in a concurrent setting.
      *
-     * @param bb the Byte Buffer of the value
-     * @return the byte buffer of the value without its header.
+     * @param s the Slice of the value
+     * @return the ByteBuffer of the value without its header.
      */
-    static ByteBuffer getValueByteBufferNoHeader(ByteBuffer bb) {
-        ByteBuffer dup = bb.duplicate();
-        dup.position(dup.position() + VALUE_HEADER_SIZE);
-        return dup.slice();
-    }
-
-    /**
-     * @param s a value Slice (including the header)
-     * @return {@code true} if the value is deleted (the header equals to DELETED.value, 2)
-     */
-    static boolean isValueDeleted(Slice s) {
-        ByteBuffer bb = s.getByteBuffer();
-        return isValueDeleted(bb.getInt(bb.position()));
-    }
-
-    private static boolean CAS(ByteBuffer bb, int expected, int value) {
-        // assuming big endian
-        assert bb.order() == ByteOrder.BIG_ENDIAN;
-        return unsafe.compareAndSwapInt(null, ((DirectBuffer) bb).address() + bb.position(), reverseBytes(expected),
-                reverseBytes(value));
-    }
-
-    private static boolean isValueDeleted(int header) {
-        return header == DELETED.value;
-    }
-
-    private static boolean wasValueMoved(int header) {
-        return header == LockStates.MOVED.value;
-    }
-
-    /**
-     * @see #lockRead(ByteBuffer)
-     */
-    static ValueResult lockRead(Slice s) {
-        return lockRead(s.getByteBuffer());
-    }
+    ByteBuffer getValueByteBufferNoHeader(Slice s);
 
     /**
      * Acquires a read lock
      *
-     * @param bb the value Byte Buffer (including the header)
-     * @return {@code SUCCESS} if the read lock was acquires successfully
-     * {@code FAILURE} if the value is marked as deleted
-     * {@code RETRY} if the value was moved
+     * @param s       the value Slice (including the header)
+     * @param version the expected version of the value pointed by {@code s}
+     * @return {@code TRUE} if the read lock was acquires successfully
+     * {@code FALSE} if the value is marked as deleted
+     * {@code RETRY} if the value was moved, or the version of the off-heap value does not match {@code version}.
      */
-    static ValueResult lockRead(ByteBuffer bb) {
-        assert bb.isDirect();
-        int oldHeader;
-        do {
-            oldHeader = bb.getInt(bb.position());
-            if (isValueDeleted(oldHeader)) {
-                return FAILURE;
-            }
-            if (wasValueMoved(oldHeader)) {
-                return ValueResult.MOVED;
-            }
-            oldHeader &= ~LOCK_MASK;
-        } while (!CAS(bb, oldHeader, oldHeader + 4));
-        return SUCCESS;
-    }
+    ValueResult lockRead(Slice s, int version);
 
     /**
-     * @see #unlockRead(ByteBuffer)
-     */
-    static void unlockRead(Slice s) {
-        unlockRead(s.getByteBuffer());
-    }
-
-    /**
-     * Releases a read lock of the given value.
+     * Releases a read lock
      *
-     * @param bb the value Byte Buffer (including the header)
+     * @param s       the value Slice (including the header)
+     * @param version the expected version of the value pointed by {@code s}
+     * @return {@code TRUE} if the read lock was released successfully
+     * {@code FALSE} if the value is marked as deleted
+     * {@code RETRY} if the value was moved, or the version of the off-heap value does not match {@code version}.
      */
-    static void unlockRead(ByteBuffer bb) {
-        assert bb.isDirect();
-        int oldHeader;
-        do {
-            oldHeader = bb.getInt(bb.position());
-        } while (!CAS(bb, oldHeader, oldHeader - 4));
-    }
-
-    private static ValueResult lockWrite(ByteBuffer bb) {
-        assert bb.isDirect();
-        int oldHeader;
-        do {
-            oldHeader = bb.getInt(bb.position());
-            if (isValueDeleted(oldHeader)) {
-                return FAILURE;
-            }
-            if (wasValueMoved(oldHeader)) {
-                return ValueResult.MOVED;
-            }
-        } while (!CAS(bb, FREE.value, LOCKED.value));
-        return SUCCESS;
-    }
-
-    private static void unlockWrite(Slice s) {
-        unlockWrite(s.getByteBuffer());
-    }
-
-    private static void unlockWrite(ByteBuffer bb) {
-        bb.putInt(bb.position(), FREE.value);
-        // maybe a fence?
-    }
-
-    /* Handle Methods */
-
-    static void unsafeBufferToIntArrayCopy(ByteBuffer bb, int srcPosition, int[] dstArray, int countInts) {
-        UnsafeUtils.unsafeCopyBufferToIntArray(bb, srcPosition, dstArray, countInts);
-    }
+    ValueResult unlockRead(Slice s, int version);
 
     /**
-     * Used only in OakRValueBuffer
+     * Acquires a write lock
      *
-     * @param bb          the value Byte Buffer (including the header)
-     * @param transformer value deserializer
-     * @param <T>         the type of {@code transformer}'s output
-     * @return {@code null} if the value is deleted or was moved.
-     * The value written off-heap is returned otherwise.
+     * @param s       the value Slice (including the header)
+     * @param version the expected version of the value pointed by {@code s}
+     * @return {@code TRUE} if the write lock was acquires successfully
+     * {@code FALSE} if the value is marked as deleted
+     * {@code RETRY} if the value was moved, or the version of the off-heap value does not match {@code version}.
      */
-    static <T> T transform(ByteBuffer bb, Function<ByteBuffer, T> transformer) {
-        if (lockRead(bb) != SUCCESS) {
-            return null;
-        }
+    ValueResult lockWrite(Slice s, int version);
 
-        T transformation = transformer.apply(getValueByteBufferNoHeader(bb).asReadOnlyBuffer());
-        unlockRead(bb);
-        return transformation;
-    }
+    /**
+     * Releases a write lock
+     * Since a write lock is exclusive (unlike read lock), there is no way for the version to change, so no need to
+     * pass it.
+     *
+     * @param s the value Slice (including the header)
+     * @return {@code TRUE} if the write lock was released successfully
+     * {@code FALSE} if the value is marked as deleted
+     * {@code RETRY} if the value was moved, or the version of the off-heap value does not match {@code version}.
+     */
+    ValueResult unlockWrite(Slice s);
+
+    /**
+     * Marks the value pointed by {@code s} as deleted only if the version of that value matches {@code version}.
+     *
+     * @param s       the value Slice (including the header)
+     * @param version the expected version of the value pointed by {@code s}
+     * @return {@code TRUE} if the value was marked successfully
+     * {@code FALSE} if the value is already marked as deleted
+     * {@code RETRY} if the value was moved, or the version of the off-heap value does not match {@code version}.
+     */
+    ValueResult deleteValue(Slice s, int version);
+
+    /**
+     * @param s       the value Slice (including the header)
+     * @param version the expected version of the value pointed by {@code s}
+     * @return {@code TRUE} if the value is marked
+     * {@code FALSE} if the value is not marked
+     * {@code RETRY} if the value was moved, or the version of the off-heap value does not match {@code version}.
+     */
+    ValueResult isValueDeleted(Slice s, int version);
+
+    /**
+     * @param s the value Slice (including the header)
+     * @return the version of the value pointed by {@code s}
+     */
+    int getOffHeapVersion(Slice s);
+
+    /* ==================== More complex methods on off-heap values ==================== */
+
+    void unsafeBufferToIntArrayCopy(ByteBuffer bb, int srcPosition, int[] dstArray, int countInts);
 
     /**
      * Used to try and read a value off-heap
      *
      * @param s           the value Slice (including the header)
      * @param transformer value deserializer
+     * @param version     the expected version of the value pointed by {@code s}
      * @param <T>         the type of {@code transformer}'s output
-     * @return {@code SUCCESS} if the value was read successfully,
-     * {@code FAILURE} if the value is deleted,
-     * {@code RETRY} if the value was moved.
-     * In case of {@code SUCCESS}, the value of the returned entry is the read value, otherwise, the value is {@code
-     * null}.
+     * @return {@code TRUE} if the value was read successfully
+     * {@code FALSE} if the value is deleted
+     * {@code RETRY} if the value was moved, or the version of the off-heap value does not match {@code version}.
+     * In case of {@code TRUE}, the read value is stored in the returned Result, otherwise, the value is {@code null}.
      */
-    static <T> Result<T> transform(Slice s, Function<ByteBuffer, T> transformer) {
-        ByteBuffer bb = s.getByteBuffer();
-        ValueResult res = lockRead(bb);
-        if (res != SUCCESS) {
-            return Result.withFlag(res);
-        }
+    <T> Result<T> transform(Slice s, Function<ByteBuffer, T> transformer, int version);
 
-        T transformation = transformer.apply(getValueByteBufferNoHeader(bb).asReadOnlyBuffer());
-        unlockRead(bb);
-        return Result.withValue(transformation);
-    }
-
-    private static <V> ValueResult innerPut(Chunk<?, V> chunk, Chunk.LookUp lookUp, V newVal,
-                                            OakSerializer<V> serializer, MemoryManager memoryManager) {
-        ByteBuffer bb = lookUp.valueSlice.getByteBuffer();
-        int capacity = serializer.calculateSize(newVal);
-        if (bb.remaining() < capacity + ValueUtils.VALUE_HEADER_SIZE) { // can not reuse the existing space
-            if (!chunk.publish()) {
-                return ValueResult.MOVED;
-            }
-            bb.putInt(bb.position(), LockStates.MOVED.value);
-            ByteBuffer dup = bb.duplicate();
-            dup.position(dup.position() + ValueUtils.VALUE_HEADER_SIZE);
-            Slice s = lookUp.valueSlice;
-            assert s.validatePosition();
-            Slice sDup = new Slice(s.getBlockID(), dup);
-            memoryManager.releaseSlice(sDup);
-            s = memoryManager.allocateSlice(capacity + VALUE_HEADER_SIZE);
-            lookUp.valueSlice = s;
-            bb = s.getByteBuffer();
-            bb.putInt(bb.position(), LOCKED.value);
-            int valueBlockAndLength =
-                    (s.getBlockID() << VALUE_BLOCK_SHIFT) | ((capacity + VALUE_HEADER_SIZE) & VALUE_LENGTH_MASK);
-            assert chunk.casEntriesArrayLong(lookUp.entryIndex, Chunk.OFFSET.VALUE_REFERENCE, lookUp.valueReference,
-                    UnsafeUtils.intsToLong(valueBlockAndLength, bb.position()));
-            chunk.unpublish();
-        }
-        ByteBuffer dup = getValueByteBufferNoHeader(bb);
-        serializer.serialize(newVal, dup);
-        return SUCCESS;
-    }
+    /**
+     * @see #exchange(Chunk, Chunk.LookUp, Object, Function, OakSerializer, MemoryManager)
+     * Does not return the value previously written off-heap
+     */
+    <V> ValueResult put(Chunk<?, V> chunk, Chunk.LookUp lookUp, V newVal, OakSerializer<V> serializer,
+                        MemoryManager memoryManager);
 
     /**
      * @param s        the value Slice (including the header)
      * @param computer the function to apply on the Slice
-     * @return {@code SUCCESS} if the function was applied successfully,
+     * @param version  the expected version of the value pointed by {@code s}
+     * @return {@code TRUE} if the function was applied successfully,
      * {@code FAILURE} if the value is deleted,
      * {@code RETRY} if the value was moved.
      */
-    static ValueResult compute(Slice s, Consumer<OakWBuffer> computer) {
-        ByteBuffer bb = s.getByteBuffer();
-        ValueResult res = lockWrite(bb);
-        if (res != SUCCESS) {
-            return res;
-        }
-        OakWBuffer wBuffer = new OakWBufferImpl(bb);
-        computer.accept(wBuffer);
-        unlockWrite(bb);
-        return SUCCESS;
-    }
+    ValueResult compute(Slice s, Consumer<OakWBuffer> computer, int version);
 
     /**
-     * Marks a value as DELETED and frees its slice (not including the header).
+     * Marks a value as deleted and frees its slice (whether the header is freed or not is implementation dependant).
      *
      * @param s             the value Slice (including the header)
+     * @param version       the expected version of the value pointed by {@code s}
      * @param memoryManager the memory manager to which the slice is returned to
      * @param oldValue      in case of a conditional remove, this is the value to which the actual value is compared to
      * @param transformer   value deserializer
      * @param <V>           the type of the value
-     * @return {@code SUCCESS} if the value was removed successfully,
-     * {@code FAILURE} if the value is already deleted, or if it does not equal to {@code oldValue}
-     * {@code RETRY} if the value was moved.
-     * In case of success, the value of the returned entry is the value which resides in the off-heap before the
+     * @return {@code TRUE} if the value was removed successfully,
+     * {@code FALSE} if the value is already deleted, or if it does not equal to {@code oldValue}
+     * {@code RETRY} if the value was moved, or the version of the off-heap value does not match {@code version}.
+     * In case of success, the value of the returned Result is the value which was written in the off-heap before the
      * removal (if {@code transformer} is not null), otherwise, it is {@code null}.
      */
-    static <V> Result<V> remove(Slice s, MemoryManager memoryManager, V oldValue, Function<ByteBuffer
-            , V> transformer) {
-        ByteBuffer bb = s.getByteBuffer();
-        ValueResult res = lockWrite(bb);
-        if (res != SUCCESS) {
-            return Result.withFlag(res);
-        }
-        // Reading the previous value
-        ByteBuffer dup = bb.duplicate();
-        dup.position(dup.position() + ValueUtils.VALUE_HEADER_SIZE);
-        V v = null;
-        if (transformer != null) {
-            v = transformer.apply(dup.slice().asReadOnlyBuffer());
-            if (oldValue != null && !oldValue.equals(v)) {
-                unlockWrite(s);
-                return Result.withFlag(FAILURE);
-            }
-        }
-        // The previous value matches, so the slice is deleted
-        bb.putInt(bb.position(), DELETED.value);
-        assert s.validatePosition();
-        Slice sDup = new Slice(s.getBlockID(), dup);
-        memoryManager.releaseSlice(sDup);
-        return Result.withValue(v);
-    }
+    <V> Result<V> remove(Slice s, MemoryManager memoryManager, int version, V oldValue,
+                         Function<ByteBuffer, V> transformer);
 
     /**
-     * Replaces the value written in the Slice referenced by {@code lookup} with {@code newValue}.
-     * {@code chuck} is used iff {@code newValue} takes more space than the old value does.
+     * Replaces the value written in the Slice referenced by {@code lookUp} with {@code value}.
+     * {@code chuck} is used iff {@code newValue} takes more space than the old value does, meaning it has to move.
      * If the value moves, the old slice is marked as moved and freed.
      *
      * @param chunk                       the chunk with the entry to which the value is linked to
      * @param lookUp                      has the Slice of the value and the entry index
-     * @param newValue                    the new value to write
+     * @param value                       the new value to write
      * @param valueDeserializeTransformer used to read the previous value
      * @param serializer                  value serializer to write {@code newValue}
      * @param memoryManager               the memory manager to free a slice with is not needed after the value moved
      * @param <V>                         the type of the value
-     * @return {@code SUCCESS} if the value was written off-heap successfully,
-     * {@code FAILURE} if the value is deleted (cannot be overwritten),
-     * {@code RETRY} if the value was moved, or if the chuck is frozen/released (prevents the moving of the value).
+     * @return {@code TRUE} if the value was written off-heap successfully
+     * {@code FALSE} if the value is deleted (cannot be overwritten)
+     * {@code RETRY} if the value was moved, if the chuck is frozen/released (prevents the moving of the value), or
+     * if the version of the value does not match the version written inside {@code lookUp}.
      * Along side the flag of the result, in case the exchange succeeded, it also returns the value that
      * was written before the exchange.
      */
-    static <V> Result<V> exchange(Chunk<?, V> chunk, Chunk.LookUp lookUp, V newValue,
-                                  Function<ByteBuffer, V> valueDeserializeTransformer,
-                                  OakSerializer<V> serializer, MemoryManager memoryManager) {
-        ValueResult result = lockWrite(lookUp.valueSlice.getByteBuffer());
-        if (result != SUCCESS) {
-            return Result.withFlag(result);
-        }
-        V v = valueDeserializeTransformer != null ?
-                valueDeserializeTransformer.apply(getValueByteBufferNoHeader(lookUp.valueSlice.getByteBuffer())) : null;
-        result = innerPut(chunk, lookUp, newValue, serializer, memoryManager);
-        unlockWrite(lookUp.valueSlice.getByteBuffer());
-        if (result != SUCCESS) {
-            return Result.withFlag(result);
-        }
-        return Result.withValue(v);
-    }
+    <V> Result<V> exchange(Chunk<?, V> chunk, Chunk.LookUp lookUp, V value,
+                           Function<ByteBuffer, V> valueDeserializeTransformer, OakSerializer<V> serializer,
+                           MemoryManager memoryManager);
 
     /**
-     * @param oldValue the old value to which we compare the current value
-     * @return {@code SUCCESS} if the exchange went successfully,
-     * {@code FAILURE} if the value is deleted or if the value does not equal to {@code oldValue}
-     * {@code RETRY} for the same reasons as put
+     * @param expected the old value to which we compare the current value
+     * @return {@code TRUE} if the exchange went successfully
+     * {@code FAILURE} if the value is deleted or if the actual value referenced in {@code lookUp} does not equal to
+     * {@code expected}
+     * {@code RETRY} for the same reasons as exchange
      * @see #exchange(Chunk, Chunk.LookUp, Object, Function, OakSerializer, MemoryManager)
      */
-    static <V> ValueResult compareExchange(Chunk<?, V> chunk, Chunk.LookUp lookUp, V oldValue, V newValue,
-                                           Function<ByteBuffer, V> valueDeserializeTransformer,
-                                           OakSerializer<V> serializer, MemoryManager memoryManager) {
-        ValueResult result = lockWrite(lookUp.valueSlice.getByteBuffer());
-        if (result != SUCCESS) {
-            return result;
-        }
-        try {
-            V v = valueDeserializeTransformer.apply(getValueByteBufferNoHeader(lookUp.valueSlice.getByteBuffer()));
-            if (!v.equals(oldValue)) {
-                return FAILURE;
-            }
-            return innerPut(chunk, lookUp, newValue, serializer, memoryManager);
-        } finally {
-            unlockWrite(lookUp.valueSlice.getByteBuffer());
-        }
-    }
+    <V> ValueResult compareExchange(Chunk<?, V> chunk, Chunk.LookUp lookUp, V expected, V value, Function<ByteBuffer,
+            V> valueDeserializeTransformer, OakSerializer<V> serializer, MemoryManager memoryManager);
 }

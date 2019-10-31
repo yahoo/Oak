@@ -105,11 +105,11 @@ public class OakRReference implements OakRBuffer {
     public <T> T transform(Function<ByteBuffer, T> transformer) {
         // The new ByteBuffer object is created here via slice(), to be sure that (user provided)
         // transformer can not access anything beyond given ByteBuffer
-        ByteBuffer buffer = getTemporaryPerThreadByteBuffer().slice();
+        ByteBuffer buffer = getTemporaryPerThreadByteBuffer().asReadOnlyBuffer();
         if (headerSize != 0) {
-            buffer.position(headerSize);
-            buffer = buffer.slice();
+            buffer.position(buffer.position() + headerSize);
         }
+        buffer = buffer.slice();
         return transformer.apply(buffer);
     }
 
@@ -118,8 +118,8 @@ public class OakRReference implements OakRBuffer {
     // srcPosition = 0 if to start from the beginning
     @Override
     public void unsafeCopyBufferToIntArray(int srcPosition, int[] dstArray, int countInts) {
-        UnsafeUtils.unsafeCopyBufferToIntArray(getTemporaryPerThreadByteBuffer(), srcPosition + position + headerSize
-                , dstArray, countInts);
+        UnsafeUtils.unsafeCopyBufferToIntArray(getTemporaryPerThreadByteBuffer().slice(),
+                srcPosition + headerSize, dstArray, countInts);
 
     }
 

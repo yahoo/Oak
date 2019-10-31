@@ -20,7 +20,7 @@ import static org.junit.Assert.assertEquals;
 public class MultiThreadRangeTest {
 
     private OakMap<Integer, Integer> oak;
-    private final int NUM_THREADS = 1;
+    private final int NUM_THREADS = 31;
     private ArrayList<Thread> threads;
     private CountDownLatch latch;
     private int maxItemsPerChunk = 2048;

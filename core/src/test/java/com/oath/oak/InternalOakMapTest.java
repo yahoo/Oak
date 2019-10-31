@@ -19,11 +19,11 @@ public class InternalOakMapTest {
 
     @Before
     public void setUp() {
-        MemoryManager memoryManager = new MemoryManager(new OakNativeMemoryAllocator(128));
+        NovaManager memoryManager = new NovaManager(new OakNativeMemoryAllocator(128));
         int chunkMaxItems = 100;
 
-        testMap = new InternalOakMap<>(Integer.MIN_VALUE, IntegerOakMap.serializer, IntegerOakMap.serializer, IntegerOakMap.comparator,
-                memoryManager, chunkMaxItems);
+        testMap = new InternalOakMap<>(Integer.MIN_VALUE, IntegerOakMap.serializer, IntegerOakMap.serializer,
+                IntegerOakMap.comparator, memoryManager, chunkMaxItems, new ValueUtilsImpl());
     }
 
 
@@ -78,7 +78,8 @@ public class InternalOakMapTest {
 
         List<Thread> threadList = new ArrayList<>(results.length);
         threadList.add(new Thread(() -> results[0] = testMap.put(k, v1, IntegerOakMap.serializer::deserialize)));
-        threadList.add(new Thread(() -> results[1] = testMap.remove(k, null, InternalOakMapTest::slowDeserialize)));
+        threadList.add(new Thread(() -> results[1] =
+                testMap.remove(k, null, InternalOakMapTest::slowDeserialize).value));
         threadList.add(new Thread(() -> results[2] = testMap.put(k, v2, IntegerOakMap.serializer::deserialize)));
 
         runThreads(threadList);
@@ -97,8 +98,10 @@ public class InternalOakMapTest {
         testMap.put(k, v1, IntegerOakMap.serializer::deserialize);
 
         List<Thread> threadList = new ArrayList<>(results.length);
-        threadList.add(new Thread(() -> results[0] = testMap.remove(k, null, InternalOakMapTest::slowDeserialize)));
-        threadList.add(new Thread(() -> results[1] = testMap.remove(k, null, IntegerOakMap.serializer::deserialize)));
+        threadList.add(new Thread(() -> results[0] =
+                testMap.remove(k, null, InternalOakMapTest::slowDeserialize).value));
+        threadList.add(new Thread(() -> results[1] =
+                testMap.remove(k, null, IntegerOakMap.serializer::deserialize).value));
 
         runThreads(threadList);
 

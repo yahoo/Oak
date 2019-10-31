@@ -75,8 +75,6 @@ public class ChunkSplitTest {
         }
         for (int i = 0; i < 2 * maxItemsPerChunk; i++) {
             oak.zc().put(i, i);
-            value = oak.get(0);
-            assertEquals(0, value.intValue());
         }
         for (int i = 0; i < 2 * maxItemsPerChunk; i++) {
             value = oak.get(i);

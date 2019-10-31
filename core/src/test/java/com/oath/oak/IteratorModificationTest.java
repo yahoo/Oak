@@ -213,7 +213,9 @@ public class IteratorModificationTest {
                 e.printStackTrace();
             }
             try {
-                iterator.next();
+                if (iterator.next() == null) {
+                    passed.set(true);
+                }
             } catch (NoSuchElementException e) {
                 passed.set(true);
             }

@@ -14,9 +14,11 @@ import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicMarkableReference;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Consumer;
 
+import static com.oath.oak.ValueUtils.INVALID_VERSION;
+import static com.oath.oak.ValueUtils.ValueResult.*;
 import static com.oath.oak.UnsafeUtils.intsToLong;
+
 import static com.oath.oak.UnsafeUtils.longToInts;
 
 public class Chunk<K, V> {
@@ -29,10 +31,23 @@ public class Chunk<K, V> {
      */
     enum OFFSET {
         /***
-         * NEXT - the next index of this entry (one integer)
+         * NEXT - the next index of this entry (one integer). Must be with offset 0, otherwise, copying an entire
+         * entry should be fixed (In function {@code copyPartNoKeys}, search for "LABEL").
+         *
+         * KEY_REFERENCE - the blockID, length and position of the value pointed from this entry (size of two 
+         * integers, one long).
+         *
+         * KEY_POSITION
+         *
+         * KEY_BLOCK_AND_LENGTH - similar to VALUE_BLOCK_AND_LENGTH, but using KEY_LENGTH_MASK and KEY_BLOCK_SHIFT.
+         * The length of a key is limited to 32KB.
+         *
+         * KEY_BLOCK
+         *
+         * KEY_LENGTH
          *
          * VALUE_REFERENCE - the blockID, length and position of the value pointed from this entry (size of two
-         * integers, one long). Equals to DELETED_VALUE if no value is point.
+         * integers, one long). Equals to INVALID_VALUE_REFERENCE if no value is point.
          *
          * VALUE_POSITION
          *
@@ -45,18 +60,15 @@ public class Chunk<K, V> {
          *
          * VALUE_LENGTH
          *
-         * KEY_POSITION
          *
-         * KEY_BLOCK_AND_LENGTH - similar to VALUE_BLOCK_AND_LENGTH, but using KEY_LENGTH_MASK and KEY_BLOCK_SHIFT.
-         * The length of a key is limited to 32KB.
-         *
-         * KEY_BLOCK
-         *
-         * KEY_LENGTH
+         * VALUE_VERSION - as the name suggests this is the version of the value reference by VALUE_REFERENCE.
+         * It initially equals to INVALID_VERSION.
+         * If an entry with version v is removed, then this field is CASed to be -v after the value is marked
+         * off-heap and the value reference becomes INVALID_VALUE.
          */
-        NEXT(0), VALUE_REFERENCE(1), VALUE_POSITION(1), VALUE_BLOCK_AND_LENGTH(2), VALUE_BLOCK(2),
-        VALUE_LENGTH(2), KEY_REFERENCE(3), KEY_POSITION(3), KEY_BLOCK_AND_LENGTH(4), KEY_BLOCK(4),
-        KEY_LENGTH(4);
+        NEXT(0), KEY_REFERENCE(1), KEY_POSITION(1), KEY_BLOCK_AND_LENGTH(2), KEY_BLOCK(2), KEY_LENGTH(2),
+        VALUE_REFERENCE(3), VALUE_POSITION(3), VALUE_BLOCK_AND_LENGTH(4), VALUE_BLOCK(4), VALUE_LENGTH(4),
+        VALUE_VERSION(5);
 
         public final int value;
 
@@ -83,8 +95,9 @@ public class Chunk<K, V> {
     private static final int FIRST_ITEM = 1;
 
     private static final int FIELDS = 6;  // # of fields in each item of entries array
-    private static final int KEY_LENGTH_MASK = 0xffff; // 16 lower bits
-    private static final int KEY_BLOCK_SHIFT = 16;
+    // key block is part of key length integer, thus key length is limited to 65KB
+    static final int KEY_LENGTH_MASK = 0xffff; // 16 lower bits
+    static final int KEY_BLOCK_SHIFT = 16;
     // Assume the length of a value is up to 8MB because there can be up to 512 blocks
     static final int VALUE_LENGTH_MASK = 0x7fffff;
     static final int VALUE_BLOCK_SHIFT = 23;
@@ -121,6 +134,7 @@ public class Chunk<K, V> {
     // for writing the keys into the bytebuffers
     private final OakSerializer<K> keySerializer;
     private final OakSerializer<V> valueSerializer;
+    private final ValueUtils valueOperator;
 
     /*-------------- Constructors --------------*/
 
@@ -131,8 +145,8 @@ public class Chunk<K, V> {
      * @param creator the chunk that is responsible for this chunk creation
      */
     Chunk(ByteBuffer minKey, Chunk<K, V> creator, OakComparator<K> comparator, MemoryManager memoryManager,
-          int maxItems, AtomicInteger externalSize,
-          OakSerializer<K> keySerializer, OakSerializer<V> valueSerializer) {
+          int maxItems, AtomicInteger externalSize, OakSerializer<K> keySerializer, OakSerializer<V> valueSerializer,
+          ValueUtils valueOperator) {
         this.memoryManager = memoryManager;
         this.maxItems = maxItems;
         this.entries = new int[maxItems * FIELDS + FIRST_ITEM];
@@ -155,22 +169,22 @@ public class Chunk<K, V> {
 
         this.keySerializer = keySerializer;
         this.valueSerializer = valueSerializer;
+        this.valueOperator = valueOperator;
     }
 
     static class OpData {
-        final Operation op;
         final int entryIndex;
         final long newValueReference;
         long oldValueReference;
-        final Consumer<OakWBuffer> computer;
+        final int oldVersion;
+        final int newVersion;
 
-        OpData(Operation op, int entryIndex, long newValueReference, long oldValueReference,
-               Consumer<OakWBuffer> computer) {
-            this.op = op;
+        OpData(int entryIndex, long oldValueReference, long newValueReference, int oldVersion, int newVersion) {
             this.entryIndex = entryIndex;
             this.newValueReference = newValueReference;
             this.oldValueReference = oldValueReference;
-            this.computer = computer;
+            this.oldVersion = oldVersion;
+            this.newVersion = newVersion;
         }
     }
 
@@ -184,7 +198,7 @@ public class Chunk<K, V> {
     /**
      * performs CAS from 'expected' to 'value' for field at specified offset of given item in key array
      */
-    private boolean casEntriesArrayInt(int item, OFFSET offset, int expected, int value) {
+    boolean casEntriesArrayInt(int item, OFFSET offset, int expected, int value) {
         return unsafe.compareAndSwapInt(entries,
                 Unsafe.ARRAY_INT_BASE_OFFSET + (item + offset.value) * Unsafe.ARRAY_INT_INDEX_SCALE,
                 expected, value);
@@ -196,13 +210,12 @@ public class Chunk<K, V> {
                 expected, value);
     }
 
-
     /**
      * write key in slice
      **/
     private void writeKey(K key, int ei) {
         int keySize = keySerializer.calculateSize(key);
-        Slice s = memoryManager.allocateSlice(keySize);
+        Slice s = memoryManager.allocateSlice(keySize, MemoryManager.Allocate.KEY);
         // byteBuffer.slice() is set so it protects us from the overwrites of the serializer
         keySerializer.serialize(key, s.getByteBuffer().slice());
 
@@ -224,9 +237,9 @@ public class Chunk<K, V> {
 
         long keyReference = getKeyReference(entryIndex);
         int[] keyArray = longToInts(keyReference);
-        int blockID = keyArray[0] >> KEY_BLOCK_SHIFT;
-        int keyPosition = keyArray[1];
-        int length = keyArray[0] & KEY_LENGTH_MASK;
+        int blockID = keyArray[BLOCK_ID_LENGTH_ARRAY_INDEX] >> KEY_BLOCK_SHIFT;
+        int keyPosition = keyArray[POSITION_ARRAY_INDEX];
+        int length = keyArray[BLOCK_ID_LENGTH_ARRAY_INDEX] & KEY_LENGTH_MASK;
 
         return memoryManager.getByteBufferFromBlockID(blockID, keyPosition, length);
     }
@@ -259,9 +272,9 @@ public class Chunk<K, V> {
         }
         int[] valueArray = longToInts(valueReference);
         int blockID = valueArray[BLOCK_ID_LENGTH_ARRAY_INDEX] >> VALUE_BLOCK_SHIFT;
-        int keyPosition = valueArray[POSITION_ARRAY_INDEX];
+        int valuePosition = valueArray[POSITION_ARRAY_INDEX];
         int length = valueArray[BLOCK_ID_LENGTH_ARRAY_INDEX] & VALUE_LENGTH_MASK;
-        value.setReference(blockID, keyPosition, length);
+        value.setReference(blockID, valuePosition, length);
         return true;
     }
 
@@ -271,9 +284,9 @@ public class Chunk<K, V> {
     void releaseKey(int entryIndex) {
         long keyReference = getKeyReference(entryIndex);
         int[] keyArray = longToInts(keyReference);
-        int blockID = keyArray[0] >> KEY_BLOCK_SHIFT;
-        int keyPosition = keyArray[1];
-        int length = keyArray[0] & KEY_LENGTH_MASK;
+        int blockID = keyArray[BLOCK_ID_LENGTH_ARRAY_INDEX] >> KEY_BLOCK_SHIFT;
+        int keyPosition = keyArray[POSITION_ARRAY_INDEX];
+        int length = keyArray[BLOCK_ID_LENGTH_ARRAY_INDEX] & KEY_LENGTH_MASK;
         Slice s = new Slice(blockID, keyPosition, length, memoryManager);
 
         memoryManager.releaseSlice(s);
@@ -287,6 +300,10 @@ public class Chunk<K, V> {
     ByteBuffer readMaxKey() {
         int maxEntry = getLastItemEntryIndex();
         return readKey(maxEntry);
+    }
+
+    private int getValueVersion(int item) {
+        return getEntryFieldInt(item, OFFSET.VALUE_VERSION);
     }
 
     /**
@@ -365,13 +382,6 @@ public class Chunk<K, V> {
         unsafe.putLongVolatile(entries, arrayOffset, value);
     }
 
-    /**
-     * gets the value for the given item, or 'null' if it doesn't exist
-     */
-    Slice getValueSlice(int entryIndex) {
-        return buildValueSlice(getValueReference(entryIndex));
-    }
-
     Slice buildValueSlice(long valueReference) {
         if (valueReference == INVALID_VALUE_REFERENCE) {
             return null;
@@ -387,13 +397,106 @@ public class Chunk<K, V> {
         return getEntryFieldLong(entryIndex, OFFSET.VALUE_REFERENCE);
     }
 
+    /**
+     * Atomically reads both the value reference and its value. It does that by using the atomic snapshot technique
+     * (reading the version, then the reference, and finally the version again, checking that it matches the version
+     * read previously). Since a snapshot is used, the LP is when reading the value reference, if the versions match,
+     * otherwise, the operation restarts.
+     *
+     * @param entryIndex The entry of which the reference and version are read
+     * @param version    an output parameter to return the version
+     * @return the read value reference
+     */
+    long getValueReferenceAndVersion(int entryIndex, int[] version) {
+        long valueReference;
+        int v;
+        do {
+            v = getValueVersion(entryIndex);
+            valueReference = getValueReference(entryIndex);
+        } while (v != getValueVersion(entryIndex));
+        version[0] = v;
+        return valueReference;
+    }
+
+    /**
+     * This function completes the insertion of a value to Oak. When inserting a value, the value reference is CASed
+     * inside the entry and only then the version is CASed. Thus, there can be a time in which the version is
+     * INVALID_VERSION or a negative one. In this function, the version is CASed to complete the insertion.
+     * <p>
+     * The version written to entry is the version written in the off-heap memory. There is no worry of concurrent
+     * removals since these removals will have to first call this function as well, and they eventually change the
+     * version as well.
+     *
+     * @param lookUp - It holds the entry to CAS, the previously written version of this entry and the value
+     *               reference from which the correct version is read.
+     * @return a version is returned.
+     * If it is {@code INVALID_VERSION} it means that a CAS was not preformed. Otherwise, a positive version is
+     * returned, and it the version written to the entry (maybe by some other thread).
+     * <p>
+     * Note that the version in the input param {@code lookUp} is updated to be the right one if a valid version was
+     * returned.
+     */
+    int completeLinking(LookUp lookUp) {
+        int entryVersion = lookUp.version;
+        // no need to complete a thing
+        if (entryVersion > INVALID_VERSION) {
+            return entryVersion;
+        }
+        if (!publish()) {
+            return INVALID_VERSION;
+        }
+        try {
+            Slice valueSlice = buildValueSlice(lookUp.valueReference);
+            int offHeapVersion = valueOperator.getOffHeapVersion(valueSlice);
+            casEntriesArrayInt(lookUp.entryIndex, OFFSET.VALUE_VERSION, entryVersion, offHeapVersion);
+            lookUp.version = offHeapVersion;
+            return offHeapVersion;
+        } finally {
+            unpublish();
+        }
+    }
+
+    /**
+     * As written in {@code completeLinking(LookUp)}, when changing an entry, the value reference is CASed first and
+     * later the value version, and the same applies when removing a value. However, there is another step before
+     * changing an entry to remove a value and it is marking the value off-heap (the LP). This function is used to
+     * first CAS the value reference to {@code INVALID_VALUE_REFERENCE} and then CAS the version to be a negative one.
+     * Other threads seeing a marked value call this function before they proceed (e.g., before performing a
+     * successful {@code putIfAbsent}).
+     *
+     * @param lookUp - holds the entry to change, the old value reference to CAS out, and the current value version.
+     * @return {@code true} if a rebalance is needed
+     */
+    boolean finalizeDeletion(LookUp lookUp) {
+        int version = lookUp.version;
+        if (version <= INVALID_VERSION) {
+            return false;
+        }
+        if (!publish()) {
+            return true;
+        }
+        try {
+            casEntriesArrayLong(lookUp.entryIndex, OFFSET.VALUE_REFERENCE, lookUp.valueReference,
+                    INVALID_VALUE_REFERENCE);
+            if (!casEntriesArrayInt(lookUp.entryIndex, OFFSET.VALUE_VERSION, version, -version)) {
+                return false;
+            }
+            externalSize.decrementAndGet();
+            statistics.decrementAddedCount();
+            return false;
+        } finally {
+            unpublish();
+        }
+    }
+
     // Atomically reads the value reference from the entry array
     long getKeyReference(int entryIndex) {
         return getEntryFieldLong(entryIndex, OFFSET.KEY_REFERENCE);
     }
 
+    // Use this function to release an unreachable value reference
     void releaseValue(long newValueReference) {
-        memoryManager.releaseSlice(buildValueSlice(newValueReference).duplicate());
+        memoryManager.releaseSlice(buildValueSlice(newValueReference));
     }
 
     /**
@@ -427,18 +530,23 @@ public class Chunk<K, V> {
             }
             // if keys are equal - we've found the item
             else if (cmp == 0) {
-                long valueReference = getValueReference(curr);
+                long valueReference;
+                int[] version = new int[1];
+                // Atomic snapshot of version and value reference
+                valueReference = getValueReferenceAndVersion(curr, version);
                 Slice valueSlice = buildValueSlice(valueReference);
                 if (valueSlice == null) {
                     // There is no value associated with the given key
                     assert valueReference == INVALID_VALUE_REFERENCE;
-                    return new LookUp(null, valueReference, curr);
+                    return new LookUp(null, valueReference, curr, version[0]);
                 }
-                if (ValueUtils.isValueDeleted(valueSlice)) {
+                ValueUtils.ValueResult result = valueOperator.isValueDeleted(valueSlice, version[0]);
+                if (result == TRUE) {
                     // There is a deleted value associated with the given key
-                    return new LookUp(null, valueReference, curr);
+                    return new LookUp(null, valueReference, curr, version[0]);
                 }
-                return new LookUp(valueSlice, valueReference, curr);
+                // If result == RETRY, we ignore it, since it will be discovered later down the line as well
+                return new LookUp(valueSlice, valueReference, curr, version[0]);
             }
             // otherwise- proceed to next item
             else {
@@ -460,16 +568,27 @@ public class Chunk<K, V> {
         /**
          * valueReference is composed of 3 numbers: block ID, value position and value length. All these numbers are
          * squashed together into a long using the VALUE masks, shifts and indices.
-         * When it equals to {@code INVALID_VALUE} is means that there is no value referenced from entryIndex.
+         * When it equals to {@code INVALID_VALUE_REFERENCE} is means that there is no value referenced from entryIndex.
          * This field is usually used for CAS purposes since it sits in each entry.
          */
         final long valueReference;
         final int entryIndex;
+        /**
+         * This is the version of the value referenced by {@code valueReference}.
+         * If {@code valueReference == INVALID_VALUE_REFERENCE}, then:
+         * {@code version <= INVALID_VERSION} if the removal was completed.
+         * {@code version > INVALID_VERSION} if the removal was not completed.
+         * else
+         * {@code version <= INVALID_VERSION} if the insertion was not completed.
+         * {@code version > INVALID_VERSION} if the insertion was completed.
+         */
+        int version;
 
-        LookUp(Slice valueSlice, long valueReference, int entryIndex) {
+        LookUp(Slice valueSlice, long valueReference, int entryIndex, int version) {
             this.valueSlice = valueSlice;
             this.valueReference = valueReference;
             this.entryIndex = entryIndex;
+            this.version = version;
         }
     }
 
@@ -542,6 +661,7 @@ public class Chunk<K, V> {
         // key and value must be set before linking to the list so it will make sense when reached before put is done
         // setting the value reference to DELETED_VALUE atomically
         setEntryFieldLong(ei, OFFSET.VALUE_REFERENCE, INVALID_VALUE_REFERENCE);
+        setEntryFieldInt(ei, OFFSET.VALUE_VERSION, INVALID_VERSION);
         writeKey(key, ei);
         return ei;
     }
@@ -614,17 +734,18 @@ public class Chunk<K, V> {
      * @param value the value to write off-heap
      * @return a value reference for the newly allocated slice
      **/
-    long writeValue(V value) {
+    long writeValue(V value, int[] version) {
         // the length of the given value plus its header
-        int valueLength = valueSerializer.calculateSize(value) + ValueUtils.VALUE_HEADER_SIZE;
+        int valueLength = valueSerializer.calculateSize(value) + valueOperator.getHeaderSize();
         // The allocated slice is actually the thread's copy moved to point to the newly allocated slice
-        Slice slice = memoryManager.allocateSlice(valueLength);
+        Slice slice = memoryManager.allocateSlice(valueLength, MemoryManager.Allocate.VALUE);
+        version[0] = slice.getByteBuffer().getInt(slice.getByteBuffer().position());
         // initializing the header lock to be free
-        slice.initHeader();
+        slice.initHeader(valueOperator);
         // since this is a private environment, we can only use ByteBuffer::slice, instead of ByteBuffer::duplicate
         // and then ByteBuffer::slice
         // This is the only place where we create a new object (for the serializer).
-        valueSerializer.serialize(value, ValueUtils.getValueByteBufferNoHeaderPrivate(slice.getByteBuffer()));
+        valueSerializer.serialize(value, valueOperator.getValueByteBufferNoHeaderPrivate(slice));
         // combines the blockID with the value's length (including the header)
         int valueBlockAndLength = (slice.getBlockID() << VALUE_BLOCK_SHIFT) | (valueLength & VALUE_LENGTH_MASK);
         return intsToLong(valueBlockAndLength, slice.getByteBuffer().position());
@@ -635,76 +756,25 @@ public class Chunk<K, V> {
     }
 
     /**
-     * Updates a linked entry to point to a new value reference or otherwise removes such a link. For linkage this is
-     * an insert linearization point.
-     * All the relevant data can be found inside opData.
-     * <p>
-     * return true if operation was successful, false to indicate restart required
+     * This function does the physical CAS of the value reference, which is the LP of the insertion. It then tries to
+     * complete the insertion (@see #completeLinking(LookUp)).
+     * This is also the only place in which the size of Oak is updated.
+     *
+     * @param opData - holds the entry to which the value reference is linked, the old and new value references and
+     *               the old and new value versions.
+     * @return {@code true} if the value reference was CASed successfully.
      */
-    boolean pointToValue(OpData opData) {
-
-        // try to perform the CAS according to operation data (opData)
-        if (pointToValueCAS(opData)) {
-            return true;
-        }
-
-        // the straight forward helping didn't work, check why
-        Operation operation = opData.op;
-
-        // the operation is remove, means we tried to change the value reference we knew about to DELETED_VALUE
-        // the old value reference is no longer there so we have nothing to do. Note that in case of non-ZC removal the
-        // loop in remove() will lookup the key again so we will still return the previous value
-        if (operation == Operation.REMOVE) {
-            return true; // this is a remove, no need to try again and return doesn't matter
-        }
-
-        // the operation is either NO_OP, PUT, PUT_IF_ABSENT, COMPUTE
-        long foundValueReference = getValueReference(opData.entryIndex);
-
-        if (opData.newValueReference == foundValueReference) {
-            return true; // someone helped
-        } else if (foundValueReference == INVALID_VALUE_REFERENCE) {
-            // the value reference was deleted, retry the attach
-            opData.oldValueReference = INVALID_VALUE_REFERENCE;
-            return pointToValue(opData); // remove completed, try again
-        } else if (operation == Operation.PUT_IF_ABSENT) {
-            return false; // too late
-        } else if (operation == Operation.COMPUTE) {
-            Slice valueSlice = buildValueSlice(foundValueReference);
-            ValueUtils.ValueResult succ = ValueUtils.compute(valueSlice, opData.computer);
-
-            if (succ != ValueUtils.ValueResult.SUCCESS) {
-                // we tried to perform the compute but the value was deleted,
-                // we can get to pointToValue with Operation.COMPUTE only from PIACIP
-                // retry to make a put and to attach the new value
-                opData.oldValueReference = foundValueReference;
-                return pointToValue(opData);
-            }
-        }
-        // This is a put, in which case operation should restart,
-        // or PIACIP compute happened, which should return false
-        return false;
-    }
-
-    /**
-     * used by put/putIfAbsent/remove and rebalancer
-     */
-    private boolean pointToValueCAS(OpData opData) {
-        if (casEntriesArrayLong(opData.entryIndex, OFFSET.VALUE_REFERENCE, opData.oldValueReference,
+    ValueUtils.ValueResult linkValue(OpData opData) {
+        if (!casEntriesArrayLong(opData.entryIndex, OFFSET.VALUE_REFERENCE, opData.oldValueReference,
                 opData.newValueReference)) {
-            // update statistics only by thread that CASed
-            if (opData.oldValueReference == INVALID_VALUE_REFERENCE && opData.newValueReference != INVALID_VALUE_REFERENCE) {
-                // previously a remove
-                statistics.incrementAddedCount();
-                externalSize.incrementAndGet();
-            } else if (opData.oldValueReference != INVALID_VALUE_REFERENCE && opData.newValueReference == INVALID_VALUE_REFERENCE) {
-                // removing
-                statistics.decrementAddedCount();
-                externalSize.decrementAndGet();
-            }
-            return true;
+            return FALSE;
         }
-        return false;
+        casEntriesArrayInt(opData.entryIndex, OFFSET.VALUE_VERSION, opData.oldVersion, opData.newVersion);
+        assert opData.oldValueReference == INVALID_VALUE_REFERENCE;
+        assert opData.newValueReference != INVALID_VALUE_REFERENCE;
+        statistics.incrementAddedCount();
+        externalSize.incrementAndGet();
+        return TRUE;
     }
 
     /**
@@ -815,13 +885,14 @@ public class Chunk<K, V> {
         boolean isFirstInInterval = true;
 
         while (true) {
-            long currSrcValueReference = srcChunk.getValueReference(srcEntryIdx);
+            int[] currSrcValueVersion = new int[1];
+            long currSrcValueReference = srcChunk.getValueReferenceAndVersion(srcEntryIdx, currSrcValueVersion);
             boolean isValueDeleted = (currSrcValueReference == INVALID_VALUE_REFERENCE) ||
-                    ValueUtils.isValueDeleted(buildValueSlice(currSrcValueReference));
+                    valueOperator.isValueDeleted(buildValueSlice(currSrcValueReference), currSrcValueVersion[0]) != FALSE;
             int entriesToCopy = entryIndexEnd - entryIndexStart + 1;
 
             // try to find a continuous interval to copy
-            // we cannot enlarge interval: if key is removed (value reference is DELETED_VALUE) or
+            // we cannot enlarge interval: if key is removed (value reference is INVALID_VALUE_REFERENCE) or
             // if this chunk already has all entries to start with
             if (!isValueDeleted && (sortedEntryIndex + entriesToCopy * FIELDS < maxIdx)) {
                 // we can enlarge the interval, if it is otherwise possible:
@@ -847,14 +918,15 @@ public class Chunk<K, V> {
                     entries[sortedEntryIndex + offset + OFFSET.NEXT.value]
                             = sortedEntryIndex + offset + FIELDS;
 
-                    // copy both the key and the value references (without the padding) => 4 integers via array copy
+                    // LABEL: using next as the base of the entry
+                    // copy both the key and the value references the value's version => 5 integers via array copy
                     // the first field in an entry is next, and it is not copied since it was assign
                     // therefore, to copy the rest of the entry we use the offset of next (which we assume is 0) and
                     // add 1 to start the copying from the subsequent field of the entry.
                     System.arraycopy(srcChunk.entries,  // source array
                             entryIndexStart + offset + OFFSET.NEXT.value + 1,
-                            entries,                        // destination aray
-                            sortedEntryIndex + offset + OFFSET.NEXT.value + 1, (FIELDS - 2));
+                            entries,                        // destination array
+                            sortedEntryIndex + offset + OFFSET.NEXT.value + 1, (FIELDS - 1));
                 }
 
                 sortedEntryIndex += entriesToCopy * FIELDS; // update

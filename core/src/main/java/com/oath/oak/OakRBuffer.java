@@ -16,8 +16,6 @@ import java.util.function.Function;
  * Pay attention! There is no need to wrap each OakRBuffer interface implementation
  * with attach/detach thread, because OakRKeyBufferImpl is used only within keyIterator, which
  * has attach/detach thread on its own. For the same reason here is no transform() method.
- * On another hand OakRValueBufferImpl has reference to handle which has delete bit and has JVM GC
- * protection.
  */
 public interface OakRBuffer {
 

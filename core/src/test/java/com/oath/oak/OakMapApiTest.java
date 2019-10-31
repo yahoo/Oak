@@ -166,7 +166,7 @@ public class OakMapApiTest {
         /* Replace(K, V, V) */
         assertFalse("Replacing non-matching value should return false", oak.replace(key, val1, val2));
         assertTrue("Replacing non-matching value should return true", oak.replace(key, val2, val1));
-        assertEquals("Replacing existing key should replace the value", val1, (int) oak.get(key));
+        assertEquals("Replacing existing key should replace the value", val1, oak.get(key).intValue());
     }
 
     @Test

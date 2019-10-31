@@ -1,5 +1,6 @@
 package com.oath.oak.synchrobench.contention.benchmark;
 
+import com.oath.oak.NativeAllocator.OakNativeMemoryAllocator;
 import com.oath.oak.synchrobench.contention.abstractions.CompositionalMap;
 import com.oath.oak.synchrobench.contention.abstractions.CompositionalOakMap;
 import com.oath.oak.synchrobench.contention.abstractions.MaintenanceAlg;
@@ -75,7 +76,6 @@ public class Test {
      */
     private Type benchType = null;
     private CompositionalOakMap<MyBuffer, MyBuffer> oakBench = null;
-    /** The instance of the benchmark */
     /**
      * The benchmark methods
      */
@@ -189,7 +189,11 @@ public class Test {
 
         System.out.println("\n" + message);
         System.out.println((float) (heapSize - heapFreeSize) / (1024 * 1024));
-        System.out.println((float) (((OakMap) oakBench).getMemoryAllocator().allocated()) / (1024 * 1024));
+        try {
+            System.out.println((float) (((OakMap) oakBench).getMemoryAllocator().allocated()) / (1024 * 1024));
+        } catch (ClassCastException ignored) {
+            System.out.println("Cannot Print Off-Heap Stats for non-Oak Maps.");
+        }
     }
 
     /**
@@ -205,9 +209,8 @@ public class Test {
         double initTime = ((double) (System.currentTimeMillis() - startTime)) / 1000.0;
         System.out.println("Initialization complete in (s) " + initTime + " operations " + count);
         printHeapStats("After");
-        System.out.println("Initialization complete. ");
 
-        Thread.sleep(5000);
+//        Thread.sleep(5000);
         startTime = System.currentTimeMillis();
         for (Thread thread : threads)
             thread.start();
@@ -252,8 +255,9 @@ public class Test {
             test.execute(Parameters.warmUp * 1000, true);
             // give time to the JIT
             Thread.sleep(1000);
-            if (Parameters.detailedStats)
+            if (Parameters.detailedStats) {
                 test.recordPreliminaryStats();
+            }
             test.clear();
             test.resetStats();
             System.out.println("Warmup complete");
@@ -308,74 +312,90 @@ public class Test {
             String currentArg = args[argNumber++];
 
             try {
-                if (currentArg.equals("--help") || currentArg.equals("-h")) {
-                    printUsage();
-                    System.exit(0);
-                } else if (currentArg.equals("--verbose")
-                        || currentArg.equals("-e")) {
-                    Parameters.detailedStats = true;
-                } else if (currentArg.equals("--change")
-                        || currentArg.equals("-c")) {
-                    Parameters.change = true;
-                } else if (currentArg.equals("--stream-iteration") || currentArg.equals("-si")){
-                    Parameters.streamIteration = true;
-                } else if (currentArg.equals("--buffer")) {
-                    Parameters.zeroCopy = true;
-                } else if (currentArg.equals("--inc")) {
-                    Parameters.keyDistribution = Parameters.KeyDist.INCREASING;
-                } else {
-                    String optionValue = args[argNumber++];
-                    if (currentArg.equals("--thread-nums")
-                            || currentArg.equals("-t"))
-                        Parameters.numThreads = Integer.parseInt(optionValue);
-                    else if (currentArg.equals("--duration")
-                            || currentArg.equals("-d"))
-                        Parameters.numMilliseconds = Integer
-                                .parseInt(optionValue);
-                    else if (currentArg.equals("--updates")
-                            || currentArg.equals("-u"))
-                        Parameters.numWrites = Integer.parseInt(optionValue);
-                    else if (currentArg.equals("--writeAll")
-                            || currentArg.equals("-a"))
-                        Parameters.numWriteAlls = Integer.parseInt(optionValue);
-                    else if (currentArg.equals("--snapshots")
-                            || currentArg.equals("-s"))
-                        Parameters.numSnapshots = Integer.parseInt(optionValue);
-                    else if (currentArg.equals("--size")
-                            || currentArg.equals("-i"))
-                        Parameters.size = Integer.parseInt(optionValue);
-                    else if (currentArg.equals("--range")
-                            || currentArg.equals("-r"))
-                        Parameters.range = Integer.parseInt(optionValue);
-                    else if (currentArg.equals("--Warmup")
-                            || currentArg.equals("-W"))
-                        Parameters.warmUp = Integer.parseInt(optionValue);
-                    else if (currentArg.equals("--benchmark")
-                            || currentArg.equals("-b"))
-                        Parameters.benchClassName = optionValue;
-                    else if (currentArg.equals("--iterations")
-                            || currentArg.equals("-n"))
-                        Parameters.iterations = Integer.parseInt(optionValue);
-                    else if (currentArg.equals("--keySize")
-                            || currentArg.equals("-k"))
-                        Parameters.keySize = Integer.parseInt(optionValue);
-                    else if (currentArg.equals("--valSize")
-                            || currentArg.equals("-v"))
-                        Parameters.valSize = Integer.parseInt(optionValue);
+                switch (currentArg) {
+                    case "--help":
+                    case "-h":
+                        printUsage();
+                        System.exit(0);
+                    case "--verbose":
+                    case "-e":
+                        Parameters.detailedStats = true;
+                        break;
+                    case "--change":
+                    case "-c":
+                        Parameters.change = true;
+                        break;
+                    case "--stream-iteration":
+                    case "-si":
+                        Parameters.streamIteration = true;
+                        break;
+                    case "--buffer":
+                        Parameters.zeroCopy = true;
+                        break;
+                    case "--inc":
+                        Parameters.keyDistribution = Parameters.KeyDist.INCREASING;
+                        break;
+                    case "--thread-nums":
+                    case "-t":
+                        Parameters.numThreads = Integer.parseInt(args[argNumber++]);
+                        break;
+                    case "--duration":
+                    case "-d":
+                        Parameters.numMilliseconds = Integer.parseInt(args[argNumber++]);
+                        break;
+                    case "--updates":
+                    case "-u":
+                        Parameters.numWrites = Integer.parseInt(args[argNumber++]);
+                        break;
+                    case "--writeAll":
+                    case "-a":
+                        Parameters.numWriteAlls = Integer.parseInt(args[argNumber++]);
+                        break;
+                    case "--snapshots":
+                    case "-s":
+                        Parameters.numSnapshots = Integer.parseInt(args[argNumber++]);
+                        break;
+                    case "--size":
+                    case "-i":
+                        Parameters.size = Integer.parseInt(args[argNumber++]);
+                        break;
+                    case "--range":
+                    case "-r":
+                        Parameters.range = Integer.parseInt(args[argNumber++]);
+                        break;
+                    case "--Warmup":
+                    case "-W":
+                        Parameters.warmUp = Integer.parseInt(args[argNumber++]);
+                        break;
+                    case "--benchmark":
+                    case "-b":
+                        Parameters.benchClassName = args[argNumber++];
+                        break;
+                    case "--iterations":
+                    case "-n":
+                        Parameters.iterations = Integer.parseInt(args[argNumber++]);
+                        break;
+                    case "--keySize":
+                    case "-k":
+                        Parameters.keySize = Integer.parseInt(args[argNumber++]);
+                        break;
+                    case "--valSize":
+                    case "-v":
+                        Parameters.valSize = Integer.parseInt(args[argNumber++]);
+                        break;
                 }
             } catch (IndexOutOfBoundsException e) {
-                System.err.println("Missing value after option: " + currentArg
-                        + ". Ignoring...");
+                System.err.println("Missing value after option: " + currentArg + ". Ignoring...");
             } catch (NumberFormatException e) {
-                System.err.println("Number expected after option:  "
-                        + currentArg + ". Ignoring...");
+                System.err.println("Number expected after option: " + currentArg + ". Ignoring...");
             }
         }
         assert (Parameters.range >= Parameters.size);
-        if (Parameters.range != 2 * Parameters.size)
-            System.err
-                    .println("Note that the value range is not twice "
-                            + "the initial size, thus the size expectation varies at runtime.");
+        if (Parameters.range != 2 * Parameters.size) {
+            System.err.println("Note that the value range is not twice the initial size, thus the size " +
+                    "expectation varies at runtime.");
+        }
+
     }
 
     /**
@@ -572,8 +592,9 @@ public class Test {
         switch (benchType) {
             case OAKMAP:
                 System.out.println("  Final size:              \t" + totalSize[currentIteration]);
-                if (Parameters.numWriteAlls == 0)
+                if (Parameters.numWriteAlls == 0) {
                     System.out.println("  Expected size:           \t" + (Parameters.size + numAdd - numRemove));
+                }
                 break;
         }
 

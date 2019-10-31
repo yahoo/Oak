@@ -59,7 +59,11 @@ public class OakMap<K extends MyBuffer, V extends MyBuffer> implements Compositi
 
     @Override
     public void removeOak(K key) {
-        oak.remove(key);
+        if (Parameters.zeroCopy) {
+            oak.zc().remove(key);
+        } else {
+            oak.remove(key);
+        }
     }
 
     @Override

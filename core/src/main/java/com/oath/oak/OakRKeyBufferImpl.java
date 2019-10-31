@@ -10,67 +10,83 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.function.Function;
 
+import static com.oath.oak.Chunk.BLOCK_ID_LENGTH_ARRAY_INDEX;
+import static com.oath.oak.Chunk.KEY_BLOCK_SHIFT;
+import static com.oath.oak.Chunk.KEY_LENGTH_MASK;
+import static com.oath.oak.Chunk.POSITION_ARRAY_INDEX;
+import static com.oath.oak.UnsafeUtils.longToInts;
+
 public class OakRKeyBufferImpl implements OakRBuffer {
 
-    private final ByteBuffer byteBuffer;
+    private final long keyReference;
+    private final MemoryManager memoryManager;
+    private final int initialPosition;
 
-    OakRKeyBufferImpl(ByteBuffer byteBuffer) {
-        this.byteBuffer = byteBuffer;
+    OakRKeyBufferImpl(long keyReference, MemoryManager memoryManager) {
+        this.keyReference = keyReference;
+        this.memoryManager = memoryManager;
+        this.initialPosition = longToInts(keyReference)[POSITION_ARRAY_INDEX];
+    }
+
+    private ByteBuffer getKeyBuffer() {
+        int[] keyArray = longToInts(keyReference);
+        return memoryManager.getByteBufferFromBlockID(keyArray[BLOCK_ID_LENGTH_ARRAY_INDEX] >>> KEY_BLOCK_SHIFT, keyArray[POSITION_ARRAY_INDEX],
+                keyArray[BLOCK_ID_LENGTH_ARRAY_INDEX] & KEY_LENGTH_MASK);
     }
 
     @Override
     public int capacity() {
-        return byteBuffer.capacity();
+        return longToInts(keyReference)[BLOCK_ID_LENGTH_ARRAY_INDEX] & KEY_LENGTH_MASK;
     }
 
     @Override
     public byte get(int index) {
-        return byteBuffer.get(index);
+        return getKeyBuffer().get(index + initialPosition);
     }
 
     @Override
     public ByteOrder order() {
-        return byteBuffer.order();
+        return getKeyBuffer().order();
     }
 
     @Override
     public char getChar(int index) {
-        return byteBuffer.getChar(index);
+        return getKeyBuffer().getChar(index + initialPosition);
     }
 
     @Override
     public short getShort(int index) {
-        return byteBuffer.getShort(index);
+        return getKeyBuffer().getShort(index + initialPosition);
     }
 
     @Override
     public int getInt(int index) {
-        return byteBuffer.getInt(index);
+        return getKeyBuffer().getInt(index + initialPosition);
     }
 
     @Override
     public long getLong(int index) {
-        return byteBuffer.getLong(index);
+        return getKeyBuffer().getLong(index + initialPosition);
     }
 
     @Override
     public float getFloat(int index) {
-        return byteBuffer.getFloat(index);
+        return getKeyBuffer().getFloat(index + initialPosition);
     }
 
     @Override
     public double getDouble(int index) {
-        return byteBuffer.getChar(index);
+        return getKeyBuffer().getChar(index + initialPosition);
     }
 
     @Override
     public <T> T transform(Function<ByteBuffer, T> transformer) {
-        return transformer.apply(byteBuffer);
+        return transformer.apply(getKeyBuffer().slice().asReadOnlyBuffer());
     }
 
     @Override
     public void unsafeCopyBufferToIntArray(int srcPosition, int[] dstArray, int countInts) {
-        UnsafeUtils.unsafeCopyBufferToIntArray(byteBuffer, srcPosition, dstArray, countInts);
+        UnsafeUtils.unsafeCopyBufferToIntArray(getKeyBuffer().slice(), srcPosition, dstArray, countInts);
     }
 
 }

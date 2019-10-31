@@ -11,115 +11,163 @@ import java.nio.ByteOrder;
 import java.util.ConcurrentModificationException;
 import java.util.function.Function;
 
+import static com.oath.oak.Chunk.BLOCK_ID_LENGTH_ARRAY_INDEX;
+import static com.oath.oak.Chunk.POSITION_ARRAY_INDEX;
+import static com.oath.oak.Chunk.VALUE_BLOCK_SHIFT;
+import static com.oath.oak.Chunk.VALUE_LENGTH_MASK;
+import static com.oath.oak.ValueUtils.ValueResult.*;
+
 public class OakRValueBufferImpl implements OakRBuffer {
+    /**
+     * These are the fields used when accessing the value stored in this buffer (the reference to it in the off-heap,
+     * and the version we expect the value to have.
+     */
+    private long valueReference;
+    private int version;
+    /**
+     * In case the version of the value pointed by {@code valueReference} does not match {@code version}, we assume
+     * the value was moved and thus issue a search for this value. For that reason we have this field of the original
+     * key of the original value. If the value was moved, using this key we are able to find it in Oak, or determine
+     * it was deleted.
+     */
+    private final long keyReference;
+    private final ValueUtils valueOperator;
+    /**
+     * Since not the actual ByteBuffer is stored, but rather the reference to it, we use the memory manager to
+     * reconstruct the ByteBuffer on demand.
+     */
+    private final MemoryManager memoryManager;
+    /**
+     * In case of a search, this is the map we search in.
+     */
+    private final InternalOakMap<?, ?> internalOakMap;
 
-    private ByteBuffer bb;
+    OakRValueBufferImpl(long valueReference, int valueVersion, long keyReference, ValueUtils valueOperator,
+                        MemoryManager memoryManager, InternalOakMap<?, ?> internalOakMap) {
+        this.valueReference = valueReference;
+        this.keyReference = keyReference;
+        this.version = valueVersion;
+        this.valueOperator = valueOperator;
+        this.memoryManager = memoryManager;
+        this.internalOakMap = internalOakMap;
+    }
 
-    OakRValueBufferImpl(ByteBuffer bb) {
-        this.bb = bb;
+    private Slice getValueSlice() {
+        int[] valueArray = UnsafeUtils.longToInts(valueReference);
+        return memoryManager.getSliceFromBlockID(valueArray[BLOCK_ID_LENGTH_ARRAY_INDEX] >>> VALUE_BLOCK_SHIFT,
+                valueArray[POSITION_ARRAY_INDEX], valueArray[BLOCK_ID_LENGTH_ARRAY_INDEX] & VALUE_LENGTH_MASK);
+    }
+
+    private ByteBuffer getByteBuffer() {
+        return getValueSlice().getByteBuffer();
     }
 
     private int valuePosition() {
-        return bb.position() + ValueUtils.VALUE_HEADER_SIZE;
+        return UnsafeUtils.longToInts(valueReference)[POSITION_ARRAY_INDEX] + valueOperator.getHeaderSize();
     }
 
     @Override
     public int capacity() {
-        start();
-        int capacity = bb.remaining() - ValueUtils.VALUE_HEADER_SIZE;
-        end();
-        return capacity;
+        return (UnsafeUtils.longToInts(valueReference)[BLOCK_ID_LENGTH_ARRAY_INDEX] & VALUE_LENGTH_MASK) - valueOperator.getHeaderSize();
     }
 
     @Override
     public byte get(int index) {
-        start();
+        Slice s = getValueSlice();
+        start(s);
         if (index < 0) {
             throw new IndexOutOfBoundsException();
         }
-        byte b = bb.get(index + valuePosition());
-        end();
+        byte b = s.getByteBuffer().get(index + valuePosition());
+        end(s);
         return b;
     }
 
     @Override
     public ByteOrder order() {
         ByteOrder order;
-        start();
-        order = bb.order();
-        end();
+        Slice s = getValueSlice();
+        start(s);
+        order = s.getByteBuffer().order();
+        end(s);
         return order;
     }
 
     @Override
     public char getChar(int index) {
         char c;
-        start();
+        Slice s = getValueSlice();
+        start(s);
         if (index < 0) {
             throw new IndexOutOfBoundsException();
         }
-        c = bb.getChar(index + valuePosition());
-        end();
+        c = s.getByteBuffer().getChar(index + valuePosition());
+        end(s);
         return c;
     }
 
     @Override
     public short getShort(int index) {
-        short s;
-        start();
+        short i;
+        Slice s = getValueSlice();
+        start(s);
         if (index < 0) {
             throw new IndexOutOfBoundsException();
         }
-        s = bb.getShort(index + valuePosition());
-        end();
-        return s;
+        i = s.getByteBuffer().getShort(index + valuePosition());
+        end(s);
+        return i;
     }
 
     @Override
     public int getInt(int index) {
         int i;
-        start();
+        Slice s = getValueSlice();
+        start(s);
         if (index < 0) {
             throw new IndexOutOfBoundsException();
         }
-        i = bb.getInt(index + valuePosition());
-        end();
+        i = s.getByteBuffer().getInt(index + valuePosition());
+        end(s);
         return i;
     }
 
     @Override
     public long getLong(int index) {
         long l;
-        start();
+        Slice s = getValueSlice();
+        start(s);
         if (index < 0) {
             throw new IndexOutOfBoundsException();
         }
-        l = bb.getLong(index + valuePosition());
-        end();
+        l = s.getByteBuffer().getLong(index + valuePosition());
+        end(s);
         return l;
     }
 
     @Override
     public float getFloat(int index) {
         float f;
-        start();
+        Slice s = getValueSlice();
+        start(s);
         if (index < 0) {
             throw new IndexOutOfBoundsException();
         }
-        f = bb.getFloat(index + valuePosition());
-        end();
+        f = s.getByteBuffer().getFloat(index + valuePosition());
+        end(s);
         return f;
     }
 
     @Override
     public double getDouble(int index) {
         double d;
-        start();
+        Slice s = getValueSlice();
+        start(s);
         if (index < 0) {
             throw new IndexOutOfBoundsException();
         }
-        d = bb.getDouble(index + valuePosition());
-        end();
+        d = s.getByteBuffer().getDouble(index + valuePosition());
+        end(s);
         return d;
     }
 
@@ -134,31 +182,47 @@ public class OakRValueBufferImpl implements OakRBuffer {
         if (transformer == null) {
             throw new NullPointerException();
         }
-        T retVal = ValueUtils.transform(bb, transformer);
-        if (retVal == null) {
+        Result<T> result = valueOperator.transform(getValueSlice(), transformer, version);
+        if (result.operationResult == FALSE) {
             throw new ConcurrentModificationException();
+        } else if (result.operationResult == RETRY) {
+            lookupValueReference();
+            transform(transformer);
         }
-        return retVal;
+        return result.value;
     }
 
     @Override
     public void unsafeCopyBufferToIntArray(int srcPosition, int[] dstArray, int countInts) {
-        start();
-        ByteBuffer dup = ValueUtils.getValueByteBufferNoHeader(bb);
-        ValueUtils.unsafeBufferToIntArrayCopy(dup, srcPosition, dstArray, countInts);
-        end();
+        Slice s = getValueSlice();
+        start(s);
+        ByteBuffer dup = valueOperator.getValueByteBufferNoHeader(s);
+        valueOperator.unsafeBufferToIntArrayCopy(dup, srcPosition, dstArray, countInts);
+        end(s);
     }
 
-    private void start() {
-        // if the value was moved a ConcurrentModificationException is thrown
-        ValueUtils.ValueResult res = ValueUtils.lockRead(bb);
-        if (res != ValueUtils.ValueResult.SUCCESS) {
+    private void start(Slice valueSlice) {
+        ValueUtils.ValueResult res = valueOperator.lockRead(valueSlice, version);
+        if (res == FALSE) {
             throw new ConcurrentModificationException();
+        }
+        // In case the value moved or was the version does not match
+        if (res == RETRY) {
+            lookupValueReference();
+            start(getValueSlice());
         }
     }
 
-    private void end() {
-        ValueUtils.unlockRead(bb);
+    private void end(Slice valueSlice) {
+        valueOperator.unlockRead(valueSlice, version);
     }
 
+    private void lookupValueReference() {
+        Chunk.LookUp lookUp = internalOakMap.getValueFromIndex(keyReference);
+        if (lookUp == null || lookUp.valueSlice == null) {
+            throw new ConcurrentModificationException();
+        }
+        valueReference = lookUp.valueReference;
+        version = lookUp.version;
+    }
 }

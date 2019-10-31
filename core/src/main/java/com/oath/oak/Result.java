@@ -1,6 +1,6 @@
 package com.oath.oak;
 
-import static com.oath.oak.ValueUtils.ValueResult.SUCCESS;
+import static com.oath.oak.ValueUtils.ValueResult.TRUE;
 
 /**
  * A sum type for holding either a generic type value or a boolean flag.
@@ -12,7 +12,7 @@ class Result<V> {
     final V value;              // stored value
 
     static <V> Result<V> withValue(V value) {
-        return new Result<>(SUCCESS, value);
+        return new Result<>(TRUE, value);
     }
 
     static <V> Result<V> withFlag(ValueUtils.ValueResult flag) {

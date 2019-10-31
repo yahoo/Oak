@@ -46,7 +46,7 @@ public class OffHeapOakTest {
     }
 
 
-    @Test
+    @Test//(timeout = 15000)
     public void testThreads() throws InterruptedException {
         for (int i = 0; i < NUM_THREADS; i++) {
             Thread thread = new Thread(new RunThreads(latch));

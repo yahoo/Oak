@@ -1,56 +1,51 @@
-/*
- * Copyright 2018 Oath Inc.
- * Licensed under the terms of the Apache 2.0 license.
- * Please see LICENSE file in the project root for terms.
- */
-
 package com.oath.oak;
 
-import com.oath.oak.NativeAllocator.OakNativeMemoryAllocator;
+import java.io.Closeable;
 import java.nio.ByteBuffer;
 
+public interface MemoryManager extends Closeable {
 
-public class MemoryManager {
-    private final OakMemoryAllocator keysMemoryAllocator;
-    private final OakMemoryAllocator valuesMemoryAllocator;
-
-    public MemoryManager(OakMemoryAllocator memoryAllocator) {
-        assert memoryAllocator != null;
-
-        this.valuesMemoryAllocator = memoryAllocator;
-        this.keysMemoryAllocator = memoryAllocator;
+    /**
+     * This enum indicates whether the slice allocated will belong to a key or to a value.
+     */
+    enum Allocate {
+        KEY, VALUE;
     }
 
-    public void close() {
-        valuesMemoryAllocator.close();
-        keysMemoryAllocator.close();
+    boolean isClosed();
+
+    /**
+     * @return the number of bytes allocated by the {@code allocateSlice} method.
+     */
+    long allocated();
+
+    /**
+     * This method allocates a Slice out of the off-heap, i.e., the ByteBuffer inside of the Slice is pointing to the
+     * off-heap. The blockID, is an internal reference to which block the ByteBuffer points, allowing the functions
+     * {@code getSliceFromBlockID} and {@code getByteBufferFromBlockID} to reconstruct the same ByteBuffer.
+     *
+     * @param size     - the size of the Slice to allocate
+     * @param allocate - whether this Slice is for a key or a value
+     * @return the newly allocated Slice
+     */
+    Slice allocateSlice(int size, Allocate allocate);
+
+    /**
+     * When returning a Slice to the Memory Manager, depending on the implementation, there might be a restriction on
+     * whether this Slice is reachable by other threads or not.
+     *
+     * @param s the slice to release
+     */
+    void releaseSlice(Slice s);
+
+    default Slice getSliceFromBlockID(int blockID, int bufferPosition, int bufferLength) {
+        return new Slice(blockID, getByteBufferFromBlockID(blockID, bufferPosition, bufferLength));
     }
 
-    // how many memory is allocated for this OakMap
-    public long allocated() {
-        return valuesMemoryAllocator.allocated();
-    }
-
-    // allocateSlice is used when the blockID (of the block from which the ByteBuffer is allocated)
-    // needs to be known. Currently allocateSlice() is used for keys and
-    // allocate() is used for values.
-    public Slice allocateSlice(int bytes) {
-        return keysMemoryAllocator.allocateSlice(bytes);
-    }
-
-    public void releaseSlice(Slice slice) {
-        // keys aren't going to be released until GC part is taken care for
-        keysMemoryAllocator.freeSlice(slice);
-    }
-
-    // When some read only buffer needs to be read from a random block
-    public ByteBuffer getByteBufferFromBlockID(Integer BlockID, int bufferPosition, int bufferLength) {
-        return ((OakNativeMemoryAllocator)keysMemoryAllocator).readByteBufferFromBlockID(
-            BlockID, bufferPosition, bufferLength);
-    }
-
-    public boolean isClosed() {
-        return keysMemoryAllocator.isClosed() || valuesMemoryAllocator.isClosed();
-    }
+    /**
+     * Translates the trio of blockID, position and length (a.k.a reference) into a ByteBuffer.
+     *
+     * @return the reconstructed ByteBuffer
+     */
+    ByteBuffer getByteBufferFromBlockID(int blockID, int bufferPosition, int bufferLength);
 }
-
