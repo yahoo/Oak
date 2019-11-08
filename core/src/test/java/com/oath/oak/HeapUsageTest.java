@@ -69,7 +69,7 @@ public class HeapUsageTest {
         // this number can be changed to test larger sizes however JVM memory limit need to be changed
         // otherwise this will hit "java.lang.OutOfMemoryError: Direct buffer memory" exception
         // currently tested up to 2GB
-        int numOfEntries = 360000;
+        int numOfEntries = 160000;
 
         //System.out.println("key size: " + keySize + "B" + ", value size: " + ((double) valSize) / K + "KB");
 
