@@ -35,6 +35,32 @@ class MyBufferOak {
         public int calculateSize(MyBuffer object) {
             return object.buffer.capacity() + Integer.BYTES;
         }
+
+        // hash function from serialized version of the object to an integer
+        @Override
+        public int serializedHash(ByteBuffer byteBuffer) {
+            int size = byteBuffer.getInt(byteBuffer.position());
+            int cnt = Math.min(size,100);
+            int hash = 0;
+            for (int i = 0; i < cnt; i += Integer.BYTES) {
+                int c = byteBuffer.getInt(Integer.BYTES + byteBuffer.position() + i);
+                hash+=c;
+            }
+            return hash;
+        }
+
+        // hash function from a key to an integer
+        @Override
+        public int hash(MyBuffer object) {
+            int l = object.buffer.capacity();
+            int cnt = Math.min(l,100);
+            int hash = 0;
+            for (int i = 0; i < cnt; i++) {
+                int c = object.buffer.getInt(i);
+                hash+=c;
+            }
+            return hash;
+        }
     };
 
     static OakComparator<MyBuffer> keysComparator = new OakComparator<MyBuffer>() {

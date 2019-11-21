@@ -149,4 +149,6 @@ public interface ZeroCopyMap<K, V> {
      * @return a set view of the serialized mappings contained in this map
      */
     Set<Map.Entry<OakRBuffer, OakRBuffer>> entryStreamSet();
+
+    void createImmutableIndex();
 }

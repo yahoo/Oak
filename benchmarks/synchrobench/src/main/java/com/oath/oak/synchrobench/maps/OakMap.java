@@ -39,6 +39,10 @@ public class OakMap<K extends MyBuffer, V extends MyBuffer> implements Compositi
         return ma;
     }
 
+    public void createImmutableIndex() {
+        oak.zc().createImmutableIndex();
+    }
+
     @Override
     public boolean getOak(K key) {
         if (Parameters.zeroCopy) {
