@@ -42,6 +42,16 @@ public class IntegerOakMap {
             return Integer.BYTES;
         }
 
+        // hash function from serialized version of the object to an integer
+        public int serializedHash(ByteBuffer serializedObj) {
+            return serializedObj.getInt(serializedObj.position());
+        }
+
+        // hash function from a key to an integer
+        public int hash(Integer obj) {
+            return obj;
+        }
+
     };
 
     public static OakMapBuilder<Integer, Integer> getDefaultBuilder() {

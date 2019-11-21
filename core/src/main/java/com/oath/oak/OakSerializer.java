@@ -21,4 +21,14 @@ public interface OakSerializer<T> {
 
   // returns the number of bytes needed for serializing the given object
   int calculateSize(T object);
+
+  // hash function from serialized version of the object to an integer
+  default int serializedHash(ByteBuffer object) {
+    return -1;
+  }
+
+  // hash function from a key to an integer
+  default int hash(T object) {
+    return -1;
+  }
 }

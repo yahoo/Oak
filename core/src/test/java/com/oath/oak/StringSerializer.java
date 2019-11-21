@@ -28,4 +28,28 @@ public class StringSerializer implements OakSerializer<String> {
     public int calculateSize(String object) {
         return Integer.BYTES + object.length() * Character.BYTES;
     }
+
+    // hash function from serialized version of the object to an integer
+    public int serializedHash(ByteBuffer byteBuffer) {
+        int size = byteBuffer.getInt(byteBuffer.position());
+        int cnt = Math.min(size,100);
+        int hash = 0;
+        for (int i = 0; i < cnt; i++) {
+            char c = byteBuffer.getChar(Integer.BYTES + byteBuffer.position() + i * Character.BYTES);
+            hash+=((int)c);
+        }
+        return hash;
+    }
+
+    // hash function from a key to an integer
+    public int hash(String object) {
+        int l = object.length();
+        int cnt = Math.min(l,100);
+        int hash = 0;
+        for (int i = 0; i < cnt; i++) {
+            char c = object.charAt(i);
+            hash+=((int)c);
+        }
+        return hash;
+    }
 }

@@ -92,9 +92,9 @@ public class Chunk<K, V> {
     // location of the first (head) node - just a next pointer
     private static final int HEAD_NODE = 0;
     // index of first item in array, after head (not necessarily first in list!)
-    private static final int FIRST_ITEM = 1;
+    static final int ENTRIES_FIRST_ITEM = 1;
 
-    private static final int FIELDS = 6;  // # of fields in each item of entries array
+    static final int ENTRIES_FIELDS = 6;  // # of fields in each item of entries array
     // key block is part of key length integer, thus key length is limited to 65KB
     static final int KEY_LENGTH_MASK = 0xffff; // 16 lower bits
     static final int KEY_BLOCK_SHIFT = 16;
@@ -122,7 +122,7 @@ public class Chunk<K, V> {
     // chunk can be in the following states: normal, frozen or infant(has a creator)
     private final AtomicReference<State> state;
     private AtomicReference<Rebalancer<K, V>> rebalancer;
-    private final int[] entries;    // array is initialized to 0, i.e., NONE - this is important!
+    final int[] entries;    // array is initialized to 0, i.e., NONE - this is important!
 
     private AtomicInteger pendingOps;
     private final AtomicInteger entryIndex;    // points to next free index of entry array
@@ -149,8 +149,8 @@ public class Chunk<K, V> {
           ValueUtils valueOperator) {
         this.memoryManager = memoryManager;
         this.maxItems = maxItems;
-        this.entries = new int[maxItems * FIELDS + FIRST_ITEM];
-        this.entryIndex = new AtomicInteger(FIRST_ITEM);
+        this.entries = new int[maxItems * ENTRIES_FIELDS + ENTRIES_FIRST_ITEM];
+        this.entryIndex = new AtomicInteger(ENTRIES_FIRST_ITEM);
 
         this.sortedCount = new AtomicInteger(0);
         this.minKey = minKey;
@@ -306,6 +306,10 @@ public class Chunk<K, V> {
         return getEntryFieldInt(item, OFFSET.VALUE_VERSION);
     }
 
+    static private int getValueVersion(int item, int[] entries) {
+        return getEntryFieldInt(item, OFFSET.VALUE_VERSION, entries);
+    }
+
     /**
      * gets the field of specified offset for given item in entry array
      */
@@ -327,9 +331,39 @@ public class Chunk<K, V> {
         }
     }
 
+    /**
+     * gets the field of specified offset for given item in entry array
+     */
+    static private int getEntryFieldInt(int item, OFFSET offset, int[] entries) {
+        switch (offset) {
+        case KEY_LENGTH:
+            // return two low bytes of the key length index int
+            return (entries[item + offset.value] & KEY_LENGTH_MASK);
+        case KEY_BLOCK:
+            // offset must be OFFSET_KEY_BLOCK, return 2 high bytes of the int inside key length
+            // right-shift force, fill empty with zeroes
+            return (entries[item + offset.value] >>> KEY_BLOCK_SHIFT);
+        case VALUE_LENGTH:
+            return (entries[item + offset.value] & VALUE_LENGTH_MASK);
+        case VALUE_BLOCK:
+            return (entries[item + offset.value] >>> VALUE_BLOCK_SHIFT);
+        default:
+            return entries[item + offset.value];
+        }
+    }
+
     // Atomically reads two integers of the entries array.
     // Should be used with OFFSET.VALUE_REFERENCE and OFFSET.KEY_REFERENCE
     private long getEntryFieldLong(int item, OFFSET offset) {
+        long arrayOffset = Unsafe.ARRAY_INT_BASE_OFFSET + (item + offset.value) * Unsafe.ARRAY_INT_INDEX_SCALE;
+        assert arrayOffset % 8 == 0;
+        return unsafe.getLongVolatile(entries, arrayOffset);
+    }
+
+    // Atomically reads two integers of the entries array.
+    // Should be used with OFFSET.VALUE_REFERENCE and OFFSET.KEY_REFERENCE
+    // used for entries in hash
+    static long getEntryFieldLong(int item, OFFSET offset, int[] entries) {
         long arrayOffset = Unsafe.ARRAY_INT_BASE_OFFSET + (item + offset.value) * Unsafe.ARRAY_INT_INDEX_SCALE;
         assert arrayOffset % 8 == 0;
         return unsafe.getLongVolatile(entries, arrayOffset);
@@ -392,9 +426,24 @@ public class Chunk<K, V> {
                 memoryManager);
     }
 
+    static Slice buildValueSlice(long valueReference, MemoryManager memoryManager) {
+        if (valueReference == INVALID_VALUE_REFERENCE) {
+            return null;
+        }
+        int[] valueArray = UnsafeUtils.longToInts(valueReference);
+        return new Slice(valueArray[BLOCK_ID_LENGTH_ARRAY_INDEX] >>> VALUE_BLOCK_SHIFT,
+            valueArray[POSITION_ARRAY_INDEX], valueArray[BLOCK_ID_LENGTH_ARRAY_INDEX] & VALUE_LENGTH_MASK,
+            memoryManager);
+    }
+
     // Atomically reads the value reference from the entry array
     long getValueReference(int entryIndex) {
         return getEntryFieldLong(entryIndex, OFFSET.VALUE_REFERENCE);
+    }
+
+    // Atomically reads the value reference from the entry array
+    static long getValueReference(int entryIndex, int[] entries) {
+        return getEntryFieldLong(entryIndex, OFFSET.VALUE_REFERENCE, entries);
     }
 
     /**
@@ -414,6 +463,27 @@ public class Chunk<K, V> {
             v = getValueVersion(entryIndex);
             valueReference = getValueReference(entryIndex);
         } while (v != getValueVersion(entryIndex));
+        version[0] = v;
+        return valueReference;
+    }
+
+    /**
+     * Atomically reads both the value reference and its value. It does that by using the atomic snapshot technique
+     * (reading the version, then the reference, and finally the version again, checking that it matches the version
+     * read previously). Since a snapshot is used, the LP is when reading the value reference, if the versions match,
+     * otherwise, the operation restarts.
+     *
+     * @param entryIndex The entry of which the reference and version are read
+     * @param version    an output parameter to return the version
+     * @return the read value reference
+     */
+    static long getValueReferenceAndVersion(int entryIndex, int[] version, int[] entries) {
+        long valueReference;
+        int v;
+        do {
+            v = getValueVersion(entryIndex, entries);
+            valueReference = getValueReference(entryIndex, entries);
+        } while (v != getValueVersion(entryIndex, entries));
         version[0] = v;
         return valueReference;
     }
@@ -492,6 +562,12 @@ public class Chunk<K, V> {
     // Atomically reads the value reference from the entry array
     long getKeyReference(int entryIndex) {
         return getEntryFieldLong(entryIndex, OFFSET.KEY_REFERENCE);
+    }
+
+    // Atomically reads the value reference from the entry array
+    // used for entries in hash
+    static long getKeyReference(int entryIndex, int[] entries) {
+        return getEntryFieldLong(entryIndex, OFFSET.KEY_REFERENCE, entries);
     }
 
     // Use this function to release an unreachable value reference
@@ -603,13 +679,14 @@ public class Chunk<K, V> {
         int sortedCount = this.sortedCount.get();
         // if there are no sorted keys, or the first item is already larger than key -
         // return the head node for a regular linear search
-        if ((sortedCount == 0) || comparator.compareKeyAndSerializedKey(key, readKey(FIRST_ITEM)) <= 0) {
+        if ((sortedCount == 0) || comparator.compareKeyAndSerializedKey(key, readKey(
+            ENTRIES_FIRST_ITEM)) <= 0) {
             return HEAD_NODE;
         }
 
         // optimization: compare with last key to avoid binary search
-        if (comparator.compareKeyAndSerializedKey(key, readKey((sortedCount - 1) * FIELDS + FIRST_ITEM)) > 0) {
-            return (sortedCount - 1) * FIELDS + FIRST_ITEM;
+        if (comparator.compareKeyAndSerializedKey(key, readKey((sortedCount - 1) * ENTRIES_FIELDS + ENTRIES_FIRST_ITEM)) > 0) {
+            return (sortedCount - 1) * ENTRIES_FIELDS + ENTRIES_FIRST_ITEM;
         }
 
         int start = 0;
@@ -618,14 +695,14 @@ public class Chunk<K, V> {
         while (end - start > 1) {
             int curr = start + (end - start) / 2;
 
-            if (comparator.compareKeyAndSerializedKey(key, readKey(curr * FIELDS + FIRST_ITEM)) <= 0) {
+            if (comparator.compareKeyAndSerializedKey(key, readKey(curr * ENTRIES_FIELDS + ENTRIES_FIRST_ITEM)) <= 0) {
                 end = curr;
             } else {
                 start = curr;
             }
         }
 
-        return start * FIELDS + FIRST_ITEM;
+        return start * ENTRIES_FIELDS + ENTRIES_FIRST_ITEM;
     }
 
     /**
@@ -653,8 +730,8 @@ public class Chunk<K, V> {
     }
 
     int allocateEntryAndKey(K key) {
-        int ei = entryIndex.getAndAdd(FIELDS);
-        if (ei + FIELDS > entries.length) {
+        int ei = entryIndex.getAndAdd(ENTRIES_FIELDS);
+        if (ei + ENTRIES_FIELDS > entries.length) {
             return INVALID_ENTRY_INDEX;
         }
 
@@ -712,10 +789,10 @@ public class Chunk<K, V> {
                 // index key. Then increase the sorted count.
                 int sortedCount = this.sortedCount.get();
                 if (sortedCount > 0) {
-                    if (ei == (sortedCount * FIELDS + 1)) {
+                    if (ei == (sortedCount * ENTRIES_FIELDS + 1)) {
                         // the new entry's index is exactly after the sorted count
                         if (comparator.compareKeyAndSerializedKey(
-                                key, readKey((sortedCount - 1) * FIELDS + FIRST_ITEM)) >= 0) {
+                                key, readKey((sortedCount - 1) * ENTRIES_FIELDS + ENTRIES_FIRST_ITEM)) >= 0) {
                             // compare with sorted count key, if inserting the "if-statement",
                             // the sorted count key is less or equal to the key just inserted
                             this.sortedCount.compareAndSet(sortedCount, (sortedCount + 1));
@@ -831,7 +908,7 @@ public class Chunk<K, V> {
     private int getLastItemEntryIndex() {
         // find the last sorted entry
         int sortedCount = this.sortedCount.get();
-        int entryIndex = sortedCount == 0 ? HEAD_NODE : (sortedCount - 1) * (FIELDS) + 1;
+        int entryIndex = sortedCount == 0 ? HEAD_NODE : (sortedCount - 1) * (ENTRIES_FIELDS) + 1;
         int nextEntryIndex = getEntryFieldInt(entryIndex, OFFSET.NEXT);
         while (nextEntryIndex != Chunk.NONE) {
             entryIndex = nextEntryIndex;
@@ -866,17 +943,17 @@ public class Chunk<K, V> {
         int sortedEntryIndex = entryIndex.get();
 
         // check that we are not beyond allowed number of entries to copy from source chunk
-        int maxIdx = maxCapacity * FIELDS + 1;
+        int maxIdx = maxCapacity * ENTRIES_FIELDS + 1;
         if (sortedEntryIndex >= maxIdx) {
             return srcEntryIdx;
         }
-        assert srcEntryIdx <= entries.length - FIELDS;
+        assert srcEntryIdx <= entries.length - ENTRIES_FIELDS;
 
         // set the next entry index from where we start to copy
-        if (sortedEntryIndex != FIRST_ITEM) {
-            setEntryFieldInt(sortedEntryIndex - FIELDS, OFFSET.NEXT, sortedEntryIndex);
+        if (sortedEntryIndex != ENTRIES_FIRST_ITEM) {
+            setEntryFieldInt(sortedEntryIndex - ENTRIES_FIELDS, OFFSET.NEXT, sortedEntryIndex);
         } else {
-            setEntryFieldInt(HEAD_NODE, OFFSET.NEXT, FIRST_ITEM);
+            setEntryFieldInt(HEAD_NODE, OFFSET.NEXT, ENTRIES_FIRST_ITEM);
         }
 
         int entryIndexStart = srcEntryIdx;
@@ -894,11 +971,11 @@ public class Chunk<K, V> {
             // try to find a continuous interval to copy
             // we cannot enlarge interval: if key is removed (value reference is INVALID_VALUE_REFERENCE) or
             // if this chunk already has all entries to start with
-            if (!isValueDeleted && (sortedEntryIndex + entriesToCopy * FIELDS < maxIdx)) {
+            if (!isValueDeleted && (sortedEntryIndex + entriesToCopy * ENTRIES_FIELDS < maxIdx)) {
                 // we can enlarge the interval, if it is otherwise possible:
                 // if this is first entry in the interval (we need to copy one entry anyway) OR
                 // if (on the source chunk) current entry idx directly follows the previous entry idx
-                if (isFirstInInterval || (srcPrevEntryIdx + FIELDS == srcEntryIdx)) {
+                if (isFirstInInterval || (srcPrevEntryIdx + ENTRIES_FIELDS == srcEntryIdx)) {
                     entryIndexEnd++;
                     isFirstInInterval = false;
                     srcPrevEntryIdx = srcEntryIdx;
@@ -913,10 +990,10 @@ public class Chunk<K, V> {
             entriesToCopy = entryIndexEnd - entryIndexStart + 1;
             if (entriesToCopy > 0) {
                 for (int i = 0; i < entriesToCopy; ++i) {
-                    int offset = i * FIELDS;
+                    int offset = i * ENTRIES_FIELDS;
                     // next should point to the next item
                     entries[sortedEntryIndex + offset + OFFSET.NEXT.value]
-                            = sortedEntryIndex + offset + FIELDS;
+                            = sortedEntryIndex + offset + ENTRIES_FIELDS;
 
                     // LABEL: using next as the base of the entry
                     // copy both the key and the value references the value's version => 5 integers via array copy
@@ -926,10 +1003,10 @@ public class Chunk<K, V> {
                     System.arraycopy(srcChunk.entries,  // source array
                             entryIndexStart + offset + OFFSET.NEXT.value + 1,
                             entries,                        // destination array
-                            sortedEntryIndex + offset + OFFSET.NEXT.value + 1, (FIELDS - 1));
+                            sortedEntryIndex + offset + OFFSET.NEXT.value + 1, (ENTRIES_FIELDS - 1));
                 }
 
-                sortedEntryIndex += entriesToCopy * FIELDS; // update
+                sortedEntryIndex += entriesToCopy * ENTRIES_FIELDS; // update
             }
 
             if (isValueDeleted) { // if now this is a removed item
@@ -950,11 +1027,11 @@ public class Chunk<K, V> {
         }
 
         // next of last item in serial should point to null
-        int setIdx = sortedEntryIndex > FIRST_ITEM ? sortedEntryIndex - FIELDS : HEAD_NODE;
+        int setIdx = sortedEntryIndex > ENTRIES_FIRST_ITEM ? sortedEntryIndex - ENTRIES_FIELDS : HEAD_NODE;
         setEntryFieldInt(setIdx, OFFSET.NEXT, NONE);
         // update index and counter
         entryIndex.set(sortedEntryIndex);
-        sortedCount.set(sortedEntryIndex / FIELDS);
+        sortedCount.set(sortedEntryIndex / ENTRIES_FIELDS);
         statistics.updateInitialSortedCount(sortedCount.get());
         return srcEntryIdx; // if NONE then we finished copying old chunk, else we reached max in new chunk
     }
@@ -998,7 +1075,7 @@ public class Chunk<K, V> {
         if (!isEngaged(null)) {
             return false;
         }
-        int numOfEntries = entryIndex.get() / FIELDS;
+        int numOfEntries = entryIndex.get() / ENTRIES_FIELDS;
         int numOfItems = statistics.getCompactedCount();
         int sortedCount = this.sortedCount.get();
         // Reasons for executing a rebalance:
@@ -1109,9 +1186,9 @@ public class Chunk<K, V> {
 
         DescendingIter() {
             from = null;
-            stack = new IntStack(entries.length / FIELDS);
+            stack = new IntStack(entries.length / ENTRIES_FIELDS);
             int sortedCnt = sortedCount.get();
-            anchor = sortedCnt == 0 ? HEAD_NODE : (sortedCnt - 1) * (FIELDS) + 1; // this is the last sorted entry
+            anchor = sortedCnt == 0 ? HEAD_NODE : (sortedCnt - 1) * (ENTRIES_FIELDS) + 1; // this is the last sorted entry
             stack.push(anchor);
             initNext();
         }
@@ -1119,7 +1196,7 @@ public class Chunk<K, V> {
         DescendingIter(K from, boolean inclusive) {
             this.from = from;
             this.inclusive = inclusive;
-            stack = new IntStack(entries.length / FIELDS);
+            stack = new IntStack(entries.length / ENTRIES_FIELDS);
             anchor = binaryFind(from);
             stack.push(anchor);
             initNext();
@@ -1196,10 +1273,10 @@ public class Chunk<K, V> {
             if (anchor == HEAD_NODE) {
                 next = Chunk.NONE; // there is no more in this chunk
                 return;
-            } else if (anchor == FIRST_ITEM) {
+            } else if (anchor == ENTRIES_FIRST_ITEM) {
                 anchor = HEAD_NODE;
             } else {
-                anchor = anchor - FIELDS;
+                anchor = anchor - ENTRIES_FIELDS;
             }
             stack.push(anchor);
         }

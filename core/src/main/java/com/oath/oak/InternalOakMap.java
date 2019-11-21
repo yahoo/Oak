@@ -32,6 +32,7 @@ class InternalOakMap<K, V> {
     /*-------------- Members --------------*/
 
     final ConcurrentSkipListMap<Object, Chunk<K, V>> skiplist;    // skiplist of chunks for fast navigation
+    private int[] entriesHash = null;    // immutable hash of entries for a super-fast navigation
     private final AtomicReference<Chunk<K, V>> head;
     private final ByteBuffer minKey;
     private final OakComparator<K> comparator;
@@ -698,6 +699,37 @@ class InternalOakMap<K, V> {
         if (key == null) {
             throw new NullPointerException();
         }
+        while (entriesHash != null) {   // using while in order to be able to break from the block
+            // we have hash that can expedite the search
+            int hashIndex = keySerializer.hash(key);
+            if (hashIndex < 0) {  // user didn't implemented a hash, or implemented it wrongly
+              break;
+            }
+            // each integer index need to be transformed to the index in the "entries array",
+            // meaning need to skipp all integers of one entry and add 1 for the header integer
+            //hashIndex = (hashIndex*ENTRIES_FIELDS+1)%(entriesHash.length-ENTRIES_FIELDS);
+
+            // 1. limit hash within the addresses possible in the entriesHash
+            hashIndex = hashIndex%((entriesHash.length-1)/ENTRIES_FIELDS);
+            // 2. Get to correct address: skip in ENTRIES_FIELDS steps and add for header
+            hashIndex = hashIndex*ENTRIES_FIELDS+1;
+
+            long keyReference = Chunk.getKeyReference(hashIndex, entriesHash); // find key
+            ByteBuffer keyBB = getKeyByteBuffer(keyReference);
+            // compare key
+            int cmp = comparator.compareKeyAndSerializedKey(key, keyBB);
+            if (cmp != 0) {
+                // due to collision this is wrong key, hash can not help us, continue through index
+                break;
+            }
+            // keys match, return its value
+            int[] valueVersion = new int[1];
+            long valueReference =
+                Chunk.getValueReferenceAndVersion(hashIndex, valueVersion, entriesHash);
+            return new OakRValueBufferImpl(valueReference, valueVersion[0], keyReference, valueOperator,
+                memoryManager, this);
+        }
+
         int infiLoopCount = 0;
         while (true) {
             infiLoopCount++;
@@ -966,6 +998,43 @@ class InternalOakMap<K, V> {
         return new AbstractMap.SimpleImmutableEntry<>(keyDeserialized, valueDeserialized.value);
     }
 
+    void createImmutableIndex() {
+
+        Iter iter = new Iter(null, true, null, true, false) {
+            @Override public Integer next() {
+                IteratorState state = advanceStateOnly();
+                Chunk c = state.getChunk();
+                int entryIndex = state.getIndex();
+                ByteBuffer bbKey = c.readKey(entryIndex);
+                // copy entry from given chunk 'c', entry at index 'entryIndex'
+                // to entriesHash at index 'keySerializedHash(bbKey)'
+                int hashIndex = keySerializer.serializedHash(bbKey);
+                if (hashIndex < 0) {  // user didn't implemented a hash, or implemented it wrongly
+                  return -1;
+                }
+                // each integer index need to be transformed to the index in the "entries array",
+                // meaning need to skipp all integers of one entry and add 1 for the header integer
+                //hashIndex = (hashIndex*ENTRIES_FIELDS+1)%(entriesHash.length-ENTRIES_FIELDS);
+                // 1. limit hash within the addresses possible in the entriesHash
+                hashIndex = hashIndex%((entriesHash.length-1)/ENTRIES_FIELDS);
+                // 2. Get to correct address: skip in ENTRIES_FIELDS steps and add for header
+                hashIndex = hashIndex*ENTRIES_FIELDS+1;
+                //hashIndex = (hashIndex%((entriesHash.length-1)/ENTRIES_FIELDS))+1;
+                for(int i=0; i<ENTRIES_FIELDS; i++) {
+                    // if there are hash collisions the last one will be the "winner"
+                    entriesHash[hashIndex+i]=c.entries[entryIndex+i];
+                }
+                return 0;
+            }
+        };
+
+        entriesHash = new int[size.get()* ENTRIES_FIELDS + ENTRIES_FIRST_ITEM];
+
+        while(iter.hasNext()) {
+           iter.next();
+        }
+    }
+
     /*-------------- Iterators --------------*/
 
     private Slice getValueSlice(long valuerReference) {
@@ -1221,6 +1290,26 @@ class InternalOakMap<K, V> {
             return value;
         }
 
+        /**
+         * Advances next to the next entry. Return previous index
+         */
+        IteratorState advanceStateOnly() {
+
+            if (state == null) {
+                throw new NoSuchElementException();
+            }
+
+            Chunk.State chunkState = state.getChunk().state();
+
+            if (chunkState == Chunk.State.RELEASED) {
+                initAfterRebalance();
+            }
+            IteratorState currentState = IteratorState.newInstance(state.getChunk(), state.getChunkIter());
+            currentState.set(state.getChunk(), state.getChunkIter(), state.getIndex());
+            advanceState();
+            return currentState;
+        }
+
         private void initState(boolean isDescending, K lowerBound, boolean lowerInclusive,
                                K upperBound, boolean upperInclusive) {
 
@@ -1307,6 +1396,19 @@ class InternalOakMap<K, V> {
                     return;
                 }
             }
+        }
+    }
+
+    class InternalIterator extends Iter<IteratorState> {
+
+        InternalIterator() {
+            super(null, true, null, true, false);
+        }
+
+        @Override
+        public IteratorState next() {
+
+            return null;
         }
     }
 

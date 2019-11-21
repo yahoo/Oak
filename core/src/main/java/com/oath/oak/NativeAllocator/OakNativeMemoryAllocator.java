@@ -229,6 +229,7 @@ public class OakNativeMemoryAllocator implements OakBlockMemoryAllocator {
     // When some buffer need to be read from a random block
     @Override
     public ByteBuffer readByteBufferFromBlockID(int blockID, int bufferPosition, int bufferLength) {
+        assert blockID!=INVALID_BLOCK_ID;
         Block b = blocksArray[blockID];
         // The returned buffer is this thread's block buffer.
         // Therefore, a thread cannot read two slices from the same block without duplicating one of them.

@@ -580,6 +580,10 @@ public class OakMap<K, V> extends AbstractMap<K, V> implements AutoCloseable, Co
         public Set<Entry<OakRBuffer, OakRBuffer>> entryStreamSet() {
             return new EntryStreamBufferSet<>(m);
         }
+
+        public void createImmutableIndex() {
+            m.internalOakMap.createImmutableIndex();
+        }
     }
 
 
