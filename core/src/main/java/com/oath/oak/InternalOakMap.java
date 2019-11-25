@@ -1029,10 +1029,12 @@ class InternalOakMap<K, V> {
         };
 
         entriesHash = new int[size.get()* ENTRIES_FIELDS + ENTRIES_FIRST_ITEM];
-
+        int cnt=0;
         while(iter.hasNext()) {
            iter.next();
+           cnt++;
         }
+        System.out.println("\nHash was created going over " + cnt + " entries.\n");
     }
 
     /*-------------- Iterators --------------*/
