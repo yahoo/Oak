@@ -39,14 +39,16 @@ class MyBufferOak {
         // hash function from serialized version of the object to an integer
         @Override
         public int serializedHash(ByteBuffer byteBuffer) {
-            int size = byteBuffer.getInt(byteBuffer.position());
-            int cnt = Math.min(size,100);
-            int hash = 0;
-            for (int i = 0; i < cnt; i += Integer.BYTES) {
-                int c = byteBuffer.getInt(Integer.BYTES + byteBuffer.position() + i);
-                hash+=c;
-            }
-            return hash;
+            MyBuffer tmp = deserialize(byteBuffer);
+            return hash(tmp);
+//            int size = byteBuffer.getInt(byteBuffer.position());
+//            int cnt = Math.min(size,100);
+//            int hash = 0;
+//            for (int i = 0; i < cnt; i += Integer.BYTES) {
+//                int c = byteBuffer.getInt(Integer.BYTES + byteBuffer.position() + i);
+//                hash+=c;
+//            }
+//            return hash;
         }
 
         // hash function from a key to an integer
