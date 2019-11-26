@@ -234,8 +234,8 @@ public class OakNativeMemoryAllocator implements OakBlockMemoryAllocator {
         // The returned buffer is this thread's block buffer.
         // Therefore, a thread cannot read two slices from the same block without duplicating one of them.
         if (b==null) {
-            System.out.println(" Block is null. BlockID " + blockID
-                + ", bufferPosition " + bufferPosition + ", bufferLength " + bufferLength);
+            System.out.println("Block is null. BlockID " + blockID
+                + ", bufferPosition " + bufferPosition + ", bufferLength " + bufferLength + "\n");
         }
         return b.getBufferForThread(bufferPosition, bufferLength);
     }
