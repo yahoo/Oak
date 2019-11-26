@@ -55,7 +55,9 @@ class MyBufferOak {
             int l = object.buffer.capacity();
             int cnt = Math.min(l,100);
             int hash = 0;
-            for (int i = 0; i < cnt; i += Integer.BYTES) {
+            for (int i = 0;
+                 i <= cnt-Integer.BYTES; // to have space to read int from that byte location
+                 i += Integer.BYTES) {
                 int c = object.buffer.getInt(i);
                 hash+=c;
             }
