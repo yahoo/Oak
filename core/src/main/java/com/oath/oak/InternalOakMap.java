@@ -705,7 +705,7 @@ class InternalOakMap<K, V> {
             if (hashIndex < 0) {  // user didn't implemented a hash, or implemented it wrongly
               break;
             }
-            hashIndex = hashIndexLimitation(hashIndex);
+            hashIndex = hashIndexLimitation(hashIndex, entriesHash.length);
 
             long keyReference = Chunk.getKeyReference(hashIndex, entriesHash); // find key
             if (keyReference == 0) {
@@ -998,45 +998,47 @@ class InternalOakMap<K, V> {
 
     void createImmutableIndex() {
 
-        Iter iter = new Iter(null, true, null, true, false) {
-            @Override public Integer next() {
+        Iter<IteratorState> iter = new Iter<IteratorState>(null, true, null, true, false) {
+            @Override public IteratorState next() {
                 IteratorState state = advanceStateOnly();
-                Chunk c = state.getChunk();
-                int entryIndex = state.getIndex();
-                ByteBuffer bbKey = c.readKey(entryIndex);
-                // copy entry from given chunk 'c', entry at index 'entryIndex'
-                // to entriesHash at index 'keySerializedHash(bbKey)'
-                int hashIndex = keySerializer.serializedHash(bbKey);
-                if (hashIndex < 0) {  // user didn't implemented a hash, or implemented it wrongly
-                  return -1;
-                }
-                hashIndex = hashIndexLimitation(hashIndex);
-
-                for(int i=0; i<ENTRIES_FIELDS; i++) {
-                    // if there are hash collisions the last one will be the "winner"
-                    entriesHash[hashIndex+i]=c.entries[entryIndex+i];
-                }
-                return 0;
+                return state;
             }
         };
 
-        entriesHash = new int[size.get()* ENTRIES_FIELDS + ENTRIES_FIRST_ITEM];
+        if (entriesHash != null) return; // depends if we want to build it twice
+        int[] entriesHashLocal = new int[size.get()* ENTRIES_FIELDS + ENTRIES_FIRST_ITEM];
         int cnt=0;
         while(iter.hasNext()) {
-           iter.next();
+           IteratorState state = iter.next();
+           Chunk c = state.getChunk();
+           int entryIndex = state.getIndex();
+           ByteBuffer bbKey = c.readKey(entryIndex);
            cnt++;
+            // copy entry from given chunk 'c', entry at index 'entryIndex'
+            // to entriesHash at index 'keySerializedHash(bbKey)'
+            int hashIndex = keySerializer.serializedHash(bbKey);
+            if (hashIndex < 0) {  // user didn't implemented a hash, or implemented it wrongly
+                return;
+            }
+            hashIndex = hashIndexLimitation(hashIndex, entriesHashLocal.length);
+            for(int i=0; i<ENTRIES_FIELDS; i++) {
+                // if there are hash collisions the last one will be the "winner"
+                entriesHashLocal[hashIndex+i]=c.entries[entryIndex+i];
+            }
         }
+        if (entriesHash != null) return; // depends if we want to build it twice
+        else entriesHash = entriesHashLocal; // to be changed to CAS
         System.out.println("\nHash was created going over " + cnt + " entries.\n");
     }
 
-    private int hashIndexLimitation(int hashIndex) {
+    private int hashIndexLimitation(int hashIndex, int hashLengthInInts) {
         // each integer index given by user's hash
         // need to be transformed to the index in the "entries array",
         // meaning need to skipp all integers of one entry
         // and add ENTRIES_FIRST_ITEM (1) for the header integer
 
         // 1. limit hash within the addresses later possible in the entriesHash
-        int numOfEntriesInHash = ((entriesHash.length-ENTRIES_FIRST_ITEM)/ENTRIES_FIELDS);
+        int numOfEntriesInHash = ((hashLengthInInts-ENTRIES_FIRST_ITEM)/ENTRIES_FIELDS);
         hashIndex = hashIndex%numOfEntriesInHash;
         // 2. Get to correct address: skip in ENTRIES_FIELDS steps and add for header
         hashIndex = hashIndex*ENTRIES_FIELDS+ENTRIES_FIRST_ITEM;
