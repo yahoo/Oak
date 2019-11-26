@@ -708,6 +708,11 @@ class InternalOakMap<K, V> {
             hashIndex = hashIndexLimitation(hashIndex);
 
             long keyReference = Chunk.getKeyReference(hashIndex, entriesHash); // find key
+            if (keyReference == 0) {
+                // we do not have hash for such key, if there are no concurrent updates
+                // return null, otherwise continue searching
+                return null;
+            }
             ByteBuffer keyBB = getKeyByteBuffer(keyReference);
             // compare key
             int cmp = comparator.compareKeyAndSerializedKey(key, keyBB);
