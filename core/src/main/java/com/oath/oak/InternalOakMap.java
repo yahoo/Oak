@@ -705,14 +705,7 @@ class InternalOakMap<K, V> {
             if (hashIndex < 0) {  // user didn't implemented a hash, or implemented it wrongly
               break;
             }
-            // each integer index need to be transformed to the index in the "entries array",
-            // meaning need to skipp all integers of one entry and add 1 for the header integer
-            //hashIndex = (hashIndex*ENTRIES_FIELDS+1)%(entriesHash.length-ENTRIES_FIELDS);
-
-            // 1. limit hash within the addresses possible in the entriesHash
-            hashIndex = hashIndex%((entriesHash.length-1)/ENTRIES_FIELDS);
-            // 2. Get to correct address: skip in ENTRIES_FIELDS steps and add for header
-            hashIndex = hashIndex*ENTRIES_FIELDS+1;
+            hashIndex = hashIndexLimitation(hashIndex);
 
             long keyReference = Chunk.getKeyReference(hashIndex, entriesHash); // find key
             ByteBuffer keyBB = getKeyByteBuffer(keyReference);
@@ -1012,14 +1005,8 @@ class InternalOakMap<K, V> {
                 if (hashIndex < 0) {  // user didn't implemented a hash, or implemented it wrongly
                   return -1;
                 }
-                // each integer index need to be transformed to the index in the "entries array",
-                // meaning need to skipp all integers of one entry and add 1 for the header integer
-                //hashIndex = (hashIndex*ENTRIES_FIELDS+1)%(entriesHash.length-ENTRIES_FIELDS);
-                // 1. limit hash within the addresses possible in the entriesHash
-                hashIndex = hashIndex%((entriesHash.length-1)/ENTRIES_FIELDS);
-                // 2. Get to correct address: skip in ENTRIES_FIELDS steps and add for header
-                hashIndex = hashIndex*ENTRIES_FIELDS+1;
-                //hashIndex = (hashIndex%((entriesHash.length-1)/ENTRIES_FIELDS))+1;
+                hashIndex = hashIndexLimitation(hashIndex);
+
                 for(int i=0; i<ENTRIES_FIELDS; i++) {
                     // if there are hash collisions the last one will be the "winner"
                     entriesHash[hashIndex+i]=c.entries[entryIndex+i];
@@ -1037,6 +1024,22 @@ class InternalOakMap<K, V> {
         System.out.println("\nHash was created going over " + cnt + " entries.\n");
     }
 
+    private int hashIndexLimitation(int hashIndex) {
+        // each integer index given by user's hash
+        // need to be transformed to the index in the "entries array",
+        // meaning need to skipp all integers of one entry
+        // and add ENTRIES_FIRST_ITEM (1) for the header integer
+
+        // 1. limit hash within the addresses later possible in the entriesHash
+        int numOfEntriesInHash = ((entriesHash.length-ENTRIES_FIRST_ITEM)/ENTRIES_FIELDS);
+        hashIndex = hashIndex%numOfEntriesInHash;
+        // 2. Get to correct address: skip in ENTRIES_FIELDS steps and add for header
+        hashIndex = hashIndex*ENTRIES_FIELDS+ENTRIES_FIRST_ITEM;
+
+        assert hashIndex%ENTRIES_FIELDS==ENTRIES_FIRST_ITEM;
+
+        return hashIndex;
+    }
     /*-------------- Iterators --------------*/
 
     private Slice getValueSlice(long valuerReference) {
