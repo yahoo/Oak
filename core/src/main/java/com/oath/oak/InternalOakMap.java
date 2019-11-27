@@ -711,7 +711,7 @@ class InternalOakMap<K, V> {
             if (keyReference == 0) {
                 // we do not have hash for such key, if there are no concurrent updates
                 // return null, otherwise continue searching
-                return null;
+                break;
             }
             ByteBuffer keyBB = getKeyByteBuffer(keyReference);
             // compare key
