@@ -51,7 +51,7 @@ public class JavaSkipListMap<K extends MyBuffer, V extends MyBuffer> implements 
 
     @Override
     public boolean ascendOak(K from, int length) {
-        Iterator iter = skipListMap.tailMap(from, true).keySet().iterator();
+        Iterator iter = skipListMap.tailMap(from, true).entrySet().iterator();
         int i = 0;
         while (iter.hasNext() && i < length) {
             i++;
@@ -62,7 +62,7 @@ public class JavaSkipListMap<K extends MyBuffer, V extends MyBuffer> implements 
 
     @Override
     public boolean descendOak(K from, int length) {
-        Iterator iter = skipListMap.descendingMap().tailMap(from, true).keySet().iterator();
+        Iterator iter = skipListMap.descendingMap().tailMap(from, true).entrySet().iterator();
         int i = 0;
         while (iter.hasNext() && i < length) {
             i++;

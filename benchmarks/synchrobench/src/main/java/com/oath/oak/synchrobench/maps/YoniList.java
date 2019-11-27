@@ -10,6 +10,7 @@ import com.oath.oak.synchrobench.contention.benchmark.Parameters;
 import java.nio.ByteBuffer;
 import java.util.Comparator;
 import java.util.Iterator;
+import java.util.Map;
 import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
@@ -170,25 +171,24 @@ public class YoniList<K extends MyBuffer, V extends MyBuffer> implements Composi
 
     @Override
     public boolean ascendOak(K from, int length) {
-        Iterator<Cell> iter = skipListMap.tailMap(from, true).values().iterator();
+        Iterator<Map.Entry<Object, Cell>> iter = skipListMap.tailMap(from, true).entrySet().iterator();
         return iterate(iter, length);
     }
 
     @Override
     public boolean descendOak(K from, int length) {
-        Iterator<Cell> iter = skipListMap.descendingMap().tailMap(from, true).values().iterator();
+        Iterator<Map.Entry<Object, Cell>> iter = skipListMap.descendingMap().tailMap(from, true).entrySet().iterator();
         return iterate(iter, length);
     }
 
-
-    private boolean iterate(Iterator<Cell> iter, int length) {
+    private boolean iterate(Iterator<Map.Entry<Object, Cell>> iter, int length) {
         int i = 0;
         while (iter.hasNext() && i < length) {
-            Cell cell = iter.next();
+            Map.Entry<Object, Cell> cell = iter.next();
             //only if cell is not null value is not deleted or not set yet.
-            if (cell.value.get() != null) {
+            if (cell.getValue().value.get() != null) {
                 if (!Parameters.zeroCopy) {
-                    MyBuffer des = MyBufferOak.serializer.deserialize(cell.value.get().getByteBuffer());
+                    MyBuffer des = MyBufferOak.serializer.deserialize(cell.getValue().value.get().getByteBuffer());
                     //YONIGO - I just do this so that hopefully jvm doesnt optimize out the deserialize
                     if (des != null) {
                         i++;
@@ -201,7 +201,6 @@ public class YoniList<K extends MyBuffer, V extends MyBuffer> implements Composi
         }
         return i == length;
     }
-
 
     @Override
     public void clear() {

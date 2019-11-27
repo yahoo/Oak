@@ -5,7 +5,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 public class ThreadIndexCalculator {
 
-    public static final int MAX_THREADS = 32;
+    public static final int MAX_THREADS = 64;
     private static final int INVALID_THREAD_ID = -1;
     private ThreadLocal<Integer> local = ThreadLocal.withInitial(() -> INVALID_THREAD_ID);
     private AtomicInteger[] indices = new AtomicInteger[MAX_THREADS];

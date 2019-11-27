@@ -104,12 +104,12 @@ public class OakMap<K extends MyBuffer, V extends MyBuffer> implements Compositi
         Iterator iter;
         if (Parameters.zeroCopy) {
             if (Parameters.streamIteration) {
-                iter = subMap.zc().keyStreamSet().iterator();
+                iter = subMap.zc().entryStreamSet().iterator();
             } else {
-                iter = subMap.zc().keySet().iterator();
+                iter = subMap.zc().entrySet().iterator();
             }
         } else {
-            iter = subMap.keySet().iterator();
+            iter = subMap.entrySet().iterator();
         }
 
         return iterate(iter, length);
