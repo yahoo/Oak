@@ -144,7 +144,7 @@ public class ThreadLoopOak implements Runnable {
                 }
             } else {
                 if (!change) {
-                    if (createImmutableIndex) {
+                    if (createImmutableIndex && (myThreadNum == 0)) {
                         ((OakMap)bench).createImmutableIndex();
                         createImmutableIndex = false;
                     }
