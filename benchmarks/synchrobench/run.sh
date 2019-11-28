@@ -5,7 +5,7 @@ output=${dir}/output
 java=java
 jarfile="target/oak-benchmarks-synchrobench-0.1.6-SNAPSHOT.jar"
 
-thread="01 04 08 12"
+thread="01 04 08 12 16 20 24 28 32"
 size="10000000"
 keysize="100"
 valuesize="1000"
@@ -17,10 +17,14 @@ duration="30000"
 #gcAlgorithms="-XX:+UseParallelOldGC -XX:+UseConcMarkSweepGC -XX:+UseG1GC"
 
 declare -A heap_limit=(["OakMap"]="12g"
-                       ["JavaSkipListMap"]="20g"
+                       ["OffHeapList"]="12g"
+                       ["JavaSkipListMap"]="36g"
                       )
 
-directMemSize="20g"
+declare -A direct_limit=(["OakMap"]="24g"
+                         ["OffHeapList"]="24g"
+                         ["JavaSkipListMap"]="0g"
+                        )
 
 if [ ! -d "${output}" ]; then
   mkdir $output
@@ -33,22 +37,22 @@ fi
 # records all benchmark outputs
 ###############################
 
-declare -A scenarios=(["get-only"]=""
-                      ["zc-get-only"]="--buffer"
-                      ["ascend-only"]="-c"
-                      ["zc-ascend-only"]="-c --buffer"
-                      ["descend-only"]="-c -a 100"
-                      ["zc-descend-only"]="--buffer -c -a 100"
-                      ["put-only"]="-a 0 -u 100"
+declare -A scenarios=(
+                      ["4a-put"]="-a 0 -u 100"
+                      ["4b-putIfAbsentComputeIfPresent"]="--buffer -u 0 -s 100 -c"
+                      ["4c-get-zc"]="--buffer"
+                      ["4c-get-copy"]=""
+                      ["4d-95Get5Put"]="--buffer -a 0 -u 5"
+                      ["4e-entrySet-ascend"]="--buffer -c"
+                      #["4e-entryStreamSet-ascend"]="--buffer -c --stream-iteration"
+                      ["4f-entrySet-descend"]="--buffer -c -a 100"
+                      #["4f-entryStreamSet-descend"]="--buffer -c -a 100 --stream-iteration"
                      )
-
-#declare -A scenarios=(["put-only"]="-a 0 -u 100")
-#declare -A scenarios=(["descend-only"]="-c -a 100")
 
 
 # Oak vs JavaSkipList
 benchClassPrefix="com.oath.oak.synchrobench.maps"
-benchs="OakMap JavaSkipListMap"
+benchs="JavaSkipListMap OakMap OffHeapList"
 
 summary="${output}/summary.csv"
 
@@ -60,6 +64,7 @@ for scenario in ${!scenarios[@]}; do
     echo ""
     echo "Scenario: ${bench} ${scenario}"
     heapSize="${heap_limit[${bench}]}"
+    directMemSize="${direct_limit[${bench}]}"
     for heapLimit in ${heapSize}; do
       #for gcAlg in ${gcAlgorithms}; do
         gcAlg=""
@@ -88,5 +93,3 @@ for scenario in ${!scenarios[@]}; do
 done
 
 echo "Oak test complete `date`"
-
-
