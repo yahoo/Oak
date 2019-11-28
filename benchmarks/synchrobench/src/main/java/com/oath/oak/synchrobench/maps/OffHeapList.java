@@ -16,7 +16,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 
-public class YoniList<K extends MyBuffer, V extends MyBuffer> implements CompositionalOakMap<K, V> {
+public class OffHeapList<K extends MyBuffer, V extends MyBuffer> implements CompositionalOakMap<K, V> {
     private ConcurrentSkipListMap<Object, Cell> skipListMap;
     private OakBlockMemoryAllocator allocator;
     private Comparator<Object> comparator;
@@ -24,7 +24,7 @@ public class YoniList<K extends MyBuffer, V extends MyBuffer> implements Composi
     private static final long GB = KB * KB * KB;
     private static final long OAK_MAX_OFF_MEMORY = 256 * GB;
 
-    public YoniList() {
+    public OffHeapList() {
 
         comparator = (o1, o2) ->
         {
@@ -50,7 +50,7 @@ public class YoniList<K extends MyBuffer, V extends MyBuffer> implements Composi
                     return -1 * MyBufferOak.keysComparator.compareKeyAndSerializedKey((MyBuffer) o2,
                             ((Slice) key1).getByteBuffer());
                 }
-            } else if (o1 instanceof YoniList.Cell && o2 instanceof YoniList.Cell) {
+            } else if (o1 instanceof OffHeapList.Cell && o2 instanceof OffHeapList.Cell) {
                 Cell cell1 = (Cell) o1;
                 Object key1 = cell1.key.get();
                 Cell cell2 = (Cell) o2;
