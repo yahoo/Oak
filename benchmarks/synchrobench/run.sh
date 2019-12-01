@@ -5,24 +5,24 @@ output=${dir}/output
 java=java
 jarfile="target/oak-benchmarks-synchrobench-0.1.6-SNAPSHOT.jar"
 
-thread="01 04 08 12 16 20 24 28 32"
+thread="01 02 04 06 08 10 12"
 size="10000000"
 keysize="100"
 valuesize="1000"
 #writes="0 50"
 writes="0"
 warmup="0"
-iterations="5"
+iterations="3"
 duration="30000"
 #gcAlgorithms="-XX:+UseParallelOldGC -XX:+UseConcMarkSweepGC -XX:+UseG1GC"
 
-declare -A heap_limit=(["OakMap"]="12g"
-                       ["OffHeapList"]="12g"
-                       ["JavaSkipListMap"]="36g"
+declare -A heap_limit=(["OakMap"]="10g"
+                       ["OffHeapList"]="10g"
+                       ["JavaSkipListMap"]="32g"
                       )
 
-declare -A direct_limit=(["OakMap"]="24g"
-                         ["OffHeapList"]="24g"
+declare -A direct_limit=(["OakMap"]="22g"
+                         ["OffHeapList"]="22g"
                          ["JavaSkipListMap"]="0g"
                         )
 
