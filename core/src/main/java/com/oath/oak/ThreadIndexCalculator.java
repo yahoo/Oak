@@ -1,6 +1,7 @@
 
 package com.oath.oak;
 
+import java.util.NoSuchElementException;
 import java.util.concurrent.atomic.AtomicLong;
 
 public class ThreadIndexCalculator {
@@ -22,6 +23,7 @@ public class ThreadIndexCalculator {
       long currentThreadID = indices[currentIndex].get();
       while (currentThreadID != threadID) {
         if (currentThreadID == INVALID_THREAD_ID) {
+          // negative output indicates that a new index need to be created for this thread id
           return -1*currentIndex;
         }
         currentIndex = (currentIndex + 1) % MAX_THREADS;
@@ -56,6 +58,11 @@ public class ThreadIndexCalculator {
         long tid = Thread.currentThread().getId();
         int index = getExistingIndex(tid);
         assert index >=0 ;
+        if (index < 0) {
+          // There is no such thread index in the calculator, so throw NoSuchElementException
+          // Probably releasing the same thread twice
+          throw new NoSuchElementException();
+        }
         indices[index].set(INVALID_THREAD_ID);
     }
 
