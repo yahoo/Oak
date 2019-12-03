@@ -51,10 +51,9 @@ public class ScanBenchmark
     @Setup
     public void setup() {
 
-        OakMapBuilder<String, String> builder = new OakMapBuilder<String, String>()
-                .setKeySerializer(new StringSerializer())
-                .setValueSerializer(new StringSerializer())
-                .setComparator(new StringComparator())
+        OakMapBuilder<String, String> builder =
+            new OakMapBuilder<String, String>(
+                new StringComparator(),new StringSerializer(),new StringSerializer())
                 .setMinKey("");
 
         oakMap = builder.build();

@@ -32,13 +32,12 @@ public class OakMapBuilder<K, V> {
     private long memoryCapacity;
     private OakBlockMemoryAllocator memoryAllocator;
 
-    public OakMapBuilder() {
-        this.keySerializer = null;
-        this.valueSerializer = null;
-
+    public OakMapBuilder(OakComparator<K> comparator, OakSerializer<K> keySerializer, OakSerializer<V> valueSerializer) {
+        this.keySerializer = keySerializer;
+        this.valueSerializer = valueSerializer;
         this.minKey = null;
 
-        this.comparator = null;
+        this.comparator = comparator;
 
         this.chunkMaxItems = Chunk.MAX_ITEMS_DEFAULT;
         this.memoryCapacity = MAX_MEM_CAPACITY;
@@ -87,7 +86,15 @@ public class OakMapBuilder<K, V> {
         }
 
         MemoryManager memoryManager = new NovaManager(memoryAllocator);
-
+        if (comparator == null) {
+            throw new IllegalStateException("Must provide a non-null comparator to build the OakMap");
+        }
+        if (keySerializer == null) {
+            throw new IllegalStateException("Must provide a non-null key serializer to build the OakMap");
+        }
+        if (valueSerializer == null) {
+            throw new IllegalStateException("Must provide a non-null value serializer to build the OakMap");
+        }
         return new OakMap<>(
                 minKey,
                 keySerializer,
