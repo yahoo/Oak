@@ -426,15 +426,15 @@ def druid_ingest():
     
 
 def main():
-    # microBenchChart()
-    # scan_10k()
-    # ingestion()
-    # put_scan()
-    # put_get()
-    # rev_ingestion()
-    druid_mem_usage_total()
-    druid_ingest()
-    druid_ingest_30g()
+    microBenchChart()
+    scan_10k()
+    ingestion()
+    put_scan()
+    put_get()
+    rev_ingestion()
+    #druid_mem_usage_total()
+    #druid_ingest()
+    #druid_ingest_30g()
     plt.show()
 
 
