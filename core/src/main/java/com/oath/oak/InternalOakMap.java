@@ -1028,7 +1028,7 @@ class InternalOakMap<K, V> {
         }
         if (entriesHash != null) return; // depends if we want to build it twice
         else entriesHash = entriesHashLocal; // to be changed to CAS
-        System.out.println("\nHash was created going over " + cnt + " entries.\n");
+        //System.out.println("\nHash was created going over " + cnt + " entries.\n");
     }
 
     private int hashIndexLimitation(int hashIndex, int hashLengthInInts) {
