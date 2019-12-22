@@ -1,5 +1,7 @@
 package com.oath.oak;
 
+import com.oath.oak.NativeAllocator.OakNativeMemoryAllocator;
+
 import java.io.Closeable;
 import java.nio.ByteBuffer;
 
@@ -39,13 +41,14 @@ public interface MemoryManager extends Closeable {
     void releaseSlice(Slice s);
 
     default Slice getSliceFromBlockID(int blockID, int bufferPosition, int bufferLength) {
-        return new Slice(blockID, getByteBufferFromBlockID(blockID, bufferPosition, bufferLength));
+        return new Slice(blockID, getByteBufferFromBlockID(blockID, bufferPosition, bufferLength,
+            OakNativeMemoryAllocator.FIRST_THREAD_BUFFER));
     }
 
     /**
      * Translates the trio of blockID, position and length (a.k.a reference) into a ByteBuffer.
-     *
+     * @param numerator what is the number of the buffer requested by the same thread
      * @return the reconstructed ByteBuffer
      */
-    ByteBuffer getByteBufferFromBlockID(int blockID, int bufferPosition, int bufferLength);
+    ByteBuffer getByteBufferFromBlockID(int blockID, int bufferPosition, int bufferLength, int numerator);
 }

@@ -6,6 +6,7 @@
 
 package com.oath.oak;
 
+import com.oath.oak.NativeAllocator.OakNativeMemoryAllocator;
 import sun.misc.Unsafe;
 
 import java.nio.ByteBuffer;
@@ -241,7 +242,29 @@ public class Chunk<K, V> {
         int keyPosition = keyArray[POSITION_ARRAY_INDEX];
         int length = keyArray[BLOCK_ID_LENGTH_ARRAY_INDEX] & KEY_LENGTH_MASK;
 
-        return memoryManager.getByteBufferFromBlockID(blockID, keyPosition, length);
+        return memoryManager.getByteBufferFromBlockID(blockID, keyPosition, length,
+            OakNativeMemoryAllocator.FIRST_THREAD_BUFFER);
+    }
+
+    /**
+     * Reads a key given the entry index. Key is returned via reusable thread-local ByteBuffer.
+     * There is no copy just a special ByteBuffer for a single key.
+     * The thread-local ByteBuffer can be reused by different threads, however as long as
+     * a thread is invoked the ByteBuffer is related solely to this thread.
+     */
+    ByteBuffer readSecondKey(int entryIndex) {
+        if (entryIndex == Chunk.NONE) {
+            return null;
+        }
+
+        long keyReference = getKeyReference(entryIndex);
+        int[] keyArray = longToInts(keyReference);
+        int blockID = keyArray[BLOCK_ID_LENGTH_ARRAY_INDEX] >> KEY_BLOCK_SHIFT;
+        int keyPosition = keyArray[POSITION_ARRAY_INDEX];
+        int length = keyArray[BLOCK_ID_LENGTH_ARRAY_INDEX] & KEY_LENGTH_MASK;
+
+        return memoryManager.getByteBufferFromBlockID(blockID, keyPosition, length,
+            OakNativeMemoryAllocator.SECOND_THREAD_BUFFER);
     }
 
     /**
@@ -1028,6 +1051,20 @@ public class Chunk<K, V> {
         return new DescendingIter(from, inclusive);
     }
 
+    private int advanceNextIndex(int next) {
+        long valueReference = INVALID_VALUE_REFERENCE;
+        if (next != Chunk.NONE) {
+            valueReference = getEntryFieldLong(next, OFFSET.VALUE_REFERENCE);
+        }
+        while (next != Chunk.NONE && valueReference == INVALID_VALUE_REFERENCE) {
+            next = getEntryFieldInt(next, OFFSET.NEXT);
+            if (next != Chunk.NONE) {
+                valueReference = getEntryFieldLong(next, OFFSET.VALUE_REFERENCE);
+            }
+        }
+        return next;
+    }
+
     interface ChunkIter {
         boolean hasNext();
 
@@ -1040,16 +1077,7 @@ public class Chunk<K, V> {
 
         AscendingIter() {
             next = getEntryFieldInt(HEAD_NODE, OFFSET.NEXT);
-            long valueReference = INVALID_VALUE_REFERENCE;
-            if (next != Chunk.NONE) {
-                valueReference = getEntryFieldLong(next, OFFSET.VALUE_REFERENCE);
-            }
-            while (next != Chunk.NONE && valueReference == INVALID_VALUE_REFERENCE) {
-                next = getEntryFieldInt(next, OFFSET.NEXT);
-                if (next != Chunk.NONE) {
-                    valueReference = getEntryFieldLong(next, OFFSET.VALUE_REFERENCE);
-                }
-            }
+            next = advanceNextIndex(next);
         }
 
         AscendingIter(K from, boolean inclusive) {
@@ -1073,16 +1101,7 @@ public class Chunk<K, V> {
 
         private void advance() {
             next = getEntryFieldInt(next, OFFSET.NEXT);
-            long valueReference = INVALID_VALUE_REFERENCE;
-            if (next != Chunk.NONE) {
-                valueReference = getEntryFieldLong(next, OFFSET.VALUE_REFERENCE);
-            }
-            while (next != Chunk.NONE && valueReference == INVALID_VALUE_REFERENCE) {
-                next = getEntryFieldInt(next, OFFSET.NEXT);
-                if (next != Chunk.NONE) {
-                    valueReference = getEntryFieldLong(next, OFFSET.VALUE_REFERENCE);
-                }
-            }
+            next = advanceNextIndex(next);
         }
 
         @Override
@@ -1126,7 +1145,7 @@ public class Chunk<K, V> {
         }
 
         private void initNext() {
-            traverseLinkedList();
+            traverseLinkedList(true);
             advance();
         }
 
@@ -1156,10 +1175,26 @@ public class Chunk<K, V> {
             }
         }
 
+        private void pushToStack(boolean compareWithPrevAnchor) {
+            while (next != Chunk.NONE) {
+                if (!compareWithPrevAnchor) {
+                    stack.push(next);
+                    next = getEntryFieldInt(next, OFFSET.NEXT);
+                } else {
+                    ByteBuffer tmpBBprevAnchorKey = readKey(prevAnchor);
+                    if (comparator.compareSerializedKeys(tmpBBprevAnchorKey, readSecondKey(next)) > 0) {
+                        stack.push(next);
+                        next = getEntryFieldInt(next, OFFSET.NEXT);
+                    }
+                }
+            }
+        }
+
         /**
          * fill the stack
+         * @param firstTimeInvocation
          */
-        private void traverseLinkedList() {
+        private void traverseLinkedList(boolean firstTimeInvocation) {
             assert stack.size() == 1; // ancor is in the stack
             if (prevAnchor == getEntryFieldInt(anchor, OFFSET.NEXT)) {
                 // there is no next;
@@ -1168,21 +1203,26 @@ public class Chunk<K, V> {
             }
             next = getEntryFieldInt(anchor, OFFSET.NEXT);
             if (from == null) {
-                while (next != Chunk.NONE) {
-                    stack.push(next);
-                    next = getEntryFieldInt(next, OFFSET.NEXT);
-                }
+                // if this is not the first invocation, stop when reaching previous anchor
+                pushToStack(!firstTimeInvocation);
             } else {
-                if (inclusive) {
-                    while (next != Chunk.NONE && comparator.compareKeyAndSerializedKey(from, readKey(next)) >= 0) {
-                        stack.push(next);
-                        next = getEntryFieldInt(next, OFFSET.NEXT);
+                if (firstTimeInvocation) {
+                    if (inclusive) {
+                        while (next != Chunk.NONE
+                            && comparator.compareKeyAndSerializedKey(from, readKey(next)) >= 0) {
+                            stack.push(next);
+                            next = getEntryFieldInt(next, OFFSET.NEXT);
+                        }
+                    } else {
+                        while (next != Chunk.NONE
+                            && comparator.compareKeyAndSerializedKey(from, readKey(next)) > 0) {
+                            stack.push(next);
+                            next = getEntryFieldInt(next, OFFSET.NEXT);
+                        }
                     }
                 } else {
-                    while (next != Chunk.NONE && comparator.compareKeyAndSerializedKey(from, readKey(next)) > 0) {
-                        stack.push(next);
-                        next = getEntryFieldInt(next, OFFSET.NEXT);
-                    }
+                    // stop when reaching previous anchor
+                    pushToStack(true);
                 }
             }
         }
@@ -1216,7 +1256,7 @@ public class Chunk<K, V> {
                     return;
                 }
                 findNewAnchor();
-                traverseLinkedList();
+                traverseLinkedList(false);
             }
         }
 

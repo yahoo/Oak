@@ -46,9 +46,10 @@ public class NoFreeMemoryManager implements MemoryManager {
     }
 
     @Override
-    public ByteBuffer getByteBufferFromBlockID(int blockID, int bufferPosition, int bufferLength) {
+    public ByteBuffer getByteBufferFromBlockID(
+        int blockID, int bufferPosition, int bufferLength, int numerator) {
         return keysMemoryAllocator.readByteBufferFromBlockID(
-                blockID, bufferPosition, bufferLength);
+                blockID, bufferPosition, bufferLength, numerator);
     }
 
     public boolean isClosed() {

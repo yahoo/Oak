@@ -6,6 +6,8 @@
 
 package com.oath.oak;
 
+import com.oath.oak.NativeAllocator.OakNativeMemoryAllocator;
+
 import java.nio.ByteBuffer;
 
 import static com.oath.oak.ValueUtilsImpl.LockStates.FREE;
@@ -25,7 +27,8 @@ public class Slice {
     }
 
     Slice(int blockID, int position, int length, MemoryManager memoryManager) {
-        this(blockID, memoryManager.getByteBufferFromBlockID(blockID, position, length));
+        this(blockID, memoryManager.getByteBufferFromBlockID(blockID, position, length,
+            OakNativeMemoryAllocator.FIRST_THREAD_BUFFER));
     }
 
     public Slice duplicate() {

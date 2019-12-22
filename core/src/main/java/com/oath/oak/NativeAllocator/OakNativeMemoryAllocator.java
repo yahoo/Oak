@@ -39,6 +39,9 @@ public class OakNativeMemoryAllocator implements OakBlockMemoryAllocator {
     private static final int REUSE_MAX_MULTIPLIER = 2;
     public static final int INVALID_BLOCK_ID = 0;
 
+    public static final int FIRST_THREAD_BUFFER = 1;
+    public static final int SECOND_THREAD_BUFFER = 2;
+
     // mapping IDs to blocks allocated solely to this Allocator
     private final Block[] blocksArray;
     private final AtomicInteger idGenerator = new AtomicInteger(1);
@@ -228,11 +231,11 @@ public class OakNativeMemoryAllocator implements OakBlockMemoryAllocator {
 
     // When some buffer need to be read from a random block
     @Override
-    public ByteBuffer readByteBufferFromBlockID(int blockID, int bufferPosition, int bufferLength) {
+    public ByteBuffer readByteBufferFromBlockID(int blockID, int bufferPosition, int bufferLength, int numerator) {
         Block b = blocksArray[blockID];
         // The returned buffer is this thread's block buffer.
         // Therefore, a thread cannot read two slices from the same block without duplicating one of them.
-        return b.getBufferForThread(bufferPosition, bufferLength);
+        return b.getBufferForThread(bufferPosition, bufferLength, numerator);
     }
 
     // used only for testing

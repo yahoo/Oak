@@ -22,6 +22,7 @@ public class SingleThreadIteratorTest {
 
     private OakMap<Integer, Integer> oak;
     private int maxItemsPerChunk = 2048;
+    private int iteratorsRange = 10;
 
     @Before
     public void init() {
@@ -169,10 +170,10 @@ public class SingleThreadIteratorTest {
     public void testEntryKeySet() {
         Integer i;
         Integer value;
-        for (i = 0; i < 5; i++) {
+        for (i = 0; i < iteratorsRange; i++) {
             oak.zc().put(i, i);
         }
-        for (i = 0; i < 5; i++) {
+        for (i = 0; i < iteratorsRange; i++) {
             value = oak.get(i);
             assertNotNull(value);
             assertEquals(i, value);
@@ -185,12 +186,12 @@ public class SingleThreadIteratorTest {
             assertEquals(i, iter.next());
             i++;
         }
-        assertEquals(5, i.intValue());
+        assertEquals(iteratorsRange, i.intValue());
 
 
         try (OakMap<Integer, Integer> oakDesc = oak.descendingMap()) {
             Iterator<Map.Entry<Integer, Integer>> entryIter = oakDesc.entrySet().iterator();
-            i = 5;
+            i = iteratorsRange;
             while (entryIter.hasNext()) {
                 i--;
                 Map.Entry<Integer, Integer> e = entryIter.next();
@@ -200,10 +201,10 @@ public class SingleThreadIteratorTest {
         }
 
 
-        try (OakMap<Integer, Integer> sub = oak.subMap(1, false, 4, true);
+        try (OakMap<Integer, Integer> sub = oak.subMap(1, false, iteratorsRange-1, true);
              OakMap<Integer, Integer> oakSubDesc = sub.descendingMap()) {
             Iterator valIter = oakSubDesc.values().iterator();
-            i = 5;
+            i = iteratorsRange;
             while (valIter.hasNext()) {
                 i--;
                 assertEquals(i, valIter.next());
@@ -217,7 +218,89 @@ public class SingleThreadIteratorTest {
         try (OakMap<Integer, Integer> oakDesc = oak.descendingMap()) {
 
             Iterator<Integer> iter = oakDesc.values().iterator();
-            i = 5;
+            i = iteratorsRange;
+            while (iter.hasNext()) {
+                i--;
+                assertEquals(i, iter.next());
+            }
+            assertEquals(0, i.intValue());
+        }
+    }
+
+    @Test
+    public void testRandomDescending() {
+        // it is important to test different distribution of inserted keys, not only increasing
+        try (OakMap<Integer, Integer> oakDesc = oak.descendingMap()) {
+
+            Iterator iter = oakDesc.values().iterator();
+            assertFalse(iter.hasNext());
+
+            Integer i;
+            for (i = 0; i < iteratorsRange; i++) { // first insert even keys
+                if (i%2==0) oak.zc().put(i, i);
+            }
+            for (i = 0; i < iteratorsRange; i++) { // then insert odd keys
+                if (i%2==1) oak.zc().put(i, i);
+            }
+            for (i = 0; i < iteratorsRange; i++) {
+                Integer value = oak.get(i);
+                assertNotNull(value);
+                assertEquals(i, value);
+            }
+        }
+
+        Iterator<Integer> iter = oak.values().iterator();
+
+        Integer i = 0;
+        while (iter.hasNext()) {
+            assertEquals(i, iter.next());
+            i++;
+        }
+        assertEquals(iteratorsRange, i.intValue());
+
+        checkDescendingIter();
+
+        try (OakMap<Integer, Integer> oakSub = oak.subMap(1, false, iteratorsRange-1, true);
+            OakMap<Integer, Integer> oakDesc = oakSub.descendingMap()) {
+
+            iter = oakDesc.values().iterator();
+
+            i = iteratorsRange;
+            while (iter.hasNext()) {
+                i--;
+                assertEquals(i, iter.next());
+            }
+            assertEquals(2, i.intValue());
+        }
+
+        // test split chunks
+        for (i = 0; i < 3 * maxItemsPerChunk; i++) {
+            if (i%2==0) oak.zc().put(i, i);
+        }
+        for (i = 0; i < 3 * maxItemsPerChunk; i++) {
+            if (i%2==1) oak.zc().put(i, i);
+        }
+        for (i = 0; i < 3 * maxItemsPerChunk; i++) {
+            Integer value = oak.get(i);
+            if (value == null) {
+                assert false;
+            }
+            assertNotNull(value);
+            assertEquals(i, value);
+        }
+
+        iter = oak.values().iterator();
+        i = 0;
+        while (iter.hasNext()) {
+            assertEquals(i, iter.next());
+            i++;
+        }
+        assertEquals(3 * maxItemsPerChunk, i.intValue());
+
+
+        try (OakMap<Integer, Integer> oakDesc = oak.descendingMap()) {
+            iter = oakDesc.values().iterator();
+            i = 3 * maxItemsPerChunk;
             while (iter.hasNext()) {
                 i--;
                 assertEquals(i, iter.next());
@@ -234,10 +317,10 @@ public class SingleThreadIteratorTest {
             assertFalse(iter.hasNext());
 
             Integer i;
-            for (i = 0; i < 5; i++) {
+            for (i = 0; i < iteratorsRange; i++) {
                 oak.zc().put(i, i);
             }
-            for (i = 0; i < 5; i++) {
+            for (i = 0; i < iteratorsRange; i++) {
                 Integer value = oak.get(i);
                 assertNotNull(value);
                 assertEquals(i, value);
@@ -252,29 +335,29 @@ public class SingleThreadIteratorTest {
             assertEquals(i, iter.next());
             i++;
         }
-        assertEquals(5, i.intValue());
+        assertEquals(iteratorsRange, i.intValue());
 
 
         checkDescendingIter();
 
 
-        try (OakMap<Integer, Integer> sub = oak.subMap(1, false, 4, true)) {
+        try (OakMap<Integer, Integer> sub = oak.subMap(1, false, iteratorsRange-1, true)) {
             iter = sub.values().iterator();
             i = 2;
             while (iter.hasNext()) {
                 assertEquals(i, iter.next());
                 i++;
             }
-            assertEquals(5, i.intValue());
+            assertEquals(iteratorsRange, i.intValue());
         }
 
 
-        try (OakMap<Integer, Integer> oakSub = oak.subMap(1, false, 4, true);
+        try (OakMap<Integer, Integer> oakSub = oak.subMap(1, false, iteratorsRange-1, true);
              OakMap<Integer, Integer> oakDesc = oakSub.descendingMap()) {
 
             iter = oakDesc.values().iterator();
 
-            i = 5;
+            i = iteratorsRange;
             while (iter.hasNext()) {
                 i--;
                 assertEquals(i, iter.next());

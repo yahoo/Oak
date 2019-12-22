@@ -16,6 +16,7 @@ import java.nio.ByteBuffer;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static com.oath.oak.NativeAllocator.OakNativeMemoryAllocator.INVALID_BLOCK_ID;
+import static com.oath.oak.NativeAllocator.OakNativeMemoryAllocator.FIRST_THREAD_BUFFER;
 
 class Block {
 
@@ -24,12 +25,17 @@ class Block {
     private final AtomicInteger allocated = new AtomicInteger(0);
     private int id; // placeholder might need to be set in the future
 
-    // in order to avoid creating a new ByteBBuffer per each reading
+    // in order to avoid creating a new ByteBuffer per each reading
     // (for example binary search through the keys)
     // keep persistent ByteBuffer objects referring to a slice from a Block's big underlying buffer
     // in order to make it thread-safe keep separate persistent ByteBuffer per thread
     private ThreadIndexCalculator threadIndexCalculator;
     private ByteBuffer[] byteBufferPerThread;
+
+    // as a per thread ByteBuffer is used per thread, it can be impossible to do something
+    // with reading two ByteBuffers concurrently, for example compare two keys located off-heap.
+    // To enable this allow in rare cases to use second byteBufferPerThread
+    private ByteBuffer[] secondByteBufferPerThread = null;
 
     Block(long capacity) {
         assert capacity > 0;
@@ -110,8 +116,25 @@ class Block {
         return byteBufferPerThread[idx];
     }
 
-    ByteBuffer getBufferForThread(int position, int length) {
-        ByteBuffer bb = getMyBuffer();
+    private ByteBuffer getMySecondBuffer() {
+        int idx = threadIndexCalculator.getIndex();
+        if (secondByteBufferPerThread == null) {
+            // lazy initialization
+            this.secondByteBufferPerThread = new ByteBuffer[ThreadIndexCalculator.MAX_THREADS];
+        }
+        if (secondByteBufferPerThread[idx] == null) {
+            // the new buffer object is needed for thread safeness, otherwise
+            // (in single threaded environment)
+            // the setting of position and limit could happen on the main buffer itself
+            // but it happens only once per thread id
+            secondByteBufferPerThread[idx] = buffer.duplicate();
+        }
+
+        return secondByteBufferPerThread[idx];
+    }
+
+    ByteBuffer getBufferForThread(int position, int length, int numerator) {
+        ByteBuffer bb = (numerator == FIRST_THREAD_BUFFER) ? getMyBuffer() : getMySecondBuffer();
         bb.limit(position + length);
         bb.position(position);
         // on purpose not creating a ByteBuffer slice() here,

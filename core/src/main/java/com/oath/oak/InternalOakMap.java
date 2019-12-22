@@ -7,6 +7,8 @@
 package com.oath.oak;
 
 
+import com.oath.oak.NativeAllocator.OakNativeMemoryAllocator;
+
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.AbstractMap;
@@ -979,8 +981,11 @@ class InternalOakMap<K, V> {
 
     private ByteBuffer getKeyByteBuffer(long keyReference) {
         int[] keyArray = longToInts(keyReference);
-        return memoryManager.getByteBufferFromBlockID(keyArray[BLOCK_ID_LENGTH_ARRAY_INDEX] >>> KEY_BLOCK_SHIFT,
-                keyArray[POSITION_ARRAY_INDEX], keyArray[BLOCK_ID_LENGTH_ARRAY_INDEX] & KEY_LENGTH_MASK);
+        return memoryManager.getByteBufferFromBlockID(
+            keyArray[BLOCK_ID_LENGTH_ARRAY_INDEX] >>> KEY_BLOCK_SHIFT,
+                keyArray[POSITION_ARRAY_INDEX],
+            keyArray[BLOCK_ID_LENGTH_ARRAY_INDEX] & KEY_LENGTH_MASK,
+            OakNativeMemoryAllocator.FIRST_THREAD_BUFFER);
     }
 
     private OakRReference setKeyReference(long keyReference, OakRReference key) {
