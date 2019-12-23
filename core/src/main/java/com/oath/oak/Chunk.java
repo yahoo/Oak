@@ -1185,6 +1185,8 @@ public class Chunk<K, V> {
                     if (comparator.compareSerializedKeys(tmpBBprevAnchorKey, readSecondKey(next)) > 0) {
                         stack.push(next);
                         next = getEntryFieldInt(next, OFFSET.NEXT);
+                    } else {
+                        break;
                     }
                 }
             }

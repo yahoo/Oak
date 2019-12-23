@@ -227,7 +227,7 @@ public class SingleThreadIteratorTest {
         }
     }
 
-    @Test
+    @Test(timeout = 100000)
     public void testRandomDescending() {
         // it is important to test different distribution of inserted keys, not only increasing
         try (OakMap<Integer, Integer> oakDesc = oak.descendingMap()) {
