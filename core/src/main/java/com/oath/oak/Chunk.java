@@ -1241,7 +1241,12 @@ public class Chunk<K, V> {
             } else if (anchor == FIRST_ITEM) {
                 anchor = HEAD_NODE;
             } else {
-                anchor = anchor - FIELDS;
+                if ((anchor - (FIELDS*3)) > FIRST_ITEM) {
+                    // try to skip more then one backward step at a time
+                    anchor = anchor - (FIELDS*3);
+                } else {
+                    anchor = anchor - FIELDS;
+                }
             }
             stack.push(anchor);
         }
