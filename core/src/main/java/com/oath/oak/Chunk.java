@@ -1126,7 +1126,7 @@ public class Chunk<K, V> {
         private final K from;
         private boolean inclusive;
 
-        static final int SKIP_ENTRIES_FOR_BIGGER_STACK = 3;
+        static final int SKIP_ENTRIES_FOR_BIGGER_STACK = 100;
 
         DescendingIter() {
             from = null;
