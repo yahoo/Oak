@@ -1126,6 +1126,8 @@ public class Chunk<K, V> {
         private final K from;
         private boolean inclusive;
 
+        static final int SKIP_ENTRIES_FOR_BIGGER_STACK = 16;
+
         DescendingIter() {
             from = null;
             stack = new IntStack(entries.length / FIELDS);
@@ -1241,9 +1243,10 @@ public class Chunk<K, V> {
             } else if (anchor == FIRST_ITEM) {
                 anchor = HEAD_NODE;
             } else {
-                if ((anchor - (FIELDS*3)) > FIRST_ITEM) {
+                if ((anchor - (FIELDS*SKIP_ENTRIES_FOR_BIGGER_STACK)) > FIRST_ITEM) {
                     // try to skip more then one backward step at a time
-                    anchor = anchor - (FIELDS*3);
+                    // shows better performance
+                    anchor = anchor - (FIELDS*SKIP_ENTRIES_FOR_BIGGER_STACK);
                 } else {
                     anchor = anchor - FIELDS;
                 }
