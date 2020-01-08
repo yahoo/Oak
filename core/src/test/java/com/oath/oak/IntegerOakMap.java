@@ -45,9 +45,8 @@ public class IntegerOakMap {
     };
 
     public static OakMapBuilder<Integer, Integer> getDefaultBuilder() {
-        return new OakMapBuilder<Integer, Integer>(comparator, serializer, serializer)
-                .setMinKey(Integer.MIN_VALUE)
-                ;
+        return new OakMapBuilder<Integer, Integer>(
+            comparator, serializer, serializer, Integer.MIN_VALUE);
     }
 
     private static int intsCompare(int int1, int int2) {

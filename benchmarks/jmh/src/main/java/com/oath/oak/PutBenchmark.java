@@ -47,8 +47,7 @@ public class PutBenchmark {
 
             OakMapBuilder<String, String> builder =
                 new OakMapBuilder<String, String>(
-                    new StringComparator(), new StringSerializer(), new StringSerializer())
-                    .setMinKey("");
+                    new StringComparator(), new StringSerializer(), new StringSerializer(),"");
 
             oakMap = builder.build();
         }

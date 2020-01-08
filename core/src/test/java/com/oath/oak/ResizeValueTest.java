@@ -17,9 +17,9 @@ public class ResizeValueTest {
     public void initStuff() {
         OakMapBuilder<String, String> builder =
             new OakMapBuilder<String, String>(
-                new StringComparator(), new StringSerializer(), new StringSerializer())
+                new StringComparator(), new StringSerializer(), new StringSerializer(), "")
                 .setChunkMaxItems(100)
-                .setMinKey("");
+                ;
 
         oak = builder.build();
     }

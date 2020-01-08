@@ -32,10 +32,11 @@ public class OakMapBuilder<K, V> {
     private long memoryCapacity;
     private OakBlockMemoryAllocator memoryAllocator;
 
-    public OakMapBuilder(OakComparator<K> comparator, OakSerializer<K> keySerializer, OakSerializer<V> valueSerializer) {
+    public OakMapBuilder(OakComparator<K> comparator,
+        OakSerializer<K> keySerializer, OakSerializer<V> valueSerializer, K minKey) {
         this.keySerializer = keySerializer;
         this.valueSerializer = valueSerializer;
-        this.minKey = null;
+        this.minKey = minKey;
 
         this.comparator = comparator;
 
@@ -94,6 +95,9 @@ public class OakMapBuilder<K, V> {
         }
         if (valueSerializer == null) {
             throw new IllegalStateException("Must provide a non-null value serializer to build the OakMap");
+        }
+        if (minKey == null) {
+            throw new IllegalStateException("Must provide a non-null minimal key object to build the OakMap");
         }
         return new OakMap<>(
                 minKey,
