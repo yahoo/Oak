@@ -15,12 +15,11 @@ public class ResizeValueTest {
 
     @Before
     public void initStuff() {
-        OakMapBuilder<String, String> builder = new OakMapBuilder<String, String>()
+        OakMapBuilder<String, String> builder =
+            new OakMapBuilder<String, String>(
+                new StringComparator(), new StringSerializer(), new StringSerializer(), "")
                 .setChunkMaxItems(100)
-                .setKeySerializer(new StringSerializer())
-                .setValueSerializer(new StringSerializer())
-                .setComparator(new StringComparator())
-                .setMinKey("");
+                ;
 
         oak = builder.build();
     }

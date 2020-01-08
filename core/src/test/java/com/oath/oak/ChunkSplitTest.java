@@ -15,12 +15,10 @@ public class ChunkSplitTest {
 
     @Test
     public void testSplitByCount() throws NoSuchFieldException, IllegalAccessException {
-        OakMapBuilder<String, String> builder = new OakMapBuilder<String, String>()
-                .setChunkMaxItems(maxItemsPerChunk)
-                .setKeySerializer(new StringSerializer())
-                .setValueSerializer(new StringSerializer())
-                .setComparator(new StringComparator())
-                .setMinKey("");
+        OakMapBuilder<String, String> builder =
+            new OakMapBuilder<String, String>(
+                new StringComparator(), new StringSerializer(), new StringSerializer(), "")
+                .setChunkMaxItems(maxItemsPerChunk);
         OakMap<String, String> oak = builder.build();
 
         for (int i = 0; i < maxItemsPerChunk + 1; i++) {

@@ -18,11 +18,10 @@ public class UnsafeUtilsTest {
 
         IntHolder minKey = new IntHolder(0, new int[0]);
 
-        OakMapBuilder<IntHolder, IntHolder> builder = new OakMapBuilder<IntHolder, IntHolder>()
-                .setKeySerializer(new UnsafeTestSerializer())
-                .setValueSerializer(new UnsafeTestSerializer())
-                .setMinKey(minKey)
-                .setComparator(new UnsafeTestComparator());
+        OakMapBuilder<IntHolder, IntHolder> builder =
+            new OakMapBuilder<IntHolder, IntHolder>(
+                new UnsafeTestComparator(),
+                new UnsafeTestSerializer(),new UnsafeTestSerializer(), minKey);
 
         OakMap<IntHolder, IntHolder> oak = builder.build();
 

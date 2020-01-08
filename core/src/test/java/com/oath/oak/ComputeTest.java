@@ -174,12 +174,12 @@ public class ComputeTest {
         }
         minKey.position(0);
 
-        OakMapBuilder<ByteBuffer, ByteBuffer> builder = new OakMapBuilder<ByteBuffer, ByteBuffer>()
+        OakMapBuilder<ByteBuffer, ByteBuffer> builder
+            = new OakMapBuilder<ByteBuffer, ByteBuffer>(
+                new ComputeTestComparator(),
+                new ComputeTestKeySerializer(), new ComputeTestValueSerializer(), minKey)
                 .setChunkMaxItems(2048)
-                .setKeySerializer(new ComputeTestKeySerializer())
-                .setValueSerializer(new ComputeTestValueSerializer())
-                .setMinKey(minKey)
-                .setComparator(new ComputeTestComparator());
+                ;
 
         oak = builder.build();
 
