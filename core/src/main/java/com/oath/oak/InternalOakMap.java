@@ -1403,7 +1403,7 @@ class InternalOakMap<K, V> {
         }
     }
 
-    class EntryStreamIterator extends Iter<Map.Entry<OakRBuffer, OakRBuffer>> {
+    class EntryStreamIterator extends Iter<Map.Entry<OakRBuffer, OakRBuffer>> implements Map.Entry<OakRBuffer, OakRBuffer> {
 
         private OakRReference key = new OakRReference(memoryManager, KEY_HEADER_SIZE);
         private OakRReference value = new OakRReference(memoryManager, valueOperator.getHeaderSize());
@@ -1417,7 +1417,22 @@ class InternalOakMap<K, V> {
             if (value == null) {
                 return null;
             }
-            return new AbstractMap.SimpleImmutableEntry<>(key, value);
+            return this;
+        }
+
+        @Override
+        public OakRBuffer getKey() {
+            return key;
+        }
+
+        @Override
+        public OakRBuffer getValue() {
+            return value;
+        }
+
+        @Override
+        public OakRBuffer setValue(OakRBuffer value) {
+            throw new UnsupportedOperationException();
         }
     }
 
