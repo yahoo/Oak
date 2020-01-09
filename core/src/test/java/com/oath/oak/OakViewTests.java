@@ -54,8 +54,6 @@ public class OakViewTests {
 
     @Test
     public void uniTestOakRBuffer() {
-
-
         String testVal = String.valueOf(123);
         ByteBuffer testValBB = ByteBuffer.allocate(Integer.BYTES + testVal.length() * Character.BYTES);
         testValBB.putInt(0, testVal.length());
@@ -63,35 +61,21 @@ public class OakViewTests {
             testValBB.putChar(Integer.BYTES + i * Character.BYTES, testVal.charAt(i));
         }
 
-
         OakRBuffer valBuffer = oak.zc().get(testVal);
         String transformed = valBuffer.transform(deserialize);
         assertEquals(testVal, transformed);
 
         assertEquals(testValBB.capacity(), valBuffer.capacity());
 
-        assertEquals(testVal.length(), valBuffer.getInt(0));
-        assertEquals(testValBB.getInt(1), valBuffer.getInt(1));
+        assertEquals(testValBB.getInt(0), valBuffer.getInt(0));
+        for (int i = 0; i < testVal.length(); i++) {
+            int pos = Integer.BYTES + i * Character.BYTES;
+            assertEquals(testValBB.getChar(pos), valBuffer.getChar(pos));
+        }
 
         for (int i = 0; i < testVal.length(); ++i) {
-            assertEquals(testVal.charAt(i), valBuffer.getChar(i * 2 + Integer.BYTES));
-        }
-
-        byte[] testValBytes = testVal.getBytes();
-        for (int i = 0; i < testValBytes.length; ++i) {
-            assertEquals(testValBytes[i], valBuffer.get(i * 2 + 1 + Integer.BYTES));
-        }
-
-        assertEquals(testValBB.getDouble(1), valBuffer.getDouble(1));
-
-        assertEquals(testValBB.getFloat(1), valBuffer.getFloat(1));
-
-        for (int i = 0; i < testValBytes.length / Short.BYTES; ++i) {
-            assertEquals(testValBB.getShort(i), valBuffer.getShort(i));
-        }
-
-        for (int i = 0; i < testValBytes.length / Long.BYTES; ++i) {
-            assertEquals(testValBB.getLong(i), valBuffer.getLong(i));
+            int pos = Integer.BYTES + i * Character.BYTES;
+            assertEquals(testVal.charAt(i), valBuffer.getChar(pos));
         }
     }
 

@@ -48,4 +48,11 @@ public interface MemoryManager extends Closeable {
      * @return the reconstructed ByteBuffer
      */
     ByteBuffer getByteBufferFromBlockID(int blockID, int bufferPosition, int bufferLength);
+
+    /**
+     * TODO Liran: This should be documented. Why is the version handled in the memory allocator?
+     *
+     * @return the current version
+     */
+    int getCurrentVersion();
 }

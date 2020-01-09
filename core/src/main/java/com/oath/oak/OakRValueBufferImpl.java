@@ -53,7 +53,7 @@ public class OakRValueBufferImpl implements OakRBuffer {
     }
 
     private Slice getValueSlice() {
-        int[] valueArray = UnsafeUtils.longToInts(valueReference);
+        int[] valueArray = UnsafeUtils.longToIntsReverse(valueReference);
         return memoryManager.getSliceFromBlockID(valueArray[BLOCK_ID_LENGTH_ARRAY_INDEX] >>> VALUE_BLOCK_SHIFT,
                 valueArray[POSITION_ARRAY_INDEX], valueArray[BLOCK_ID_LENGTH_ARRAY_INDEX] & VALUE_LENGTH_MASK);
     }
@@ -63,12 +63,12 @@ public class OakRValueBufferImpl implements OakRBuffer {
     }
 
     private int valuePosition() {
-        return UnsafeUtils.longToInts(valueReference)[POSITION_ARRAY_INDEX] + valueOperator.getHeaderSize();
+        return UnsafeUtils.longToIntsReverse(valueReference)[POSITION_ARRAY_INDEX] + valueOperator.getHeaderSize();
     }
 
     @Override
     public int capacity() {
-        return (UnsafeUtils.longToInts(valueReference)[BLOCK_ID_LENGTH_ARRAY_INDEX] & VALUE_LENGTH_MASK) - valueOperator.getHeaderSize();
+        return (UnsafeUtils.longToIntsReverse(valueReference)[BLOCK_ID_LENGTH_ARRAY_INDEX] & VALUE_LENGTH_MASK) - valueOperator.getHeaderSize();
     }
 
     @Override

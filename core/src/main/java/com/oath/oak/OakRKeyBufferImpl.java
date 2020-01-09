@@ -14,7 +14,6 @@ import static com.oath.oak.Chunk.BLOCK_ID_LENGTH_ARRAY_INDEX;
 import static com.oath.oak.Chunk.KEY_BLOCK_SHIFT;
 import static com.oath.oak.Chunk.KEY_LENGTH_MASK;
 import static com.oath.oak.Chunk.POSITION_ARRAY_INDEX;
-import static com.oath.oak.UnsafeUtils.longToInts;
 
 public class OakRKeyBufferImpl implements OakRBuffer {
 
@@ -25,18 +24,18 @@ public class OakRKeyBufferImpl implements OakRBuffer {
     OakRKeyBufferImpl(long keyReference, MemoryManager memoryManager) {
         this.keyReference = keyReference;
         this.memoryManager = memoryManager;
-        this.initialPosition = longToInts(keyReference)[POSITION_ARRAY_INDEX];
+        this.initialPosition = UnsafeUtils.longToIntsReverse(keyReference)[POSITION_ARRAY_INDEX];
     }
 
     private ByteBuffer getKeyBuffer() {
-        int[] keyArray = longToInts(keyReference);
+        int[] keyArray = UnsafeUtils.longToIntsReverse(keyReference);
         return memoryManager.getByteBufferFromBlockID(keyArray[BLOCK_ID_LENGTH_ARRAY_INDEX] >>> KEY_BLOCK_SHIFT, keyArray[POSITION_ARRAY_INDEX],
                 keyArray[BLOCK_ID_LENGTH_ARRAY_INDEX] & KEY_LENGTH_MASK);
     }
 
     @Override
     public int capacity() {
-        return longToInts(keyReference)[BLOCK_ID_LENGTH_ARRAY_INDEX] & KEY_LENGTH_MASK;
+        return UnsafeUtils.longToIntsReverse(keyReference)[BLOCK_ID_LENGTH_ARRAY_INDEX] & KEY_LENGTH_MASK;
     }
 
     @Override
