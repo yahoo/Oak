@@ -44,9 +44,9 @@ declare -A scenarios=(
                       ["4c-get-copy"]=""
                       ["4d-95Get5Put"]="--buffer -a 0 -u 5"
                       ["4e-entrySet-ascend"]="--buffer -c"
-                      #["4e-entryStreamSet-ascend"]="--buffer -c --stream-iteration"
+                      ["4e-entryStreamSet-ascend"]="--buffer -c --stream-iteration"
                       ["4f-entrySet-descend"]="--buffer -c -a 100"
-                      #["4f-entryStreamSet-descend"]="--buffer -c -a 100 --stream-iteration"
+                      ["4f-entryStreamSet-descend"]="--buffer -c -a 100 --stream-iteration"
                      )
 
 
