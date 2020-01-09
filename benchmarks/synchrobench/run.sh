@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 
 dir=`pwd`
-output=${dir}/output
+
+# Get the output path as the first parameter. Default is <pwd>/output.
+output=${1:-${dir}/output}
 java=java
 jarfile="target/oak-benchmarks-synchrobench-0.1.6-SNAPSHOT.jar"
 
