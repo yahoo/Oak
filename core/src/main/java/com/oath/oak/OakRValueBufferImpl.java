@@ -182,14 +182,16 @@ public class OakRValueBufferImpl implements OakRBuffer {
         if (transformer == null) {
             throw new NullPointerException();
         }
-        Result<T> result = valueOperator.transform(getValueSlice(), transformer, version);
-        if (result.operationResult == FALSE) {
-            throw new ConcurrentModificationException();
-        } else if (result.operationResult == RETRY) {
-            lookupValueReference();
-            transform(transformer);
+        while (true) {
+            Result<T> result = valueOperator.transform(getValueSlice(), transformer, version);
+            if (result.operationResult == FALSE) {
+                throw new ConcurrentModificationException();
+            } else if (result.operationResult == RETRY) {
+                lookupValueReference();
+                continue;
+            }
+            return result.value;
         }
-        return result.value;
     }
 
     @Override
