@@ -124,12 +124,6 @@ public class OakRReference implements OakRBuffer {
     }
 
     private ByteBuffer getTemporaryPerThreadByteBuffer() {
-        // need to check that the entire OakMap wasn't already closed with its memoryManager
-        // if memoryManager was closed, its object is still not GCed as it is pointed from here
-        // therefore it is valid to check from here
-        if (memoryManager.isClosed()) {
-            throw new ConcurrentModificationException();
-        }
         assert blockID != OakNativeMemoryAllocator.INVALID_BLOCK_ID;
         assert position != -1;
         assert length != -1;
