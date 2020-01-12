@@ -33,6 +33,8 @@ public class OakRReference implements OakRBuffer {
     private int length = -1;
     private final MemoryManager memoryManager;
     private final int headerSize;
+    private ByteBuffer tmpByteBuffer;
+    private long tmpBufferOwner;
 
     // The OakRReference user accesses OakRReference as it would be a ByteBuffer with initially zero position.
     // We translate it to the relevant ByteBuffer position, by adding keyPosition and the header size to any given index
@@ -40,20 +42,25 @@ public class OakRReference implements OakRBuffer {
     OakRReference(MemoryManager memoryManager, int headerSize) {
         this.memoryManager = memoryManager;
         this.headerSize = headerSize;
+        this.tmpByteBuffer = null;
+        this.tmpBufferOwner = 0;
     }
 
     void setReference(int blockID, int position, int length) {
         this.blockID = blockID;
         this.position = position;
         this.length = length;
+        this.tmpByteBuffer = null;
     }
 
     void setPosition(int position) {
         this.position = position;
+        this.tmpByteBuffer = null;
     }
 
     void setLength(int length) {
         this.length = length;
+        this.tmpByteBuffer = null;
     }
 
     @Override
@@ -124,6 +131,12 @@ public class OakRReference implements OakRBuffer {
     }
 
     private ByteBuffer getTemporaryPerThreadByteBuffer() {
+        if (tmpByteBuffer != null && tmpBufferOwner == Thread.currentThread().getId()) {
+            tmpByteBuffer.limit(position + length);
+            tmpByteBuffer.position(position);
+            return tmpByteBuffer;
+        }
+
         // need to check that the entire OakMap wasn't already closed with its memoryManager
         // if memoryManager was closed, its object is still not GCed as it is pointed from here
         // therefore it is valid to check from here
@@ -133,6 +146,8 @@ public class OakRReference implements OakRBuffer {
         assert blockID != OakNativeMemoryAllocator.INVALID_BLOCK_ID;
         assert position != -1;
         assert length != -1;
-        return memoryManager.getByteBufferFromBlockID(blockID, position, length);
+        tmpByteBuffer = memoryManager.getByteBufferFromBlockID(blockID, position, length);
+        tmpBufferOwner = Thread.currentThread().getId();
+        return tmpByteBuffer;
     }
 }
