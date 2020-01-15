@@ -369,7 +369,7 @@ public class OakMap<K, V> extends AbstractMap<K, V> implements AutoCloseable, Co
 
     public OakMap<K, V> subMap(K fromKey, boolean fromInclusive, K toKey, boolean toInclusive, boolean descending) {
 
-        if (this.comparator.compare(fromKey, toKey) > 0) {
+        if (fromKey != null && toKey != null && this.comparator.compare(fromKey, toKey) > 0) {
             throw new IllegalArgumentException();
         }
         internalOakMap.open();
