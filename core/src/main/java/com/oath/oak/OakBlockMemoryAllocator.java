@@ -31,8 +31,7 @@ public interface OakBlockMemoryAllocator {
     long allocated();
 
     // Translates from blockID, buffer position and buffer length to ByteBuffer
-    // @param numerator explains whether it needs to be first or second buffer for the same thread
-    ByteBuffer readByteBufferFromBlockID(int blockID, int bufferPosition, int bufferLength, int numerator);
+    ByteBuffer readByteBufferFromBlockID(int blockID, int bufferPosition, int bufferLength);
 
     // Check if this Allocator was already closed
     boolean isClosed();

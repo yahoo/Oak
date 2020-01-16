@@ -6,8 +6,6 @@
 
 package com.oath.oak;
 
-import com.oath.oak.NativeAllocator.OakNativeMemoryAllocator;
-
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.function.Function;
@@ -32,11 +30,8 @@ public class OakRKeyBufferImpl implements OakRBuffer {
 
     private ByteBuffer getKeyBuffer() {
         int[] keyArray = longToInts(keyReference);
-        return memoryManager.getByteBufferFromBlockID(
-            keyArray[BLOCK_ID_LENGTH_ARRAY_INDEX] >>> KEY_BLOCK_SHIFT,
-            keyArray[POSITION_ARRAY_INDEX],
-                keyArray[BLOCK_ID_LENGTH_ARRAY_INDEX] & KEY_LENGTH_MASK,
-            OakNativeMemoryAllocator.FIRST_THREAD_BUFFER);
+        return memoryManager.getByteBufferFromBlockID(keyArray[BLOCK_ID_LENGTH_ARRAY_INDEX] >>> KEY_BLOCK_SHIFT, keyArray[POSITION_ARRAY_INDEX],
+                keyArray[BLOCK_ID_LENGTH_ARRAY_INDEX] & KEY_LENGTH_MASK);
     }
 
     @Override

@@ -133,7 +133,6 @@ public class OakRReference implements OakRBuffer {
         assert blockID != OakNativeMemoryAllocator.INVALID_BLOCK_ID;
         assert position != -1;
         assert length != -1;
-        return memoryManager.getByteBufferFromBlockID(
-            blockID, position, length, OakNativeMemoryAllocator.FIRST_THREAD_BUFFER);
+        return memoryManager.getByteBufferFromBlockID(blockID, position, length);
     }
 }

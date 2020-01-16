@@ -6,7 +6,6 @@
 
 package com.oath.oak;
 
-import com.oath.oak.NativeAllocator.OakNativeMemoryAllocator;
 import sun.misc.Unsafe;
 
 import java.nio.ByteBuffer;
@@ -242,29 +241,7 @@ public class Chunk<K, V> {
         int keyPosition = keyArray[POSITION_ARRAY_INDEX];
         int length = keyArray[BLOCK_ID_LENGTH_ARRAY_INDEX] & KEY_LENGTH_MASK;
 
-        return memoryManager.getByteBufferFromBlockID(blockID, keyPosition, length,
-            OakNativeMemoryAllocator.FIRST_THREAD_BUFFER);
-    }
-
-    /**
-     * Reads a key given the entry index. Key is returned via reusable thread-local ByteBuffer.
-     * There is no copy just a special ByteBuffer for a single key.
-     * The thread-local ByteBuffer can be reused by different threads, however as long as
-     * a thread is invoked the ByteBuffer is related solely to this thread.
-     */
-    ByteBuffer readSecondKey(int entryIndex) {
-        if (entryIndex == Chunk.NONE) {
-            return null;
-        }
-
-        long keyReference = getKeyReference(entryIndex);
-        int[] keyArray = longToInts(keyReference);
-        int blockID = keyArray[BLOCK_ID_LENGTH_ARRAY_INDEX] >> KEY_BLOCK_SHIFT;
-        int keyPosition = keyArray[POSITION_ARRAY_INDEX];
-        int length = keyArray[BLOCK_ID_LENGTH_ARRAY_INDEX] & KEY_LENGTH_MASK;
-
-        return memoryManager.getByteBufferFromBlockID(blockID, keyPosition, length,
-            OakNativeMemoryAllocator.SECOND_THREAD_BUFFER);
+        return memoryManager.getByteBufferFromBlockID(blockID, keyPosition, length);
     }
 
     /**
@@ -1126,7 +1103,7 @@ public class Chunk<K, V> {
         private final K from;
         private boolean inclusive;
 
-        static final int SKIP_ENTRIES_FOR_BIGGER_STACK = 500;
+        static final int SKIP_ENTRIES_FOR_BIGGER_STACK = 0;
 
         DescendingIter() {
             from = null;
@@ -1184,7 +1161,7 @@ public class Chunk<K, V> {
                     next = getEntryFieldInt(next, OFFSET.NEXT);
                 } else {
                     ByteBuffer tmpBBprevAnchorKey = readKey(prevAnchor);
-                    if (comparator.compareSerializedKeys(tmpBBprevAnchorKey, readSecondKey(next)) > 0) {
+                    if (next != prevAnchor /*comparator.compareSerializedKeys(tmpBBprevAnchorKey, readSecondKey(next)) > 0*/) {
                         stack.push(next);
                         next = getEntryFieldInt(next, OFFSET.NEXT);
                     } else {
