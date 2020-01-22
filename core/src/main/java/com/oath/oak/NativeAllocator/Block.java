@@ -24,7 +24,7 @@ class Block {
     private final AtomicInteger allocated = new AtomicInteger(0);
     private int id; // placeholder might need to be set in the future
 
-    // in order to avoid creating a new ByteBBuffer per each reading
+    // in order to avoid creating a new ByteBuffer per each reading
     // (for example binary search through the keys)
     // keep persistent ByteBuffer objects referring to a slice from a Block's big underlying buffer
     // in order to make it thread-safe keep separate persistent ByteBuffer per thread

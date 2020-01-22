@@ -1028,6 +1028,20 @@ public class Chunk<K, V> {
         return new DescendingIter(from, inclusive);
     }
 
+    private int advanceNextIndex(int next) {
+        long valueReference = INVALID_VALUE_REFERENCE;
+        if (next != Chunk.NONE) {
+            valueReference = getEntryFieldLong(next, OFFSET.VALUE_REFERENCE);
+        }
+        while (next != Chunk.NONE && valueReference == INVALID_VALUE_REFERENCE) {
+            next = getEntryFieldInt(next, OFFSET.NEXT);
+            if (next != Chunk.NONE) {
+                valueReference = getEntryFieldLong(next, OFFSET.VALUE_REFERENCE);
+            }
+        }
+        return next;
+    }
+
     interface ChunkIter {
         boolean hasNext();
 
@@ -1040,16 +1054,7 @@ public class Chunk<K, V> {
 
         AscendingIter() {
             next = getEntryFieldInt(HEAD_NODE, OFFSET.NEXT);
-            long valueReference = INVALID_VALUE_REFERENCE;
-            if (next != Chunk.NONE) {
-                valueReference = getEntryFieldLong(next, OFFSET.VALUE_REFERENCE);
-            }
-            while (next != Chunk.NONE && valueReference == INVALID_VALUE_REFERENCE) {
-                next = getEntryFieldInt(next, OFFSET.NEXT);
-                if (next != Chunk.NONE) {
-                    valueReference = getEntryFieldLong(next, OFFSET.VALUE_REFERENCE);
-                }
-            }
+            next = advanceNextIndex(next);
         }
 
         AscendingIter(K from, boolean inclusive) {
@@ -1073,16 +1078,7 @@ public class Chunk<K, V> {
 
         private void advance() {
             next = getEntryFieldInt(next, OFFSET.NEXT);
-            long valueReference = INVALID_VALUE_REFERENCE;
-            if (next != Chunk.NONE) {
-                valueReference = getEntryFieldLong(next, OFFSET.VALUE_REFERENCE);
-            }
-            while (next != Chunk.NONE && valueReference == INVALID_VALUE_REFERENCE) {
-                next = getEntryFieldInt(next, OFFSET.NEXT);
-                if (next != Chunk.NONE) {
-                    valueReference = getEntryFieldLong(next, OFFSET.VALUE_REFERENCE);
-                }
-            }
+            next = advanceNextIndex(next);
         }
 
         @Override
@@ -1107,6 +1103,8 @@ public class Chunk<K, V> {
         private final K from;
         private boolean inclusive;
 
+        static final int SKIP_ENTRIES_FOR_BIGGER_STACK = 1; // 1 is the lowest possible value
+
         DescendingIter() {
             from = null;
             stack = new IntStack(entries.length / FIELDS);
@@ -1126,7 +1124,7 @@ public class Chunk<K, V> {
         }
 
         private void initNext() {
-            traverseLinkedList();
+            traverseLinkedList(true);
             advance();
         }
 
@@ -1156,10 +1154,28 @@ public class Chunk<K, V> {
             }
         }
 
+        private void pushToStack(boolean compareWithPrevAnchor) {
+            while (next != Chunk.NONE) {
+                if (!compareWithPrevAnchor) {
+                    stack.push(next);
+                    next = getEntryFieldInt(next, OFFSET.NEXT);
+                } else {
+                    ByteBuffer tmpBBprevAnchorKey = readKey(prevAnchor);
+                    if (next != prevAnchor /*comparator.compareSerializedKeys(tmpBBprevAnchorKey, readSecondKey(next)) > 0*/) {
+                        stack.push(next);
+                        next = getEntryFieldInt(next, OFFSET.NEXT);
+                    } else {
+                        break;
+                    }
+                }
+            }
+        }
+
         /**
          * fill the stack
+         * @param firstTimeInvocation
          */
-        private void traverseLinkedList() {
+        private void traverseLinkedList(boolean firstTimeInvocation) {
             assert stack.size() == 1; // ancor is in the stack
             if (prevAnchor == getEntryFieldInt(anchor, OFFSET.NEXT)) {
                 // there is no next;
@@ -1168,21 +1184,26 @@ public class Chunk<K, V> {
             }
             next = getEntryFieldInt(anchor, OFFSET.NEXT);
             if (from == null) {
-                while (next != Chunk.NONE) {
-                    stack.push(next);
-                    next = getEntryFieldInt(next, OFFSET.NEXT);
-                }
+                // if this is not the first invocation, stop when reaching previous anchor
+                pushToStack(!firstTimeInvocation);
             } else {
-                if (inclusive) {
-                    while (next != Chunk.NONE && comparator.compareKeyAndSerializedKey(from, readKey(next)) >= 0) {
-                        stack.push(next);
-                        next = getEntryFieldInt(next, OFFSET.NEXT);
+                if (firstTimeInvocation) {
+                    if (inclusive) {
+                        while (next != Chunk.NONE
+                            && comparator.compareKeyAndSerializedKey(from, readKey(next)) >= 0) {
+                            stack.push(next);
+                            next = getEntryFieldInt(next, OFFSET.NEXT);
+                        }
+                    } else {
+                        while (next != Chunk.NONE
+                            && comparator.compareKeyAndSerializedKey(from, readKey(next)) > 0) {
+                            stack.push(next);
+                            next = getEntryFieldInt(next, OFFSET.NEXT);
+                        }
                     }
                 } else {
-                    while (next != Chunk.NONE && comparator.compareKeyAndSerializedKey(from, readKey(next)) > 0) {
-                        stack.push(next);
-                        next = getEntryFieldInt(next, OFFSET.NEXT);
-                    }
+                    // stop when reaching previous anchor
+                    pushToStack(true);
                 }
             }
         }
@@ -1199,7 +1220,13 @@ public class Chunk<K, V> {
             } else if (anchor == FIRST_ITEM) {
                 anchor = HEAD_NODE;
             } else {
-                anchor = anchor - FIELDS;
+                if ((anchor - (FIELDS*SKIP_ENTRIES_FOR_BIGGER_STACK)) > FIRST_ITEM) {
+                    // try to skip more then one backward step at a time
+                    // shows better performance
+                    anchor = anchor - (FIELDS*SKIP_ENTRIES_FOR_BIGGER_STACK);
+                } else {
+                    anchor = anchor - FIELDS;
+                }
             }
             stack.push(anchor);
         }
@@ -1216,7 +1243,7 @@ public class Chunk<K, V> {
                     return;
                 }
                 findNewAnchor();
-                traverseLinkedList();
+                traverseLinkedList(false);
             }
         }
 
