@@ -1103,7 +1103,7 @@ public class Chunk<K, V> {
         private final K from;
         private boolean inclusive;
 
-        static final int SKIP_ENTRIES_FOR_BIGGER_STACK = 1; // 1 is the lower possible value
+        static final int SKIP_ENTRIES_FOR_BIGGER_STACK = 1; // 1 is the lowest possible value
 
         DescendingIter() {
             from = null;
