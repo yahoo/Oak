@@ -807,6 +807,39 @@ class InternalOakMap<K, V> {
             throw new NullPointerException();
         }
 
+        while (entriesHash != null) {   // using while in order to be able to break from the block
+          // we have hash that can expedite the search
+          int hashIndex = keySerializer.hash(key);
+          if (hashIndex < 0) {  // user didn't implemented a hash, or implemented it wrongly
+            break;
+          }
+          hashIndex = hashIndexLimitation(hashIndex, entriesHash.length);
+
+          long keyReference = Chunk.getKeyReference(hashIndex, entriesHash); // find key
+          if (keyReference == 0) {
+            // we do not have hash for such key, if there are no concurrent updates and deletes
+            // return null, otherwise continue searching (break)
+            return null;
+          }
+          ByteBuffer keyBB = getKeyByteBuffer(keyReference);
+          // compare key
+          int cmp = comparator.compareKeyAndSerializedKey(key, keyBB);
+          if (cmp != 0) {
+            // due to collision this is wrong key, hash can not help us, continue through index
+            break;
+          }
+          // keys match, return its value
+          int[] valueVersion = new int[1];
+          long valueReference =
+              Chunk.getValueReferenceAndVersion(hashIndex, valueVersion, entriesHash);
+
+          Result<T> res = valueOperator.transform(getValueSlice(valueReference), transformer, valueVersion[0]);
+          if (res.operationResult == RETRY) {
+            continue;
+          }
+          return res.value;
+        }
+
         int infiLoopCount = 0;
         while (true) {
             infiLoopCount++;
@@ -816,6 +849,7 @@ class InternalOakMap<K, V> {
             }
             Chunk<K, V> c = findChunk(key); // find chunk matching key
             Chunk.LookUp lookUp = c.lookUp(key);
+
             if (lookUp == null || lookUp.valueSlice == null) {
                 return null;
             }
