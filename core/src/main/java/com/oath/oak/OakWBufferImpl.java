@@ -14,35 +14,42 @@ import java.nio.ByteOrder;
 public class OakWBufferImpl implements OakWBuffer {
 
     private ByteBuffer bb;
+    private int dataPos;
 
     OakWBufferImpl(Slice s, ValueUtils valueOperator) {
-        ByteBuffer buff = s.getByteBuffer();
-        int initPos = buff.position();
-        buff.position(initPos + valueOperator.getHeaderSize());
-        this.bb = buff.slice();
-
-        // It is important to return the original buffer to its original state.
-        buff.position(initPos);
+        bb = s.getByteBuffer();
+        dataPos = bb.position() + valueOperator.getHeaderSize();
     }
 
     @Override
     public ByteBuffer getByteBuffer() {
-        return bb;
+        int initPos = bb.position();
+        bb.position(dataPos);
+        ByteBuffer ret = bb.slice();
+        // It is important to return the original buffer to its original state.
+        bb.position(initPos);
+        return ret;
     }
 
     @Override
     public int capacity() {
-        return bb.remaining();
+        return bb.limit() - dataPos;
     }
 
     @Override
     public byte get(int index) {
-        return bb.get(index);
+        if (index < 0) {
+            throw new IndexOutOfBoundsException();
+        }
+        return bb.get(dataPos + index);
     }
 
     @Override
     public OakWBuffer put(int index, byte b) {
-        bb.put(index, b);
+        if (index < 0) {
+            throw new IndexOutOfBoundsException();
+        }
+        bb.put(dataPos + index, b);
         return this;
     }
 
@@ -53,67 +60,103 @@ public class OakWBufferImpl implements OakWBuffer {
 
     @Override
     public char getChar(int index) {
-        return bb.getChar(index);
+        if (index < 0) {
+            throw new IndexOutOfBoundsException();
+        }
+        return bb.getChar(dataPos + index);
     }
 
     @Override
     public OakWBuffer putChar(int index, char value) {
-        bb.putChar(index, value);
+        if (index < 0) {
+            throw new IndexOutOfBoundsException();
+        }
+        bb.putChar(dataPos + index, value);
         return this;
     }
 
     @Override
     public short getShort(int index) {
-        return bb.getShort(index);
+        if (index < 0) {
+            throw new IndexOutOfBoundsException();
+        }
+        return bb.getShort(dataPos + index);
     }
 
     @Override
     public OakWBuffer putShort(int index, short value) {
-        bb.putShort(index, value);
+        if (index < 0) {
+            throw new IndexOutOfBoundsException();
+        }
+        bb.putShort(dataPos + index, value);
         return this;
     }
 
     @Override
     public int getInt(int index) {
-        return bb.getInt(index);
+        if (index < 0) {
+            throw new IndexOutOfBoundsException();
+        }
+        return bb.getInt(dataPos + index);
     }
 
     @Override
     public OakWBuffer putInt(int index, int value) {
-        bb.putInt(index, value);
+        if (index < 0) {
+            throw new IndexOutOfBoundsException();
+        }
+        bb.putInt(dataPos + index, value);
         return this;
     }
 
     @Override
     public long getLong(int index) {
-        return bb.getLong(index);
+        if (index < 0) {
+            throw new IndexOutOfBoundsException();
+        }
+        return bb.getLong(dataPos + index);
     }
 
     @Override
     public OakWBuffer putLong(int index, long value) {
-        bb.putLong(index, value);
+        if (index < 0) {
+            throw new IndexOutOfBoundsException();
+        }
+        bb.putLong(dataPos + index, value);
         return this;
     }
 
     @Override
     public float getFloat(int index) {
-        return bb.getFloat(index);
+        if (index < 0) {
+            throw new IndexOutOfBoundsException();
+        }
+        return bb.getFloat(dataPos + index);
     }
 
     @Override
     public OakWBuffer putFloat(int index, float value) {
-        bb.putFloat(index, value);
+        if (index < 0) {
+            throw new IndexOutOfBoundsException();
+        }
+        bb.putFloat(dataPos + index, value);
         return this;
     }
 
     @Override
     public double getDouble(int index) {
-        return bb.getDouble(index);
+        if (index < 0) {
+            throw new IndexOutOfBoundsException();
+        }
+        return bb.getDouble(dataPos + index);
     }
 
     @Override
     public OakWBuffer putDouble(int index, double value) {
-        bb.putDouble(index, value);
+        if (index < 0) {
+            throw new IndexOutOfBoundsException();
+        }
+        bb.putDouble(dataPos + index, value);
         return this;
     }
 }
