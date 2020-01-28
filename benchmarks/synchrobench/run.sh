@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 
 dir=`pwd`
-output=${dir}/output
+
+# Get the output path as the first parameter. Default is <pwd>/output.
+output=${1:-${dir}/output}
 java=java
 jarfile="target/oak-benchmarks-synchrobench-0.1.6-SNAPSHOT.jar"
 
@@ -44,9 +46,9 @@ declare -A scenarios=(
                       ["4c-get-copy"]=""
                       ["4d-95Get5Put"]="--buffer -a 0 -u 5"
                       ["4e-entrySet-ascend"]="--buffer -c"
-                      #["4e-entryStreamSet-ascend"]="--buffer -c --stream-iteration"
+                      ["4e-entryStreamSet-ascend"]="--buffer -c --stream-iteration"
                       ["4f-entrySet-descend"]="--buffer -c -a 100"
-                      #["4f-entryStreamSet-descend"]="--buffer -c -a 100 --stream-iteration"
+                      ["4f-entryStreamSet-descend"]="--buffer -c -a 100 --stream-iteration"
                      )
 
 
