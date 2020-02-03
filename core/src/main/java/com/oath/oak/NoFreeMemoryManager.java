@@ -54,5 +54,10 @@ public class NoFreeMemoryManager implements MemoryManager {
     public boolean isClosed() {
         return keysMemoryAllocator.isClosed() || valuesMemoryAllocator.isClosed();
     }
+
+    @Override
+    public int getCurrentVersion() {
+        return 0;
+    }
 }
 

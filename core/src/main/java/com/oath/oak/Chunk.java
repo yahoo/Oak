@@ -17,9 +17,6 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static com.oath.oak.ValueUtils.INVALID_VERSION;
 import static com.oath.oak.ValueUtils.ValueResult.*;
-import static com.oath.oak.UnsafeUtils.intsToLong;
-
-import static com.oath.oak.UnsafeUtils.longToInts;
 
 public class Chunk<K, V> {
 
@@ -87,8 +84,8 @@ public class Chunk<K, V> {
     static final int NONE = 0;    // an entry with NONE as its next pointer, points to a null entry
     static final int INVALID_ENTRY_INDEX = -1;
     static final long INVALID_VALUE_REFERENCE = 0;
-    static final int BLOCK_ID_LENGTH_ARRAY_INDEX = 0;
-    static final int POSITION_ARRAY_INDEX = 1;
+    static final int BLOCK_ID_LENGTH_ARRAY_INDEX = 1;
+    static final int POSITION_ARRAY_INDEX = 0;
     // location of the first (head) node - just a next pointer
     private static final int HEAD_NODE = 0;
     // index of first item in array, after head (not necessarily first in list!)
@@ -236,7 +233,7 @@ public class Chunk<K, V> {
         }
 
         long keyReference = getKeyReference(entryIndex);
-        int[] keyArray = longToInts(keyReference);
+        int[] keyArray = UnsafeUtils.longToInts(keyReference);
         int blockID = keyArray[BLOCK_ID_LENGTH_ARRAY_INDEX] >> KEY_BLOCK_SHIFT;
         int keyPosition = keyArray[POSITION_ARRAY_INDEX];
         int length = keyArray[BLOCK_ID_LENGTH_ARRAY_INDEX] & KEY_LENGTH_MASK;
@@ -255,7 +252,7 @@ public class Chunk<K, V> {
             return;
         }
         long keyReference = getKeyReference(entryIndex);
-        int[] keyArray = longToInts(keyReference);
+        int[] keyArray = UnsafeUtils.longToInts(keyReference);
         int blockID = keyArray[BLOCK_ID_LENGTH_ARRAY_INDEX] >> KEY_BLOCK_SHIFT;
         int keyPosition = keyArray[POSITION_ARRAY_INDEX];
         int length = keyArray[BLOCK_ID_LENGTH_ARRAY_INDEX] & KEY_LENGTH_MASK;
@@ -270,7 +267,7 @@ public class Chunk<K, V> {
         if (valueReference == INVALID_VALUE_REFERENCE) {
             return false;
         }
-        int[] valueArray = longToInts(valueReference);
+        int[] valueArray = UnsafeUtils.longToInts(valueReference);
         int blockID = valueArray[BLOCK_ID_LENGTH_ARRAY_INDEX] >> VALUE_BLOCK_SHIFT;
         int valuePosition = valueArray[POSITION_ARRAY_INDEX];
         int length = valueArray[BLOCK_ID_LENGTH_ARRAY_INDEX] & VALUE_LENGTH_MASK;
@@ -283,7 +280,7 @@ public class Chunk<K, V> {
      **/
     void releaseKey(int entryIndex) {
         long keyReference = getKeyReference(entryIndex);
-        int[] keyArray = longToInts(keyReference);
+        int[] keyArray = UnsafeUtils.longToInts(keyReference);
         int blockID = keyArray[BLOCK_ID_LENGTH_ARRAY_INDEX] >> KEY_BLOCK_SHIFT;
         int keyPosition = keyArray[POSITION_ARRAY_INDEX];
         int length = keyArray[BLOCK_ID_LENGTH_ARRAY_INDEX] & KEY_LENGTH_MASK;
@@ -739,16 +736,20 @@ public class Chunk<K, V> {
         int valueLength = valueSerializer.calculateSize(value) + valueOperator.getHeaderSize();
         // The allocated slice is actually the thread's copy moved to point to the newly allocated slice
         Slice slice = memoryManager.allocateSlice(valueLength, MemoryManager.Allocate.VALUE);
-        version[0] = slice.getByteBuffer().getInt(slice.getByteBuffer().position());
-        // initializing the header lock to be free
-        slice.initHeader(valueOperator);
+        version[0] = memoryManager.getCurrentVersion();
+        // initializing the header version and the lock to be free
+        valueOperator.initHeader(slice, version[0]);
         // since this is a private environment, we can only use ByteBuffer::slice, instead of ByteBuffer::duplicate
         // and then ByteBuffer::slice
         // This is the only place where we create a new object (for the serializer).
         valueSerializer.serialize(value, valueOperator.getValueByteBufferNoHeaderPrivate(slice));
         // combines the blockID with the value's length (including the header)
+        return makeReference(slice, valueLength);
+    }
+
+    static long makeReference(Slice slice, int valueLength) {
         int valueBlockAndLength = (slice.getBlockID() << VALUE_BLOCK_SHIFT) | (valueLength & VALUE_LENGTH_MASK);
-        return intsToLong(valueBlockAndLength, slice.getByteBuffer().position());
+        return UnsafeUtils.intsToLong(slice.getByteBuffer().position(), valueBlockAndLength);
     }
 
     int getMaxItems() {

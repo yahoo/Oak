@@ -4,12 +4,9 @@ import sun.misc.Unsafe;
 import sun.nio.ch.DirectBuffer;
 
 import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
-import static com.oath.oak.Chunk.VALUE_BLOCK_SHIFT;
-import static com.oath.oak.Chunk.VALUE_LENGTH_MASK;
 import static com.oath.oak.ValueUtilsImpl.LockStates.DELETED;
 import static com.oath.oak.ValueUtilsImpl.LockStates.FREE;
 import static com.oath.oak.ValueUtilsImpl.LockStates.LOCKED;
@@ -17,8 +14,6 @@ import static com.oath.oak.ValueUtilsImpl.LockStates.MOVED;
 import static com.oath.oak.ValueUtils.ValueResult.FALSE;
 import static com.oath.oak.ValueUtils.ValueResult.RETRY;
 import static com.oath.oak.ValueUtils.ValueResult.TRUE;
-import static com.oath.oak.UnsafeUtils.intsToLong;
-import static java.lang.Long.reverseBytes;
 
 public class ValueUtilsImpl implements ValueUtils {
     enum LockStates {
@@ -37,17 +32,15 @@ public class ValueUtilsImpl implements ValueUtils {
 
     private static Unsafe unsafe = UnsafeUtils.unsafe;
 
-    private boolean CAS(Slice s, int expectedLock, int newLock, int version) {
-        long expected = intsToLong(version, expectedLock);
-        long value = intsToLong(version, newLock);
+    private static boolean CAS(Slice s, int expectedLock, int newLock, int version) {
+        ByteBuffer buff = s.getByteBuffer();
+
         // Since the writing is done directly to the memory, the endianness of the memory is important here.
         // Therefore, we make sure that the values are read and written correctly.
-        if (s.getByteBuffer().order() == ByteOrder.BIG_ENDIAN) {
-            expected = reverseBytes(expected);
-            value = reverseBytes(value);
-        }
+        long expected = UnsafeUtils.intsToLong(version, expectedLock);
+        long value = UnsafeUtils.intsToLong(version, newLock);
         return unsafe.compareAndSwapLong(null,
-                ((DirectBuffer) s.getByteBuffer()).address() + s.getByteBuffer().position(), expected, value);
+                ((DirectBuffer) buff).address() + buff.position(), expected, value);
     }
 
     @Override
@@ -94,15 +87,18 @@ public class ValueUtilsImpl implements ValueUtils {
 
     private <V> Slice moveValue(Chunk<?, V> chunk, Chunk.LookUp lookUp, int capacity, MemoryManager memoryManager) {
         Slice s = lookUp.valueSlice;
-        putInt(s, getLockLocation(), MOVED.value);
+        setLockState(s, MOVED);
         memoryManager.releaseSlice(s);
-        s = memoryManager.allocateSlice(capacity + getHeaderSize(), MemoryManager.Allocate.VALUE);
-        putInt(s, getLockLocation(), LOCKED.value);
-        int valueBlockAndLength =
-                (s.getBlockID() << VALUE_BLOCK_SHIFT) | ((capacity + getHeaderSize()) & VALUE_LENGTH_MASK);
-        assert chunk.casEntriesArrayLong(lookUp.entryIndex, Chunk.OFFSET.VALUE_REFERENCE, lookUp.valueReference,
-                UnsafeUtils.intsToLong(valueBlockAndLength, s.getByteBuffer().position()));
-        assert chunk.casEntriesArrayInt(lookUp.entryIndex, Chunk.OFFSET.VALUE_VERSION, lookUp.version, getInt(s, 0));
+        int valueLength = capacity + getHeaderSize();
+        s = memoryManager.allocateSlice(valueLength, MemoryManager.Allocate.VALUE);
+        initHeader(s, memoryManager.getCurrentVersion(), LOCKED);
+        boolean ret;
+        ret = chunk.casEntriesArrayLong(lookUp.entryIndex, Chunk.OFFSET.VALUE_REFERENCE, lookUp.valueReference,
+                Chunk.makeReference(s, valueLength));
+        assert ret;
+        ret = chunk.casEntriesArrayInt(lookUp.entryIndex, Chunk.OFFSET.VALUE_VERSION, lookUp.version,
+                getOffHeapVersion(s));
+        assert ret;
         return s;
     }
 
@@ -150,7 +146,7 @@ public class ValueUtilsImpl implements ValueUtils {
                 return Result.withFlag(FALSE);
             }
             // both values match so the value is marked as deleted. No need for a CAS since a write lock is exclusive
-            putInt(s, getLockLocation(), DELETED.value);
+            setLockState(s, DELETED);
             // release the slice (no need to re-read it).
             memoryManager.releaseSlice(s);
             return Result.withValue(v);
@@ -228,12 +224,12 @@ public class ValueUtilsImpl implements ValueUtils {
         int lockState;
         assert version > INVALID_VERSION;
         do {
-            int oldVersion = getInt(s, 0);
+            int oldVersion = getOffHeapVersion(s);
             if (oldVersion != version) {
                 return ValueResult.RETRY;
             }
-            lockState = getInt(s, getLockLocation());
-            if (oldVersion != getInt(s, 0)) {
+            lockState = getLockState(s);
+            if (oldVersion != getOffHeapVersion(s)) {
                 return ValueResult.RETRY;
             }
             if (lockState == DELETED.value) {
@@ -252,7 +248,7 @@ public class ValueUtilsImpl implements ValueUtils {
         int lockState;
         assert version > INVALID_VERSION;
         do {
-            lockState = getInt(s, getLockLocation());
+            lockState = getLockState(s);
             assert lockState > MOVED.value;
             lockState &= ~LOCK_MASK;
         } while (!CAS(s, lockState, lockState - (1 << LOCK_SHIFT), version));
@@ -263,12 +259,12 @@ public class ValueUtilsImpl implements ValueUtils {
     public ValueResult lockWrite(Slice s, int version) {
         assert version > INVALID_VERSION;
         do {
-            int oldVersion = getInt(s, 0);
+            int oldVersion = getOffHeapVersion(s);
             if (oldVersion != version) {
                 return ValueResult.RETRY;
             }
-            int lockState = getInt(s, getLockLocation());
-            if (oldVersion != getInt(s, 0)) {
+            int lockState = getLockState(s);
+            if (oldVersion != getOffHeapVersion(s)) {
                 return ValueResult.RETRY;
             }
             if (lockState == DELETED.value) {
@@ -283,7 +279,7 @@ public class ValueUtilsImpl implements ValueUtils {
 
     @Override
     public ValueResult unlockWrite(Slice s) {
-        putInt(s, getLockLocation(), FREE.value);
+        setLockState(s, FREE);
         return TRUE;
     }
 
@@ -291,12 +287,12 @@ public class ValueUtilsImpl implements ValueUtils {
     public ValueResult deleteValue(Slice s, int version) {
         assert version > INVALID_VERSION;
         do {
-            int oldVersion = getInt(s, 0);
+            int oldVersion = getOffHeapVersion(s);
             if (oldVersion != version) {
                 return ValueResult.RETRY;
             }
-            int lockState = getInt(s, getLockLocation());
-            if (oldVersion != getInt(s, 0)) {
+            int lockState = getLockState(s);
+            if (oldVersion != getOffHeapVersion(s)) {
                 return ValueResult.RETRY;
             }
             if (lockState == DELETED.value) {
@@ -311,12 +307,12 @@ public class ValueUtilsImpl implements ValueUtils {
 
     @Override
     public ValueResult isValueDeleted(Slice s, int version) {
-        int oldVersion = getInt(s, 0);
+        int oldVersion = getOffHeapVersion(s);
         if (oldVersion != version) {
             return ValueResult.RETRY;
         }
-        int lockState = getInt(s, getLockLocation());
-        if (oldVersion != getInt(s, 0)) {
+        int lockState = getLockState(s);
+        if (oldVersion != getOffHeapVersion(s)) {
             return ValueResult.RETRY;
         }
         if (lockState == MOVED.value) {
@@ -333,11 +329,35 @@ public class ValueUtilsImpl implements ValueUtils {
         return getInt(s, 0);
     }
 
+    private void setVersion(Slice s, int version) {
+        putInt(s, 0, version);
+    }
+
+    private int getLockState(Slice s) {
+        return getInt(s, getLockLocation());
+    }
+
+    private void setLockState(Slice s, LockStates state) {
+        putInt(s, getLockLocation(), state.value);
+    }
+
+    @Override
+    public void initHeader(Slice s, int version) {
+        initHeader(s, version, FREE);
+    }
+
+    private void initHeader(Slice s, int version, ValueUtilsImpl.LockStates state) {
+        setVersion(s, version);
+        setLockState(s, state);
+    }
+
     private int getInt(Slice s, int index) {
-        return s.getByteBuffer().getInt(s.getByteBuffer().position() + index);
+        ByteBuffer buff = s.getByteBuffer();
+        return unsafe.getInt(((DirectBuffer) buff).address() + buff.position() + index);
     }
 
     private void putInt(Slice s, int index, int value) {
-        s.getByteBuffer().putInt(s.getByteBuffer().position() + index, value);
+        ByteBuffer buff = s.getByteBuffer();
+        unsafe.putInt(((DirectBuffer) buff).address() + buff.position() + index, value);
     }
 }

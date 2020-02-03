@@ -51,22 +51,27 @@ public final class UnsafeUtils {
         }
     }
 
+    private static long LONG_INT_MASK_0 = (1L << 32) - 1;
+    private static long LONG_INT_MASK_1 = LONG_INT_MASK_0 << 32;
+
     /**
-     * Combines two integers to one long where the first argument is in the high 4 bytes.
+     * Combines two integers into one long where the first argument is placed in the lower four bytes.
+     * Each integer is written in its native endianness.
      * Uses OR so the sign of the integers should not matter.
      */
     static long intsToLong(int i1, int i2) {
-        long newLong = 0;
-        newLong |= ((long) i1) << 32;
-        newLong |= ((long) i2) & 0xffffffffL;
-        return newLong;
+        return (((long) i1) & LONG_INT_MASK_0) | ((((long) i2) << 32) & LONG_INT_MASK_1);
     }
 
-    // maybe change to >>> instead of & 0xffffffffL
+    /**
+     * Breaks a long value into two integers where the first integer is taken form the lower four bytes.
+     * Each integer is written in its native endianness.
+     * Uses OR so the sign of the integers should not matter.
+     */
     static int[] longToInts(long l) {
-        int[] res = new int[2];
-        res[1] = (int) (l & 0xffffffffL);
-        res[0] = (int) ((l >> 32) & 0xffffffffL);
-        return res;
+        return new int[] {
+                (int) (l & LONG_INT_MASK_0),
+                (int) ((l >> 32) & LONG_INT_MASK_0),
+        };
     }
 }

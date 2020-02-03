@@ -36,7 +36,8 @@ public class NovaManager implements MemoryManager {
         return allocator.isClosed();
     }
 
-    int getCurrentVersion() {
+    @Override
+    public int getCurrentVersion() {
         return globalNovaNumber.get();
     }
 
@@ -49,7 +50,6 @@ public class NovaManager implements MemoryManager {
     public Slice allocateSlice(int size, Allocate allocate) {
         Slice s = allocator.allocateSlice(size, allocate);
         assert s.getByteBuffer().remaining() >= size;
-        s.getByteBuffer().putInt(s.getByteBuffer().position(), getCurrentVersion());
         return s;
     }
 

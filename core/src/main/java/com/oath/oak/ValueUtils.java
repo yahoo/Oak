@@ -117,6 +117,14 @@ public interface ValueUtils {
      */
     int getOffHeapVersion(Slice s);
 
+    /**
+     * Initializing the header version.
+     * May also set other members in the header to their default values.
+     * @param s the value Slice (including the header)
+     * @param version the new version
+     */
+    void initHeader(Slice s, int version) ;
+
     /* ==================== More complex methods on off-heap values ==================== */
 
     void unsafeBufferToIntArrayCopy(ByteBuffer bb, int srcPosition, int[] dstArray, int countInts);
