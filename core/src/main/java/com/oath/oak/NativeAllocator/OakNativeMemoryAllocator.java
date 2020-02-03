@@ -204,7 +204,7 @@ public class OakNativeMemoryAllocator implements OakBlockMemoryAllocator {
             return;
         }
 
-        // Release the hold of the block array and return it the the provider.
+        // Release the hold of the block array and return it the provider.
         Block[] b = blocksArray;
         blocksArray = null;
 
