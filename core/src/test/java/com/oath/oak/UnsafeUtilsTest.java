@@ -143,23 +143,23 @@ public class UnsafeUtilsTest {
     @Test
     public void testIntsToLong(){
         int i1 = 1, i2 = 2;
-        long combine = UnsafeUtils.intsToLongReverse(i1, i2);
-        int[] res = UnsafeUtils.longToIntsReverse(combine);
+        long combine = UnsafeUtils.intsToLong(i1, i2);
+        int[] res = UnsafeUtils.longToInts(combine);
         assertEquals(i1, res[0]);
         assertEquals(i2, res[1]);
         i2 = -2;
-        combine = UnsafeUtils.intsToLongReverse(i1, i2);
-        res = UnsafeUtils.longToIntsReverse(combine);
+        combine = UnsafeUtils.intsToLong(i1, i2);
+        res = UnsafeUtils.longToInts(combine);
         assertEquals(i1, res[0]);
         assertEquals(i2, res[1]);
         i1 = -1;
-        combine = UnsafeUtils.intsToLongReverse(i1, i2);
-        res = UnsafeUtils.longToIntsReverse(combine);
+        combine = UnsafeUtils.intsToLong(i1, i2);
+        res = UnsafeUtils.longToInts(combine);
         assertEquals(i1, res[0]);
         assertEquals(i2, res[1]);
         i2 = 2;
-        combine = UnsafeUtils.intsToLongReverse(i1, i2);
-        res = UnsafeUtils.longToIntsReverse(combine);
+        combine = UnsafeUtils.intsToLong(i1, i2);
+        res = UnsafeUtils.longToInts(combine);
         assertEquals(i1, res[0]);
         assertEquals(i2, res[1]);
     }

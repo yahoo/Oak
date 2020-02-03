@@ -7,8 +7,6 @@ import java.nio.ByteBuffer;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
-import static com.oath.oak.Chunk.VALUE_BLOCK_SHIFT;
-import static com.oath.oak.Chunk.VALUE_LENGTH_MASK;
 import static com.oath.oak.ValueUtilsImpl.LockStates.DELETED;
 import static com.oath.oak.ValueUtilsImpl.LockStates.FREE;
 import static com.oath.oak.ValueUtilsImpl.LockStates.LOCKED;
@@ -39,8 +37,8 @@ public class ValueUtilsImpl implements ValueUtils {
 
         // Since the writing is done directly to the memory, the endianness of the memory is important here.
         // Therefore, we make sure that the values are read and written correctly.
-        long expected = UnsafeUtils.intsToLongNative(version, expectedLock);
-        long value = UnsafeUtils.intsToLongNative(version, newLock);
+        long expected = UnsafeUtils.intsToLong(version, expectedLock);
+        long value = UnsafeUtils.intsToLong(version, newLock);
         return unsafe.compareAndSwapLong(null,
                 ((DirectBuffer) buff).address() + buff.position(), expected, value);
     }
@@ -91,15 +89,16 @@ public class ValueUtilsImpl implements ValueUtils {
         Slice s = lookUp.valueSlice;
         setLockState(s, MOVED);
         memoryManager.releaseSlice(s);
-        s = memoryManager.allocateSlice(capacity + getHeaderSize(), MemoryManager.Allocate.VALUE);
+        int valueLength = capacity + getHeaderSize();
+        s = memoryManager.allocateSlice(valueLength, MemoryManager.Allocate.VALUE);
         initHeader(s, memoryManager.getCurrentVersion(), LOCKED);
-        int valueBlockAndLength =
-                (s.getBlockID() << VALUE_BLOCK_SHIFT) | ((capacity + getHeaderSize()) & VALUE_LENGTH_MASK);
-        // TODO Liran: should this really be inside an assert?!
-        assert chunk.casEntriesArrayLong(lookUp.entryIndex, Chunk.OFFSET.VALUE_REFERENCE, lookUp.valueReference,
-                UnsafeUtils.intsToLongReverse(valueBlockAndLength, s.getByteBuffer().position()));
-        assert chunk.casEntriesArrayInt(lookUp.entryIndex, Chunk.OFFSET.VALUE_VERSION, lookUp.version,
+        boolean ret;
+        ret = chunk.casEntriesArrayLong(lookUp.entryIndex, Chunk.OFFSET.VALUE_REFERENCE, lookUp.valueReference,
+                Chunk.makeReference(s, valueLength));
+        assert ret;
+        ret = chunk.casEntriesArrayInt(lookUp.entryIndex, Chunk.OFFSET.VALUE_VERSION, lookUp.version,
                 getOffHeapVersion(s));
+        assert ret;
         return s;
     }
 

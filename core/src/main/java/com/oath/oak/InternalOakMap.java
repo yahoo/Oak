@@ -971,19 +971,19 @@ class InternalOakMap<K, V> {
         if (valuerReference == INVALID_VALUE_REFERENCE) {
             return null;
         }
-        int[] valueArray = UnsafeUtils.longToIntsReverse(valuerReference);
+        int[] valueArray = UnsafeUtils.longToInts(valuerReference);
         return memoryManager.getSliceFromBlockID(valueArray[BLOCK_ID_LENGTH_ARRAY_INDEX] >>> VALUE_BLOCK_SHIFT,
                 valueArray[POSITION_ARRAY_INDEX], valueArray[BLOCK_ID_LENGTH_ARRAY_INDEX] & VALUE_LENGTH_MASK);
     }
 
     private ByteBuffer getKeyByteBuffer(long keyReference) {
-        int[] keyArray = UnsafeUtils.longToIntsReverse(keyReference);
+        int[] keyArray = UnsafeUtils.longToInts(keyReference);
         return memoryManager.getByteBufferFromBlockID(keyArray[BLOCK_ID_LENGTH_ARRAY_INDEX] >>> KEY_BLOCK_SHIFT,
                 keyArray[POSITION_ARRAY_INDEX], keyArray[BLOCK_ID_LENGTH_ARRAY_INDEX] & KEY_LENGTH_MASK);
     }
 
     private OakRReference setKeyReference(long keyReference, OakRReference key) {
-        int[] keyArray = UnsafeUtils.longToIntsReverse(keyReference);
+        int[] keyArray = UnsafeUtils.longToInts(keyReference);
         int blockID = keyArray[BLOCK_ID_LENGTH_ARRAY_INDEX] >> KEY_BLOCK_SHIFT;
         int keyPosition = keyArray[POSITION_ARRAY_INDEX];
         int length = keyArray[BLOCK_ID_LENGTH_ARRAY_INDEX] & KEY_LENGTH_MASK;

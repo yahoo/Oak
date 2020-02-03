@@ -24,18 +24,18 @@ public class OakRKeyBufferImpl implements OakRBuffer {
     OakRKeyBufferImpl(long keyReference, MemoryManager memoryManager) {
         this.keyReference = keyReference;
         this.memoryManager = memoryManager;
-        this.initialPosition = UnsafeUtils.longToIntsReverse(keyReference)[POSITION_ARRAY_INDEX];
+        this.initialPosition = UnsafeUtils.longToInts(keyReference)[POSITION_ARRAY_INDEX];
     }
 
     private ByteBuffer getKeyBuffer() {
-        int[] keyArray = UnsafeUtils.longToIntsReverse(keyReference);
+        int[] keyArray = UnsafeUtils.longToInts(keyReference);
         return memoryManager.getByteBufferFromBlockID(keyArray[BLOCK_ID_LENGTH_ARRAY_INDEX] >>> KEY_BLOCK_SHIFT, keyArray[POSITION_ARRAY_INDEX],
                 keyArray[BLOCK_ID_LENGTH_ARRAY_INDEX] & KEY_LENGTH_MASK);
     }
 
     @Override
     public int capacity() {
-        return UnsafeUtils.longToIntsReverse(keyReference)[BLOCK_ID_LENGTH_ARRAY_INDEX] & KEY_LENGTH_MASK;
+        return UnsafeUtils.longToInts(keyReference)[BLOCK_ID_LENGTH_ARRAY_INDEX] & KEY_LENGTH_MASK;
     }
 
     @Override
