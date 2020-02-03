@@ -182,7 +182,8 @@ public class OakRValueBufferImpl implements OakRBuffer {
         if (transformer == null) {
             throw new NullPointerException();
         }
-        while (true) {
+        // Use a "for" loop to ensure maximal retries.
+        for (int i = 0; i < 1024; i++) {
             Result<T> result = valueOperator.transform(getValueSlice(), transformer, version);
             if (result.operationResult == FALSE) {
                 throw new ConcurrentModificationException();
@@ -192,6 +193,8 @@ public class OakRValueBufferImpl implements OakRBuffer {
             }
             return result.value;
         }
+
+        throw new RuntimeException("Transform failed: reached retry limit (1024).");
     }
 
     @Override
