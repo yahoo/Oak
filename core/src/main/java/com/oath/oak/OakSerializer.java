@@ -19,6 +19,11 @@ public interface OakSerializer<T> {
   // deserializes the given byte buffer
   T deserialize(ByteBuffer byteBuffer);
 
+  // deserializes the given byte buffer
+  default T deserializePool(ByteBuffer byteBuffer, T pooledObj) {
+    return null;
+  }
+
   // returns the number of bytes needed for serializing the given object
   int calculateSize(T object);
 

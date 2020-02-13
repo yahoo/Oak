@@ -5,6 +5,7 @@ import sun.nio.ch.DirectBuffer;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
@@ -56,14 +57,26 @@ public class ValueUtilsImpl implements ValueUtils {
     }
 
     @Override
-    public <T> Result<T> transform(Slice s, Function<ByteBuffer, T> transformer,
-                                   int version) {
+    public <T> Result<T> transform(Slice s, Function<ByteBuffer, T> transformer, int version) {
         ValueResult result = lockRead(s, version);
         if (result != TRUE) {
             return Result.withFlag(result);
         }
 
         T transformation = transformer.apply(getValueByteBufferNoHeader(s).asReadOnlyBuffer());
+        unlockRead(s, version);
+        return Result.withValue(transformation);
+    }
+
+    @Override
+    public <T> Result<T> transformPool(Slice s, BiFunction<ByteBuffer, T, T> transformer, int version,
+        T pooledObj) {
+        ValueResult result = lockRead(s, version);
+        if (result != TRUE) {
+            return Result.withFlag(result);
+        }
+
+        T transformation = transformer.apply(getValueByteBufferNoHeader(s).asReadOnlyBuffer(), pooledObj);
         unlockRead(s, version);
         return Result.withValue(transformation);
     }

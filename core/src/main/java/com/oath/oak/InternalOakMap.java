@@ -10,15 +10,19 @@ package com.oath.oak;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.AbstractMap;
+import java.util.Collection;
 import java.util.Comparator;
 import java.util.ConcurrentModificationException;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
+import java.util.Queue;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
@@ -46,6 +50,8 @@ class InternalOakMap<K, V> {
     private final AtomicInteger referenceCount = new AtomicInteger(1);
     private final ValueUtils valueOperator;
     private final static int KEY_HEADER_SIZE = 0;
+
+    private final ObjectPool<V> vObjectPool = new ObjectPool<V>();
     /*-------------- Constructors --------------*/
 
     /**
@@ -781,6 +787,43 @@ class InternalOakMap<K, V> {
         }
     }
 
+
+
+
+  static class ObjectPool<V> {
+
+    private final Queue<V> objects;
+
+    public ObjectPool() {
+      this.objects = new ConcurrentLinkedQueue<V>();
+    }
+
+    public ObjectPool(Collection<? extends V> objects) {
+      this.objects = new ConcurrentLinkedQueue<V>(objects);
+    }
+
+    public V borrow() { // returns null if there is nothing in the pool
+      return objects.poll();
+    }
+
+    public void giveBack(V obj) {
+      this.objects.offer(obj);   // no point to wait for free space, just return
+    }
+
+  }
+
+  void returnValueObject(V v) {
+      vObjectPool.giveBack(v);
+  }
+
+
+
+
+
+
+
+
+
     LookUp getValueFromIndex(long keyReference) {
         K deserializedKey = keySerializer.deserialize(getKeyByteBuffer(keyReference));
         while (true) {
@@ -833,11 +876,13 @@ class InternalOakMap<K, V> {
           long valueReference =
               Chunk.getValueReferenceAndVersion(hashIndex, valueVersion, entriesHash);
 
-          Result<T> res = valueOperator.transform(getValueSlice(valueReference), transformer, valueVersion[0]);
+          Result<T> res = valueOperator
+              .transform(getValueSlice(valueReference), transformer, valueVersion[0]);
           if (res.operationResult == RETRY) {
-            continue;
+              continue;
           }
           return res.value;
+
         }
 
         int infiLoopCount = 0;
@@ -858,6 +903,80 @@ class InternalOakMap<K, V> {
                 continue;
             }
             Result<T> res = valueOperator.transform(lookUp.valueSlice, transformer, lookUp.version);
+            if (res.operationResult == RETRY) {
+                continue;
+            }
+            return res.value;
+        }
+
+    }
+
+    <T> V getValueTransformationPool(K key, BiFunction<ByteBuffer, V, V> transformer) {
+        if (key == null || transformer == null) {
+            throw new NullPointerException();
+        }
+
+        while (entriesHash != null) {   // using while in order to be able to break from the block
+            // we have hash that can expedite the search
+            int hashIndex = keySerializer.hash(key);
+            if (hashIndex < 0) {  // user didn't implemented a hash, or implemented it wrongly
+                break;
+            }
+            hashIndex = hashIndexLimitation(hashIndex, entriesHash.length);
+
+            long keyReference = Chunk.getKeyReference(hashIndex, entriesHash); // find key
+            if (keyReference == 0) {
+                // we do not have hash for such key, if there are no concurrent updates and deletes
+                // return null, otherwise continue searching (break)
+                return null;
+            }
+            ByteBuffer keyBB = getKeyByteBuffer(keyReference);
+            // compare key
+            int cmp = comparator.compareKeyAndSerializedKey(key, keyBB);
+            if (cmp != 0) {
+                // due to collision this is wrong key, hash can not help us, continue through index
+                break;
+            }
+            // keys match, return its value
+            int[] valueVersion = new int[1];
+            long valueReference =
+                Chunk.getValueReferenceAndVersion(hashIndex, valueVersion, entriesHash);
+
+            // get V object from pool if possible
+            V vObj = vObjectPool.borrow();
+
+            Result<V> res = valueOperator
+                    .transformPool(getValueSlice(valueReference), transformer, valueVersion[0], vObj);
+            if (res.operationResult == RETRY) {
+                continue;
+            }
+            return res.value;
+
+        }
+
+        int infiLoopCount = 0;
+        while (true) {
+            infiLoopCount++;
+            if (infiLoopCount > 1000) {
+                System.out.println("Stuck in non-zc get");
+                assert false;
+            }
+            Chunk<K, V> c = findChunk(key); // find chunk matching key
+            Chunk.LookUp lookUp = c.lookUp(key);
+
+            if (lookUp == null || lookUp.valueSlice == null) {
+                return null;
+            }
+
+            if (updateVersionAfterLinking(c, lookUp)) {
+                continue;
+            }
+
+            // get V object from pool if possible
+            V vObj = vObjectPool.borrow();
+
+            Result<V> res = valueOperator
+                .transformPool(lookUp.valueSlice, transformer, lookUp.version, vObj);
             if (res.operationResult == RETRY) {
                 continue;
             }
@@ -1060,7 +1179,8 @@ class InternalOakMap<K, V> {
                 entriesHashLocal[hashIndex+i]=c.entries[entryIndex+i];
             }
         }
-        if (entriesHash != null) return; // depends if we want to build it twice
+        if ((entriesHash != null) || (entriesHashLocal.length < 1* ENTRIES_FIELDS + ENTRIES_FIRST_ITEM))
+            return; // depends if we want to build it twice
         else entriesHash = entriesHashLocal; // to be changed to CAS
         //System.out.println("\nHash was created going over " + cnt + " entries.\n");
     }

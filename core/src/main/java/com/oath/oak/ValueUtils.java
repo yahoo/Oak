@@ -1,6 +1,7 @@
 package com.oath.oak;
 
 import java.nio.ByteBuffer;
+import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
@@ -124,16 +125,31 @@ public interface ValueUtils {
     /**
      * Used to try and read a value off-heap
      *
+     * @param <T>         the type of {@code transformer}'s output
      * @param s           the value Slice (including the header)
      * @param transformer value deserializer
      * @param version     the expected version of the value pointed by {@code s}
-     * @param <T>         the type of {@code transformer}'s output
      * @return {@code TRUE} if the value was read successfully
      * {@code FALSE} if the value is deleted
      * {@code RETRY} if the value was moved, or the version of the off-heap value does not match {@code version}.
      * In case of {@code TRUE}, the read value is stored in the returned Result, otherwise, the value is {@code null}.
      */
     <T> Result<T> transform(Slice s, Function<ByteBuffer, T> transformer, int version);
+
+    /**
+     * Used to try and read a value off-heap
+     *
+     * @param <T>         the type of {@code transformer}'s output
+     * @param s           the value Slice (including the header)
+     * @param transformer value deserializer
+     * @param version     the expected version of the value pointed by {@code s}
+     * @param pooledObj
+     * @return {@code TRUE} if the value was read successfully
+     * {@code FALSE} if the value is deleted
+     * {@code RETRY} if the value was moved, or the version of the off-heap value does not match {@code version}.
+     * In case of {@code TRUE}, the read value is stored in the returned Result, otherwise, the value is {@code null}.
+     */
+    <V> Result<V> transformPool(Slice s, BiFunction<ByteBuffer, V, V> transformer, int version, V pooledObj);
 
     /**
      * @see #exchange(Chunk, Chunk.LookUp, Object, Function, OakSerializer, MemoryManager)
