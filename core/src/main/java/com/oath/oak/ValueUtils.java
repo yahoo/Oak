@@ -120,10 +120,9 @@ public interface ValueUtils {
     /**
      * Initializing the header version.
      * May also set other members in the header to their default values.
-     * @param s the value Slice (including the header)
-     * @param version the new version
+     * @param s the value Slice (including the header), includes the version
      */
-    void initHeader(Slice s, int version) ;
+    void initHeader(Slice s) ;
 
     /* ==================== More complex methods on off-heap values ==================== */
 

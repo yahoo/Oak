@@ -91,7 +91,7 @@ public class ValueUtilsImpl implements ValueUtils {
         memoryManager.releaseSlice(s);
         int valueLength = capacity + getHeaderSize();
         s = memoryManager.allocateSlice(valueLength, MemoryManager.Allocate.VALUE);
-        initHeader(s, memoryManager.getCurrentVersion(), LOCKED);
+        initHeader(s, LOCKED);
         boolean ret;
         ret = chunk.casEntriesArrayLong(lookUp.entryIndex, Chunk.OFFSET.VALUE_REFERENCE, lookUp.valueReference,
                 Chunk.makeReference(s, valueLength));
@@ -329,8 +329,8 @@ public class ValueUtilsImpl implements ValueUtils {
         return getInt(s, 0);
     }
 
-    private void setVersion(Slice s, int version) {
-        putInt(s, 0, version);
+    private void setVersion(Slice s) {
+        putInt(s, 0, s.getVersion());
     }
 
     private int getLockState(Slice s) {
@@ -342,12 +342,12 @@ public class ValueUtilsImpl implements ValueUtils {
     }
 
     @Override
-    public void initHeader(Slice s, int version) {
-        initHeader(s, version, FREE);
+    public void initHeader(Slice s) {
+        initHeader(s, FREE);
     }
 
-    private void initHeader(Slice s, int version, ValueUtilsImpl.LockStates state) {
-        setVersion(s, version);
+    private void initHeader(Slice s, ValueUtilsImpl.LockStates state) {
+        setVersion(s);
         setLockState(s, state);
     }
 

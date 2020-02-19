@@ -22,7 +22,7 @@ public class ValueUtilsTest {
         novaManager = new NovaManager(new OakNativeMemoryAllocator(128));
         s = novaManager.allocateSlice(20, MemoryManager.Allocate.VALUE);
         putInt(0, 1);
-        valueOperator.initHeader(s, novaManager.getCurrentVersion());
+        valueOperator.initHeader(s);
     }
 
     private void putInt(int index, int value) {

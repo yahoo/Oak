@@ -100,8 +100,10 @@ class BlocksPool implements BlocksProvider, Closeable {
         blocks.add(b);
         if (blocks.size() > EXCESS_POOL_RATIO * NUMBER_OF_BLOCKS) { // too many unused blocks
             synchronized (BlocksPool.class) { // can be easily changed to lock-free
-                for (int i = 0; i < NUMBER_OF_BLOCKS; i++) {
-                    this.blocks.poll().clean();
+                if (blocks.size() > EXCESS_POOL_RATIO * NUMBER_OF_BLOCKS) { // check after locking
+                    for (int i = 0; i < NUMBER_OF_BLOCKS; i++) {
+                        this.blocks.poll().clean();
+                    }
                 }
             }
         }
