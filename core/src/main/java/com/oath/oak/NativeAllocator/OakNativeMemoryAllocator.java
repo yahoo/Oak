@@ -40,7 +40,7 @@ public class OakNativeMemoryAllocator implements OakBlockMemoryAllocator {
     public static final int INVALID_BLOCK_ID = 0;
 
     // mapping IDs to blocks allocated solely to this Allocator
-    private final Block[] blocksArray;
+    private Block[] blocksArray;
     private final AtomicInteger idGenerator = new AtomicInteger(1);
 
     // free list of Slices which can be reused - sorted by buffer size, then by unique hash
@@ -203,8 +203,16 @@ public class OakNativeMemoryAllocator implements OakBlockMemoryAllocator {
         if (!closed.compareAndSet(false, true)) {
             return;
         }
+
+        // Release the hold of the block array and return it the provider.
+        Block[] b = blocksArray;
+        blocksArray = null;
+
+        // Reset "closed" to apply a memory barrier before actually returning the block.
+        closed.set(true);
+
         for (int i = 1; i <= numberOfBlocks(); i++) {
-            blocksProvider.returnBlock(blocksArray[i]);
+            blocksProvider.returnBlock(b[i]);
         }
         // no need to do anything with the free list,
         // as all free list members were residing on one of the (already released) blocks

@@ -10,7 +10,6 @@ import com.oath.oak.NativeAllocator.OakNativeMemoryAllocator;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
-import java.util.ConcurrentModificationException;
 import java.util.function.Function;
 
 /*
@@ -124,12 +123,11 @@ public class OakRReference implements OakRBuffer {
     }
 
     private ByteBuffer getTemporaryPerThreadByteBuffer() {
-        // need to check that the entire OakMap wasn't already closed with its memoryManager
-        // if memoryManager was closed, its object is still not GCed as it is pointed from here
-        // therefore it is valid to check from here
-        if (memoryManager.isClosed()) {
-            throw new ConcurrentModificationException();
-        }
+        // No access is allowed once the memory manager is closed.
+        // We avoid validating this here due to performance concerns.
+        // The correctness is persevered because when the memory manager is closed,
+        // its block array is no longer reachable.
+        // Thus, a null pointer exception will be raised once we try to get the byte buffer.
         assert blockID != OakNativeMemoryAllocator.INVALID_BLOCK_ID;
         assert position != -1;
         assert length != -1;
