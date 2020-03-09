@@ -971,24 +971,17 @@ class InternalOakMap<K, V> {
         if (valuerReference == INVALID_VALUE_REFERENCE) {
             return null;
         }
-        int[] valueArray = UnsafeUtils.longToInts(valuerReference);
-        return memoryManager.getSliceFromBlockID(valueArray[BLOCK_ID_LENGTH_ARRAY_INDEX] >>> VALUE_BLOCK_SHIFT,
-                valueArray[POSITION_ARRAY_INDEX], valueArray[BLOCK_ID_LENGTH_ARRAY_INDEX] & VALUE_LENGTH_MASK);
+        return memoryManager.getSliceFromBlockID(getValueBlockId(valuerReference),
+                getBlockPosition(valuerReference), getValueBlockLength(valuerReference));
     }
 
     private ByteBuffer getKeyByteBuffer(long keyReference) {
-        int[] keyArray = UnsafeUtils.longToInts(keyReference);
-        return memoryManager.getByteBufferFromBlockID(keyArray[BLOCK_ID_LENGTH_ARRAY_INDEX] >>> KEY_BLOCK_SHIFT,
-                keyArray[POSITION_ARRAY_INDEX], keyArray[BLOCK_ID_LENGTH_ARRAY_INDEX] & KEY_LENGTH_MASK);
+        return memoryManager.getByteBufferFromBlockID(getKeyBlockId(keyReference),
+                getBlockPosition(keyReference), getKeyBlockLength(keyReference));
     }
 
     private OakRKeyBuffer setKeyReference(long keyReference, OakRKeyBuffer key) {
-        int[] keyArray = UnsafeUtils.longToInts(keyReference);
-        int blockID = keyArray[BLOCK_ID_LENGTH_ARRAY_INDEX] >> KEY_BLOCK_SHIFT;
-        int keyPosition = keyArray[POSITION_ARRAY_INDEX];
-        int length = keyArray[BLOCK_ID_LENGTH_ARRAY_INDEX] & KEY_LENGTH_MASK;
-
-        key.setReference(blockID, keyPosition, length);
+        key.setReference(getKeyBlockId(keyReference), getBlockPosition(keyReference), getKeyBlockLength(keyReference));
         return key;
     }
 

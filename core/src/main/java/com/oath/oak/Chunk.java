@@ -133,6 +133,38 @@ public class Chunk<K, V> {
     private final OakSerializer<V> valueSerializer;
     private final ValueUtils valueOperator;
 
+    /*-------------- Block accessors --------------*/
+
+    final static int LONG_KEY_BLOCK_SHIFT = BLOCK_ID_LENGTH_ARRAY_INDEX * Integer.SIZE + KEY_BLOCK_SHIFT;
+    final static long LONG_KEY_BLOCK_MASK = (1L << (Integer.SIZE - KEY_BLOCK_SHIFT)) - 1L;
+
+    public static int getKeyBlockId(long reference) {
+        return (int) ((reference >>> LONG_KEY_BLOCK_SHIFT) & LONG_KEY_BLOCK_MASK);
+    }
+
+    final static int LONG_VALUE_BLOCK_SHIFT = BLOCK_ID_LENGTH_ARRAY_INDEX * Integer.SIZE + VALUE_BLOCK_SHIFT;
+    final static long LONG_VALUE_BLOCK_MASK = (1L << (Integer.SIZE - VALUE_BLOCK_SHIFT)) - 1L;
+
+    public static int getValueBlockId(long reference) {
+        return (int) ((reference >>> LONG_VALUE_BLOCK_SHIFT) & LONG_VALUE_BLOCK_MASK);
+    }
+
+    final static int LONG_LENGTH_SHIFT = BLOCK_ID_LENGTH_ARRAY_INDEX * Integer.SIZE;
+
+    public static int getKeyBlockLength(long reference) {
+        return (int) ((reference >>> LONG_LENGTH_SHIFT) & KEY_LENGTH_MASK);
+    }
+
+    public static int getValueBlockLength(long reference) {
+        return (int) ((reference >>> LONG_LENGTH_SHIFT) & VALUE_LENGTH_MASK);
+    }
+
+    final static long LONG_POSITION_MASK = (1L << Integer.SIZE) - 1L;
+
+    public static int getBlockPosition(long reference) {
+        return (int) (reference & LONG_POSITION_MASK);
+    }
+
     /*-------------- Constructors --------------*/
 
     /**
@@ -233,12 +265,8 @@ public class Chunk<K, V> {
         }
 
         long keyReference = getKeyReference(entryIndex);
-        int[] keyArray = UnsafeUtils.longToInts(keyReference);
-        int blockID = keyArray[BLOCK_ID_LENGTH_ARRAY_INDEX] >> KEY_BLOCK_SHIFT;
-        int keyPosition = keyArray[POSITION_ARRAY_INDEX];
-        int length = keyArray[BLOCK_ID_LENGTH_ARRAY_INDEX] & KEY_LENGTH_MASK;
-
-        return memoryManager.getByteBufferFromBlockID(blockID, keyPosition, length);
+        return memoryManager.getByteBufferFromBlockID(getKeyBlockId(keyReference), getBlockPosition(keyReference),
+                getKeyBlockLength(keyReference));
     }
 
     /**
@@ -252,11 +280,8 @@ public class Chunk<K, V> {
             return;
         }
         long keyReference = getKeyReference(entryIndex);
-        int[] keyArray = UnsafeUtils.longToInts(keyReference);
-        int blockID = keyArray[BLOCK_ID_LENGTH_ARRAY_INDEX] >> KEY_BLOCK_SHIFT;
-        int keyPosition = keyArray[POSITION_ARRAY_INDEX];
-        int length = keyArray[BLOCK_ID_LENGTH_ARRAY_INDEX] & KEY_LENGTH_MASK;
-        keyReferBuffer.setReference(blockID, keyPosition, length);
+        keyReferBuffer.setReference(getKeyBlockId(keyReference), getBlockPosition(keyReference),
+                getKeyBlockLength(keyReference));
     }
 
     boolean setValueRefer(int entryIndex, OakRKeyBuffer value) {
@@ -267,11 +292,8 @@ public class Chunk<K, V> {
         if (valueReference == INVALID_VALUE_REFERENCE) {
             return false;
         }
-        int[] valueArray = UnsafeUtils.longToInts(valueReference);
-        int blockID = valueArray[BLOCK_ID_LENGTH_ARRAY_INDEX] >> VALUE_BLOCK_SHIFT;
-        int valuePosition = valueArray[POSITION_ARRAY_INDEX];
-        int length = valueArray[BLOCK_ID_LENGTH_ARRAY_INDEX] & VALUE_LENGTH_MASK;
-        value.setReference(blockID, valuePosition, length);
+        value.setReference(getValueBlockId(valueReference), getBlockPosition(valueReference),
+                getValueBlockLength(valueReference));
         return true;
     }
 
@@ -280,11 +302,8 @@ public class Chunk<K, V> {
      **/
     void releaseKey(int entryIndex) {
         long keyReference = getKeyReference(entryIndex);
-        int[] keyArray = UnsafeUtils.longToInts(keyReference);
-        int blockID = keyArray[BLOCK_ID_LENGTH_ARRAY_INDEX] >> KEY_BLOCK_SHIFT;
-        int keyPosition = keyArray[POSITION_ARRAY_INDEX];
-        int length = keyArray[BLOCK_ID_LENGTH_ARRAY_INDEX] & KEY_LENGTH_MASK;
-        Slice s = new Slice(blockID, keyPosition, length, memoryManager);
+        Slice s = new Slice(getKeyBlockId(keyReference), getBlockPosition(keyReference), getKeyBlockLength(keyReference),
+                memoryManager);
 
         memoryManager.releaseSlice(s);
     }
@@ -383,9 +402,7 @@ public class Chunk<K, V> {
         if (valueReference == INVALID_VALUE_REFERENCE) {
             return null;
         }
-        int[] valueArray = UnsafeUtils.longToInts(valueReference);
-        return new Slice(valueArray[BLOCK_ID_LENGTH_ARRAY_INDEX] >>> VALUE_BLOCK_SHIFT,
-                valueArray[POSITION_ARRAY_INDEX], valueArray[BLOCK_ID_LENGTH_ARRAY_INDEX] & VALUE_LENGTH_MASK,
+        return new Slice(getValueBlockId(valueReference), getBlockPosition(valueReference), getValueBlockLength(valueReference),
                 memoryManager);
     }
 
