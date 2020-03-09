@@ -62,7 +62,7 @@ class InternalOakMap<K, V> {
 
         this.comparator = oakComparator;
 
-        this.minKey = ByteBuffer.allocate(this.keySerializer.calculateSize(minKey));
+        this.minKey = ByteBuffer.allocateDirect(this.keySerializer.calculateSize(minKey));
         this.minKey.position(0);
         this.keySerializer.serialize(minKey, this.minKey);
 
