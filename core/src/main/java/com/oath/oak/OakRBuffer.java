@@ -20,6 +20,18 @@ import java.util.function.Function;
 public interface OakRBuffer {
 
     /**
+     * @return a ByteBuffer object that is bounded to the scope of this key/value
+     */
+    @Deprecated
+    ByteBuffer getByteBuffer();
+
+    /**
+     * @return the memory address of the direct byte buffer at the relevant position
+     */
+    @Deprecated
+    long address();
+
+    /**
      * Returns this buffer's capacity.
      *
      * @return The capacity of this buffer

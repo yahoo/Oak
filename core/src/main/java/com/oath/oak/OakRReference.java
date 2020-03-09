@@ -7,6 +7,7 @@
 package com.oath.oak;
 
 import com.oath.oak.NativeAllocator.OakNativeMemoryAllocator;
+import sun.nio.ch.DirectBuffer;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
@@ -53,6 +54,20 @@ public class OakRReference implements OakRBuffer {
 
     void setLength(int length) {
         this.length = length;
+    }
+
+    @Override
+    public ByteBuffer getByteBuffer() {
+        ByteBuffer buff = getTemporaryPerThreadByteBuffer();
+        buff = buff.asReadOnlyBuffer();
+        buff.position(headerSize + position);
+        return buff.slice();
+    }
+
+    public long address() {
+        ByteBuffer buff = getTemporaryPerThreadByteBuffer();
+        long address = ((DirectBuffer) buff).address();
+        return address + headerSize + position;
     }
 
     @Override

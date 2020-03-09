@@ -6,6 +6,8 @@
 
 package com.oath.oak;
 
+import sun.nio.ch.DirectBuffer;
+
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.ConcurrentModificationException;
@@ -58,8 +60,18 @@ public class OakRValueBufferImpl implements OakRBuffer {
                 valueArray[POSITION_ARRAY_INDEX], valueArray[BLOCK_ID_LENGTH_ARRAY_INDEX] & VALUE_LENGTH_MASK);
     }
 
-    private ByteBuffer getByteBuffer() {
-        return getValueSlice().getByteBuffer();
+    @Override
+    public ByteBuffer getByteBuffer() {
+        ByteBuffer buff = getValueSlice().getByteBuffer();
+        buff = buff.asReadOnlyBuffer();
+        buff.position(valuePosition());
+        return buff.slice();
+    }
+
+    public long address() {
+        ByteBuffer buff = getValueSlice().getByteBuffer();
+        long address = ((DirectBuffer) buff).address();
+        return address + valuePosition();
     }
 
     private int valuePosition() {
