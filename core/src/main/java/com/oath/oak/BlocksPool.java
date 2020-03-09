@@ -20,24 +20,35 @@ class BlocksPool implements BlocksProvider, Closeable {
     private static BlocksPool instance = null;
     private final ConcurrentLinkedQueue<Block> blocks = new ConcurrentLinkedQueue<>();
 
-    // TODO change BLOCK_SIZE and NUMBER_OF_BLOCKS to be pre-configurable
-    static final int BLOCK_SIZE = 256 * 1024 * 1024; // currently 256MB, the one block size
-    // Number of memory blocks to be pre-allocated (currently gives us 2GB). When it is not enough,
-    // another half such amount of memory (1GB) will be allocated at once.
-    private final static int NUMBER_OF_BLOCKS = 10;
-    private final static int EXCESS_POOL_RATIO = 3;
+    // TODO change the following constants to be configurable
+
+    // Size of a single memory block - currently 256MB
+    static final int BLOCK_SIZE = 256 * 1024 * 1024;
+
+    // Number of memory blocks to be pre-allocated
+    private final static int PRE_ALLOC_BLOCKS = 0;
+
+    // Number of memory blocks to be allocated at once when not enough blocks available
+    private final static int NEW_ALLOC_BLOCKS = 1;
+
+    // Upper/lower thresholds to the number of unused memory blocks to reserve in the pool for future use.
+    // When the number of unused blocks reaches HIGH_RESERVED_BLOCKS, a group of blocks will be freed
+    // such that the number of blocks will be LOW_RESERVED_BLOCKS.
+    private final static int HIGH_RESERVED_BLOCKS = 32;
+    private final static int LOW_RESERVED_BLOCKS = 24;
+
     private final int blockSize;
 
     // not thread safe, private constructor; should be called only once
     private BlocksPool() {
         this.blockSize = BLOCK_SIZE;
-        prealloc(NUMBER_OF_BLOCKS);
+        prealloc(PRE_ALLOC_BLOCKS);
     }
 
     // used in tests only!!
     private BlocksPool(int blockSize) {
         this.blockSize = blockSize;
-        prealloc(NUMBER_OF_BLOCKS/3);
+        prealloc(PRE_ALLOC_BLOCKS);
     }
 
     /**
@@ -86,7 +97,7 @@ class BlocksPool implements BlocksProvider, Closeable {
             if (noMoreBlocks || b == null) {
                 synchronized (BlocksPool.class) { // can be easily changed to lock-free
                     if (blocks.isEmpty()) {
-                        prealloc(NUMBER_OF_BLOCKS / 2);
+                        prealloc(NEW_ALLOC_BLOCKS);
                     }
                 }
             }
@@ -102,12 +113,10 @@ class BlocksPool implements BlocksProvider, Closeable {
     public void returnBlock(Block b) {
         b.reset();
         blocks.add(b);
-        if (blocks.size() > EXCESS_POOL_RATIO * NUMBER_OF_BLOCKS) { // too many unused blocks
+        if (blocks.size() > HIGH_RESERVED_BLOCKS) { // too many unused blocks
             synchronized (BlocksPool.class) { // can be easily changed to lock-free
-                if (blocks.size() > EXCESS_POOL_RATIO * NUMBER_OF_BLOCKS) { // check after locking
-                    for (int i = 0; i < NUMBER_OF_BLOCKS; i++) {
-                        this.blocks.poll().clean();
-                    }
+                while (blocks.size() > LOW_RESERVED_BLOCKS) {
+                    this.blocks.poll().clean();
                 }
             }
         }
