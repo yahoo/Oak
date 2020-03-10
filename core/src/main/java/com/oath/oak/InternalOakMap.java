@@ -853,7 +853,7 @@ class InternalOakMap<K, V> {
 
         Chunk<K, V> c = findChunk(key);
         EntrySet.LookUp lookUp = c.lookUp(key);
-        if (lookUp == null || lookUp.valueSlice == null || lookUp.entryIndex == INVALID_ENTRY_INDEX) {
+        if (lookUp == null || lookUp.valueSlice == null) {
             return null;
         }
         return c.readKeyFromEntryIndex(lookUp.entryIndex);
@@ -1049,7 +1049,7 @@ class InternalOakMap<K, V> {
 
 
         static <K, V> IteratorState<K, V> newInstance(Chunk<K, V> nextChunk, Chunk.ChunkIter nextChunkIter) {
-            return new IteratorState<>(nextChunk, nextChunkIter, EntrySet.NONE_NEXT);
+            return new IteratorState<>(nextChunk, nextChunkIter, NONE_NEXT);
         }
 
     }

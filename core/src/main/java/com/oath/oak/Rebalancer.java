@@ -130,7 +130,7 @@ class Rebalancer<K, V> {
         while (true) {
             ei = currNewChunk.copyPartNoKeys(currFrozen, ei, entriesLowThreshold);
             // if completed reading curr frozen chunk
-            if (ei == EntrySet.NONE_NEXT) {
+            if (ei == Chunk.NONE_NEXT) {
                 if (!iterFrozen.hasNext()) {
                     break;
                 }

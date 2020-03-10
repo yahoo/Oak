@@ -19,6 +19,7 @@ import static com.oath.oak.ValueUtils.INVALID_VERSION;
 import static com.oath.oak.ValueUtils.ValueResult.*;
 
 public class Chunk<K, V> {
+    static final int NONE_NEXT = 0;    // an entry with NONE_NEXT as its next pointer, points to a null entry
 
     /*-------------- Constants --------------*/
 
@@ -34,15 +35,12 @@ public class Chunk<K, V> {
     private static final double SORTED_REBALANCE_RATIO = 2;
     private static final double MAX_ENTRIES_FACTOR = 2;
     private static final double MAX_IDLE_ENTRIES_FACTOR = 5;
-
-    public static final int INDEX_OF_FIRST_ENTRY = 1;
-    public static final int INVALID_ENTRY_INDEX = -1;
+    private static final int INVALID_ANCHOR_INDEX = -1;
 
     // defaults
     public static final int MAX_ITEMS_DEFAULT = 4096;
 
     private static final Unsafe unsafe = UnsafeUtils.unsafe;
-    private final MemoryManager memoryManager;
     ByteBuffer minKey;       // minimal key that can be put in this chunk
     AtomicMarkableReference<Chunk<K, V>> next;
     OakComparator<K> comparator;
@@ -60,8 +58,7 @@ public class Chunk<K, V> {
     // # of sorted items at entry-array's beginning (resulting from split)
     private AtomicInteger sortedCount;
     private final int maxItems;
-    AtomicInteger externalSize; // for updating oak's size
-    private final ValueUtils valueOperator;
+    AtomicInteger externalSize; // for updating oak's size (reference to one global per Oak size)
 
     /*-------------- Constructors --------------*/
 
@@ -74,7 +71,7 @@ public class Chunk<K, V> {
     Chunk(ByteBuffer minKey, Chunk<K, V> creator, OakComparator<K> comparator, MemoryManager memoryManager,
           int maxItems, AtomicInteger externalSize, OakSerializer<K> keySerializer, OakSerializer<V> valueSerializer,
           ValueUtils valueOperator) {
-        this.memoryManager = memoryManager;
+
         this.maxItems = maxItems;
         this.entrySet =
             new EntrySet<K,V>(memoryManager, maxItems, keySerializer, valueSerializer,
@@ -96,8 +93,6 @@ public class Chunk<K, V> {
         this.statistics = new Statistics();
         this.comparator = comparator;
         this.externalSize = externalSize;
-
-        this.valueOperator = valueOperator;
     }
 
     /*-------------- Methods --------------*/
@@ -137,7 +132,7 @@ public class Chunk<K, V> {
         int cmp;
         // iterate until end of list (or key is found)
 
-        while (curr != EntrySet.NONE_NEXT) {
+        while (curr != NONE_NEXT) {
             // compare current item's key to searched key
             cmp = comparator.compareKeyAndSerializedKey(key, entrySet.readKey(curr));
             // if item's key is larger - we've exceeded our key
@@ -323,11 +318,11 @@ public class Chunk<K, V> {
 
     int linkEntry(EntrySet.LookUp lookUp, K key) {
         int prev, curr, cmp;
-        int anchor = INVALID_ENTRY_INDEX;
+        int anchor = INVALID_ANCHOR_INDEX;
         int ei = lookUp.entryIndex;
         while (true) {
             // start iterating from quickly-found node (by binary search) in sorted part of order-array
-            if (anchor == INVALID_ENTRY_INDEX) {
+            if (anchor == INVALID_ANCHOR_INDEX) {
                 anchor = binaryFind(key);
             }
             curr = anchor;
@@ -340,7 +335,7 @@ public class Chunk<K, V> {
                 curr = entrySet.getNextEntryIndex(prev);    // index of next item in list
 
                 // if no item, done searching - add to end of list
-                if (curr == EntrySet.NONE_NEXT) {
+                if (curr == NONE_NEXT) {
                     break;
                 }
                 // compare current item's key to ours
@@ -478,7 +473,7 @@ public class Chunk<K, V> {
         int sortedCount = this.sortedCount.get();
         int entryIndex = sortedCount == 0 ? entrySet.getHeadNextIndex() : sortedCount;
         int nextEntryIndex = entrySet.getNextEntryIndex(entryIndex);
-        while (nextEntryIndex != EntrySet.NONE_NEXT) {
+        while (nextEntryIndex != NONE_NEXT) {
             entryIndex = nextEntryIndex;
             nextEntryIndex = entrySet.getNextEntryIndex(entryIndex);
         }
@@ -504,8 +499,8 @@ public class Chunk<K, V> {
      */
     final int copyPartNoKeys(Chunk<K, V> srcChunk, int srcEntryIdx, int maxCapacity) {
 
-        if (srcEntryIdx == EntrySet.NONE_NEXT) {
-            return EntrySet.NONE_NEXT;
+        if (srcEntryIdx == NONE_NEXT) {
+            return NONE_NEXT;
         }
 
         // use local variables and just set the atomic variables once at the end
@@ -552,7 +547,7 @@ public class Chunk<K, V> {
             }
 
             // is there something to copy on the source side?
-            if (srcEntryIdx == EntrySet.NONE_NEXT) {
+            if (srcEntryIdx == NONE_NEXT) {
                 break;
             }
         }
@@ -560,7 +555,7 @@ public class Chunk<K, V> {
         // OR (3) we copied allowed number of entries
 
         // the last next pointer was set to what is there in the source to copy, reset it to null
-        entrySet.setNextEntryIndex(sortedThisEntryIndex - 1, EntrySet.NONE_NEXT);
+        entrySet.setNextEntryIndex(sortedThisEntryIndex - 1, NONE_NEXT);
         // sorted count keeps the number of sorted entries
         sortedCount.set(numOfEntries);
         statistics.updateInitialSortedCount(sortedCount.get());
@@ -637,7 +632,7 @@ public class Chunk<K, V> {
     }
 
     private int advanceNextIndex(int next) {
-        while (next != EntrySet.NONE_NEXT && !entrySet.isValueRefValid(next)) {
+        while (next != NONE_NEXT && !entrySet.isValueRefValid(next)) {
             next = entrySet.getNextEntryIndex(next);
         }
         return next;
@@ -660,13 +655,13 @@ public class Chunk<K, V> {
         AscendingIter(K from, boolean inclusive) {
             next = entrySet.getNextEntryIndex(binaryFind(from));
             int compare = -1;
-            if (next != EntrySet.NONE_NEXT) {
+            if (next != NONE_NEXT) {
                 compare = comparator.compareKeyAndSerializedKey(from, entrySet.readKey(next));
             }
-            while (next != EntrySet.NONE_NEXT &&
+            while (next != NONE_NEXT &&
                 (compare > 0 || (compare >= 0 && !inclusive) || !entrySet.isValueRefValid(next))) {
                 next = entrySet.getNextEntryIndex(next);
-                if (next != EntrySet.NONE_NEXT) {
+                if (next != NONE_NEXT) {
                     compare = comparator.compareKeyAndSerializedKey(from, entrySet.readKey(next));
                 }
             }
@@ -679,7 +674,7 @@ public class Chunk<K, V> {
 
         @Override
         public boolean hasNext() {
-            return next != EntrySet.NONE_NEXT;
+            return next != NONE_NEXT;
         }
 
         @Override
@@ -729,22 +724,22 @@ public class Chunk<K, V> {
          */
         private void findNewNextInStack() {
             if (stack.empty()) {
-                next = EntrySet.NONE_NEXT;
+                next = NONE_NEXT;
                 return;
             }
             next = stack.pop();
-            while (next != EntrySet.NONE_NEXT && entrySet.isValueRefValid(next)) {
+            while (next != NONE_NEXT && entrySet.isValueRefValid(next)) {
                 if (!stack.empty()) {
                     next = stack.pop();
                 } else {
-                    next = EntrySet.NONE_NEXT;
+                    next = NONE_NEXT;
                     return;
                 }
             }
         }
 
         private void pushToStack(boolean compareWithPrevAnchor) {
-            while (next != EntrySet.NONE_NEXT) {
+            while (next != NONE_NEXT) {
                 if (!compareWithPrevAnchor) {
                     stack.push(next);
                     next = entrySet.getNextEntryIndex(next);
@@ -766,7 +761,7 @@ public class Chunk<K, V> {
         private void traverseLinkedList(boolean firstTimeInvocation) {
             assert stack.size() == 1;   // ancor is in the stack
             if (prevAnchor == entrySet.getNextEntryIndex(anchor)) {
-                next = EntrySet.NONE_NEXT;   // there is no next;
+                next = NONE_NEXT;   // there is no next;
                 return;
             }
             next = entrySet.getNextEntryIndex(anchor);
@@ -776,13 +771,13 @@ public class Chunk<K, V> {
             } else {
                 if (firstTimeInvocation) {
                     if (inclusive) {
-                        while (next != EntrySet.NONE_NEXT
+                        while (next != NONE_NEXT
                             && comparator.compareKeyAndSerializedKey(from, entrySet.readKey(next)) >= 0) {
                             stack.push(next);
                             next = entrySet.getNextEntryIndex(next);
                         }
                     } else {
-                        while (next != EntrySet.NONE_NEXT
+                        while (next != NONE_NEXT
                             && comparator.compareKeyAndSerializedKey(from, entrySet.readKey(next)) > 0) {
                             stack.push(next);
                             next = entrySet.getNextEntryIndex(next);
@@ -802,7 +797,7 @@ public class Chunk<K, V> {
             assert stack.empty();
             prevAnchor = anchor;
             if (anchor == entrySet.getHeadNextIndex()) {
-                next = EntrySet.NONE_NEXT; // there is no more in this chunk
+                next = NONE_NEXT; // there is no more in this chunk
                 return;
             } else if (anchor == 1) { // cannot get below the first index
                 anchor = entrySet.getHeadNextIndex();
@@ -821,7 +816,7 @@ public class Chunk<K, V> {
         private void advance() {
             while (true) {
                 findNewNextInStack();
-                if (next != EntrySet.NONE_NEXT) {
+                if (next != NONE_NEXT) {
                     return;
                 }
                 // there is no next in stack
@@ -836,7 +831,7 @@ public class Chunk<K, V> {
 
         @Override
         public boolean hasNext() {
-            return next != EntrySet.NONE_NEXT;
+            return next != NONE_NEXT;
         }
 
         @Override

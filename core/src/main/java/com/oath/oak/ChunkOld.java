@@ -19,6 +19,7 @@ import static com.oath.oak.ValueUtils.INVALID_VERSION;
 import static com.oath.oak.ValueUtils.ValueResult.FALSE;
 import static com.oath.oak.ValueUtils.ValueResult.TRUE;
 
+@Deprecated // to be deleted
 public class ChunkOld<K, V> {
 
     /*-------------- Constants --------------*/

@@ -76,11 +76,11 @@ class EntrySet<K, V> {
         }
     }
 
-    static final int NONE_NEXT = 0;    // an entry with NONE_NEXT as its next pointer, points to a null entry
     static final long   INVALID_VALUE_REFERENCE = 0;
     static final long   INVALID_KEY_REFERENCE = 0;
-    static final int    BLOCK_ID_LENGTH_ARRAY_INDEX = 1;
-    static final int    POSITION_ARRAY_INDEX = 0;
+    private static final int INVALID_ENTRY_INDEX = 0;
+    private static final int    BLOCK_ID_LENGTH_ARRAY_INDEX = 1;
+    private static final int    POSITION_ARRAY_INDEX = 0;
 
     // location of the first (head) node - just a next pointer (always same value 0)
     private final int headNextIndex;
@@ -99,7 +99,7 @@ class EntrySet<K, V> {
     private static final Unsafe unsafe = UnsafeUtils.unsafe;
     private final MemoryManager memoryManager;
 
-    private final int[] entries;    // array is initialized to 0, i.e., NONE_NEXT - this is important!
+    private final int[] entries;    // array is initialized to 0, i.e., Chunk.NONE_NEXT - this is important!
     private final int entriesCapacity; // number of entries (not ints) to be maximally held
 
     private final AtomicInteger nextFreeIndex;    // points to next free index of entry array
@@ -125,7 +125,7 @@ class EntrySet<K, V> {
         this.nextFreeIndex = new AtomicInteger(FIRST_ITEM);
         this.numOfEntries = new AtomicInteger(0);
         this.entriesCapacity = entriesCapacity;
-        this.headNextIndex   = EntrySet.NONE_NEXT;
+        this.headNextIndex   = Chunk.NONE_NEXT;
         this.keySerializer   = keySerializer;
         this.valueSerializer = valueSerializer;
         this.valOffHeapOperator = valOffHeapOperator;
@@ -396,8 +396,8 @@ class EntrySet<K, V> {
      * The method serves external EntrySet users.
      */
     int getNextEntryIndex(int ei) {
-        if (ei == EntrySet.NONE_NEXT) {
-            return EntrySet.NONE_NEXT;
+        if (ei == Chunk.NONE_NEXT) {
+            return Chunk.NONE_NEXT;
         }
         return getEntryArrayFieldInt(entryIdx2intIdx(ei), OFFSET.NEXT);
     }
@@ -578,7 +578,7 @@ class EntrySet<K, V> {
      * a thread is invoked the ByteBuffer is related solely to this thread.
      */
     ByteBuffer readKey(int ei) {
-        if (ei == EntrySet.NONE_NEXT) {
+        if (ei == INVALID_ENTRY_INDEX) {
             return null;
         }
 
@@ -596,7 +596,7 @@ class EntrySet<K, V> {
     }
 
     void setKeyRefer(int ei, OakRReference keyRef) {
-        if (ei == EntrySet.NONE_NEXT) {
+        if (ei == INVALID_ENTRY_INDEX) {
             return;
         }
         long keyReference = getKeyReference(ei);
@@ -626,7 +626,7 @@ class EntrySet<K, V> {
      * a thread is invoked on the ByteBuffer is related solely to this thread.
      */
     boolean setValueRefer(int ei, OakRReference valueRef) {
-        if (ei == EntrySet.NONE_NEXT) {
+        if (ei == INVALID_ENTRY_INDEX) {
             return false;
         }
         long valueReference = getValueReference(ei);
