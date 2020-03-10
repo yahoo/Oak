@@ -664,7 +664,8 @@ class EntrySet<K, V> {
      * for writing the value before attaching it to an entry (writeValueStart/writeValueCommit)
      **/
     void releaseValue(OpData opData) {
-        memoryManager.releaseSlice(buildValueSlice(opData.oldValueReference, INVALID_VERSION, memoryManager));
+        memoryManager.releaseSlice(
+            buildValueSlice(opData.newValueReference, INVALID_VERSION, memoryManager));
     }
 
     /**
@@ -740,8 +741,8 @@ class EntrySet<K, V> {
     }
 
     /**
-     * isDeleteValeFinishNeeded checks whether the version in the given lookUp is negative,
-     * which means deleted OR INVALID. We can not proceed on entry with negative version,
+     * isDeleteValeFinishNeeded checks whether the version in the given lookUp is negative
+     * (which means deleted) OR INVALID. We can not proceed on entry with negative version,
      * it is first needs to be changed to invalid, then any other value reference (with version)
      * can be assigned to this entry (same key).
      */
@@ -823,10 +824,12 @@ class EntrySet<K, V> {
         // Scenario: this value space is allocated once again and assigned into the same entry,
         // while this thread is sleeping. So later a valid value reference is CASed to invalid.
         // In order to not allow this scenario happen we must release the
-        // TODO: release value's off-heap slice to memory manager only after deleteValueFinish is called.
+        // value's off-heap slice to memory manager only after deleteValueFinish is called.
         if (casEntriesArrayLong(entryIdx2intIdx(lookUp.entryIndex), OFFSET.VALUE_REFERENCE,
             lookUp.valueReference, INVALID_VALUE_REFERENCE)) {
             numOfEntries.getAndDecrement();
+            // release the slice
+            memoryManager.releaseSlice(lookUp.valueSlice);
         }
         return casEntriesArrayInt(entryIdx2intIdx(lookUp.entryIndex), OFFSET.VALUE_VERSION,
             version, -version);
@@ -867,9 +870,14 @@ class EntrySet<K, V> {
      * entry on entry index "ei" is valid. No version check and no off-heap value deletion mark check.
      * Negative version is not checked, because negative version assignment will follow the
      * invalid reference assignment.
+     * Pay attention that value may be deleted (value reference marked invalid) asynchronously
+     * by other thread just after this check. For the thread safety use a copy of value reference (next method.)
      * */
     boolean isValueRefValid(int ei) {
         return (getValueReference(ei) != INVALID_VALUE_REFERENCE);
+    }
+    boolean isValueRefValid(long valueReference) {
+        return (valueReference != INVALID_VALUE_REFERENCE);
     }
 
     /******************************************************************/

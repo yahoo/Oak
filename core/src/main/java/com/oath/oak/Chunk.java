@@ -199,7 +199,7 @@ public class Chunk<K, V> {
      */
     boolean finalizeDeletion(EntrySet.LookUp lookUp) {
 
-        if (entrySet.isDeleteValeFinishNeeded(lookUp)) {
+        if (!entrySet.isDeleteValeFinishNeeded(lookUp)) {
             return false;
         }
         if (!publish()) {

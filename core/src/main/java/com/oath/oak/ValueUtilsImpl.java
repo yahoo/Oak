@@ -136,8 +136,6 @@ public class ValueUtilsImpl implements ValueUtils {
             // this thread can read from it.
             // read the old value (the slice is not reclaimed yet)
             V v = transformer != null ? transformer.apply(getValueByteBufferNoHeader(s).asReadOnlyBuffer()) : null;
-            // release the slice
-            memoryManager.releaseSlice(s);
             // return TRUE with the old value
             return Result.withValue(v);
         } else {

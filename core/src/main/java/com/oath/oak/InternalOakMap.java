@@ -718,7 +718,7 @@ class InternalOakMap<K, V> {
             }
 
             assert lookUp.entryIndex > 0;
-            assert c.isValueRefValid(lookUp.entryIndex);
+            assert lookUp.valueReference != EntrySet.INVALID_VALUE_REFERENCE;
 
             // publish
             if (c.finalizeDeletion(lookUp)) {
