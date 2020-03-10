@@ -76,13 +76,13 @@ class EntrySet<K, V> {
         }
     }
 
-    static final int    NONE = 0;    // an entry with NONE as its next pointer, points to a null entry
-    static final int    INVALID_ENTRY_INDEX = -1;
+    static final int NONE_NEXT = 0;    // an entry with NONE_NEXT as its next pointer, points to a null entry
     static final long   INVALID_VALUE_REFERENCE = 0;
+    static final long   INVALID_KEY_REFERENCE = 0;
     static final int    BLOCK_ID_LENGTH_ARRAY_INDEX = 1;
     static final int    POSITION_ARRAY_INDEX = 0;
 
-    // location of the first (head) node - just a next pointer
+    // location of the first (head) node - just a next pointer (always same value 0)
     private final int headNextIndex;
 
     // index of first item in array, after head (not necessarily first in list!)
@@ -99,12 +99,12 @@ class EntrySet<K, V> {
     private static final Unsafe unsafe = UnsafeUtils.unsafe;
     private final MemoryManager memoryManager;
 
-    private final int[] entries;    // array is initialized to 0, i.e., NONE - this is important!
+    private final int[] entries;    // array is initialized to 0, i.e., NONE_NEXT - this is important!
     private final int entriesCapacity; // number of entries (not ints) to be maximally held
 
-    private final AtomicInteger numOfEntries;    // points to next free index of entry array
-
-    // for writing the keys into the bytebuffers
+    private final AtomicInteger nextFreeIndex;    // points to next free index of entry array
+    private final AtomicInteger numOfEntries;     // counts number of entries inserted & not deleted
+    // for writing the keys into the off-heap bytebuffers (Blocks)
     private final OakSerializer<K> keySerializer;
     private final OakSerializer<V> valueSerializer;
 
@@ -122,9 +122,10 @@ class EntrySet<K, V> {
         OakSerializer<V> valueSerializer, ValueUtils valOffHeapOperator, int headNextIdx) {
         this.memoryManager   = memoryManager;
         this.entries         = new int[entriesCapacity * FIELDS + FIRST_ITEM];
-        this.numOfEntries = new AtomicInteger(FIRST_ITEM);
+        this.nextFreeIndex = new AtomicInteger(FIRST_ITEM);
+        this.numOfEntries = new AtomicInteger(0);
         this.entriesCapacity = entriesCapacity;
-        this.headNextIndex   = headNextIdx;
+        this.headNextIndex   = EntrySet.NONE_NEXT;
         this.keySerializer   = keySerializer;
         this.valueSerializer = valueSerializer;
         this.valOffHeapOperator = valOffHeapOperator;
@@ -140,13 +141,16 @@ class EntrySet<K, V> {
         long oldValueReference;
         final int oldVersion;
         final int newVersion;
+        final Slice slice;
 
-        OpData(int entryIndex, long oldValueReference, long newValueReference, int oldVersion, int newVersion) {
+        OpData(int entryIndex, long oldValueReference, long newValueReference,
+            int oldVersion, int newVersion, Slice slice) {
             this.entryIndex = entryIndex;
             this.newValueReference = newValueReference;
             this.oldValueReference = oldValueReference;
             this.oldVersion = oldVersion;
             this.newVersion = newVersion;
+            this.slice = slice;
         }
     }
 
@@ -169,7 +173,7 @@ class EntrySet<K, V> {
          * This field is usually used for CAS purposes since it sits in each entry.
          */
         final long valueReference;
-        final int entryIndex;
+        int entryIndex;
         /**
          * This is the version of the value referenced by {@code valueReference}.
          * If {@code valueReference == INVALID_VALUE_REFERENCE}, then:
@@ -180,12 +184,16 @@ class EntrySet<K, V> {
          * {@code version > INVALID_VERSION} if the insertion was completed.
          */
         int version;
+        /* key reference, build differently than value reference
+          * TODO: eliminate parsing key and value references by any entity other than EntrySet */
+        final long keyReference;
 
-        LookUp(Slice valueSlice, long valueReference, int entryIndex, int version) {
+        LookUp(Slice valueSlice, long valueReference, int entryIndex, int version, long keyReference) {
             this.valueSlice = valueSlice;
             this.valueReference = valueReference;
             this.entryIndex = entryIndex;
             this.version = version;
+            this.keyReference = keyReference;
         }
     }
 
@@ -196,7 +204,10 @@ class EntrySet<K, V> {
     // we use term entryIdx for the index of entry array (referred as a set of entries)
 
     private int entryIdx2intIdx(int entryIdx) {
-        return (entryIdx * FIELDS) + FIRST_ITEM;
+        if (entryIdx == 0) { // assumed it is a head pointer access
+            return 0;
+        }
+        return ((entryIdx-1) * FIELDS) + FIRST_ITEM;
     }
 
     /**
@@ -273,12 +284,12 @@ class EntrySet<K, V> {
                 (entries[intFieldIdx + offset.value]) | (value << VALUE_BLOCK_SHIFT);
             return;
         default:
-            entries[intFieldIdx + offset.value] = value;
+            entries[intFieldIdx + offset.value] = value; // used for NEXT
         }
     }
 
     /**
-     * setEntryFieldInt sets the two integers field of specified offset to 'value'
+     * setEntryFieldLong sets the two integers field of specified offset to 'value'
      * for given integer index in the entry array
      */
     private void setEntryFieldLong(int item, OFFSET offset, long value) {
@@ -385,27 +396,29 @@ class EntrySet<K, V> {
      * The method serves external EntrySet users.
      */
     int getNextEntryIndex(int ei) {
-        if (ei == headNextIndex) { // head index is just one field therefore translated differently
-            return getEntryArrayFieldInt(headNextIndex, OFFSET.NEXT);
+        if (ei == EntrySet.NONE_NEXT) {
+            return EntrySet.NONE_NEXT;
         }
         return getEntryArrayFieldInt(entryIdx2intIdx(ei), OFFSET.NEXT);
     }
 
     /**
-     * getHeadEntryIndex returns the head entry index
+     * getHeadEntryIndex returns the entry index of the entry first in the array,
+     * which is written in the first integer of the array
      * The method serves external EntrySet users.
      */
     int getHeadNextIndex() {
-        return headNextIndex;
+        return getEntryArrayFieldInt(headNextIndex, OFFSET.NEXT);
     }
 
     /**
      * setNextEntryIndex sets the next entry index (of the entry given by entry index "ei")
-     * to be the "next". Input parameter "next" must be a valid entry index.
+     * to be the "next". Input parameter "next" must be a valid entry index (not integer index!).
      * The method serves external EntrySet users.
      */
     void setNextEntryIndex(int ei, int next) {
-         setEntryFieldInt(ei, OFFSET.NEXT, next);
+        assert ei <= nextFreeIndex.get() && next <= nextFreeIndex.get();
+        setEntryFieldInt(entryIdx2intIdx(ei), OFFSET.NEXT, next);
     }
 
     /**
@@ -414,7 +427,7 @@ class EntrySet<K, V> {
      * The method serves external EntrySet users.
      */
     boolean casNextEntryIndex(int ei, int nextOld, int nextNew) {
-        return casEntriesArrayInt(ei, OFFSET.NEXT, nextOld, nextNew);
+        return casEntriesArrayInt(entryIdx2intIdx(ei), OFFSET.NEXT, nextOld, nextNew);
     }
 
     /********************************************************************************************/
@@ -426,16 +439,29 @@ class EntrySet<K, V> {
     /**
      * buildValueSlice builds a slice given value reference
      */
-    private Slice buildValueSlice(long valueReference) {
+    static Slice buildValueSlice(long valueReference, int version, MemoryManager mm) {
         if (valueReference == INVALID_VALUE_REFERENCE) {
             return null;
         }
         int[] valueArray = UnsafeUtils.longToInts(valueReference);
-        return new Slice(
+        Slice s = new Slice(
             getValueBlockIDFromIntArray(valueArray),
             getPositionFromIntArray(valueArray),
             getValueLengthFromIntArray(valueArray),
-            memoryManager);
+            mm);
+        s.setVersion(version);
+        return s;
+    }
+
+    /**
+     * buildValueSlice builds a slice given entry index
+     */
+    Slice buildValueSlice(int ei) {
+
+        int[] version = new int[1]; // the array of size 1 in order to get output inside it
+        // Atomic snapshot of version and value reference
+        long valueReference = getValueReferenceAndVersion(ei, version);
+        return buildValueSlice(valueReference, version[0], memoryManager);
     }
 
     /**
@@ -457,7 +483,7 @@ class EntrySet<K, V> {
      * Always use >>> (unsigned right shift) operator. It always fills 0 irrespective
      * of the sign of the number.
      */
-    private int getKeyBlockIDFromIntArray(int[] long2IntTranslated) {
+    static private int getKeyBlockIDFromIntArray(int[] long2IntTranslated) {
         return long2IntTranslated[BLOCK_ID_LENGTH_ARRAY_INDEX] >>> KEY_BLOCK_SHIFT;
     }
 
@@ -468,7 +494,7 @@ class EntrySet<K, V> {
      * Always use >>> (unsigned right shift) operator. It always fills 0 irrespective
      * of the sign of the number.
      */
-    private int getValueBlockIDFromIntArray(int[] long2IntTranslated) {
+    static private int getValueBlockIDFromIntArray(int[] long2IntTranslated) {
         return long2IntTranslated[BLOCK_ID_LENGTH_ARRAY_INDEX] >>> VALUE_BLOCK_SHIFT;
     }
 
@@ -476,7 +502,7 @@ class EntrySet<K, V> {
      * getPositionFromIntArray extracts in Block position from the translation of the off-heap
      * reference (long) into array of two integers. This is done in order to limit int[] objects.
      */
-    private int getPositionFromIntArray(int[] long2IntTranslated) {
+    static private int getPositionFromIntArray(int[] long2IntTranslated) {
         return long2IntTranslated[POSITION_ARRAY_INDEX];
     }
 
@@ -484,7 +510,7 @@ class EntrySet<K, V> {
      * getKeyLengthFromIntArray extracts keys length from the translation of the key reference (long)
      * into array of two integers. This is done in order to avoid more int[] objects.
      */
-    private int getKeyLengthFromIntArray(int[] long2IntTranslated) {
+    static private int getKeyLengthFromIntArray(int[] long2IntTranslated) {
         return long2IntTranslated[BLOCK_ID_LENGTH_ARRAY_INDEX] & KEY_LENGTH_MASK;
     }
 
@@ -492,7 +518,7 @@ class EntrySet<K, V> {
      * getValueLengthFromIntArray extracts value length from the translation of the value reference (long)
      * into array of two integers. This is done in order to avoid more int[] objects.
      */
-    private int getValueLengthFromIntArray(int[] long2IntTranslated) {
+    static private int getValueLengthFromIntArray(int[] long2IntTranslated) {
         return long2IntTranslated[BLOCK_ID_LENGTH_ARRAY_INDEX] & VALUE_LENGTH_MASK;
     }
 
@@ -508,24 +534,23 @@ class EntrySet<K, V> {
      * If the entry itself or off-heap value is deleted the returned LookUp has null as a Slice
      */
     LookUp buildLookUp(int ei) {
-        long valueReference;
         int[] version = new int[1]; // the array of size 1 in order to get output inside it
         // Atomic snapshot of version and value reference
-        valueReference = getValueReferenceAndVersion(ei, version);
+        long valueReference = getValueReferenceAndVersion(ei, version);
 
-        Slice valueSlice = buildValueSlice(valueReference);
+        Slice valueSlice = buildValueSlice(valueReference, version[0], memoryManager);
         if (valueSlice == null) {
             // There is no value associated with the given key
             assert valueReference == INVALID_VALUE_REFERENCE;
-            return new LookUp(null, valueReference, ei, version[0]);
+            return new LookUp(null, valueReference, ei, version[0], getKeyReference(ei));
         }
         ValueUtils.ValueResult result = valOffHeapOperator.isValueDeleted(valueSlice, version[0]);
         if (result == TRUE) {
             // There is a deleted value associated with the given key
-            return new LookUp(null, valueReference, ei, version[0]);
+            return new LookUp(null, valueReference, ei, version[0], getKeyReference(ei));
         }
         // If result == RETRY, we ignore it, since it will be discovered later down the line as well
-        return new LookUp(valueSlice, valueReference, ei, version[0]);
+        return new LookUp(valueSlice, valueReference, ei, version[0], getKeyReference(ei));
     }
 
     /**
@@ -553,36 +578,45 @@ class EntrySet<K, V> {
      * a thread is invoked the ByteBuffer is related solely to this thread.
      */
     ByteBuffer readKey(int ei) {
-        if (ei == EntrySet.NONE) {
+        if (ei == EntrySet.NONE_NEXT) {
             return null;
         }
 
         long keyReference = getKeyReference(ei);
-        int[] keyArray = UnsafeUtils.longToInts(keyReference);
+        return keyRefToByteBuffer(keyReference, memoryManager);
+    }
+
+    static ByteBuffer keyRefToByteBuffer(long keyRef, MemoryManager mm) {
+        int[] keyArray = UnsafeUtils.longToInts(keyRef);
         int blockID = getKeyBlockIDFromIntArray(keyArray);
         int keyPosition = getPositionFromIntArray(keyArray);
         int length = getKeyLengthFromIntArray(keyArray);
 
-        return memoryManager.getByteBufferFromBlockID(blockID, keyPosition, length);
+        return mm.getByteBufferFromBlockID(blockID, keyPosition, length);
+    }
+
+    void setKeyRefer(int ei, OakRReference keyRef) {
+        if (ei == EntrySet.NONE_NEXT) {
+            return;
+        }
+        long keyReference = getKeyReference(ei);
+        keyRefToOakRRef(keyReference, keyRef);
     }
 
     /**
-     * Sets the given key reference (OakRReference) given the entry index.
+     * Sets the given external key reference (OakRReference) given the long key reference.
+     * Used while iterating, when lookUp context is not used.
      * There is no copy just a special ByteBuffer for a single key.
      * The thread-local ByteBuffer can be reused by different threads, however as long as
      * a thread is invoked the ByteBuffer is related solely to this thread.
      */
-    void setKeyRefer(int ei, OakRReference keyRef) {
-        if (ei == EntrySet.NONE) {
-            return;
-        }
-        long keyReference = getKeyReference(ei);
+    static void keyRefToOakRRef(long keyReference, OakRReference oakKeyRef) {
         int[] keyArray = UnsafeUtils.longToInts(keyReference);
         int blockID = getKeyBlockIDFromIntArray(keyArray);
         int keyPosition = getPositionFromIntArray(keyArray);
         int length = getKeyLengthFromIntArray(keyArray);
 
-        keyRef.setReference(blockID, keyPosition, length);
+        oakKeyRef.setReference(blockID, keyPosition, length);
     }
 
     /**
@@ -592,7 +626,7 @@ class EntrySet<K, V> {
      * a thread is invoked on the ByteBuffer is related solely to this thread.
      */
     boolean setValueRefer(int ei, OakRReference valueRef) {
-        if (ei == EntrySet.NONE) {
+        if (ei == EntrySet.NONE_NEXT) {
             return false;
         }
         long valueReference = getValueReference(ei);
@@ -609,7 +643,8 @@ class EntrySet<K, V> {
     }
 
     /**
-     * releaseKey releases key in slice, currently not in use, waiting for GC to be arranged
+     * releaseKey releases key in slice, currently in use only for unreached keys,
+     * waiting for GC to be arranged
      **/
     void releaseKey(int ei) {
         long keyReference = getKeyReference(ei);
@@ -626,10 +661,10 @@ class EntrySet<K, V> {
      * releaseValue releases value in slice, currently the method is used only to release an
      * unreachable value reference, the one that was not yet attached to an entry!
      * The method is part of EntrySet, because it cares also
-     * for writing the value before attaching it to an entry writeValueStart/writeValueCommit
+     * for writing the value before attaching it to an entry (writeValueStart/writeValueCommit)
      **/
-    void releaseValue(long newValueReference) {
-        memoryManager.releaseSlice(buildValueSlice(newValueReference));
+    void releaseValue(OpData opData) {
+        memoryManager.releaseSlice(buildValueSlice(opData.oldValueReference, INVALID_VERSION, memoryManager));
     }
 
     /**
@@ -642,9 +677,10 @@ class EntrySet<K, V> {
      *               Needed here for the entry index (of the entry to be updated
      *               when insertion of this key-value pair will be committed) and for the old version.
      * @param value the value to write off-heap
+     * @param writeForMove
      * @return OpData to be used later in the writeValueCommit
      **/
-    OpData writeValueStart(LookUp lookUp, V value) {
+    OpData writeValueStart(LookUp lookUp, V value, boolean writeForMove) {
         // the length of the given value plus its header
         int valueLength = valueSerializer.calculateSize(value) + valOffHeapOperator.getHeaderSize();
 
@@ -652,8 +688,11 @@ class EntrySet<K, V> {
         // allocated slice. Version in time of allocation is set as part of the slice data.
         Slice slice = memoryManager.allocateSlice(valueLength, MemoryManager.Allocate.VALUE);
 
+        // for value written for the first time:
         // initializing the off-heap header (version and the lock to be free)
-        valOffHeapOperator.initHeader(slice);
+        // for value being moved, initialize the lock to be locked
+        if (writeForMove) { valOffHeapOperator.initLockedHeader(slice);}
+        else { valOffHeapOperator.initHeader(slice); }
 
         // since this is a private environment, we can only use ByteBuffer::slice, instead of ByteBuffer::duplicate
         // and then ByteBuffer::slice
@@ -664,7 +703,7 @@ class EntrySet<K, V> {
         long valueReference = buildValueReference(slice, valueLength);
 
         return new OpData(lookUp.entryIndex, INVALID_VALUE_REFERENCE, valueReference, lookUp.version,
-            slice.getVersion());
+            slice.getVersion(), slice);
     }
 
     /**
@@ -681,19 +720,20 @@ class EntrySet<K, V> {
         assert opData.oldValueReference == INVALID_VALUE_REFERENCE;
         assert opData.newValueReference != INVALID_VALUE_REFERENCE;
 
-        if (!casEntriesArrayLong(opData.entryIndex, OFFSET.VALUE_REFERENCE, opData.oldValueReference,
-            opData.newValueReference)) {
+        if (!casEntriesArrayLong(entryIdx2intIdx(opData.entryIndex), OFFSET.VALUE_REFERENCE,
+            opData.oldValueReference, opData.newValueReference)) {
             return FALSE;
         }
-        casEntriesArrayInt(opData.entryIndex, OFFSET.VALUE_VERSION, opData.oldVersion, opData.newVersion);
+        casEntriesArrayInt(entryIdx2intIdx(opData.entryIndex), OFFSET.VALUE_VERSION,
+            opData.oldVersion, opData.newVersion);
 
         return TRUE;
     }
 
     /**
-     * getNumOfEntries returns the number of entries allocated for this EntrySet.
-     * Because numOfEntries is used as an array index it is not decreased upon deletions.
-     * Anyway such entry can not be reused with arbitrary key (in current implementation)
+     * getNumOfEntries returns the number of entries allocated and not deleted for this EntrySet.
+     * Although, in case EntrySet is used as an array, nextFreeIndex is can be used to calculate
+     * number of entries, additional variable is used to support OakHash
      */
     int getNumOfEntries() {
         return numOfEntries.get();
@@ -701,7 +741,7 @@ class EntrySet<K, V> {
 
     /**
      * isDeleteValeFinishNeeded checks whether the version in the given lookUp is negative,
-     * which means deleted. We can not proceed on entry with negative version,
+     * which means deleted OR INVALID. We can not proceed on entry with negative version,
      * it is first needs to be changed to invalid, then any other value reference (with version)
      * can be assigned to this entry (same key).
      */
@@ -748,9 +788,10 @@ class EntrySet<K, V> {
             return entryVersion;
         }
 
-        Slice valueSlice = buildValueSlice(lookUp.valueReference);
+        Slice valueSlice = buildValueSlice(lookUp.valueReference, entryVersion, memoryManager);
         int offHeapVersion = valOffHeapOperator.getOffHeapVersion(valueSlice);
-        casEntriesArrayInt(lookUp.entryIndex, OFFSET.VALUE_VERSION, entryVersion, offHeapVersion);
+        casEntriesArrayInt(entryIdx2intIdx(lookUp.entryIndex), OFFSET.VALUE_VERSION,
+            entryVersion, offHeapVersion);
         lookUp.version = offHeapVersion;
         return offHeapVersion;
     }
@@ -779,14 +820,16 @@ class EntrySet<K, V> {
         if (version <= INVALID_VERSION) { // version is marked deleted
             return false;
         }
-
         // Scenario: this value space is allocated once again and assigned into the same entry,
         // while this thread is sleeping. So later a valid value reference is CASed to invalid.
         // In order to not allow this scenario happen we must release the
         // TODO: release value's off-heap slice to memory manager only after deleteValueFinish is called.
-        casEntriesArrayLong(lookUp.entryIndex, OFFSET.VALUE_REFERENCE, lookUp.valueReference,
-                    INVALID_VALUE_REFERENCE);
-        return casEntriesArrayInt(lookUp.entryIndex, OFFSET.VALUE_VERSION, version, -version);
+        if (casEntriesArrayLong(entryIdx2intIdx(lookUp.entryIndex), OFFSET.VALUE_REFERENCE,
+            lookUp.valueReference, INVALID_VALUE_REFERENCE)) {
+            numOfEntries.getAndDecrement();
+        }
+        return casEntriesArrayInt(entryIdx2intIdx(lookUp.entryIndex), OFFSET.VALUE_VERSION,
+            version, -version);
     }
 
     /**
@@ -794,11 +837,12 @@ class EntrySet<K, V> {
      * therefore the key is written to off-heap and associated with the entry simultaneously.
      * The value of the new entry is set to NULL: <INVALID_VALUE_REFERENCE, INVALID_VERSION></>
      **/
-    int allocateEntry(K key) {
-        int ei = numOfEntries.getAndIncrement();
+    LookUp allocateEntry(K key) {
+        int ei = nextFreeIndex.getAndIncrement();
         if (ei > entriesCapacity) {
-            return INVALID_ENTRY_INDEX;
+            return null;
         }
+        numOfEntries.getAndIncrement();
         int intIdx = entryIdx2intIdx(ei);
         // key and value must be set before returned
         // setting the value reference to <INVALID_VALUE_REFERENCE, INVALID_VERSION>
@@ -806,14 +850,16 @@ class EntrySet<K, V> {
         setEntryFieldInt(intIdx, OFFSET.VALUE_VERSION, INVALID_VERSION);
 
         writeKey(key, ei);
-        return ei;
+        return new
+            LookUp(null,INVALID_VALUE_REFERENCE,ei,INVALID_VERSION,getKeyReference(ei));
     }
 
     boolean isEntryDeleted(int ei) {
         int[] valueVersion = new int[1];
         long valueReference = getValueReferenceAndVersion(ei, valueVersion);
         return (valueReference == INVALID_VALUE_REFERENCE) ||
-            valOffHeapOperator.isValueDeleted(buildValueSlice(valueReference), valueVersion[0]) != FALSE;
+            valOffHeapOperator.isValueDeleted(
+                buildValueSlice(valueReference, valueVersion[0], memoryManager), valueVersion[0]) != FALSE;
     }
 
     /*
@@ -836,12 +882,12 @@ class EntrySet<K, V> {
 
     /**
      * copyEntry copies one entry from source EntrySet (at source entry index "srcEntryIdx") to this EntrySet.
-     * The destination entry index is chosen according to this numOfEntries which is increased with
+     * The destination entry index is chosen according to this nextFreeIndex which is increased with
      * each copy. Deleted entry (marked on-heap or off-heap) is not copied (disregarded).
      *
      * The next pointers of the entries are requested to be set by the user if needed.
      *
-     * @return true if entry was copied, false otherwise
+     * @return false when this EntrySet is full
      *
      * NOT THREAD SAFE
      * */
@@ -850,12 +896,12 @@ class EntrySet<K, V> {
             return false;
         }
 
-        // don't increase the numOfEntries yet, as the source entry might not be copies
-        int destEntryIndex = numOfEntries.get();
+        // don't increase the nextFreeIndex yet, as the source entry might not be copies
+        int destEntryIndex = nextFreeIndex.get();
 
         if (destEntryIndex > entriesCapacity) {return false;}
 
-        if (srcEntrySet.isEntryDeleted(srcEntryIdx)) {return false;}
+        if (srcEntrySet.isEntryDeleted(srcEntryIdx)) {return true;}
 
         // ARRAY COPY: using next as the base of the entry
         // copy both the key and the value references the value's version => 5 integers via array copy
@@ -867,7 +913,8 @@ class EntrySet<K, V> {
             entries,                        // this entries array
             entryIdx2intIdx(destEntryIndex) + OFFSET.NEXT.value + 1, (FIELDS - 1));
 
-        // now it is the time to increase numOfEntries
+        // now it is the time to increase nextFreeIndex
+        nextFreeIndex.getAndIncrement();
         numOfEntries.getAndIncrement();
         return true;
     }

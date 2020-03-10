@@ -129,7 +129,8 @@ public class ValueUtilsTest {
 
     @Test
     public void putWithNoResizeTest() {
-        Chunk.LookUp lookUp = new Chunk.LookUp(s, 0, 0, 1);
+        EntrySet.LookUp lookUp = new EntrySet.LookUp(
+            s, 0, 0, 1, EntrySet.INVALID_KEY_REFERENCE);
         Random random = new Random();
         int[] randomValues = new int[3];
         for (int i = 0; i < randomValues.length; i++) {
@@ -152,7 +153,7 @@ public class ValueUtilsTest {
             public int calculateSize(Integer object) {
                 return 0;
             }
-        }, novaManager));
+        }, novaManager, null));
         assertEquals(randomValues[0], getInt(8));
         assertEquals(randomValues[1], getInt(12));
         assertEquals(randomValues[2], getInt(16));
@@ -160,7 +161,8 @@ public class ValueUtilsTest {
 
     @Test(expected = IndexOutOfBoundsException.class)
     public void putUpperBoundTest() {
-        Chunk.LookUp lookUp = new Chunk.LookUp(s, 0, 0, 1);
+        EntrySet.LookUp lookUp = new EntrySet.LookUp(
+            s, 0, 0, 1, EntrySet.INVALID_KEY_REFERENCE);
         valueOperator.put(null, lookUp, 5, new OakSerializer<Integer>() {
             @Override
             public void serialize(Integer object, ByteBuffer targetBuffer) {
@@ -176,12 +178,13 @@ public class ValueUtilsTest {
             public int calculateSize(Integer object) {
                 return 0;
             }
-        }, novaManager);
+        }, novaManager, null);
     }
 
     @Test(expected = IndexOutOfBoundsException.class)
     public void putLowerBoundTest() {
-        Chunk.LookUp lookUp = new Chunk.LookUp(s, 0, 0, 1);
+        EntrySet.LookUp lookUp = new EntrySet.LookUp(
+            s, 0, 0, 1, EntrySet.INVALID_KEY_REFERENCE);
         valueOperator.put(null, lookUp, 5, new OakSerializer<Integer>() {
             @Override
             public void serialize(Integer object, ByteBuffer targetBuffer) {
@@ -197,12 +200,13 @@ public class ValueUtilsTest {
             public int calculateSize(Integer object) {
                 return 0;
             }
-        }, novaManager);
+        }, novaManager, null);
     }
 
     @Test
     public void cannotPutReadLockedTest() throws InterruptedException {
-        Chunk.LookUp lookUp = new Chunk.LookUp(s, 0, 0, 1);
+        EntrySet.LookUp lookUp = new
+            EntrySet.LookUp(s, 0, 0, 1, EntrySet.INVALID_KEY_REFERENCE);
         CyclicBarrier barrier = new CyclicBarrier(2);
         Random random = new Random();
         int[] randomValues = new int[3];
@@ -232,7 +236,7 @@ public class ValueUtilsTest {
                 public int calculateSize(Integer object) {
                     return 0;
                 }
-            }, novaManager);
+            }, novaManager, null);
         });
         valueOperator.lockRead(s, 1);
         putter.start();
@@ -252,7 +256,8 @@ public class ValueUtilsTest {
 
     @Test
     public void cannotPutWriteLockedTest() throws InterruptedException {
-        Chunk.LookUp lookUp = new Chunk.LookUp(s, 0, 0, 1);
+        EntrySet.LookUp lookUp =
+            new EntrySet.LookUp(s, 0, 0, 1, EntrySet.INVALID_KEY_REFERENCE);
         CyclicBarrier barrier = new CyclicBarrier(2);
         Random random = new Random();
         int[] randomValues = new int[3];
@@ -285,7 +290,7 @@ public class ValueUtilsTest {
                 public int calculateSize(Integer object) {
                     return 0;
                 }
-            }, novaManager);
+            }, novaManager, null);
         });
         valueOperator.lockWrite(s, 1);
         putter.start();
@@ -305,14 +310,14 @@ public class ValueUtilsTest {
     @Test
     public void cannotPutInDeletedValueTest() {
         valueOperator.deleteValue(s, 1);
-        Chunk.LookUp lookUp = new Chunk.LookUp(s, 0, 0, 1);
-        assertEquals(FALSE, valueOperator.put(null, lookUp, null, null, novaManager));
+        EntrySet.LookUp lookUp = new EntrySet.LookUp(s, 0, 0, 1, EntrySet.INVALID_KEY_REFERENCE);
+        assertEquals(FALSE, valueOperator.put(null, lookUp, null, null, novaManager, null));
     }
 
     @Test
     public void cannotPutToValueOfDifferentVersionTest() {
-        Chunk.LookUp lookUp = new Chunk.LookUp(s, 0, 0, 2);
-        assertEquals(RETRY, valueOperator.put(null, lookUp, null, null, novaManager));
+        EntrySet.LookUp lookUp = new EntrySet.LookUp(s, 0, 0, 2, EntrySet.INVALID_KEY_REFERENCE);
+        assertEquals(RETRY, valueOperator.put(null, lookUp, null, null, novaManager, null));
     }
 
     @Test

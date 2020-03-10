@@ -82,7 +82,7 @@ public class ChunkOld<K, V> {
         RELEASED
     }
 
-    static final int NONE = 0;    // an entry with NONE as its next pointer, points to a null entry
+    static final int NONE = 0;    // an entry with NONE_NEXT as its next pointer, points to a null entry
     static final int INVALID_ENTRY_INDEX = -1;
     static final long INVALID_VALUE_REFERENCE = 0;
     static final int BLOCK_ID_LENGTH_ARRAY_INDEX = 1;
@@ -120,7 +120,7 @@ public class ChunkOld<K, V> {
     // chunk can be in the following states: normal, frozen or infant(has a creator)
     private final AtomicReference<State> state;
     private AtomicReference<Rebalancer<K, V>> rebalancer;
-    private final int[] entries;    // array is initialized to 0, i.e., NONE - this is important!
+    private final int[] entries;    // array is initialized to 0, i.e., NONE_NEXT - this is important!
 
     private AtomicInteger pendingOps;
     private final AtomicInteger entryIndex;    // points to next free index of entry array
@@ -856,7 +856,7 @@ public class ChunkOld<K, V> {
      * @param srcChunk -- chunk to copy from
      * @param srcEntryIdx -- start position for copying
      * @param maxCapacity -- max number of entries "this" chunk can contain after copy
-     * @return key index of next to the last copied item, NONE if all items were copied
+     * @return key index of next to the last copied item, NONE_NEXT if all items were copied
      */
     final int copyPartNoKeys(ChunkOld<K, V> srcChunk, int srcEntryIdx, int maxCapacity) {
 
@@ -958,7 +958,7 @@ public class ChunkOld<K, V> {
         entryIndex.set(sortedEntryIndex);
         sortedCount.set(sortedEntryIndex / FIELDS);
         statistics.updateInitialSortedCount(sortedCount.get());
-        return srcEntryIdx; // if NONE then we finished copying old chunk, else we reached max in new chunk
+        return srcEntryIdx; // if NONE_NEXT then we finished copying old chunk, else we reached max in new chunk
     }
 
     /**

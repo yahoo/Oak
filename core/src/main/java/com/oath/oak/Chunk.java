@@ -10,7 +10,6 @@ import sun.misc.Unsafe;
 
 import java.nio.ByteBuffer;
 import java.util.EmptyStackException;
-import java.util.Map;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicMarkableReference;
@@ -36,6 +35,9 @@ public class Chunk<K, V> {
     private static final double MAX_ENTRIES_FACTOR = 2;
     private static final double MAX_IDLE_ENTRIES_FACTOR = 5;
 
+    public static final int INDEX_OF_FIRST_ENTRY = 1;
+    public static final int INVALID_ENTRY_INDEX = -1;
+
     // defaults
     public static final int MAX_ITEMS_DEFAULT = 4096;
 
@@ -59,9 +61,6 @@ public class Chunk<K, V> {
     private AtomicInteger sortedCount;
     private final int maxItems;
     AtomicInteger externalSize; // for updating oak's size
-    // for writing the keys into the bytebuffers
-    private final OakSerializer<K> keySerializer;
-    private final OakSerializer<V> valueSerializer;
     private final ValueUtils valueOperator;
 
     /*-------------- Constructors --------------*/
@@ -80,7 +79,7 @@ public class Chunk<K, V> {
         this.entrySet =
             new EntrySet<K,V>(memoryManager, maxItems, keySerializer, valueSerializer,
                 valueOperator,
-                0);
+                1);
         // if not zero, sorted count keeps the entry index of the last
         // subsequent and ordered entry in the entries array
         this.sortedCount = new AtomicInteger(0);
@@ -98,8 +97,6 @@ public class Chunk<K, V> {
         this.comparator = comparator;
         this.externalSize = externalSize;
 
-        this.keySerializer = keySerializer;
-        this.valueSerializer = valueSerializer;
         this.valueOperator = valueOperator;
     }
 
@@ -124,23 +121,23 @@ public class Chunk<K, V> {
      *
      * @param key the key to look up
      * @return a LookUp object describing the condition of the value associated with {@code key}.
-     * If {@code lookup == null}, there is no entry with that key in this chuck.
+     * If {@code lookup == null}, there is no entry with that key in this chunk.
      * If {@code lookup.valueReference == INVALID_VALUE}, it means that there is an entry with that key (can be
      * reused in case
      * of {@code put}, but there is no value attached to this key (it can happen if this entry is in the midst of
-     * being inserted, or some thread removed this key and no reblanace occurred leaving the entry in the chunk).
+     * being inserted, or some thread removed this key and no rebalanace occurred leaving the entry in the chunk).
      * It implies that {@code lookup.valueSlice = null}.
      * If {@code lookup.valueSlice == null && lookup.valueReference != INVALID_VALUE} it means that the value is
      * marked off-heap as deleted, but the connection between the entry and the value was not unlinked yet.
      */
     EntrySet.LookUp lookUp(K key) {
         // binary search sorted part of key array to quickly find node to start search at
-        // it finds previous-to-key so start with its next
-        int curr = entrySet.getNextEntryIndex(binaryFind(key));
+        // it finds previous-to-key
+        int curr = binaryFind(key);
         int cmp;
         // iterate until end of list (or key is found)
 
-        while (curr != EntrySet.NONE) {
+        while (curr != EntrySet.NONE_NEXT) {
             // compare current item's key to searched key
             cmp = comparator.compareKeyAndSerializedKey(key, entrySet.readKey(curr));
             // if item's key is larger - we've exceeded our key
@@ -160,19 +157,18 @@ public class Chunk<K, V> {
         return null;
     }
 
-
-
     /**
-     * This function completes the insertion of a value to Oak. When inserting a value, the value reference is CASed
-     * inside the entry and only then the version is CASed. Thus, there can be a time in which the version is
-     * INVALID_VERSION or a negative one. In this function, the version is CASed to complete the insertion.
+     * This function completes the insertion of a value to Entry. When inserting a value, the value
+     * reference is CASed inside the entry first and only after the version is CASed. Thus, there
+     * can be a time in which the value reference is valid but the version is INVALID_VERSION or
+     * a negative one. In this function, the version is CASed to complete the insertion.
      * <p>
-     * The version written to entry is the version written in the off-heap memory. There is no worry of concurrent
-     * removals since these removals will have to first call this function as well, and they eventually change the
-     * version as well.
+     * The version written to entry is the version written in the off-heap memory. There is no worry
+     * of concurrent removals since these removals will have to first call this function as well,
+     * and they eventually change the version as well.
      *
-     * @param lookUp - It holds the entry to CAS, the previously written version of this entry and the value
-     *               reference from which the correct version is read.
+     * @param lookUp - It holds the entry to CAS, the value version written in this entry and the
+     *               value reference from which the correct version can be read.
      * @return a version is returned.
      * If it is {@code INVALID_VERSION} it means that a CAS was not preformed. Otherwise, a positive version is
      * returned, and it the version written to the entry (maybe by some other thread).
@@ -181,6 +177,10 @@ public class Chunk<K, V> {
      * returned.
      */
     int completeLinking(EntrySet.LookUp lookUp) {
+        if (!entrySet.isDeleteValeFinishNeeded(lookUp)) {
+            // the version written in lookup is a good one!
+            return lookUp.version;
+        }
         if (!publish()) {
             return INVALID_VERSION;
         }
@@ -220,16 +220,43 @@ public class Chunk<K, V> {
         }
     }
 
-
-
-    // Use this function to release an unreachable value reference
-    void releaseValue(long newValueReference) {
-        memoryManager.releaseSlice(buildValueSlice(newValueReference));
+    /**
+     * release key in slice, currently not in use, waiting for GC to be arranged
+     **/
+    void releaseKey(int entryIndex) {
+      entrySet.releaseKey(entryIndex);
     }
 
+    // Use this function to release an unreachable value reference
+    void releaseValue(EntrySet.OpData opData) {
+        entrySet.releaseValue(opData);
+    }
 
+    // Check if value reference is valid. Doesn't check further than that
+    // (meaning whether the underlined off-heap is marked deleted or version is negative)
+    boolean isValueRefValid(int ei) {
+      return entrySet.isValueRefValid(ei);
+    }
 
+    Slice buildValueSlice(int ei) {
+      return entrySet.buildValueSlice(ei);
+    }
 
+    EntrySet.LookUp buildLookUp(int ei) {
+        return entrySet.buildLookUp(ei);
+    }
+
+    ByteBuffer readKeyFromEntryIndex(int ei) {
+        return entrySet.readKey(ei);
+    }
+
+    void setKeyReference(int ei, OakRReference keyRef) {
+        entrySet.setKeyRefer(ei, keyRef);
+    }
+
+    boolean setValueReference(int ei, OakRReference valueRef) {
+        return entrySet.setValueRefer(ei, valueRef);
+    }
 
     /**
      * binary search for largest-entry smaller than 'key' in sorted part of key array.
@@ -247,7 +274,7 @@ public class Chunk<K, V> {
             return headIdx;
         }
 
-        // optimization: compare with last key to avoid binary search
+        // optimization: compare with last key to avoid binary search (here sortedCount is not zero)
         if (comparator.compareKeyAndSerializedKey(key, entrySet.readKey(sortedCount)) > 0) {
             return sortedCount;
         }
@@ -290,29 +317,30 @@ public class Chunk<K, V> {
         pendingOps.decrementAndGet();
     }
 
-    int allocateEntryAndKey(K key) {
+    EntrySet.LookUp allocateEntryAndKey(K key) {
         return entrySet.allocateEntry(key);
     }
 
-    int linkEntry(int ei, K key) {
+    int linkEntry(EntrySet.LookUp lookUp, K key) {
         int prev, curr, cmp;
-        int anchor = EntrySet.INVALID_ENTRY_INDEX;
-
+        int anchor = INVALID_ENTRY_INDEX;
+        int ei = lookUp.entryIndex;
         while (true) {
             // start iterating from quickly-found node (by binary search) in sorted part of order-array
-            if (anchor == EntrySet.INVALID_ENTRY_INDEX) {
+            if (anchor == INVALID_ENTRY_INDEX) {
                 anchor = binaryFind(key);
             }
             curr = anchor;
 
-            //TODO: use lookUp and location window inside lookUp (when key wasn't found), no need to iterate again
+            //TODO: use lookUp and location window inside lookUp (when key wasn't found),
+            //TODO: so there us no need to iterate again in linkEntry
             // iterate items until key's position is found
             while (true) {
                 prev = curr;
                 curr = entrySet.getNextEntryIndex(prev);    // index of next item in list
 
                 // if no item, done searching - add to end of list
-                if (curr == EntrySet.NONE) {
+                if (curr == EntrySet.NONE_NEXT) {
                     break;
                 }
                 // compare current item's key to ours
@@ -361,11 +389,13 @@ public class Chunk<K, V> {
      * write value off-heap, promoted to EntrySet.
      *
      * @param value the value to write off-heap
+     * @param writeForMove
      * @return OpData to be used later in the writeValueCommit
      **/
-    EntrySet.OpData writeValue(EntrySet.LookUp lookUp, V value) {
-        return entrySet.writeValueStart(lookUp, value);
+    EntrySet.OpData writeValue(EntrySet.LookUp lookUp, V value, boolean writeForMove) {
+        return entrySet.writeValueStart(lookUp, value, false);
     }
+
 
     int getMaxItems() {
         return maxItems;
@@ -378,14 +408,17 @@ public class Chunk<K, V> {
      *
      * @param opData - holds the entry to which the value reference is linked, the old and new value references and
      *               the old and new value versions.
+     * @param linkForMove
      * @return {@code true} if the value reference was CASed successfully.
      */
-    ValueUtils.ValueResult linkValue(EntrySet.OpData opData) {
+    ValueUtils.ValueResult linkValue(EntrySet.OpData opData, boolean linkForMove) {
         if (entrySet.writeValueCommit(opData) == FALSE) {
             return FALSE;
         }
-        statistics.incrementAddedCount();
-        externalSize.incrementAndGet();
+        if (!linkForMove) {
+            statistics.incrementAddedCount();
+            externalSize.incrementAndGet();
+        }
         return TRUE;
     }
 
@@ -437,7 +470,7 @@ public class Chunk<K, V> {
     }
 
     final int getFirstItemEntryIndex() {
-        return entrySet.getNextEntryIndex(entrySet.getHeadNextIndex());
+        return entrySet.getHeadNextIndex();
     }
 
     private int getLastItemEntryIndex() {
@@ -445,7 +478,7 @@ public class Chunk<K, V> {
         int sortedCount = this.sortedCount.get();
         int entryIndex = sortedCount == 0 ? entrySet.getHeadNextIndex() : sortedCount;
         int nextEntryIndex = entrySet.getNextEntryIndex(entryIndex);
-        while (nextEntryIndex != EntrySet.NONE) {
+        while (nextEntryIndex != EntrySet.NONE_NEXT) {
             entryIndex = nextEntryIndex;
             nextEntryIndex = entrySet.getNextEntryIndex(entryIndex);
         }
@@ -467,109 +500,71 @@ public class Chunk<K, V> {
      * @param srcEntryIdx -- start position for copying
      * @param maxCapacity -- max number of entries "this" chunk can contain after copy
      * @return entry index of next to the last copied entry (in the srcChunk),
-     *              NONE if all items were copied
+     *              NONE_NEXT if all items were copied
      */
     final int copyPartNoKeys(Chunk<K, V> srcChunk, int srcEntryIdx, int maxCapacity) {
 
-        if (srcEntryIdx == entrySet.getHeadNextIndex()) {
-            return EntrySet.NONE;
+        if (srcEntryIdx == EntrySet.NONE_NEXT) {
+            return EntrySet.NONE_NEXT;
         }
 
         // use local variables and just set the atomic variables once at the end
-        int sortedEntryIndex = entryIndex.get();
+        int numOfEntries = entrySet.getNumOfEntries();
+        // next *free* index of this entries array
+        int sortedThisEntryIndex = numOfEntries+1;
 
         // check that we are not beyond allowed number of entries to copy from source chunk
-        int maxIdx = maxCapacity * FIELDS + 1;
-        if (sortedEntryIndex >= maxIdx) {
+        if (numOfEntries >= maxCapacity) {
             return srcEntryIdx;
         }
-        assert srcEntryIdx <= entries.length - FIELDS;
+        // assuming that all chunks are bounded with same number of entries to hold
+        assert srcEntryIdx <= maxItems;
 
-        // set the next entry index from where we start to copy
-        if (sortedEntryIndex != FIRST_ITEM) {
-            setEntryFieldInt(sortedEntryIndex - FIELDS, OFFSET.NEXT, sortedEntryIndex);
-        } else {
-            setEntryFieldInt(HEAD_NODE, OFFSET.NEXT, FIRST_ITEM);
+        // set the next entry index (previous entry or head) from where we start to copy
+        // if sortedThisEntryIndex is one (first entry to be occupied on this chunk)
+        // we are exactly going to update the head (ei=0)
+        entrySet.setNextEntryIndex(sortedThisEntryIndex - 1, sortedThisEntryIndex);
+
+        // Here was the code that was trying to read entries from srcEntryIdx on the source chunk
+        // to see how much of them are subject for a copy, ordered and not deleted,
+        // so theoretically they can be copied with copy array. The code is removed, because anyway
+        // the long copy array doesn't happen since "next" needs to be updated separately.
+
+        // copy entry by entry traversing the source linked list
+        while(entrySet.copyEntry(srcChunk.entrySet, srcEntryIdx)) {
+            // the source entry was either copied or disregarded as deleted
+            // anyway move to next source entry (according to the linked list)
+            srcEntryIdx = srcChunk.entrySet.getNextEntryIndex(srcEntryIdx);
+
+            // if entry was ignored as deleted (no change in this EntrySet num of entries), continue
+            if (numOfEntries == entrySet.getNumOfEntries()) {
+                continue;
+            }
+
+            // we indeed copied the entry, update the number of entries and the next pointer
+            numOfEntries++;
+            sortedThisEntryIndex++;
+            entrySet.setNextEntryIndex(sortedThisEntryIndex - 1, sortedThisEntryIndex);
+
+            // check that we are not beyond allowed number of entries to copy from source chunk
+            if (numOfEntries >= maxCapacity) {
+                break;
+            }
+
+            // is there something to copy on the source side?
+            if (srcEntryIdx == EntrySet.NONE_NEXT) {
+                break;
+            }
         }
+        // we have stopped the copy because (1) this entry set is full, OR (2) ended source entries,
+        // OR (3) we copied allowed number of entries
 
-        int entryIndexStart = srcEntryIdx;
-        int entryIndexEnd = entryIndexStart - 1;
-        int srcPrevEntryIdx = NONE;
-        boolean isFirstInInterval = true;
-
-        while (true) {
-            int[] currSrcValueVersion = new int[1];
-            long currSrcValueReference = srcChunk.getValueReferenceAndVersion(srcEntryIdx, currSrcValueVersion);
-            boolean isValueDeleted = (currSrcValueReference == INVALID_VALUE_REFERENCE) ||
-                    valueOperator.isValueDeleted(buildValueSlice(currSrcValueReference), currSrcValueVersion[0]) != FALSE;
-            int entriesToCopy = entryIndexEnd - entryIndexStart + 1;
-
-            // try to find a continuous interval to copy
-            // we cannot enlarge interval: if key is removed (value reference is INVALID_VALUE_REFERENCE) or
-            // if this chunk already has all entries to start with
-            if (!isValueDeleted && (sortedEntryIndex + entriesToCopy * FIELDS < maxIdx)) {
-                // we can enlarge the interval, if it is otherwise possible:
-                // if this is first entry in the interval (we need to copy one entry anyway) OR
-                // if (on the source chunk) current entry idx directly follows the previous entry idx
-                if (isFirstInInterval || (srcPrevEntryIdx + FIELDS == srcEntryIdx)) {
-                    entryIndexEnd++;
-                    isFirstInInterval = false;
-                    srcPrevEntryIdx = srcEntryIdx;
-                    srcEntryIdx = srcChunk.getEntryFieldInt(srcEntryIdx, OFFSET.NEXT);
-                    if (srcEntryIdx != NONE) {
-                        continue;
-                    }
-
-                }
-            }
-
-            entriesToCopy = entryIndexEnd - entryIndexStart + 1;
-            if (entriesToCopy > 0) {
-                for (int i = 0; i < entriesToCopy; ++i) {
-                    int offset = i * FIELDS;
-                    // next should point to the next item
-                    entries[sortedEntryIndex + offset + OFFSET.NEXT.value]
-                            = sortedEntryIndex + offset + FIELDS;
-
-                    // LABEL: using next as the base of the entry
-                    // copy both the key and the value references the value's version => 5 integers via array copy
-                    // the first field in an entry is next, and it is not copied since it was assign
-                    // therefore, to copy the rest of the entry we use the offset of next (which we assume is 0) and
-                    // add 1 to start the copying from the subsequent field of the entry.
-                    System.arraycopy(srcChunk.entries,  // source array
-                            entryIndexStart + offset + OFFSET.NEXT.value + 1,
-                            entries,                        // destination array
-                            sortedEntryIndex + offset + OFFSET.NEXT.value + 1, (FIELDS - 1));
-                }
-
-                sortedEntryIndex += entriesToCopy * FIELDS; // update
-            }
-
-            if (isValueDeleted) { // if now this is a removed item
-                // don't copy it, continue to next item
-                srcPrevEntryIdx = srcEntryIdx;
-                srcEntryIdx = srcChunk.getEntryFieldInt(srcEntryIdx, OFFSET.NEXT);
-            }
-
-            if (srcEntryIdx == NONE || sortedEntryIndex >= maxIdx) {
-                break; // if we are done
-            }
-
-            // reset and continue
-            entryIndexStart = srcEntryIdx;
-            entryIndexEnd = entryIndexStart - 1;
-            isFirstInInterval = true;
-
-        }
-
-        // next of last item in serial should point to null
-        int setIdx = sortedEntryIndex > FIRST_ITEM ? sortedEntryIndex - FIELDS : HEAD_NODE;
-        setEntryFieldInt(setIdx, OFFSET.NEXT, NONE);
-        // update index and counter
-        entryIndex.set(sortedEntryIndex);
-        sortedCount.set(sortedEntryIndex / FIELDS);
+        // the last next pointer was set to what is there in the source to copy, reset it to null
+        entrySet.setNextEntryIndex(sortedThisEntryIndex - 1, EntrySet.NONE_NEXT);
+        // sorted count keeps the number of sorted entries
+        sortedCount.set(numOfEntries);
         statistics.updateInitialSortedCount(sortedCount.get());
-        return srcEntryIdx; // if NONE then we finished copying old chunk, else we reached max in new chunk
+        return srcEntryIdx; // if NONE_NEXT then we finished copying old chunk, else we reached max in new chunk
     }
 
     /**
@@ -642,7 +637,7 @@ public class Chunk<K, V> {
     }
 
     private int advanceNextIndex(int next) {
-        while (next != EntrySet.NONE && !entrySet.isValueRefValid(next)) {
+        while (next != EntrySet.NONE_NEXT && !entrySet.isValueRefValid(next)) {
             next = entrySet.getNextEntryIndex(next);
         }
         return next;
@@ -665,13 +660,13 @@ public class Chunk<K, V> {
         AscendingIter(K from, boolean inclusive) {
             next = entrySet.getNextEntryIndex(binaryFind(from));
             int compare = -1;
-            if (next != EntrySet.NONE) {
+            if (next != EntrySet.NONE_NEXT) {
                 compare = comparator.compareKeyAndSerializedKey(from, entrySet.readKey(next));
             }
-            while (next != EntrySet.NONE &&
+            while (next != EntrySet.NONE_NEXT &&
                 (compare > 0 || (compare >= 0 && !inclusive) || !entrySet.isValueRefValid(next))) {
                 next = entrySet.getNextEntryIndex(next);
-                if (next != EntrySet.NONE) {
+                if (next != EntrySet.NONE_NEXT) {
                     compare = comparator.compareKeyAndSerializedKey(from, entrySet.readKey(next));
                 }
             }
@@ -684,7 +679,7 @@ public class Chunk<K, V> {
 
         @Override
         public boolean hasNext() {
-            return next != EntrySet.NONE;
+            return next != EntrySet.NONE_NEXT;
         }
 
         @Override
@@ -734,22 +729,22 @@ public class Chunk<K, V> {
          */
         private void findNewNextInStack() {
             if (stack.empty()) {
-                next = EntrySet.NONE;
+                next = EntrySet.NONE_NEXT;
                 return;
             }
             next = stack.pop();
-            while (next != EntrySet.NONE && entrySet.isValueRefValid(next)) {
+            while (next != EntrySet.NONE_NEXT && entrySet.isValueRefValid(next)) {
                 if (!stack.empty()) {
                     next = stack.pop();
                 } else {
-                    next = EntrySet.NONE;
+                    next = EntrySet.NONE_NEXT;
                     return;
                 }
             }
         }
 
         private void pushToStack(boolean compareWithPrevAnchor) {
-            while (next != EntrySet.NONE) {
+            while (next != EntrySet.NONE_NEXT) {
                 if (!compareWithPrevAnchor) {
                     stack.push(next);
                     next = entrySet.getNextEntryIndex(next);
@@ -771,7 +766,7 @@ public class Chunk<K, V> {
         private void traverseLinkedList(boolean firstTimeInvocation) {
             assert stack.size() == 1;   // ancor is in the stack
             if (prevAnchor == entrySet.getNextEntryIndex(anchor)) {
-                next = EntrySet.NONE;   // there is no next;
+                next = EntrySet.NONE_NEXT;   // there is no next;
                 return;
             }
             next = entrySet.getNextEntryIndex(anchor);
@@ -781,13 +776,13 @@ public class Chunk<K, V> {
             } else {
                 if (firstTimeInvocation) {
                     if (inclusive) {
-                        while (next != EntrySet.NONE
+                        while (next != EntrySet.NONE_NEXT
                             && comparator.compareKeyAndSerializedKey(from, entrySet.readKey(next)) >= 0) {
                             stack.push(next);
                             next = entrySet.getNextEntryIndex(next);
                         }
                     } else {
-                        while (next != EntrySet.NONE
+                        while (next != EntrySet.NONE_NEXT
                             && comparator.compareKeyAndSerializedKey(from, entrySet.readKey(next)) > 0) {
                             stack.push(next);
                             next = entrySet.getNextEntryIndex(next);
@@ -807,7 +802,7 @@ public class Chunk<K, V> {
             assert stack.empty();
             prevAnchor = anchor;
             if (anchor == entrySet.getHeadNextIndex()) {
-                next = EntrySet.NONE; // there is no more in this chunk
+                next = EntrySet.NONE_NEXT; // there is no more in this chunk
                 return;
             } else if (anchor == 1) { // cannot get below the first index
                 anchor = entrySet.getHeadNextIndex();
@@ -826,7 +821,7 @@ public class Chunk<K, V> {
         private void advance() {
             while (true) {
                 findNewNextInStack();
-                if (next != EntrySet.NONE) {
+                if (next != EntrySet.NONE_NEXT) {
                     return;
                 }
                 // there is no next in stack
@@ -841,7 +836,7 @@ public class Chunk<K, V> {
 
         @Override
         public boolean hasNext() {
-            return next != EntrySet.NONE;
+            return next != EntrySet.NONE_NEXT;
         }
 
         @Override

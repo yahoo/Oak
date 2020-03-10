@@ -45,6 +45,8 @@ public class Slice {
         return originalPosition == buffer.position();
     }
 
+    int getOriginalPosition() { return originalPosition; }
+
     void setVersion(int version) {this.version = version;}
 
     int getVersion() { return version; }

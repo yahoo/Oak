@@ -160,6 +160,30 @@ class InternalOakMap<K, V> {
         return c;
     }
 
+    Slice overwriteExistingValueForMove(EntrySet.LookUp lookUp, V newVal, Chunk<K, V> c) {
+        // given old entry index (inside lookUp) and new value, while old value is locked,
+        // allocate new value, new value is going to be locked as well, write the new value
+        EntrySet.OpData opData = c.writeValue(lookUp, newVal, true);
+
+        // in order to connect/overwrite the old entry to point to new value
+        // we need to publish as in the normal write process
+        if (!c.publish()) {
+            c.releaseValue(opData);
+            rebalance(c);
+            return null;
+        }
+
+        // updating the old entry index
+        if (c.linkValue(opData, true) != TRUE) {
+            c.releaseValue(opData);
+            c.unpublish();
+            return null;
+        }
+
+        c.unpublish();
+        checkRebalance(c);
+        return opData.slice;
+    }
 
     /**
      * @param c - Chunk to rebalance
@@ -169,7 +193,7 @@ class InternalOakMap<K, V> {
         if (c == null) {
             return;
         }
-        Rebalancer<K, V> rebalancer = new Rebalancer<>(c, true, memoryManager, keySerializer,
+        Rebalancer<K, V> rebalancer = new Rebalancer<>(c, memoryManager, keySerializer,
                 valueSerializer, valueOperator);
 
         rebalancer = rebalancer.engageChunks(); // maybe we encountered a different rebalancer
@@ -314,7 +338,7 @@ class InternalOakMap<K, V> {
         return false;
     }
 
-    private boolean finalizeDeletion(Chunk<K, V> c, LookUp lookUp) {
+    private boolean finalizeDeletion(Chunk<K, V> c, EntrySet.LookUp lookUp) {
         if (lookUp != null) {
             if (c.finalizeDeletion(lookUp)) {
                 rebalance(c);
@@ -325,15 +349,16 @@ class InternalOakMap<K, V> {
     }
 
     /**
-     * This function completes the insertion of the value reference in the variable {@code lookUp}, and updates the
-     * value's version in {@code lookUp}. In case, the linking cannot be done (i.e., a concurrent rebalance), than
+     * This function completes the insertion of the value reference to the entry
+     * (reflected in {@code lookUp}), and updates the value's version in {@code lookUp} IF NEEDED.
+     * In case, the linking cannot be done (i.e., a concurrent rebalance), than
      * rebalance is called.
      *
      * @param c      - the chuck pointed by {@code lookUp}
      * @param lookUp - holds the value reference, old version, and relevant entry to update
      * @return whether the caller method should restart (if a rebalance was executed).
      */
-    private boolean updateVersionAfterLinking(Chunk<K, V> c, LookUp lookUp) {
+    private boolean updateVersionAfterLinking(Chunk<K, V> c, EntrySet.LookUp lookUp) {
         if (c.completeLinking(lookUp) == INVALID_VERSION) {
             rebalance(c);
             return true;
@@ -356,14 +381,15 @@ class InternalOakMap<K, V> {
                 assert false;
             }
             Chunk<K, V> c = findChunk(key); // find chunk matching key
-            Chunk.LookUp lookUp = c.lookUp(key);
+            EntrySet.LookUp lookUp = c.lookUp(key);
             // If there is a matching value reference for the given key, and it is not marked as deleted, then this put
             // changes the slice pointed by this value reference.
             if (lookUp != null && lookUp.valueSlice != null) {
                 if (updateVersionAfterLinking(c, lookUp)) {
                     continue;
                 }
-                Result<V> res = valueOperator.exchange(c, lookUp, value, transformer, valueSerializer, memoryManager);
+                Result<V> res = valueOperator.exchange(c, lookUp, value, transformer, valueSerializer, memoryManager,
+                    this);
                 if (res.operationResult == TRUE) {
                     return res.value;
                 }
@@ -387,48 +413,50 @@ class InternalOakMap<K, V> {
             the absolute value of the version written in lookUp (this way, if the version is already negative, it
             remains negative).
              */
-            int oldVersion = lookUp == null ? INVALID_VERSION : -Math.abs(lookUp.version);
-
             int ei;
             if (lookUp != null) {
+                lookUp.version = -Math.abs(lookUp.version);
                 ei = lookUp.entryIndex;
                 assert ei > 0;
             } else {
-                ei = c.allocateEntryAndKey(key);
-                if (ei == INVALID_ENTRY_INDEX) {
+                // lookUp is null so there was no such key found, while EntrySet allocates the entry
+                // (holding the key) the new lookUp is going to be returned to be used by EntrySet's
+                // subsequent requests to write value
+                lookUp = c.allocateEntryAndKey(key);
+                if (lookUp == null) {
                     rebalance(c);
                     continue;
                 }
-                int prevEi = c.linkEntry(ei, key);
-                if (prevEi != ei) {
-                    c.releaseKey(ei);
-                    if (c.getValueReference(prevEi) != INVALID_VALUE_REFERENCE) {
+                int prevEi = c.linkEntry(lookUp, key);
+                if (prevEi != lookUp.entryIndex) {
+                    // our entry wasn't inserted because other entry with same key was found.
+                    // If this entry (with index prevEi) is valid we should move to continue
+                    // with existing entry scenario, otherwise we can reuse this entry because
+                    // its value is invalid.
+                    c.releaseKey(lookUp.entryIndex);
+                    if (!c.isValueRefValid(prevEi)) {
                         continue;
                     }
-                    // We use an existing entry only if its value reference is INVALID_VALUE_REFERENCE
-                    ei = prevEi;
+                    // We use an existing entry only if its value reference is invalid
+                    lookUp.entryIndex = prevEi;
                 }
             }
 
-            int[] version = new int[1];
-            long newValueReference = c.writeValue(value, version); // write value in place
-
-            Chunk.OpData opData = new Chunk.OpData(ei, INVALID_VALUE_REFERENCE, newValueReference, oldVersion,
-                    version[0]);
+            EntrySet.OpData opData = c.writeValue(lookUp, value, false); // write value in place
 
             if (!c.publish()) {
-                c.releaseValue(newValueReference);
+                c.releaseValue(opData);
                 rebalance(c);
                 continue;
             }
 
-            if (c.linkValue(opData) != TRUE) {
-                c.releaseValue(newValueReference);
+            if (c.linkValue(opData, false) != TRUE) {
+                c.releaseValue(opData);
                 c.unpublish();
             } else {
                 c.unpublish();
                 checkRebalance(c);
-                return null;
+                return null; // null can be returned only in zero-copy case
             }
         }
     }
@@ -446,7 +474,7 @@ class InternalOakMap<K, V> {
                 assert false;
             }
             Chunk<K, V> c = findChunk(key); // find chunk matching key
-            Chunk.LookUp lookUp = c.lookUp(key);
+            EntrySet.LookUp lookUp = c.lookUp(key);
 
             if (lookUp != null && lookUp.valueSlice != null) {
                 if (updateVersionAfterLinking(c, lookUp)) {
@@ -477,32 +505,38 @@ class InternalOakMap<K, V> {
             the absolute value of the version written in lookUp (this way, if the version is already negative, it
             remains negative).
              */
-            int oldVersion = lookUp == null ? INVALID_VERSION : -Math.abs(lookUp.version);
-
             int ei;
             if (lookUp != null) {
                 // There's an entry for this key, but it isn't linked to any value (in which case valueReference is
                 // DELETED_VALUE)
                 // or it's linked to a deleted value that is referenced by valueReference (a valid one)
+                lookUp.version = -Math.abs(lookUp.version);
                 ei = lookUp.entryIndex;
                 assert ei > 0;
             } else {
-                ei = c.allocateEntryAndKey(key);
-                if (ei == INVALID_ENTRY_INDEX) {
+                // lookUp is null so there was no such key found, while EntrySet allocates the entry
+                // (holding the key) the new lookUp is going to be returned to be used by EntrySet's
+                // subsequent requests to write value
+                lookUp = c.allocateEntryAndKey(key);
+                if (lookUp == null) {
                     rebalance(c);
                     continue;
                 }
-                int prevEi = c.linkEntry(ei, key);
-                if (prevEi != ei) {
-                    c.releaseKey(ei);
-                    // some other thread linked its entry with the same key.
-                    int[] otherVersion = new int[1];
-                    Slice otherSlice = c.buildValueSlice(c.getValueReferenceAndVersion(prevEi, otherVersion));
+                int prevEi = c.linkEntry(lookUp, key);
+                if (prevEi != lookUp.entryIndex) {
+                    // our entry wasn't inserted because other entry with same key was found.
+                    // If this entry (with index prevEi) is valid we should return false,
+                    // otherwise we can reuse this entry because its value is invalid.
+                    c.releaseKey(lookUp.entryIndex);
+                    // for non-zc interface putIfAbsent returns the previous value associated with
+                    // the specified key, or null if there was no mapping for the key.
+                    // so we need to create a slice to let transformer create the value object
+                    Slice otherSlice = c.buildValueSlice(prevEi);
                     if (otherSlice != null) {
                         if (transformer == null) {
                             return Result.withFlag(FALSE);
                         }
-                        Result<V> res = valueOperator.transform(otherSlice, transformer, otherVersion[0]);
+                        Result<V> res = valueOperator.transform(otherSlice, transformer, otherSlice.getVersion());
                         if (res.operationResult == TRUE) {
                             return res;
                         }
@@ -514,20 +548,16 @@ class InternalOakMap<K, V> {
                 }
             }
 
-            int[] version = new int[1];
-            long newValueReference = c.writeValue(value, version); // write value in place
-
-            Chunk.OpData opData = new Chunk.OpData(ei, INVALID_VALUE_REFERENCE, newValueReference, oldVersion,
-                    version[0]);
+            EntrySet.OpData opData = c.writeValue(lookUp, value, false); // write value in place
 
             if (!c.publish()) {
-                c.releaseValue(newValueReference);
+                c.releaseValue(opData);
                 rebalance(c);
                 continue;
             }
 
-            if (c.linkValue(opData) != TRUE) {
-                c.releaseValue(newValueReference);
+            if (c.linkValue(opData, false) != TRUE) {
+                c.releaseValue(opData);
                 c.unpublish();
             } else {
                 c.unpublish();
@@ -550,7 +580,7 @@ class InternalOakMap<K, V> {
                 assert false;
             }
             Chunk<K, V> c = findChunk(key); // find chunk matching key
-            Chunk.LookUp lookUp = c.lookUp(key);
+            EntrySet.LookUp lookUp = c.lookUp(key);
             if (lookUp != null && lookUp.valueSlice != null) {
                 if (updateVersionAfterLinking(c, lookUp)) {
                     continue;
@@ -578,7 +608,6 @@ class InternalOakMap<K, V> {
             the absolute value of the version written in lookUp (this way, if the version is already negative, it
             remains negative).
              */
-            int oldVersion = lookUp == null ? INVALID_VERSION : -Math.abs(lookUp.version);
 
             // we come here when no key was found, which can be in 3 cases:
             // 1. no entry in the linked list at all
@@ -586,18 +615,27 @@ class InternalOakMap<K, V> {
             // 3. entry in the linked list, the value referenced is marked as deleted
             int ei;
             if (lookUp != null) {
+                lookUp.version = -Math.abs(lookUp.version);
                 ei = lookUp.entryIndex;
                 assert ei > 0;
             } else {
-                ei = c.allocateEntryAndKey(key);
-                if (ei == INVALID_ENTRY_INDEX) {
+                // lookUp is null so there was no such key found, while EntrySet allocates the entry
+                // (holding the key) the new lookUp is going to be returned to be used by EntrySet's
+                // subsequent requests to write value
+                lookUp = c.allocateEntryAndKey(key);
+                if (lookUp == null) {
                     rebalance(c);
                     continue;
                 }
-                int prevEi = c.linkEntry(ei, key);
-                if (prevEi != ei) {
-                    c.releaseKey(ei);
-                    if (c.getValueReference(prevEi) != INVALID_VALUE_REFERENCE) {
+                int prevEi = c.linkEntry(lookUp, key);
+                // our entry wasn't inserted because other entry with same key was found.
+                // If this entry (with index prevEi) is valid we should move to continue
+                // with existing entry scenario (compute), otherwise we can reuse this entry because
+                // its value is invalid.
+                c.releaseKey(lookUp.entryIndex);
+                if (prevEi != lookUp.entryIndex) {
+                    c.releaseKey(lookUp.entryIndex);
+                    if (c.isValueRefValid(prevEi)) {
                         continue;
                     } else {
                         ei = prevEi;
@@ -605,20 +643,16 @@ class InternalOakMap<K, V> {
                 }
             }
 
-            int[] version = new int[1];
-            long newValueReference = c.writeValue(value, version); // write value in place
-
-            Chunk.OpData opData = new Chunk.OpData(ei, INVALID_VALUE_REFERENCE, newValueReference, oldVersion,
-                    version[0]);
+            EntrySet.OpData opData = c.writeValue(lookUp, value, false); // write value in place
 
             if (!c.publish()) {
-                c.releaseValue(newValueReference);
+                c.releaseValue(opData);
                 rebalance(c);
                 continue;
             }
 
-            if (c.linkValue(opData) != TRUE) {
-                c.releaseValue(newValueReference);
+            if (c.linkValue(opData, false) != TRUE) {
+                c.releaseValue(opData);
                 c.unpublish();
             } else {
                 c.unpublish();
@@ -646,7 +680,7 @@ class InternalOakMap<K, V> {
                 assert false;
             }
             Chunk<K, V> c = findChunk(key); // find chunk matching key
-            Chunk.LookUp lookUp = c.lookUp(key);
+            EntrySet.LookUp lookUp = c.lookUp(key);
 
             if (lookUp == null) {
                 // There is no such key. If we did logical deletion and someone else did the physical deletion,
@@ -684,7 +718,7 @@ class InternalOakMap<K, V> {
             }
 
             assert lookUp.entryIndex > 0;
-            assert lookUp.valueReference != INVALID_VALUE_REFERENCE;
+            assert c.isValueRefValid(lookUp.entryIndex);
 
             // publish
             if (c.finalizeDeletion(lookUp)) {
@@ -705,15 +739,15 @@ class InternalOakMap<K, V> {
                 assert false;
             }
             Chunk<K, V> c = findChunk(key); // find chunk matching key
-            Chunk.LookUp lookUp = c.lookUp(key);
+            EntrySet.LookUp lookUp = c.lookUp(key);
             if (lookUp == null || lookUp.valueSlice == null) {
                 return null;
             }
             if (updateVersionAfterLinking(c, lookUp)) {
                 continue;
             }
-            long keyReference = c.getKeyReference(lookUp.entryIndex);
-            return new OakRValueBufferImpl(lookUp.valueReference, lookUp.version, keyReference, valueOperator,
+
+            return new OakRValueBufferImpl(lookUp.valueReference, lookUp.version, lookUp.keyReference, valueOperator,
                     memoryManager, this);
         }
     }
@@ -731,7 +765,7 @@ class InternalOakMap<K, V> {
                 assert false;
             }
             Chunk<K, V> c = findChunk(key); // find chunk matching key
-            Chunk.LookUp lookUp = c.lookUp(key);
+            EntrySet.LookUp lookUp = c.lookUp(key);
 
             if (lookUp != null && lookUp.valueSlice != null) {
                 if (updateVersionAfterLinking(c, lookUp)) {
@@ -750,11 +784,13 @@ class InternalOakMap<K, V> {
         }
     }
 
-    LookUp getValueFromIndex(long keyReference) {
+    // used when value of a key was possibly moved and we try to search for the given key
+    // through the OakMap again
+    EntrySet.LookUp refreshValuePosition(long keyReference) {
         K deserializedKey = keySerializer.deserialize(getKeyByteBuffer(keyReference));
         while (true) {
             Chunk<K, V> c = findChunk(deserializedKey); // find chunk matching key
-            Chunk.LookUp lookUp = c.lookUp(deserializedKey);
+            EntrySet.LookUp lookUp = c.lookUp(deserializedKey);
             if (lookUp == null || lookUp.valueSlice == null) {
                 return null;
             }
@@ -784,7 +820,7 @@ class InternalOakMap<K, V> {
                 assert false;
             }
             Chunk<K, V> c = findChunk(key); // find chunk matching key
-            Chunk.LookUp lookUp = c.lookUp(key);
+            EntrySet.LookUp lookUp = c.lookUp(key);
             if (lookUp == null || lookUp.valueSlice == null) {
                 return null;
             }
@@ -809,17 +845,18 @@ class InternalOakMap<K, V> {
         return transformer.apply(serializedKey.slice().asReadOnlyBuffer());
     }
 
+    // Returns the buffer of key and not value as usual
     private ByteBuffer getKey(K key) {
         if (key == null) {
             throw new NullPointerException();
         }
 
         Chunk<K, V> c = findChunk(key);
-        Chunk.LookUp lookUp = c.lookUp(key);
+        EntrySet.LookUp lookUp = c.lookUp(key);
         if (lookUp == null || lookUp.valueSlice == null || lookUp.entryIndex == INVALID_ENTRY_INDEX) {
             return null;
         }
-        return c.readKey(lookUp.entryIndex);
+        return c.readKeyFromEntryIndex(lookUp.entryIndex);
     }
 
     ByteBuffer getMinKey() {
@@ -885,14 +922,14 @@ class InternalOakMap<K, V> {
                 assert false;
             }
             Chunk<K, V> c = findChunk(key); // find chunk matching key
-            Chunk.LookUp lookUp = c.lookUp(key);
+            EntrySet.LookUp lookUp = c.lookUp(key);
             if (lookUp == null || lookUp.valueSlice == null) {
                 return null;
             }
 
             // will return null if the value is deleted
             Result<V> result = valueOperator.exchange(c, lookUp, value, valueDeserializeTransformer, valueSerializer,
-                    memoryManager);
+                    memoryManager, this);
             if (result.operationResult != RETRY) {
                 return result.value;
             }
@@ -908,13 +945,13 @@ class InternalOakMap<K, V> {
                 assert false;
             }
             Chunk<K, V> c = findChunk(key); // find chunk matching key
-            Chunk.LookUp lookUp = c.lookUp(key);
+            EntrySet.LookUp lookUp = c.lookUp(key);
             if (lookUp == null || lookUp.valueSlice == null) {
                 return false;
             }
 
             ValueUtils.ValueResult res = valueOperator.compareExchange(c, lookUp, oldValue, newValue,
-                    valueDeserializeTransformer, valueSerializer, memoryManager);
+                    valueDeserializeTransformer, valueSerializer, memoryManager, this);
             if (res == RETRY) {
                 continue;
             }
@@ -936,7 +973,7 @@ class InternalOakMap<K, V> {
 
         while (chunkIter.hasNext()) {
             int nextIndex = chunkIter.next();
-            int cmp = comparator.compareKeyAndSerializedKey(key, c.readKey(nextIndex));
+            int cmp = comparator.compareKeyAndSerializedKey(key, c.readKeyFromEntryIndex(nextIndex));
             if (cmp <= 0) {
                 break;
             }
@@ -945,20 +982,20 @@ class InternalOakMap<K, V> {
 
         /* Edge case: we're looking for the lowest key in the map and it's still greater than minkey
             (in which  case prevKey == key) */
-        ByteBuffer prevKey = c.readKey(prevIndex);
+        ByteBuffer prevKey = c.readKeyFromEntryIndex(prevIndex);
         if (comparator.compareKeyAndSerializedKey(key, prevKey) == 0) {
             return new AbstractMap.SimpleImmutableEntry<>(null, null);
         }
         K keyDeserialized = keySerializer.deserialize(prevKey.slice());
 
-        int[] valueVersion = new int[1];
-        long valueReference = c.getValueReferenceAndVersion(prevIndex, valueVersion);
-        if (valueReference == INVALID_VALUE_REFERENCE) {
+        // get value associated with this (prev) key
+        Slice valueSlice = c.buildValueSlice(prevIndex);
+        if (valueSlice == null){ // value reference was invalid, try again
             return lowerEntry(key);
         }
-        Result<V> valueDeserialized = valueOperator.transform(getValueSlice(valueReference),
+        Result<V> valueDeserialized = valueOperator.transform(valueSlice,
                 valueSerializer::deserialize,
-                valueVersion[0]);
+                valueSlice.getVersion());
         if (valueDeserialized.operationResult != TRUE) {
             return lowerEntry(key);
         }
@@ -967,28 +1004,16 @@ class InternalOakMap<K, V> {
 
     /*-------------- Iterators --------------*/
 
-    private Slice getValueSlice(long valuerReference) {
-        if (valuerReference == INVALID_VALUE_REFERENCE) {
-            return null;
-        }
-        int[] valueArray = UnsafeUtils.longToInts(valuerReference);
-        return memoryManager.getSliceFromBlockID(valueArray[BLOCK_ID_LENGTH_ARRAY_INDEX] >>> VALUE_BLOCK_SHIFT,
-                valueArray[POSITION_ARRAY_INDEX], valueArray[BLOCK_ID_LENGTH_ARRAY_INDEX] & VALUE_LENGTH_MASK);
+    private Slice getValueSlice(long valuerReference, int version) {
+        return EntrySet.buildValueSlice(valuerReference, version, memoryManager);
     }
 
     private ByteBuffer getKeyByteBuffer(long keyReference) {
-        int[] keyArray = UnsafeUtils.longToInts(keyReference);
-        return memoryManager.getByteBufferFromBlockID(keyArray[BLOCK_ID_LENGTH_ARRAY_INDEX] >>> KEY_BLOCK_SHIFT,
-                keyArray[POSITION_ARRAY_INDEX], keyArray[BLOCK_ID_LENGTH_ARRAY_INDEX] & KEY_LENGTH_MASK);
+        return EntrySet.keyRefToByteBuffer(keyReference, memoryManager);
     }
 
     private OakRReference setKeyReference(long keyReference, OakRReference key) {
-        int[] keyArray = UnsafeUtils.longToInts(keyReference);
-        int blockID = keyArray[BLOCK_ID_LENGTH_ARRAY_INDEX] >> KEY_BLOCK_SHIFT;
-        int keyPosition = keyArray[POSITION_ARRAY_INDEX];
-        int length = keyArray[BLOCK_ID_LENGTH_ARRAY_INDEX] & KEY_LENGTH_MASK;
-
-        key.setReference(blockID, keyPosition, length);
+        EntrySet.keyRefToOakRRef(keyReference, key);
         return key;
     }
 
@@ -1024,7 +1049,7 @@ class InternalOakMap<K, V> {
 
 
         static <K, V> IteratorState<K, V> newInstance(Chunk<K, V> nextChunk, Chunk.ChunkIter nextChunkIter) {
-            return new IteratorState<>(nextChunk, nextChunkIter, Chunk.NONE);
+            return new IteratorState<>(nextChunk, nextChunkIter, EntrySet.NONE_NEXT);
         }
 
     }
@@ -1115,7 +1140,8 @@ class InternalOakMap<K, V> {
 
         private void initAfterRebalance() {
             //TODO - refactor to use ByeBuffer without deserializing.
-            K nextKey = keySerializer.deserialize(state.getChunk().readKey(state.getIndex()).slice());
+            K nextKey = keySerializer.deserialize(
+                state.getChunk().readKeyFromEntryIndex(state.getIndex()).slice());
 
             if (isDescending) {
                 hiInclusive = true;
@@ -1159,22 +1185,20 @@ class InternalOakMap<K, V> {
             if (chunkState == Chunk.State.RELEASED) {
                 initAfterRebalance();
             }
+            EntrySet.LookUp lookUp = state.getChunk().buildLookUp(state.getIndex());
 
-            long keyReference = state.getChunk().getKeyReference(state.getIndex());
-            long valueReference;
-            int[] valueVersion = new int[1];
+
             if (needsValue) {
-                valueReference = state.getChunk().getValueReferenceAndVersion(state.getIndex(), valueVersion);
-                if (valueReference != INVALID_VALUE_REFERENCE) {
-                    valueVersion[0] = state.getChunk().completeLinking(new LookUp(null, valueReference,
-                            state.getIndex(), valueVersion[0]));
+
+                if (lookUp.valueReference != EntrySet.INVALID_VALUE_REFERENCE) {
+                    lookUp.version = state.getChunk().completeLinking(lookUp);
                     // The CAS could not complete due to concurrent rebalance, so rebalance and try again
-                    if (valueVersion[0] == INVALID_VERSION) {
+                    if (lookUp.version == INVALID_VERSION) {
                         rebalance(state.getChunk());
                         return advance(true);
                     }
                     // If we could not complete the linking or if the value is deleted, advance to the next value
-                    if (valueOperator.isValueDeleted(getValueSlice(valueReference), valueVersion[0]) != FALSE) {
+                    if (valueOperator.isValueDeleted(lookUp.valueSlice, lookUp.version) != FALSE) {
                         advanceState();
                         return advance(true);
                     }
@@ -1182,11 +1206,11 @@ class InternalOakMap<K, V> {
                     advanceState();
                     return advance(true);
                 }
-                myItem.valueReference = valueReference;
-                myItem.valueVersion = valueVersion[0];
+                myItem.valueReference = lookUp.valueReference;
+                myItem.valueVersion = lookUp.version;
             }
             advanceState();
-            myItem.keyReference = keyReference;
+            myItem.keyReference = lookUp.keyReference;
             return myItem;
         }
 
@@ -1199,18 +1223,18 @@ class InternalOakMap<K, V> {
             if (state == null) {
                 throw new NoSuchElementException();
             }
-
-            Chunk.State chunkState = state.getChunk().state();
+            Chunk c = state.getChunk();
+            Chunk.State chunkState = c.state();
 
             if (chunkState == Chunk.State.RELEASED) {
                 initAfterRebalance();
             }
             if (key != null) {
-                state.getChunk().setKeyRefer(state.getIndex(), key);
+                c.setKeyReference(state.getIndex(), key);
             }
             // if there a reference to update (this if is not executed for KeyStreamIterator)
             if (value != null) {
-                if (!state.getChunk().setValueRefer(state.getIndex(), value)) {
+                if (!state.getChunk().setValueReference(state.getIndex(), value)) {
                     // If the current value is deleted, then advance and try again
                     advanceState();
                     return advanceStream(key, value);
@@ -1300,7 +1324,7 @@ class InternalOakMap<K, V> {
             // meaning not on the full scan.
             // The check of the boundaries under condition is an optimization.
             if ((hi != null && !isDescending) || (lo != null && isDescending)) {
-                ByteBuffer key = state.getChunk().readKey(state.getIndex());
+                ByteBuffer key = state.getChunk().readKeyFromEntryIndex(state.getIndex());
                 if (!inBounds(key)) {
                     state = null;
                     return;
@@ -1362,7 +1386,7 @@ class InternalOakMap<K, V> {
             IterItem myItem = advance(true);
             long keyReference = myItem.keyReference;
             long valueReference = myItem.valueReference;
-            Slice valueSlice = getValueSlice(valueReference);
+            Slice valueSlice = getValueSlice(valueReference, myItem.valueVersion);
             int version = myItem.valueVersion;
             Result<T> res = valueOperator.transform(valueSlice, transformer, version);
             // If this value is deleted, try the next one
@@ -1451,7 +1475,7 @@ class InternalOakMap<K, V> {
             IterItem myItem = advance(true);
             long keyReference = myItem.keyReference;
             long valueReference = myItem.valueReference;
-            Slice valueSlice = getValueSlice(valueReference);
+            Slice valueSlice = getValueSlice(valueReference, myItem.valueVersion);
             int version = myItem.valueVersion;
             assert valueSlice != null;
             ValueUtils.ValueResult res = valueOperator.lockRead(valueSlice, version);
@@ -1460,7 +1484,7 @@ class InternalOakMap<K, V> {
                 return next();
             } else if (res == RETRY) {
                 do {
-                    LookUp lookUp = getValueFromIndex(keyReference);
+                    EntrySet.LookUp lookUp = refreshValuePosition(keyReference);
                     if (lookUp == null || lookUp.valueSlice == null) {
                         return next();
                     }
@@ -1478,7 +1502,7 @@ class InternalOakMap<K, V> {
                     new AbstractMap.SimpleEntry<>(getKeyByteBuffer(keyReference).asReadOnlyBuffer(), serializedValue);
 
             T transformation = transformer.apply(entry);
-            valueSlice = getValueSlice(valueReference);
+            valueSlice = getValueSlice(valueReference, version);
             valueOperator.unlockRead(valueSlice, version);
             return transformation;
         }

@@ -62,44 +62,53 @@ public class ValueUtilsImpl implements ValueUtils {
     }
 
     @Override
-    public <V> ValueResult put(Chunk<?, V> chunk, Chunk.LookUp lookUp, V newVal, OakSerializer<V> serializer,
-                               MemoryManager memoryManager) {
+    public <V> ValueResult put(Chunk<?, V> chunk, EntrySet.LookUp lookUp, V newVal, OakSerializer<V> serializer,
+        MemoryManager memoryManager, InternalOakMap internalOakMap) {
         ValueResult result = lockWrite(lookUp.valueSlice, lookUp.version);
         if (result != TRUE) {
             return result;
         }
-        Slice s = innerPut(chunk, lookUp, newVal, serializer, memoryManager);
+        Slice s = lookUp.valueSlice;
+        int capacity = serializer.calculateSize(newVal);
+        if (capacity + getHeaderSize() > s.getByteBuffer().remaining()) {
+            s = moveValue(chunk, lookUp, memoryManager, internalOakMap, newVal);
+            if (s == null) {
+                // rebalance was needed or the entry was updated by someone else, need to retry
+                unlockWrite(lookUp.valueSlice);
+                return RETRY;
+            }
+        } else {
+            s = innerPut(chunk, lookUp, newVal, serializer, memoryManager);
+        }
         unlockWrite(s);
         return TRUE;
     }
 
-    private <V> Slice innerPut(Chunk<?, V> chunk, Chunk.LookUp lookUp, V newVal, OakSerializer<V> serializer,
+    private <V> Slice innerPut(Chunk<?, V> chunk, EntrySet.LookUp lookUp, V newVal, OakSerializer<V> serializer,
                                MemoryManager memoryManager) {
         Slice s = lookUp.valueSlice;
         int capacity = serializer.calculateSize(newVal);
         if (capacity + getHeaderSize() > s.getByteBuffer().remaining()) {
-            s = moveValue(chunk, lookUp, capacity, memoryManager);
+            throw new IllegalStateException(); // sanity check
         }
         ByteBuffer bb = getValueByteBufferNoHeader(s);
         serializer.serialize(newVal, bb);
         return s;
     }
 
-    private <V> Slice moveValue(Chunk<?, V> chunk, Chunk.LookUp lookUp, int capacity, MemoryManager memoryManager) {
-        Slice s = lookUp.valueSlice;
-        setLockState(s, MOVED);
-        memoryManager.releaseSlice(s);
-        int valueLength = capacity + getHeaderSize();
-        s = memoryManager.allocateSlice(valueLength, MemoryManager.Allocate.VALUE);
-        initHeader(s, LOCKED);
-        boolean ret;
-        ret = chunk.casEntriesArrayLong(lookUp.entryIndex, Chunk.OFFSET.VALUE_REFERENCE, lookUp.valueReference,
-                Chunk.makeReference(s, valueLength));
-        assert ret;
-        ret = chunk.casEntriesArrayInt(lookUp.entryIndex, Chunk.OFFSET.VALUE_VERSION, lookUp.version,
-                getOffHeapVersion(s));
-        assert ret;
-        return s;
+    private <V> Slice moveValue(
+        Chunk<?, V> chunk, EntrySet.LookUp lookUp, MemoryManager memoryManager,
+        InternalOakMap internalOakMap, V newVal) {
+
+        Slice oldSlice = lookUp.valueSlice;
+        setLockState(oldSlice, MOVED);
+        Slice newSlice = internalOakMap.overwriteExistingValueForMove(lookUp, newVal, chunk);
+        if (newSlice == null) {
+            // rebalance was needed or the entry was updated by someone else, need to retry
+            return null;
+        }
+        memoryManager.releaseSlice(oldSlice);
+        return newSlice;
     }
 
     @Override
@@ -154,9 +163,9 @@ public class ValueUtilsImpl implements ValueUtils {
     }
 
     @Override
-    public <V> Result<V> exchange(Chunk<?, V> chunk, Chunk.LookUp lookUp, V value,
-                                  Function<ByteBuffer, V> valueDeserializeTransformer, OakSerializer<V> serializer,
-                                  MemoryManager memoryManager) {
+    public <V> Result<V> exchange(Chunk<?, V> chunk, EntrySet.LookUp lookUp, V value,
+        Function<ByteBuffer, V> valueDeserializeTransformer, OakSerializer<V> serializer,
+        MemoryManager memoryManager, InternalOakMap internalOakMap) {
         ValueResult result = lockWrite(lookUp.valueSlice, lookUp.version);
         if (result != TRUE) {
             return Result.withFlag(result);
@@ -165,15 +174,26 @@ public class ValueUtilsImpl implements ValueUtils {
         if (valueDeserializeTransformer != null) {
             oldValue = valueDeserializeTransformer.apply(getValueByteBufferNoHeader(lookUp.valueSlice));
         }
-        Slice s = innerPut(chunk, lookUp, value, serializer, memoryManager);
+        Slice s = lookUp.valueSlice;
+        int capacity = serializer.calculateSize(value);
+        if (capacity + getHeaderSize() > s.getByteBuffer().remaining()) {
+            s = moveValue(chunk, lookUp, memoryManager, internalOakMap, value);
+            if (s == null) {
+                // rebalance was needed or the entry was updated by someone else, need to retry
+                unlockWrite(lookUp.valueSlice);
+                return Result.withFlag(RETRY);
+            }
+        } else {
+            s = innerPut(chunk, lookUp, value, serializer, memoryManager);
+        }
         unlockWrite(s);
         return Result.withValue(oldValue);
     }
 
     @Override
-    public <V> ValueResult compareExchange(Chunk<?, V> chunk, Chunk.LookUp lookUp, V expected, V value,
-                                           Function<ByteBuffer, V> valueDeserializeTransformer,
-                                           OakSerializer<V> serializer, MemoryManager memoryManager) {
+    public <V> ValueResult compareExchange(Chunk<?, V> chunk, EntrySet.LookUp lookUp, V expected, V value,
+        Function<ByteBuffer, V> valueDeserializeTransformer, OakSerializer<V> serializer,
+        MemoryManager memoryManager, InternalOakMap internalOakMap) {
         ValueResult result = lockWrite(lookUp.valueSlice, lookUp.version);
         if (result != TRUE) {
             return result;
@@ -183,7 +203,18 @@ public class ValueUtilsImpl implements ValueUtils {
             unlockWrite(lookUp.valueSlice);
             return FALSE;
         }
-        Slice s = innerPut(chunk, lookUp, value, serializer, memoryManager);
+        Slice s = lookUp.valueSlice;
+        int capacity = serializer.calculateSize(value);
+        if (capacity + getHeaderSize() > s.getByteBuffer().remaining()) {
+            s = moveValue(chunk, lookUp, memoryManager, internalOakMap, value);
+            if (s == null) {
+                // rebalance was needed or the entry was updated by someone else, need to retry
+                unlockWrite(lookUp.valueSlice);
+                return RETRY;
+            }
+        } else {
+            s = innerPut(chunk, lookUp, value, serializer, memoryManager);
+        }
         unlockWrite(s);
         return TRUE;
     }
@@ -344,6 +375,11 @@ public class ValueUtilsImpl implements ValueUtils {
     @Override
     public void initHeader(Slice s) {
         initHeader(s, FREE);
+    }
+
+    @Override
+    public void initLockedHeader(Slice s) {
+        initHeader(s, LOCKED);
     }
 
     private void initHeader(Slice s, ValueUtilsImpl.LockStates state) {
