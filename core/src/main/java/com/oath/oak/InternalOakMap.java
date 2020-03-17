@@ -406,8 +406,8 @@ class InternalOakMap<K, V> {
             /* If {@code lookUp == null} i.e., there is no entry with that key in Oak, the previous version
             associated with the entry is INVALID_VERSION.
             Otherwise, there is an entry with the given key and its value is deleted (or at least in the process of
-            being deleted). After calling {@code deleteValueFinish(Chunk<K, V>, LookUp)}, the version of this entry
-            should be negative.
+            being deleted, marked just off-heap). After calling {@code deleteValueFinish(Chunk<K, V>, LookUp)},
+            the version of this entry should be negative.
             Concurrent insertions, however, may cause the version to become valid again.
             Thus, to ensure that the operation behaves as if it itself unlinked the deleted value, we take the minus
             the absolute value of the version written in lookUp (this way, if the version is already negative, it

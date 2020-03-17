@@ -172,7 +172,7 @@ public class Chunk<K, V> {
      * returned.
      */
     int completeLinking(EntrySet.LookUp lookUp) {
-        if (!entrySet.isDeleteValeFinishNeeded(lookUp)) {
+        if (!entrySet.isDeleteValueFinishNeeded(lookUp)) {
             // the version written in lookup is a good one!
             return lookUp.version;
         }
@@ -199,14 +199,16 @@ public class Chunk<K, V> {
      */
     boolean finalizeDeletion(EntrySet.LookUp lookUp) {
 
-        if (!entrySet.isDeleteValeFinishNeeded(lookUp)) {
+        if (!entrySet.isDeleteValueFinishNeeded(lookUp)) {
             return false;
         }
         if (!publish()) {
             return true;
         }
         try {
-            if (!entrySet.deleteValueFinish(lookUp)) return false;
+            if (!entrySet.deleteValueFinish(lookUp)) {
+                return false;
+            }
             externalSize.decrementAndGet();
             statistics.decrementAddedCount();
             return false;
@@ -648,7 +650,7 @@ public class Chunk<K, V> {
         private int next;
 
         AscendingIter() {
-            next = entrySet.getHeadNextIndex();
+            next = entrySet.getNextEntryIndex(entrySet.getHeadNextIndex());
             next = advanceNextIndex(next);
         }
 
@@ -700,7 +702,8 @@ public class Chunk<K, V> {
             from = null;
             stack = new IntStack(entrySet.getNumOfEntries());
             int sortedCnt = sortedCount.get();
-            anchor = (sortedCnt == 0 ? entrySet.getHeadNextIndex() : sortedCnt); // this is the last sorted entry
+            anchor = // this is the last sorted entry
+                (sortedCnt == 0 ? entrySet.getNextEntryIndex(entrySet.getHeadNextIndex()) : sortedCnt);
             stack.push(anchor);
             initNext();
         }

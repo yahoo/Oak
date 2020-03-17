@@ -160,12 +160,19 @@ class EntrySet<K, V> {
      * TODO: probably to merge with OpData and create some single operation context class */
     static class LookUp {
         /**
-         * valueSlice is used for easier access to the off-heap memory. The location pointed by it is the one
-         * referenced by valueReference.
+         * valueSlice is used for easier access to the off-heap memory. The location pointed by it
+         * is the one referenced by valueReference.
          * If it is {@code null} it means the value is deleted or marked as deleted but still referenced by
          * valueReference.
          */
         Slice valueSlice;
+        /**
+         * Set to true when entry is found deleted, but not yet suitable to be reused.
+         * Deletion consists of 3 steps: (1) mark off-heap deleted (LP),
+         * (2) CAS value reference to invalid, (3) CAS value version to negative.
+         * If not all three steps are done entry can not be reused for new insertion.
+         */
+        boolean isFinalizeDeletionNeeded;
         /**
          * valueReference is composed of 3 numbers: block ID, value position and value length. All these numbers are
          * squashed together into a long using the VALUE masks, shifts and indices.
@@ -188,12 +195,14 @@ class EntrySet<K, V> {
           * TODO: eliminate parsing key and value references by any entity other than EntrySet */
         final long keyReference;
 
-        LookUp(Slice valueSlice, long valueReference, int entryIndex, int version, long keyReference) {
+        LookUp(Slice valueSlice, long valueReference, int entryIndex, int version,
+            long keyReference, boolean isFinalizeDeleteNeeded) {
             this.valueSlice = valueSlice;
             this.valueReference = valueReference;
             this.entryIndex = entryIndex;
             this.version = version;
             this.keyReference = keyReference;
+            this.isFinalizeDeletionNeeded = isFinalizeDeleteNeeded;
         }
     }
 
@@ -542,15 +551,24 @@ class EntrySet<K, V> {
         if (valueSlice == null) {
             // There is no value associated with the given key
             assert valueReference == INVALID_VALUE_REFERENCE;
-            return new LookUp(null, valueReference, ei, version[0], getKeyReference(ei));
+            // we can be in the middle of insertion or in the middle of removal
+            // insert: (1)reference+version=invalid, (2)reference set, (3)version set
+            //          middle state valid reference, but invalid version
+            // remove: (1)off-heap delete bit, (2)reference invalid, (3)version negative
+            //          middle state invalid reference, valid version
+            return new LookUp(
+                null, valueReference, ei, version[0], getKeyReference(ei),
+                (version[0] >= INVALID_VERSION)); // if version is negative no need to finalize delete
         }
         ValueUtils.ValueResult result = valOffHeapOperator.isValueDeleted(valueSlice, version[0]);
         if (result == TRUE) {
             // There is a deleted value associated with the given key
-            return new LookUp(null, valueReference, ei, version[0], getKeyReference(ei));
+            return new LookUp(
+                null, valueReference, ei, version[0], getKeyReference(ei),
+                true);
         }
         // If result == RETRY, we ignore it, since it will be discovered later down the line as well
-        return new LookUp(valueSlice, valueReference, ei, version[0], getKeyReference(ei));
+        return new LookUp(valueSlice, valueReference, ei, version[0], getKeyReference(ei), false);
     }
 
     /**
@@ -741,16 +759,14 @@ class EntrySet<K, V> {
     }
 
     /**
-     * isDeleteValeFinishNeeded checks whether the version in the given lookUp is negative
-     * (which means deleted) OR INVALID. We can not proceed on entry with negative version,
+     * isDeleteValueFinishNeeded checks whether the version in the given lookUp is negative
+     * (which means deleted) OR INVALID. Additionally check the off-heap deleted bit.
+     * We can not proceed on entry with negative version,
      * it is first needs to be changed to invalid, then any other value reference (with version)
      * can be assigned to this entry (same key).
      */
-    boolean isDeleteValeFinishNeeded(LookUp lookUp){
-        if (lookUp.version > INVALID_VERSION) {
-            return false;
-        }
-        return true;
+    boolean isDeleteValueFinishNeeded(LookUp lookUp){
+        return lookUp.isFinalizeDeletionNeeded;
     }
 
     /**
@@ -825,14 +841,18 @@ class EntrySet<K, V> {
         // while this thread is sleeping. So later a valid value reference is CASed to invalid.
         // In order to not allow this scenario happen we must release the
         // value's off-heap slice to memory manager only after deleteValueFinish is called.
-        if (casEntriesArrayLong(entryIdx2intIdx(lookUp.entryIndex), OFFSET.VALUE_REFERENCE,
-            lookUp.valueReference, INVALID_VALUE_REFERENCE)) {
+        casEntriesArrayLong(entryIdx2intIdx(lookUp.entryIndex), OFFSET.VALUE_REFERENCE,
+            lookUp.valueReference, INVALID_VALUE_REFERENCE);
+        if (casEntriesArrayInt(entryIdx2intIdx(lookUp.entryIndex), OFFSET.VALUE_VERSION,
+            version, -version)) {
             numOfEntries.getAndDecrement();
             // release the slice
-            memoryManager.releaseSlice(lookUp.valueSlice);
+            if (lookUp.valueSlice != null) {
+                memoryManager.releaseSlice(lookUp.valueSlice);
+            }
+            return true;
         }
-        return casEntriesArrayInt(entryIdx2intIdx(lookUp.entryIndex), OFFSET.VALUE_VERSION,
-            version, -version);
+        return false;
     }
 
     /**
@@ -854,7 +874,7 @@ class EntrySet<K, V> {
 
         writeKey(key, ei);
         return new
-            LookUp(null,INVALID_VALUE_REFERENCE,ei,INVALID_VERSION,getKeyReference(ei));
+            LookUp(null,INVALID_VALUE_REFERENCE,ei,INVALID_VERSION,getKeyReference(ei), false);
     }
 
     boolean isEntryDeleted(int ei) {
@@ -869,7 +889,7 @@ class EntrySet<K, V> {
      * isValueRefValid is used only to check whether the value reference, which is part of the
      * entry on entry index "ei" is valid. No version check and no off-heap value deletion mark check.
      * Negative version is not checked, because negative version assignment will follow the
-     * invalid reference assignment.
+     * invalid reference assignment.ass
      * Pay attention that value may be deleted (value reference marked invalid) asynchronously
      * by other thread just after this check. For the thread safety use a copy of value reference (next method.)
      * */

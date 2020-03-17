@@ -130,7 +130,7 @@ public class ValueUtilsTest {
     @Test
     public void putWithNoResizeTest() {
         EntrySet.LookUp lookUp = new EntrySet.LookUp(
-            s, 0, 0, 1, EntrySet.INVALID_KEY_REFERENCE);
+            s, 0, 0, 1, EntrySet.INVALID_KEY_REFERENCE, false);
         Random random = new Random();
         int[] randomValues = new int[3];
         for (int i = 0; i < randomValues.length; i++) {
@@ -162,7 +162,7 @@ public class ValueUtilsTest {
     @Test(expected = IndexOutOfBoundsException.class)
     public void putUpperBoundTest() {
         EntrySet.LookUp lookUp = new EntrySet.LookUp(
-            s, 0, 0, 1, EntrySet.INVALID_KEY_REFERENCE);
+            s, 0, 0, 1, EntrySet.INVALID_KEY_REFERENCE, false);
         valueOperator.put(null, lookUp, 5, new OakSerializer<Integer>() {
             @Override
             public void serialize(Integer object, ByteBuffer targetBuffer) {
@@ -184,7 +184,7 @@ public class ValueUtilsTest {
     @Test(expected = IndexOutOfBoundsException.class)
     public void putLowerBoundTest() {
         EntrySet.LookUp lookUp = new EntrySet.LookUp(
-            s, 0, 0, 1, EntrySet.INVALID_KEY_REFERENCE);
+            s, 0, 0, 1, EntrySet.INVALID_KEY_REFERENCE, false);
         valueOperator.put(null, lookUp, 5, new OakSerializer<Integer>() {
             @Override
             public void serialize(Integer object, ByteBuffer targetBuffer) {
@@ -206,7 +206,7 @@ public class ValueUtilsTest {
     @Test
     public void cannotPutReadLockedTest() throws InterruptedException {
         EntrySet.LookUp lookUp = new
-            EntrySet.LookUp(s, 0, 0, 1, EntrySet.INVALID_KEY_REFERENCE);
+            EntrySet.LookUp(s, 0, 0, 1, EntrySet.INVALID_KEY_REFERENCE, false);
         CyclicBarrier barrier = new CyclicBarrier(2);
         Random random = new Random();
         int[] randomValues = new int[3];
@@ -257,7 +257,7 @@ public class ValueUtilsTest {
     @Test
     public void cannotPutWriteLockedTest() throws InterruptedException {
         EntrySet.LookUp lookUp =
-            new EntrySet.LookUp(s, 0, 0, 1, EntrySet.INVALID_KEY_REFERENCE);
+            new EntrySet.LookUp(s, 0, 0, 1, EntrySet.INVALID_KEY_REFERENCE, false);
         CyclicBarrier barrier = new CyclicBarrier(2);
         Random random = new Random();
         int[] randomValues = new int[3];
@@ -310,13 +310,15 @@ public class ValueUtilsTest {
     @Test
     public void cannotPutInDeletedValueTest() {
         valueOperator.deleteValue(s, 1);
-        EntrySet.LookUp lookUp = new EntrySet.LookUp(s, 0, 0, 1, EntrySet.INVALID_KEY_REFERENCE);
+        EntrySet.LookUp lookUp = new EntrySet.LookUp(s, 0, 0, 1, EntrySet.INVALID_KEY_REFERENCE,
+            false);
         assertEquals(FALSE, valueOperator.put(null, lookUp, null, null, novaManager, null));
     }
 
     @Test
     public void cannotPutToValueOfDifferentVersionTest() {
-        EntrySet.LookUp lookUp = new EntrySet.LookUp(s, 0, 0, 2, EntrySet.INVALID_KEY_REFERENCE);
+        EntrySet.LookUp lookUp = new EntrySet.LookUp(s, 0, 0, 2, EntrySet.INVALID_KEY_REFERENCE,
+            false);
         assertEquals(RETRY, valueOperator.put(null, lookUp, null, null, novaManager, null));
     }
 
