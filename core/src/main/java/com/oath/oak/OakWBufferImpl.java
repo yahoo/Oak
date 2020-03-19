@@ -152,6 +152,8 @@ public class OakWBufferImpl implements OakWBuffer, OakUnsafeRef {
         return this;
     }
 
+    /*-------------- OakUnsafeRef --------------*/
+
     @Override
     public ByteBuffer getByteBuffer() {
         int initPos = bb.position();

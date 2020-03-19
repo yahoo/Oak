@@ -113,6 +113,20 @@ public class OakRReference implements OakRBuffer, OakUnsafeRef {
         return transformer.apply(buffer);
     }
 
+    private ByteBuffer getTemporaryPerThreadByteBuffer() {
+        // No access is allowed once the memory manager is closed.
+        // We avoid validating this here due to performance concerns.
+        // The correctness is persevered because when the memory manager is closed,
+        // its block array is no longer reachable.
+        // Thus, a null pointer exception will be raised once we try to get the byte buffer.
+        assert blockID != OakNativeMemoryAllocator.INVALID_BLOCK_ID;
+        assert position != -1;
+        assert length != -1;
+        return memoryManager.getByteBufferFromBlockID(blockID, position, length);
+    }
+
+    /*-------------- OakUnsafeRef --------------*/
+
     @Override
     public ByteBuffer getByteBuffer() {
         ByteBuffer buff = getTemporaryPerThreadByteBuffer().asReadOnlyBuffer();
@@ -136,17 +150,5 @@ public class OakRReference implements OakRBuffer, OakUnsafeRef {
         ByteBuffer buff = getTemporaryPerThreadByteBuffer();
         long address = ((DirectBuffer) buff).address();
         return address + headerSize + position;
-    }
-
-    private ByteBuffer getTemporaryPerThreadByteBuffer() {
-        // No access is allowed once the memory manager is closed.
-        // We avoid validating this here due to performance concerns.
-        // The correctness is persevered because when the memory manager is closed,
-        // its block array is no longer reachable.
-        // Thus, a null pointer exception will be raised once we try to get the byte buffer.
-        assert blockID != OakNativeMemoryAllocator.INVALID_BLOCK_ID;
-        assert position != -1;
-        assert length != -1;
-        return memoryManager.getByteBufferFromBlockID(blockID, position, length);
     }
 }

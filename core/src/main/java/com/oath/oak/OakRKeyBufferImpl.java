@@ -85,10 +85,11 @@ public class OakRKeyBufferImpl implements OakRBuffer, OakUnsafeRef {
         return transformer.apply(getKeyBuffer().slice().asReadOnlyBuffer());
     }
 
+    /*-------------- OakUnsafeRef --------------*/
+
     @Override
     public ByteBuffer getByteBuffer() {
-        ByteBuffer buff = getKeyBuffer();
-        buff = buff.asReadOnlyBuffer();
+        ByteBuffer buff = getKeyBuffer().asReadOnlyBuffer();
         buff.position(initialPosition);
         return buff.slice();
     }

@@ -195,34 +195,6 @@ public class OakRValueBufferImpl implements OakRBuffer, OakUnsafeRef {
         throw new RuntimeException("Transform failed: reached retry limit (1024).");
     }
 
-    @Override
-    public ByteBuffer getByteBuffer() {
-        ByteBuffer buff = getValueSlice().getByteBuffer();
-        buff = buff.asReadOnlyBuffer();
-        int position = valuePosition();
-        int limit = position + capacity();
-        buff.position(position);
-        buff.limit(limit);
-        return buff.slice();
-    }
-
-    @Override
-    public int getOffset() {
-        return 0;
-    }
-
-    @Override
-    public int getLength() {
-        return capacity();
-    }
-
-    @Override
-    public long getAddress() {
-        ByteBuffer buff = getValueSlice().getByteBuffer();
-        long address = ((DirectBuffer) buff).address();
-        return address + valuePosition();
-    }
-
     private void start(Slice valueSlice) {
         ValueUtils.ValueResult res = valueOperator.lockRead(valueSlice, version);
         if (res == FALSE) {
@@ -246,5 +218,34 @@ public class OakRValueBufferImpl implements OakRBuffer, OakUnsafeRef {
         }
         valueReference = lookUp.valueReference;
         version = lookUp.version;
+    }
+
+    /*-------------- OakUnsafeRef --------------*/
+
+    @Override
+    public ByteBuffer getByteBuffer() {
+        ByteBuffer buff = getValueSlice().getByteBuffer().asReadOnlyBuffer();
+        int position = valuePosition();
+        int limit = position + capacity();
+        buff.position(position);
+        buff.limit(limit);
+        return buff.slice();
+    }
+
+    @Override
+    public int getOffset() {
+        return 0;
+    }
+
+    @Override
+    public int getLength() {
+        return capacity();
+    }
+
+    @Override
+    public long getAddress() {
+        ByteBuffer buff = getValueSlice().getByteBuffer();
+        long address = ((DirectBuffer) buff).address();
+        return address + valuePosition();
     }
 }
