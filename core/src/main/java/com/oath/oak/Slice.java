@@ -13,13 +13,14 @@ import java.nio.ByteBuffer;
 public class Slice {
     private final int blockID;
     private final ByteBuffer buffer;
-    // This field is only used for sanity checks purposes and it should not be used, nor changed.
     private final int originalPosition;
+    private final int originalLimit;
 
     public Slice(int blockID, ByteBuffer buffer) {
         this.blockID = blockID;
-        this.buffer = buffer;
+        this.buffer = buffer.duplicate();
         this.originalPosition = buffer.position();
+        this.originalLimit = buffer.limit();
     }
 
     Slice(int blockID, int position, int length, MemoryManager memoryManager) {
@@ -27,18 +28,22 @@ public class Slice {
     }
 
     public Slice duplicate() {
-        return new Slice(blockID, buffer.duplicate());
+        return new Slice(blockID, buffer);
     }
 
     public ByteBuffer getByteBuffer() {
         return buffer;
     }
 
-    int getBlockID() {
-        return blockID;
+    public int getPosition() {
+        return originalPosition;
     }
 
-    boolean validatePosition() {
-        return originalPosition == buffer.position();
+    public int getLimit() {
+        return originalLimit;
+    }
+
+    int getBlockID() {
+        return blockID;
     }
 }

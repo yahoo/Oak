@@ -8,7 +8,6 @@ package com.oath.oak;
 
 import org.junit.Test;
 
-import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Random;
 import java.util.concurrent.CountDownLatch;
@@ -29,42 +28,6 @@ public class FillTest {
 
     static private ArrayList<Thread> threads = new ArrayList<>(NUM_THREADS);
     static private CountDownLatch latch = new CountDownLatch(1);
-
-    public static class FillTestKeySerializer implements OakSerializer<Integer> {
-
-        @Override
-        public void serialize(Integer key, ByteBuffer targetBuffer) {
-            targetBuffer.putInt(targetBuffer.position(), key);
-        }
-
-        @Override
-        public Integer deserialize(ByteBuffer serializedKey) {
-            return serializedKey.getInt(serializedKey.position());
-        }
-
-        @Override
-        public int calculateSize(Integer key) {
-            return KEY_SIZE;
-        }
-    }
-
-    public static class FillTestValueSerializer implements OakSerializer<Integer> {
-
-        @Override
-        public void serialize(Integer value, ByteBuffer targetBuffer) {
-            targetBuffer.putInt(targetBuffer.position(), value);
-        }
-
-        @Override
-        public Integer deserialize(ByteBuffer serializedValue) {
-            return serializedValue.getInt(serializedValue.position());
-        }
-
-        @Override
-        public int calculateSize(Integer value) {
-            return VALUE_SIZE;
-        }
-    }
 
     static class RunThreads implements Runnable {
         CountDownLatch latch;
@@ -118,10 +81,10 @@ public class FillTest {
     @Test
     public void testMain() throws InterruptedException {
 
-        OakMapBuilder<Integer, Integer> builder = IntegerOakMap.getDefaultBuilder()
+        OakMapBuilder<Integer, Integer> builder = ToolsFactory.getDefaultIntBuilder()
                 .setChunkMaxItems(2048)
-                .setKeySerializer(new FillTestKeySerializer())
-                .setValueSerializer(new FillTestValueSerializer());
+                .setKeySerializer(ToolsFactory.getOakIntSerializable(KEY_SIZE))
+                .setValueSerializer(ToolsFactory.getOakIntSerializable(VALUE_SIZE));
 
         oak = builder.build();
 

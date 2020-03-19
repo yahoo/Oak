@@ -28,25 +28,6 @@ public interface ValueUtils {
     int getLockSize();
 
     /**
-     * This method only works when the byte buffer is thread local, i.e., not reachable by other threads.
-     * Using this assumption, one can save one object allocation.
-     *
-     * @param s the Slice of the value
-     * @return the ByteBuffer of the value without its header.
-     */
-    ByteBuffer getValueByteBufferNoHeaderPrivate(Slice s);
-
-    /**
-     * Similar to #getValueByteBufferNoHeaderPrivate(Slice), without the assumption of a thread local
-     * environment.
-     * It is used when calling user's function in a concurrent setting.
-     *
-     * @param s the Slice of the value
-     * @return the ByteBuffer of the value without its header.
-     */
-    ByteBuffer getValueByteBufferNoHeader(Slice s);
-
-    /**
      * Acquires a read lock
      *
      * @param s       the value Slice (including the header)
@@ -139,10 +120,10 @@ public interface ValueUtils {
      * {@code RETRY} if the value was moved, or the version of the off-heap value does not match {@code version}.
      * In case of {@code TRUE}, the read value is stored in the returned Result, otherwise, the value is {@code null}.
      */
-    <T> Result<T> transform(Slice s, Function<ByteBuffer, T> transformer, int version);
+    <T> Result<T> transform(Slice s, OakTransformer<T> transformer, int version);
 
     /**
-     * @see #exchange(Chunk, Chunk.LookUp, Object, Function, OakSerializer, MemoryManager)
+     * @see #exchange(Chunk, Chunk.LookUp, Object, OakTransformer, OakSerializer, MemoryManager)
      * Does not return the value previously written off-heap
      */
     <V> ValueResult put(Chunk<?, V> chunk, Chunk.LookUp lookUp, V newVal, OakSerializer<V> serializer,
@@ -174,7 +155,7 @@ public interface ValueUtils {
      * removal (if {@code transformer} is not null), otherwise, it is {@code null}.
      */
     <V> Result<V> remove(Slice s, MemoryManager memoryManager, int version, V oldValue,
-                         Function<ByteBuffer, V> transformer);
+                         OakTransformer<V> transformer);
 
     /**
      * Replaces the value written in the Slice referenced by {@code lookUp} with {@code value}.
@@ -196,7 +177,7 @@ public interface ValueUtils {
      * was written before the exchange.
      */
     <V> Result<V> exchange(Chunk<?, V> chunk, Chunk.LookUp lookUp, V value,
-                           Function<ByteBuffer, V> valueDeserializeTransformer, OakSerializer<V> serializer,
+                           OakTransformer<V> valueDeserializeTransformer, OakSerializer<V> serializer,
                            MemoryManager memoryManager);
 
     /**
@@ -205,8 +186,9 @@ public interface ValueUtils {
      * {@code FAILURE} if the value is deleted or if the actual value referenced in {@code lookUp} does not equal to
      * {@code expected}
      * {@code RETRY} for the same reasons as exchange
-     * @see #exchange(Chunk, Chunk.LookUp, Object, Function, OakSerializer, MemoryManager)
+     * @see #exchange(Chunk, Chunk.LookUp, Object, OakTransformer, OakSerializer, MemoryManager)
      */
-    <V> ValueResult compareExchange(Chunk<?, V> chunk, Chunk.LookUp lookUp, V expected, V value, Function<ByteBuffer,
-            V> valueDeserializeTransformer, OakSerializer<V> serializer, MemoryManager memoryManager);
+    <V> ValueResult compareExchange(Chunk<?, V> chunk, Chunk.LookUp lookUp, V expected, V value,
+                                    OakTransformer<V> valueDeserializeTransformer,
+                                    OakSerializer<V> serializer, MemoryManager memoryManager);
 }

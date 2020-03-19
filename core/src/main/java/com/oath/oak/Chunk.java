@@ -110,7 +110,7 @@ public class Chunk<K, V> {
 
     private static final Unsafe unsafe = UnsafeUtils.unsafe;
     private final MemoryManager memoryManager;
-    ByteBuffer minKey;       // minimal key that can be put in this chunk
+    OakWBufferImpl minKey;       // minimal key that can be put in this chunk
     AtomicMarkableReference<Chunk<K, V>> next;
     OakComparator<K> comparator;
 
@@ -141,7 +141,7 @@ public class Chunk<K, V> {
      * @param minKey  minimal key to be placed in chunk
      * @param creator the chunk that is responsible for this chunk creation
      */
-    Chunk(ByteBuffer minKey, Chunk<K, V> creator, OakComparator<K> comparator, MemoryManager memoryManager,
+    Chunk(OakWBufferImpl minKey, Chunk<K, V> creator, OakComparator<K> comparator, MemoryManager memoryManager,
           int maxItems, AtomicInteger externalSize, OakSerializer<K> keySerializer, OakSerializer<V> valueSerializer,
           ValueUtils valueOperator) {
         this.memoryManager = memoryManager;
@@ -214,10 +214,10 @@ public class Chunk<K, V> {
         int keySize = keySerializer.calculateSize(key);
         Slice s = memoryManager.allocateSlice(keySize, MemoryManager.Allocate.KEY);
         // byteBuffer.slice() is set so it protects us from the overwrites of the serializer
-        keySerializer.serialize(key, s.getByteBuffer().slice());
+        keySerializer.serialize(key, getKeyWriteBuffer(s));
 
         setEntryFieldInt(ei, OFFSET.KEY_BLOCK, s.getBlockID());
-        setEntryFieldInt(ei, OFFSET.KEY_POSITION, s.getByteBuffer().position());
+        setEntryFieldInt(ei, OFFSET.KEY_POSITION, s.getPosition());
         setEntryFieldInt(ei, OFFSET.KEY_LENGTH, keySize);
     }
 
@@ -239,6 +239,18 @@ public class Chunk<K, V> {
         int length = keyArray[BLOCK_ID_LENGTH_ARRAY_INDEX] & KEY_LENGTH_MASK;
 
         return memoryManager.getByteBufferFromBlockID(blockID, keyPosition, length);
+    }
+
+    OakReadBuffer getKeyReadBuffer(int entryIndex) {
+        return new OakReadBufferWrapper(readKey(entryIndex), 0);
+    }
+
+    OakWBuffer getKeyWriteBuffer(Slice s) {
+        return new OakWBufferImpl(s, 0);
+    }
+
+    OakWBuffer getValueWriteBuffer(Slice s) {
+        return new OakWBufferImpl(s, valueOperator.getHeaderSize());
     }
 
     /**
@@ -519,7 +531,7 @@ public class Chunk<K, V> {
 
         while (curr != NONE) {
             // compare current item's key to searched key
-            cmp = comparator.compareKeyAndSerializedKey(key, readKey(curr));
+            cmp = comparator.compareKeyAndSerializedKey(key, getKeyReadBuffer(curr));
             // if item's key is larger - we've exceeded our key
             // it's not in chunk - no need to search further
             if (cmp < 0) {
@@ -600,12 +612,12 @@ public class Chunk<K, V> {
         int sortedCount = this.sortedCount.get();
         // if there are no sorted keys, or the first item is already larger than key -
         // return the head node for a regular linear search
-        if ((sortedCount == 0) || comparator.compareKeyAndSerializedKey(key, readKey(FIRST_ITEM)) <= 0) {
+        if ((sortedCount == 0) || comparator.compareKeyAndSerializedKey(key, getKeyReadBuffer(FIRST_ITEM)) <= 0) {
             return HEAD_NODE;
         }
 
         // optimization: compare with last key to avoid binary search
-        if (comparator.compareKeyAndSerializedKey(key, readKey((sortedCount - 1) * FIELDS + FIRST_ITEM)) > 0) {
+        if (comparator.compareKeyAndSerializedKey(key, getKeyReadBuffer((sortedCount - 1) * FIELDS + FIRST_ITEM)) > 0) {
             return (sortedCount - 1) * FIELDS + FIRST_ITEM;
         }
 
@@ -615,7 +627,7 @@ public class Chunk<K, V> {
         while (end - start > 1) {
             int curr = start + (end - start) / 2;
 
-            if (comparator.compareKeyAndSerializedKey(key, readKey(curr * FIELDS + FIRST_ITEM)) <= 0) {
+            if (comparator.compareKeyAndSerializedKey(key, getKeyReadBuffer(curr * FIELDS + FIRST_ITEM)) <= 0) {
                 end = curr;
             } else {
                 start = curr;
@@ -684,7 +696,7 @@ public class Chunk<K, V> {
                     break;
                 }
                 // compare current item's key to ours
-                cmp = comparator.compareKeyAndSerializedKey(key, readKey(curr));
+                cmp = comparator.compareKeyAndSerializedKey(key, getKeyReadBuffer(curr));
 
                 // if current item's key is larger, done searching - add between prev and curr
                 if (cmp < 0) {
@@ -712,7 +724,7 @@ public class Chunk<K, V> {
                     if (ei == (sortedCount * FIELDS + 1)) {
                         // the new entry's index is exactly after the sorted count
                         if (comparator.compareKeyAndSerializedKey(
-                                key, readKey((sortedCount - 1) * FIELDS + FIRST_ITEM)) >= 0) {
+                            key, getKeyReadBuffer((sortedCount - 1) * FIELDS + FIRST_ITEM)) >= 0) {
                             // compare with sorted count key, if inserting the "if-statement",
                             // the sorted count key is less or equal to the key just inserted
                             this.sortedCount.compareAndSet(sortedCount, (sortedCount + 1));
@@ -742,14 +754,14 @@ public class Chunk<K, V> {
         // since this is a private environment, we can only use ByteBuffer::slice, instead of ByteBuffer::duplicate
         // and then ByteBuffer::slice
         // This is the only place where we create a new object (for the serializer).
-        valueSerializer.serialize(value, valueOperator.getValueByteBufferNoHeaderPrivate(slice));
+        valueSerializer.serialize(value, getValueWriteBuffer(slice));
         // combines the blockID with the value's length (including the header)
         return makeReference(slice, valueLength);
     }
 
     static long makeReference(Slice slice, int valueLength) {
         int valueBlockAndLength = (slice.getBlockID() << VALUE_BLOCK_SHIFT) | (valueLength & VALUE_LENGTH_MASK);
-        return UnsafeUtils.intsToLong(slice.getByteBuffer().position(), valueBlockAndLength);
+        return UnsafeUtils.intsToLong(slice.getPosition(), valueBlockAndLength);
     }
 
     int getMaxItems() {
@@ -1064,7 +1076,7 @@ public class Chunk<K, V> {
             long valueReference = INVALID_VALUE_REFERENCE;
             int compare = -1;
             if (next != Chunk.NONE) {
-                compare = comparator.compareKeyAndSerializedKey(from, readKey(next));
+                compare = comparator.compareKeyAndSerializedKey(from, getKeyReadBuffer(next));
                 valueReference = getEntryFieldLong(next, OFFSET.VALUE_REFERENCE);
             }
 
@@ -1072,7 +1084,7 @@ public class Chunk<K, V> {
                 next = getEntryFieldInt(next, OFFSET.NEXT);
                 if (next != Chunk.NONE) {
                     valueReference = getEntryFieldLong(next, OFFSET.VALUE_REFERENCE);
-                    compare = comparator.compareKeyAndSerializedKey(from, readKey(next));
+                    compare = comparator.compareKeyAndSerializedKey(from, getKeyReadBuffer(next));
                 }
             }
         }
@@ -1191,13 +1203,13 @@ public class Chunk<K, V> {
                 if (firstTimeInvocation) {
                     if (inclusive) {
                         while (next != Chunk.NONE
-                            && comparator.compareKeyAndSerializedKey(from, readKey(next)) >= 0) {
+                            && comparator.compareKeyAndSerializedKey(from, getKeyReadBuffer(next)) >= 0) {
                             stack.push(next);
                             next = getEntryFieldInt(next, OFFSET.NEXT);
                         }
                     } else {
                         while (next != Chunk.NONE
-                            && comparator.compareKeyAndSerializedKey(from, readKey(next)) > 0) {
+                            && comparator.compareKeyAndSerializedKey(from, getKeyReadBuffer(next)) > 0) {
                             stack.push(next);
                             next = getEntryFieldInt(next, OFFSET.NEXT);
                         }

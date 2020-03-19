@@ -35,18 +35,18 @@ public class ComputeTest {
     public static class ComputeTestKeySerializer implements OakSerializer<ByteBuffer> {
 
         @Override
-        public void serialize(ByteBuffer obj, ByteBuffer targetBuffer) {
+        public void serialize(ByteBuffer obj, OakWBuffer targetBuffer) {
             for (int i = 0; i < keySize; i++) {
-                targetBuffer.putInt(targetBuffer.position() + Integer.BYTES * i, obj.getInt(Integer.BYTES * i));
+                targetBuffer.putInt(Integer.BYTES * i, obj.getInt(Integer.BYTES * i));
             }
         }
 
         @Override
-        public ByteBuffer deserialize(ByteBuffer byteBuffer) {
+        public ByteBuffer deserialize(OakReadBuffer serializedValue) {
             ByteBuffer key = ByteBuffer.allocate(keySize);
             key.position(0);
             for (int i = 0; i < keySize; i++) {
-                key.putInt(Integer.BYTES * i, byteBuffer.getInt(byteBuffer.position() + Integer.BYTES * i));
+                key.putInt(Integer.BYTES * i, serializedValue.getInt(Integer.BYTES * i));
             }
             key.position(0);
             return key;
@@ -61,18 +61,18 @@ public class ComputeTest {
     public static class ComputeTestValueSerializer implements OakSerializer<ByteBuffer> {
 
         @Override
-        public void serialize(ByteBuffer value, ByteBuffer targetBuffer) {
+        public void serialize(ByteBuffer value, OakWBuffer targetBuffer) {
             for (int i = 0; i < valSize; i++) {
-                targetBuffer.putInt(targetBuffer.position() + Integer.BYTES * i, value.getInt(Integer.BYTES * i));
+                targetBuffer.putInt(Integer.BYTES * i, value.getInt(Integer.BYTES * i));
             }
         }
 
         @Override
-        public ByteBuffer deserialize(ByteBuffer serializedValue) {
+        public ByteBuffer deserialize(OakReadBuffer serializedValue) {
             ByteBuffer value = ByteBuffer.allocate(valSize * Integer.BYTES);
             value.position(0);
             for (int i = 0; i < valSize; i++) {
-                value.putInt(Integer.BYTES * i, serializedValue.getInt(serializedValue.position() + Integer.BYTES * i));
+                value.putInt(Integer.BYTES * i, serializedValue.getInt(Integer.BYTES * i));
             }
             value.position(0);
             return value;
@@ -88,9 +88,15 @@ public class ComputeTest {
 
         @Override
         public int compareKeys(ByteBuffer buff1, ByteBuffer buff2) {
+            return compareSerializedKeys(new OakReadBufferWrapper(buff1, 0),
+                new OakReadBufferWrapper(buff1, 0));
+        }
+
+        @Override
+        public int compareSerializedKeys(OakReadBuffer serializedKey1, OakReadBuffer serializedKey2) {
             for (int i = 0; i < keySize; i++) {
-                int i1 = buff1.getInt(buff1.position() + Integer.BYTES * i);
-                int i2 = buff2.getInt(buff2.position() + Integer.BYTES * i);
+                int i1 = serializedKey1.getInt(Integer.BYTES * i);
+                int i2 = serializedKey2.getInt(Integer.BYTES * i);
                 if (i1 > i2) {
                     return 1;
                 } else if (i1 < i2) {
@@ -101,13 +107,8 @@ public class ComputeTest {
         }
 
         @Override
-        public int compareSerializedKeys(ByteBuffer serializedKey1, ByteBuffer serializedKey2) {
-            return compareKeys(serializedKey1, serializedKey2);
-        }
-
-        @Override
-        public int compareKeyAndSerializedKey(ByteBuffer key, ByteBuffer serializedKey) {
-            return compareKeys(key, serializedKey);
+        public int compareKeyAndSerializedKey(ByteBuffer key, OakReadBuffer serializedKey) {
+            return compareSerializedKeys(new OakReadBufferWrapper(key, 0), serializedKey);
         }
     }
 

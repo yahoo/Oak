@@ -3,7 +3,6 @@ package com.oath.oak;
 import org.junit.Before;
 import org.junit.Test;
 
-import java.util.ConcurrentModificationException;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.concurrent.Semaphore;
@@ -17,7 +16,7 @@ public class ResizeValueTest {
     public void initStuff() {
         OakMapBuilder<String, String> builder =
             new OakMapBuilder<String, String>(
-                new StringComparator(), new StringSerializer(), new StringSerializer(), "")
+                new ToolsFactory.StringComparator(), new ToolsFactory.StringSerializer(), new ToolsFactory.StringSerializer(), "")
                 .setChunkMaxItems(100)
                 ;
 
@@ -34,11 +33,11 @@ public class ResizeValueTest {
             stringBuilder.append(i);
         }
         OakRBuffer valBuffer = oak.zc().get(key);
-        String transformed = valBuffer.transform(b -> new StringSerializer().deserialize(b));
+        String transformed = valBuffer.transform(b -> new ToolsFactory.StringSerializer().deserialize(b));
         assertEquals(value, transformed);
         oak.zc().put(key, stringBuilder.toString());
         valBuffer = oak.zc().get(key);
-        transformed = valBuffer.transform(b -> new StringSerializer().deserialize(b));
+        transformed = valBuffer.transform(b -> new ToolsFactory.StringSerializer().deserialize(b));
         assertEquals(stringBuilder.toString(), transformed);
     }
 

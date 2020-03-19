@@ -166,7 +166,8 @@ class Rebalancer<K, V> {
                     newMinKey.rewind();
 
 
-                    Chunk<K, V> c = new Chunk<>(newMinKey, firstFrozen, currFrozen.comparator, memoryManager,
+                    Chunk<K, V> c = new Chunk<>(new OakWBufferImpl(newMinKey, myPos, myPos+remaining, 0),
+                        firstFrozen, currFrozen.comparator, memoryManager,
                             currFrozen.getMaxItems(), currFrozen.externalSize,
                             keySerializer, valueSerializer, valueOperator);
                     currNewChunk.next.set(c, false);

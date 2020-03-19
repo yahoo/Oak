@@ -38,9 +38,9 @@ public class OakMap<K, V> extends AbstractMap<K, V> implements AutoCloseable, Co
      * this specific class is responsible to wrap the internal methods with attach-detach.
      * */
     private final MemoryManager memoryManager;
-    private final Function<ByteBuffer, K> keyDeserializeTransformer;
-    private final Function<ByteBuffer, V> valueDeserializeTransformer;
-    private final Function<Map.Entry<ByteBuffer, ByteBuffer>, Map.Entry<K, V>> entryDeserializeTransformer;
+    private final OakTransformer<K> keyDeserializeTransformer;
+    private final OakTransformer<V> valueDeserializeTransformer;
+    private final OakEntryTransformer<Entry<K, V>> entryDeserializeTransformer;
     private final OakComparator<K> comparator;
 
     // SubOakMap fields
@@ -73,9 +73,9 @@ public class OakMap<K, V> extends AbstractMap<K, V> implements AutoCloseable, Co
 
     // set constructor, mostly used for subMap
     private OakMap(InternalOakMap<K, V> internalOakMap, MemoryManager memoryManager,
-                   Function<ByteBuffer, K> keyDeserializeTransformer,
-                   Function<ByteBuffer, V> valueDeserializeTransformer,
-                   Function<Map.Entry<ByteBuffer, ByteBuffer>, Map.Entry<K, V>> entryDeserializeTransformer,
+                   OakTransformer<K> keyDeserializeTransformer,
+                   OakTransformer<V> valueDeserializeTransformer,
+                   OakEntryTransformer<Entry<K, V>> entryDeserializeTransformer,
                    OakComparator<K> oakComparator,
                    K fromKey, boolean fromInclusive, K toKey,
                    boolean toInclusive, boolean isDescending) {

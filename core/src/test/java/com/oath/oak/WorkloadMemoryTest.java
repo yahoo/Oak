@@ -29,40 +29,10 @@ public class WorkloadMemoryTest {
     private static final int NUM_THREADS = 1;
 
     private static void initStuff() {
-        OakMapBuilder<Integer, Integer> builder = IntegerOakMap.getDefaultBuilder()
+        OakMapBuilder<Integer, Integer> builder = ToolsFactory.getDefaultIntBuilder()
                 .setChunkMaxItems(100)
-                .setKeySerializer(new OakSerializer<Integer>() {
-                    @Override
-                    public void serialize(Integer value, ByteBuffer targetBuffer) {
-                        targetBuffer.putInt(targetBuffer.position(), value);
-                    }
-
-                    @Override
-                    public Integer deserialize(ByteBuffer serializedValue) {
-                        return serializedValue.getInt(serializedValue.position());
-                    }
-
-                    @Override
-                    public int calculateSize(Integer value) {
-                        return KEY_SIZE;
-                    }
-                })
-                .setValueSerializer(new OakSerializer<Integer>() {
-                    @Override
-                    public void serialize(Integer value, ByteBuffer targetBuffer) {
-                        targetBuffer.putInt(targetBuffer.position(), value);
-                    }
-
-                    @Override
-                    public Integer deserialize(ByteBuffer serializedValue) {
-                        return serializedValue.getInt(serializedValue.position());
-                    }
-
-                    @Override
-                    public int calculateSize(Integer value) {
-                        return VALUE_SIZE;
-                    }
-                });
+                .setKeySerializer(ToolsFactory.getOakIntSerializable(KEY_SIZE))
+                .setValueSerializer(ToolsFactory.getOakIntSerializable(VALUE_SIZE));
 
         oak = builder.build();
         barrier = new CyclicBarrier(NUM_THREADS + 1);

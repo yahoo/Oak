@@ -34,7 +34,7 @@ public class IteratorModificationTest {
     public void init() {
         OakMapBuilder<String, String> builder =
             new OakMapBuilder<String, String>(
-                new StringComparator(), new StringSerializer(), new StringSerializer(), "")
+                new ToolsFactory.StringComparator(), new ToolsFactory.StringSerializer(), new ToolsFactory.StringSerializer(), "")
                 .setChunkMaxItems(100)
                 ;
 

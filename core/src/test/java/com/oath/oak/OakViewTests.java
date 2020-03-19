@@ -20,21 +20,13 @@ public class OakViewTests {
     private static final int ELEMENTS = 1000;
 
 
-    private Function<ByteBuffer, String> deserialize = (byteBuffer) -> {
-        int size = byteBuffer.getInt(0);
-        StringBuilder object = new StringBuilder(size);
-        for (int i = 0; i < size; i++) {
-            char c = byteBuffer.getChar(Integer.BYTES + byteBuffer.position() + i * Character.BYTES);
-            object.append(c);
-        }
-        return object.toString();
-    };
+    private OakTransformer<String> deserialize = ToolsFactory.getOakStringTransformer();
 
     @Before
     public void init() {
         OakMapBuilder<String, String> builder =
             new OakMapBuilder<String, String>(
-                new StringComparator(), new StringSerializer(), new StringSerializer(), "")
+                new ToolsFactory.StringComparator(), new ToolsFactory.StringSerializer(), new ToolsFactory.StringSerializer(), "")
                 .setChunkMaxItems(100)
                 ;
 

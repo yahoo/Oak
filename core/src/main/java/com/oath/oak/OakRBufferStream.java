@@ -26,7 +26,7 @@ import java.util.function.Function;
  * before each access since it can only be used without other concurrent writes in the background.
  * */
 
-public class OakRBufferStream implements OakRBuffer, OakUnsafeDirectBuffer {
+class OakRBufferStream implements OakRBuffer, OakUnsafeDirectBuffer {
 
     private int blockID = OakNativeMemoryAllocator.INVALID_BLOCK_ID;
     private int position = -1;
@@ -102,15 +102,9 @@ public class OakRBufferStream implements OakRBuffer, OakUnsafeDirectBuffer {
     }
 
     @Override
-    public <T> T transform(Function<ByteBuffer, T> transformer) {
-        // The new ByteBuffer object is created here via slice(), to be sure that (user provided)
-        // transformer can not access anything beyond given ByteBuffer
-        ByteBuffer buffer = getTemporaryPerThreadByteBuffer().asReadOnlyBuffer();
-        if (headerSize != 0) {
-            buffer.position(buffer.position() + headerSize);
-        }
-        buffer = buffer.slice();
-        return transformer.apply(buffer);
+    public <T> T transform(OakTransformer<T> transformer) {
+        return transformer.apply(new OakReadBufferWrapper(getTemporaryPerThreadByteBuffer(),
+            position, position + length, headerSize));
     }
 
     private ByteBuffer getTemporaryPerThreadByteBuffer() {
@@ -134,20 +128,6 @@ public class OakRBufferStream implements OakRBuffer, OakUnsafeDirectBuffer {
         buff.limit(headerSize + position + length);
         return buff.slice();
     }
-
-    private ByteBuffer getTemporaryPerThreadByteBuffer() {
-        // No access is allowed once the memory manager is closed.
-        // We avoid validating this here due to performance concerns.
-        // The correctness is persevered because when the memory manager is closed,
-        // its block array is no longer reachable.
-        // Thus, a null pointer exception will be raised once we try to get the byte buffer.
-        assert blockID != OakNativeMemoryAllocator.INVALID_BLOCK_ID;
-        assert position != -1;
-        assert length != -1;
-        return memoryManager.getByteBufferFromBlockID(blockID, position, length);
-    }
-
-    /*-------------- OakUnsafeRef --------------*/
 
     @Override
     public int getOffset() {

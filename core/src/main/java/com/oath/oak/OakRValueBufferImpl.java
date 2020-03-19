@@ -19,7 +19,7 @@ import static com.oath.oak.Chunk.VALUE_BLOCK_SHIFT;
 import static com.oath.oak.Chunk.VALUE_LENGTH_MASK;
 import static com.oath.oak.ValueUtils.ValueResult.*;
 
-public class OakRValueBufferImpl implements OakRBuffer, OakUnsafeDirectBuffer {
+class OakRValueBufferImpl implements OakRBuffer, OakUnsafeDirectBuffer {
     /**
      * These are the fields used when accessing the value stored in this buffer (the reference to it in the off-heap,
      * and the version we expect the value to have.
@@ -60,111 +60,95 @@ public class OakRValueBufferImpl implements OakRBuffer, OakUnsafeDirectBuffer {
                 valueArray[POSITION_ARRAY_INDEX], valueArray[BLOCK_ID_LENGTH_ARRAY_INDEX] & VALUE_LENGTH_MASK);
     }
 
-    private int valuePosition() {
-        return UnsafeUtils.longToInts(valueReference)[POSITION_ARRAY_INDEX] + valueOperator.getHeaderSize();
+    private int valuePosition(Slice s) {
+        return s.getPosition() + valueOperator.getHeaderSize();
+    }
+
+    private int valueLength(Slice s) {
+        return s.getLimit() - valuePosition(s);
     }
 
     @Override
     public int capacity() {
-        return (UnsafeUtils.longToInts(valueReference)[BLOCK_ID_LENGTH_ARRAY_INDEX] & VALUE_LENGTH_MASK) - valueOperator.getHeaderSize();
+        Slice s = start(getValueSlice());
+        int ret = valueLength(s);
+        end(s);
+        return ret;
+    }
+
+    protected void checkIndex(Slice s, int index) {
+        if (index < 0 || index >= valueLength(s)) {
+            throw new IndexOutOfBoundsException();
+        }
     }
 
     @Override
     public byte get(int index) {
-        Slice s = getValueSlice();
-        start(s);
-        if (index < 0) {
-            throw new IndexOutOfBoundsException();
-        }
-        byte b = s.getByteBuffer().get(index + valuePosition());
+        Slice s = start(getValueSlice());
+        checkIndex(s, index);
+        byte b = s.getByteBuffer().get(index + valuePosition(s));
         end(s);
         return b;
     }
 
     @Override
     public ByteOrder order() {
-        ByteOrder order;
-        Slice s = getValueSlice();
-        start(s);
-        order = s.getByteBuffer().order();
+        Slice s = start(getValueSlice());
+        ByteOrder order = s.getByteBuffer().order();
         end(s);
         return order;
     }
 
     @Override
     public char getChar(int index) {
-        char c;
-        Slice s = getValueSlice();
-        start(s);
-        if (index < 0) {
-            throw new IndexOutOfBoundsException();
-        }
-        c = s.getByteBuffer().getChar(index + valuePosition());
+        Slice s = start(getValueSlice());
+        checkIndex(s, index);
+        char c = s.getByteBuffer().getChar(index + valuePosition(s));
         end(s);
         return c;
     }
 
     @Override
     public short getShort(int index) {
-        short i;
-        Slice s = getValueSlice();
-        start(s);
-        if (index < 0) {
-            throw new IndexOutOfBoundsException();
-        }
-        i = s.getByteBuffer().getShort(index + valuePosition());
+        Slice s = start(getValueSlice());
+        checkIndex(s, index);
+        short i = s.getByteBuffer().getShort(index + valuePosition(s));
         end(s);
         return i;
     }
 
     @Override
     public int getInt(int index) {
-        int i;
-        Slice s = getValueSlice();
-        start(s);
-        if (index < 0) {
-            throw new IndexOutOfBoundsException();
-        }
-        i = s.getByteBuffer().getInt(index + valuePosition());
+        Slice s = start(getValueSlice());
+        checkIndex(s, index);
+        int i = s.getByteBuffer().getInt(index + valuePosition(s));
         end(s);
         return i;
     }
 
     @Override
     public long getLong(int index) {
-        long l;
-        Slice s = getValueSlice();
-        start(s);
-        if (index < 0) {
-            throw new IndexOutOfBoundsException();
-        }
-        l = s.getByteBuffer().getLong(index + valuePosition());
+        Slice s = start(getValueSlice());
+        checkIndex(s, index);
+        long l = s.getByteBuffer().getLong(index + valuePosition(s));
         end(s);
         return l;
     }
 
     @Override
     public float getFloat(int index) {
-        float f;
-        Slice s = getValueSlice();
-        start(s);
-        if (index < 0) {
-            throw new IndexOutOfBoundsException();
-        }
-        f = s.getByteBuffer().getFloat(index + valuePosition());
+        Slice s = start(getValueSlice());
+        checkIndex(s, index);
+        float f = s.getByteBuffer().getFloat(index + valuePosition(s));
         end(s);
         return f;
     }
 
     @Override
     public double getDouble(int index) {
-        double d;
-        Slice s = getValueSlice();
-        start(s);
-        if (index < 0) {
-            throw new IndexOutOfBoundsException();
-        }
-        d = s.getByteBuffer().getDouble(index + valuePosition());
+        Slice s = start(getValueSlice());
+        checkIndex(s, index);
+        double d = s.getByteBuffer().getDouble(index + valuePosition(s));
         end(s);
         return d;
     }
@@ -176,7 +160,7 @@ public class OakRValueBufferImpl implements OakRBuffer, OakUnsafeDirectBuffer {
      * @return a transformation of the ByteBuffer content
      * @throws NullPointerException if the transformer is null
      */
-    public <T> T transform(Function<ByteBuffer, T> transformer) {
+    public <T> T transform(OakTransformer<T> transformer) {
         if (transformer == null) {
             throw new NullPointerException();
         }
@@ -195,7 +179,7 @@ public class OakRValueBufferImpl implements OakRBuffer, OakUnsafeDirectBuffer {
         throw new RuntimeException("Transform failed: reached retry limit (1024).");
     }
 
-    private void start(Slice valueSlice) {
+    private Slice start(Slice valueSlice) {
         ValueUtils.ValueResult res = valueOperator.lockRead(valueSlice, version);
         if (res == FALSE) {
             throw new ConcurrentModificationException();
@@ -203,8 +187,10 @@ public class OakRValueBufferImpl implements OakRBuffer, OakUnsafeDirectBuffer {
         // In case the value moved or was the version does not match
         if (res == RETRY) {
             lookupValueReference();
-            start(getValueSlice());
+            return start(getValueSlice());
         }
+
+        return valueSlice;
     }
 
     private void end(Slice valueSlice) {
@@ -224,9 +210,10 @@ public class OakRValueBufferImpl implements OakRBuffer, OakUnsafeDirectBuffer {
 
     @Override
     public ByteBuffer getByteBuffer() {
-        ByteBuffer buff = getValueSlice().getByteBuffer().asReadOnlyBuffer();
-        int position = valuePosition();
-        int limit = position + capacity();
+        Slice s = getValueSlice();
+        ByteBuffer buff = s.getByteBuffer().asReadOnlyBuffer();
+        int position = valuePosition(s);
+        int limit = s.getLimit();
         buff.position(position);
         buff.limit(limit);
         return buff.slice();
@@ -239,13 +226,14 @@ public class OakRValueBufferImpl implements OakRBuffer, OakUnsafeDirectBuffer {
 
     @Override
     public int getLength() {
-        return capacity();
+        return valueLength(getValueSlice());
     }
 
     @Override
     public long getAddress() {
-        ByteBuffer buff = getValueSlice().getByteBuffer();
+        Slice s = getValueSlice();
+        ByteBuffer buff = s.getByteBuffer();
         long address = ((DirectBuffer) buff).address();
-        return address + valuePosition();
+        return address + valuePosition(s);
     }
 }

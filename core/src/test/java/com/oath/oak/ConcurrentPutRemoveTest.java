@@ -28,7 +28,7 @@ public class ConcurrentPutRemoveTest {
 
     @Before
     public void initStuff() {
-        OakMapBuilder<Integer, Integer> builder = IntegerOakMap.getDefaultBuilder();
+        OakMapBuilder<Integer, Integer> builder = ToolsFactory.getDefaultIntBuilder();
         oak = builder.build();
         barrier = new CyclicBarrier(NUM_THREADS + 1);
         stop = new AtomicBoolean(false);

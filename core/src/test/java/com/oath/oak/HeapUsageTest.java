@@ -10,7 +10,6 @@ import org.junit.Ignore;
 import org.junit.Test;
 
 import java.io.IOException;
-import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -23,49 +22,13 @@ public class HeapUsageTest {
     private static int keySize = 10;
     private static int valSize = (int) Math.round(5 * K);
 
-    public static class FillTestKeySerializer implements OakSerializer<Integer> {
-
-        @Override
-        public void serialize(Integer key, ByteBuffer targetBuffer) {
-            targetBuffer.putInt(targetBuffer.position(), key);
-        }
-
-        @Override
-        public Integer deserialize(ByteBuffer serializedKey) {
-            return serializedKey.getInt(serializedKey.position());
-        }
-
-        @Override
-        public int calculateSize(Integer key) {
-            return keySize;
-        }
-    }
-
-    public static class FillTestValueSerializer implements OakSerializer<Integer> {
-
-        @Override
-        public void serialize(Integer value, ByteBuffer targetBuffer) {
-            targetBuffer.putInt(targetBuffer.position(), value);
-        }
-
-        @Override
-        public Integer deserialize(ByteBuffer serializedValue) {
-            return serializedValue.getInt(serializedValue.position());
-        }
-
-        @Override
-        public int calculateSize(Integer value) {
-            return valSize;
-        }
-    }
-
     @Test
     public void testMain() throws InterruptedException {
 
-        OakMapBuilder<Integer, Integer> builder = IntegerOakMap.getDefaultBuilder()
+        OakMapBuilder<Integer, Integer> builder = ToolsFactory.getDefaultIntBuilder()
                 .setChunkMaxItems(2048)
-                .setKeySerializer(new FillTestKeySerializer())
-                .setValueSerializer(new FillTestValueSerializer());
+                .setKeySerializer(ToolsFactory.getOakIntSerializable(keySize))
+                .setValueSerializer(ToolsFactory.getOakIntSerializable(valSize));
         // this number can be changed to test larger sizes however JVM memory limit need to be changed
         // otherwise this will hit "java.lang.OutOfMemoryError: Direct buffer memory" exception
         // currently tested up to 2GB
@@ -143,10 +106,10 @@ public class HeapUsageTest {
 
         System.out.println("key size: " + keySize + "B" + ", value size: " + ((double) valSize) / K + "KB");
         for (long numOfEntries : configurations) {
-            OakMapBuilder<Integer, Integer> builder = IntegerOakMap.getDefaultBuilder()
+            OakMapBuilder<Integer, Integer> builder = ToolsFactory.getDefaultIntBuilder()
                     .setChunkMaxItems(2048)
-                    .setKeySerializer(new FillTestKeySerializer())
-                    .setValueSerializer(new FillTestValueSerializer());
+                    .setKeySerializer(ToolsFactory.getOakIntSerializable(keySize))
+                    .setValueSerializer(ToolsFactory.getOakIntSerializable(valSize));
             try (OakMap<Integer, Integer> oak = builder.build()) {
                 System.out.println("=====================================\nWith " + numOfEntries + " entries");
                 long heapSize = Runtime.getRuntime().totalMemory(); // Get current size of heap in bytes

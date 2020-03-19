@@ -11,20 +11,20 @@ import java.nio.ByteBuffer;
 class StringSerializer implements OakSerializer<String> {
 
     @Override
-    public void serialize(String object, ByteBuffer targetBuffer) {
-        targetBuffer.putInt(targetBuffer.position(), object.length());
+    public void serialize(String object, OakWBuffer targetBuffer) {
+        targetBuffer.putInt(0, object.length());
         for (int i = 0; i < object.length(); i++) {
             char c = object.charAt(i);
-            targetBuffer.putChar(Integer.BYTES + targetBuffer.position() + i * Character.BYTES, c);
+            targetBuffer.putChar(Integer.BYTES + i * Character.BYTES, c);
         }
     }
 
     @Override
-    public String deserialize(ByteBuffer byteBuffer) {
-        int size = byteBuffer.getInt(byteBuffer.position());
+    public String deserialize(OakReadBuffer byteBuffer) {
+        int size = byteBuffer.getInt(0);
         StringBuilder object = new StringBuilder(size);
         for (int i = 0; i < size; i++) {
-            char c = byteBuffer.getChar(Integer.BYTES + byteBuffer.position() + i * Character.BYTES);
+            char c = byteBuffer.getChar(Integer.BYTES + i * Character.BYTES);
             object.append(c);
         }
         return object.toString();

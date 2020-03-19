@@ -21,7 +21,7 @@ public class OakMapApiTest {
     @Before
     public void init() {
         int maxItemsPerChunk = 2048;
-        OakMapBuilder<Integer, Integer> builder = IntegerOakMap.getDefaultBuilder()
+        OakMapBuilder<Integer, Integer> builder = ToolsFactory.getDefaultIntBuilder()
                 .setChunkMaxItems(maxItemsPerChunk);
         oak = builder.build();
     }
@@ -319,7 +319,10 @@ public class OakMapApiTest {
 
         OakRBuffer buffer = oak.zc().keySet().iterator().next();
 
-        buffer.transform(b -> b.putInt(0, 1));
+        buffer.transform(b -> {
+            OakUnsafeDirectBuffer ub = (OakUnsafeDirectBuffer) b;
+            return ub.getByteBuffer().putInt(ub.getOffset(), 1);
+        });
 
         fail("Key Buffer should be read only");
     }
@@ -330,7 +333,10 @@ public class OakMapApiTest {
 
         OakRBuffer buffer = oak.zc().values().iterator().next();
 
-        buffer.transform(b -> b.putInt(0, 1));
+        buffer.transform(b -> {
+            OakUnsafeDirectBuffer ub = (OakUnsafeDirectBuffer) b;
+            return ub.getByteBuffer().putInt(ub.getOffset(), 1);
+        });
 
         fail("Value Buffer should be read only");
     }

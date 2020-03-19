@@ -44,14 +44,14 @@ public class ValueUtilsImpl implements ValueUtils {
     }
 
     @Override
-    public <T> Result<T> transform(Slice s, Function<ByteBuffer, T> transformer,
+    public <T> Result<T> transform(Slice s, OakTransformer<T> transformer,
                                    int version) {
         ValueResult result = lockRead(s, version);
         if (result != TRUE) {
             return Result.withFlag(result);
         }
 
-        T transformation = transformer.apply(getValueByteBufferNoHeader(s).asReadOnlyBuffer());
+        T transformation = transformer.apply(new OakReadBufferWrapper(s, getHeaderSize()));
         unlockRead(s, version);
         return Result.withValue(transformation);
     }
@@ -75,8 +75,7 @@ public class ValueUtilsImpl implements ValueUtils {
         if (capacity + getHeaderSize() > s.getByteBuffer().remaining()) {
             s = moveValue(chunk, lookUp, capacity, memoryManager);
         }
-        ByteBuffer bb = getValueByteBufferNoHeader(s);
-        serializer.serialize(newVal, bb);
+        serializer.serialize(newVal, new OakWBufferImpl(s, getHeaderSize()));
         return s;
     }
 
@@ -103,14 +102,14 @@ public class ValueUtilsImpl implements ValueUtils {
         if (result != TRUE) {
             return result;
         }
-        computer.accept(new OakWBufferImpl(s, this));
+        computer.accept(new OakWBufferImpl(s, getHeaderSize()));
         unlockWrite(s);
         return TRUE;
     }
 
     @Override
     public <V> Result<V> remove(Slice s, MemoryManager memoryManager, int version, V oldValue,
-                                Function<ByteBuffer, V> transformer) {
+                                OakTransformer<V> transformer) {
         // Not a conditional remove, so we can delete immediately
         if (oldValue == null) {
             // try to delete
@@ -121,7 +120,7 @@ public class ValueUtilsImpl implements ValueUtils {
             // Now the value is deleted, and all other threads will treat it as deleted, but it is not yet freed, so
             // this thread can read from it.
             // read the old value (the slice is not reclaimed yet)
-            V v = transformer != null ? transformer.apply(getValueByteBufferNoHeader(s).asReadOnlyBuffer()) : null;
+            V v = transformer != null ? transformer.apply(new OakReadBufferWrapper(s, getHeaderSize())) : null;
             // release the slice
             memoryManager.releaseSlice(s);
             // return TRUE with the old value
@@ -134,7 +133,7 @@ public class ValueUtilsImpl implements ValueUtils {
             if (result != TRUE) {
                 return Result.withFlag(result);
             }
-            V v = transformer.apply(getValueByteBufferNoHeader(s).asReadOnlyBuffer());
+            V v = transformer.apply(new OakReadBufferWrapper(s, getHeaderSize()));
             // This is where we check the equality between the expected value and the actual value
             if (!oldValue.equals(v)) {
                 unlockWrite(s);
@@ -150,7 +149,7 @@ public class ValueUtilsImpl implements ValueUtils {
 
     @Override
     public <V> Result<V> exchange(Chunk<?, V> chunk, Chunk.LookUp lookUp, V value,
-                                  Function<ByteBuffer, V> valueDeserializeTransformer, OakSerializer<V> serializer,
+                                  OakTransformer<V> valueDeserializeTransformer, OakSerializer<V> serializer,
                                   MemoryManager memoryManager) {
         ValueResult result = lockWrite(lookUp.valueSlice, lookUp.version);
         if (result != TRUE) {
@@ -158,7 +157,7 @@ public class ValueUtilsImpl implements ValueUtils {
         }
         V oldValue = null;
         if (valueDeserializeTransformer != null) {
-            oldValue = valueDeserializeTransformer.apply(getValueByteBufferNoHeader(lookUp.valueSlice));
+            oldValue = valueDeserializeTransformer.apply(new OakReadBufferWrapper(lookUp.valueSlice, getHeaderSize()));
         }
         Slice s = innerPut(chunk, lookUp, value, serializer, memoryManager);
         unlockWrite(s);
@@ -167,13 +166,13 @@ public class ValueUtilsImpl implements ValueUtils {
 
     @Override
     public <V> ValueResult compareExchange(Chunk<?, V> chunk, Chunk.LookUp lookUp, V expected, V value,
-                                           Function<ByteBuffer, V> valueDeserializeTransformer,
+                                           OakTransformer<V> valueDeserializeTransformer,
                                            OakSerializer<V> serializer, MemoryManager memoryManager) {
         ValueResult result = lockWrite(lookUp.valueSlice, lookUp.version);
         if (result != TRUE) {
             return result;
         }
-        V oldValue = valueDeserializeTransformer.apply(getValueByteBufferNoHeader(lookUp.valueSlice));
+        V oldValue = valueDeserializeTransformer.apply(new OakReadBufferWrapper(lookUp.valueSlice, getHeaderSize()));
         if (!oldValue.equals(expected)) {
             unlockWrite(lookUp.valueSlice);
             return FALSE;
@@ -196,22 +195,6 @@ public class ValueUtilsImpl implements ValueUtils {
     @Override
     public int getLockSize() {
         return VALUE_HEADER_SIZE;
-    }
-
-    @Override
-    public ByteBuffer getValueByteBufferNoHeaderPrivate(Slice s) {
-        ByteBuffer bb = s.getByteBuffer();
-        bb.position(bb.position() + getHeaderSize());
-        ByteBuffer dup = bb.slice();
-        bb.position(bb.position() - getHeaderSize());
-        return dup;
-    }
-
-    @Override
-    public ByteBuffer getValueByteBufferNoHeader(Slice s) {
-        ByteBuffer dup = s.getByteBuffer().duplicate();
-        dup.position(dup.position() + getHeaderSize());
-        return dup.slice();
     }
 
     @Override

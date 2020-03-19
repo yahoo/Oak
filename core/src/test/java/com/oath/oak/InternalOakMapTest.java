@@ -22,18 +22,19 @@ public class InternalOakMapTest {
         NovaManager memoryManager = new NovaManager(new OakNativeMemoryAllocator(128));
         int chunkMaxItems = 100;
 
-        testMap = new InternalOakMap<>(Integer.MIN_VALUE, IntegerOakMap.serializer, IntegerOakMap.serializer,
-                IntegerOakMap.comparator, memoryManager, chunkMaxItems, new ValueUtilsImpl());
+        testMap = new InternalOakMap<>(Integer.MIN_VALUE, ToolsFactory.defaultIntSerializer,
+            ToolsFactory.defaultIntSerializer,
+            ToolsFactory.defaultIntComparator, memoryManager, chunkMaxItems, new ValueUtilsImpl());
     }
 
 
-    private static Integer slowDeserialize(ByteBuffer bb) {
+    private static Integer slowDeserialize(OakReadBuffer bb) {
         try {
             Thread.sleep(longTransformationDelay);
         } catch (InterruptedException e) {
             e.printStackTrace();
         }
-        return IntegerOakMap.serializer.deserialize(bb);
+        return ToolsFactory.defaultIntSerializer.deserialize(bb);
     }
 
     private void runThreads(List<Thread> threadList) throws InterruptedException {
@@ -58,9 +59,9 @@ public class InternalOakMapTest {
         final Integer[] results = new Integer[3];
 
         List<Thread> threadList = new ArrayList<>(results.length);
-        threadList.add(new Thread(() -> results[0] = testMap.put(k, v1, IntegerOakMap.serializer::deserialize)));
+        threadList.add(new Thread(() -> results[0] = testMap.put(k, v1, ToolsFactory.defaultIntSerializer::deserialize)));
         threadList.add(new Thread(() -> results[1] = testMap.put(k, v2, InternalOakMapTest::slowDeserialize)));
-        threadList.add(new Thread(() -> results[2] = testMap.put(k, v3, IntegerOakMap.serializer::deserialize)));
+        threadList.add(new Thread(() -> results[2] = testMap.put(k, v3, ToolsFactory.defaultIntSerializer::deserialize)));
 
         runThreads(threadList);
 
@@ -77,10 +78,10 @@ public class InternalOakMapTest {
         final Integer[] results = new Integer[3];
 
         List<Thread> threadList = new ArrayList<>(results.length);
-        threadList.add(new Thread(() -> results[0] = testMap.put(k, v1, IntegerOakMap.serializer::deserialize)));
+        threadList.add(new Thread(() -> results[0] = testMap.put(k, v1, ToolsFactory.defaultIntSerializer::deserialize)));
         threadList.add(new Thread(() -> results[1] =
                 testMap.remove(k, null, InternalOakMapTest::slowDeserialize).value));
-        threadList.add(new Thread(() -> results[2] = testMap.put(k, v2, IntegerOakMap.serializer::deserialize)));
+        threadList.add(new Thread(() -> results[2] = testMap.put(k, v2, ToolsFactory.defaultIntSerializer::deserialize)));
 
         runThreads(threadList);
 
@@ -95,13 +96,13 @@ public class InternalOakMapTest {
 
         final Integer[] results = new Integer[2];
 
-        testMap.put(k, v1, IntegerOakMap.serializer::deserialize);
+        testMap.put(k, v1, ToolsFactory.defaultIntSerializer::deserialize);
 
         List<Thread> threadList = new ArrayList<>(results.length);
         threadList.add(new Thread(() -> results[0] =
                 testMap.remove(k, null, InternalOakMapTest::slowDeserialize).value));
         threadList.add(new Thread(() -> results[1] =
-                testMap.remove(k, null, IntegerOakMap.serializer::deserialize).value));
+                testMap.remove(k, null, ToolsFactory.defaultIntSerializer::deserialize).value));
 
         runThreads(threadList);
 
