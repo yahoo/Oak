@@ -6,12 +6,14 @@
 
 package com.oath.oak;
 
+import sun.nio.ch.DirectBuffer;
+
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 
 // An instance of OakWBufferImpl is only used when the write lock of the value referenced by it is already acquired.
 // This is the reason no lock is acquired in each access.
-public class OakWBufferImpl implements OakWBuffer {
+public class OakWBufferImpl implements OakWBuffer, OakUnsafeRef {
 
     private ByteBuffer bb;
     private int dataPos;
@@ -19,16 +21,6 @@ public class OakWBufferImpl implements OakWBuffer {
     OakWBufferImpl(Slice s, ValueUtils valueOperator) {
         bb = s.getByteBuffer();
         dataPos = bb.position() + valueOperator.getHeaderSize();
-    }
-
-    @Override
-    public ByteBuffer getByteBuffer() {
-        int initPos = bb.position();
-        bb.position(dataPos);
-        ByteBuffer ret = bb.slice();
-        // It is important to return the original buffer to its original state.
-        bb.position(initPos);
-        return ret;
     }
 
     @Override
@@ -158,5 +150,31 @@ public class OakWBufferImpl implements OakWBuffer {
         }
         bb.putDouble(dataPos + index, value);
         return this;
+    }
+
+    @Override
+    public ByteBuffer getByteBuffer() {
+        int initPos = bb.position();
+        bb.position(dataPos);
+        ByteBuffer ret = bb.slice();
+        // It is important to return the original buffer to its original state.
+        bb.position(initPos);
+        return ret;
+    }
+
+    @Override
+    public int getOffset() {
+        return 0;
+    }
+
+    @Override
+    public int getLength() {
+        return capacity();
+    }
+
+    @Override
+    public long getAddress() {
+        long address = ((DirectBuffer) bb).address();
+        return address + dataPos;
     }
 }

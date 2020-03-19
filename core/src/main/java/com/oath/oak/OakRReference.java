@@ -7,6 +7,7 @@
 package com.oath.oak;
 
 import com.oath.oak.NativeAllocator.OakNativeMemoryAllocator;
+import sun.nio.ch.DirectBuffer;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
@@ -25,7 +26,7 @@ import java.util.function.Function;
  * before each access since it can only be used without other concurrent writes in the background.
  * */
 
-public class OakRReference implements OakRBuffer {
+public class OakRReference implements OakRBuffer, OakUnsafeRef {
 
     private int blockID = OakNativeMemoryAllocator.INVALID_BLOCK_ID;
     private int position = -1;
@@ -112,14 +113,29 @@ public class OakRReference implements OakRBuffer {
         return transformer.apply(buffer);
     }
 
-    // the method provides an optimal way to copy data as array of integers from the key's buffer
-    // srcPosition - index from where to start copying the internal key buffer,
-    // srcPosition = 0 if to start from the beginning
     @Override
-    public void unsafeCopyBufferToIntArray(int srcPosition, int[] dstArray, int countInts) {
-        UnsafeUtils.unsafeCopyBufferToIntArray(getTemporaryPerThreadByteBuffer().slice(),
-                srcPosition + headerSize, dstArray, countInts);
+    public ByteBuffer getByteBuffer() {
+        ByteBuffer buff = getTemporaryPerThreadByteBuffer().asReadOnlyBuffer();
+        buff.position(headerSize + position);
+        buff.limit(headerSize + position + length);
+        return buff.slice();
+    }
 
+    @Override
+    public int getOffset() {
+        return 0;
+    }
+
+    @Override
+    public int getLength() {
+        return length;
+    }
+
+    @Override
+    public long getAddress() {
+        ByteBuffer buff = getTemporaryPerThreadByteBuffer();
+        long address = ((DirectBuffer) buff).address();
+        return address + headerSize + position;
     }
 
     private ByteBuffer getTemporaryPerThreadByteBuffer() {

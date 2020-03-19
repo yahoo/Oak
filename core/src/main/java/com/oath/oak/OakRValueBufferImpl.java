@@ -6,6 +6,8 @@
 
 package com.oath.oak;
 
+import sun.nio.ch.DirectBuffer;
+
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.ConcurrentModificationException;
@@ -17,7 +19,7 @@ import static com.oath.oak.Chunk.VALUE_BLOCK_SHIFT;
 import static com.oath.oak.Chunk.VALUE_LENGTH_MASK;
 import static com.oath.oak.ValueUtils.ValueResult.*;
 
-public class OakRValueBufferImpl implements OakRBuffer {
+public class OakRValueBufferImpl implements OakRBuffer, OakUnsafeRef {
     /**
      * These are the fields used when accessing the value stored in this buffer (the reference to it in the off-heap,
      * and the version we expect the value to have.
@@ -56,10 +58,6 @@ public class OakRValueBufferImpl implements OakRBuffer {
         int[] valueArray = UnsafeUtils.longToInts(valueReference);
         return memoryManager.getSliceFromBlockID(valueArray[BLOCK_ID_LENGTH_ARRAY_INDEX] >>> VALUE_BLOCK_SHIFT,
                 valueArray[POSITION_ARRAY_INDEX], valueArray[BLOCK_ID_LENGTH_ARRAY_INDEX] & VALUE_LENGTH_MASK);
-    }
-
-    private ByteBuffer getByteBuffer() {
-        return getValueSlice().getByteBuffer();
     }
 
     private int valuePosition() {
@@ -198,12 +196,31 @@ public class OakRValueBufferImpl implements OakRBuffer {
     }
 
     @Override
-    public void unsafeCopyBufferToIntArray(int srcPosition, int[] dstArray, int countInts) {
-        Slice s = getValueSlice();
-        start(s);
-        ByteBuffer dup = valueOperator.getValueByteBufferNoHeader(s);
-        valueOperator.unsafeBufferToIntArrayCopy(dup, srcPosition, dstArray, countInts);
-        end(s);
+    public ByteBuffer getByteBuffer() {
+        ByteBuffer buff = getValueSlice().getByteBuffer();
+        buff = buff.asReadOnlyBuffer();
+        int position = valuePosition();
+        int limit = position + capacity();
+        buff.position(position);
+        buff.limit(limit);
+        return buff.slice();
+    }
+
+    @Override
+    public int getOffset() {
+        return 0;
+    }
+
+    @Override
+    public int getLength() {
+        return capacity();
+    }
+
+    @Override
+    public long getAddress() {
+        ByteBuffer buff = getValueSlice().getByteBuffer();
+        long address = ((DirectBuffer) buff).address();
+        return address + valuePosition();
     }
 
     private void start(Slice valueSlice) {

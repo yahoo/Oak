@@ -53,8 +53,12 @@ public class UnsafeUtilsTest {
             int size = entry.getKey().getInt(0);
             int[] dstArrayValue = new int[size];
             int[] dstArrayKey = new int[size];
-            entry.getKey().unsafeCopyBufferToIntArray(Integer.BYTES, dstArrayKey, size);
-            entry.getValue().unsafeCopyBufferToIntArray(Integer.BYTES, dstArrayValue, size);
+            OakUnsafeRef keyRef = ((OakUnsafeRef) entry.getKey());
+            OakUnsafeRef valueRef = ((OakUnsafeRef) entry.getValue());
+            UnsafeUtils.unsafeCopyBufferToIntArray(keyRef.getByteBuffer(),
+                keyRef.getOffset() + Integer.BYTES, dstArrayKey, size);
+            UnsafeUtils.unsafeCopyBufferToIntArray(valueRef.getByteBuffer(),
+                valueRef.getOffset() + Integer.BYTES, dstArrayValue, size);
             if (size == 5) {
                 //value1
                 assertArrayEquals(value1.array, dstArrayKey);

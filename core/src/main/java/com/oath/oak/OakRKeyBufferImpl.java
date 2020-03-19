@@ -6,6 +6,8 @@
 
 package com.oath.oak;
 
+import sun.nio.ch.DirectBuffer;
+
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.function.Function;
@@ -15,7 +17,7 @@ import static com.oath.oak.Chunk.KEY_BLOCK_SHIFT;
 import static com.oath.oak.Chunk.KEY_LENGTH_MASK;
 import static com.oath.oak.Chunk.POSITION_ARRAY_INDEX;
 
-public class OakRKeyBufferImpl implements OakRBuffer {
+public class OakRKeyBufferImpl implements OakRBuffer, OakUnsafeRef {
 
     private final long keyReference;
     private final MemoryManager memoryManager;
@@ -84,8 +86,27 @@ public class OakRKeyBufferImpl implements OakRBuffer {
     }
 
     @Override
-    public void unsafeCopyBufferToIntArray(int srcPosition, int[] dstArray, int countInts) {
-        UnsafeUtils.unsafeCopyBufferToIntArray(getKeyBuffer().slice(), srcPosition, dstArray, countInts);
+    public ByteBuffer getByteBuffer() {
+        ByteBuffer buff = getKeyBuffer();
+        buff = buff.asReadOnlyBuffer();
+        buff.position(initialPosition);
+        return buff.slice();
     }
 
+    @Override
+    public int getOffset() {
+        return 0;
+    }
+
+    @Override
+    public int getLength() {
+        return capacity();
+    }
+
+    @Override
+    public long getAddress() {
+        ByteBuffer buff = getKeyBuffer();
+        long address = ((DirectBuffer) buff).address();
+        return address + initialPosition;
+    }
 }
