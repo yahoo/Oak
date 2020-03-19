@@ -71,8 +71,7 @@ public class OakRValueBufferImpl implements OakRBuffer, OakUnsafeDirectBuffer {
 
     @Override
     public byte get(int index) {
-        Slice s = getValueSlice();
-        start(s);
+        Slice s = start(getValueSlice());
         if (index < 0) {
             throw new IndexOutOfBoundsException();
         }
@@ -84,8 +83,7 @@ public class OakRValueBufferImpl implements OakRBuffer, OakUnsafeDirectBuffer {
     @Override
     public ByteOrder order() {
         ByteOrder order;
-        Slice s = getValueSlice();
-        start(s);
+        Slice s = start(getValueSlice());
         order = s.getByteBuffer().order();
         end(s);
         return order;
@@ -94,8 +92,7 @@ public class OakRValueBufferImpl implements OakRBuffer, OakUnsafeDirectBuffer {
     @Override
     public char getChar(int index) {
         char c;
-        Slice s = getValueSlice();
-        start(s);
+        Slice s = start(getValueSlice());
         if (index < 0) {
             throw new IndexOutOfBoundsException();
         }
@@ -107,8 +104,7 @@ public class OakRValueBufferImpl implements OakRBuffer, OakUnsafeDirectBuffer {
     @Override
     public short getShort(int index) {
         short i;
-        Slice s = getValueSlice();
-        start(s);
+        Slice s = start(getValueSlice());
         if (index < 0) {
             throw new IndexOutOfBoundsException();
         }
@@ -120,8 +116,7 @@ public class OakRValueBufferImpl implements OakRBuffer, OakUnsafeDirectBuffer {
     @Override
     public int getInt(int index) {
         int i;
-        Slice s = getValueSlice();
-        start(s);
+        Slice s = start(getValueSlice());
         if (index < 0) {
             throw new IndexOutOfBoundsException();
         }
@@ -133,8 +128,7 @@ public class OakRValueBufferImpl implements OakRBuffer, OakUnsafeDirectBuffer {
     @Override
     public long getLong(int index) {
         long l;
-        Slice s = getValueSlice();
-        start(s);
+        Slice s = start(getValueSlice());
         if (index < 0) {
             throw new IndexOutOfBoundsException();
         }
@@ -146,8 +140,7 @@ public class OakRValueBufferImpl implements OakRBuffer, OakUnsafeDirectBuffer {
     @Override
     public float getFloat(int index) {
         float f;
-        Slice s = getValueSlice();
-        start(s);
+        Slice s = start(getValueSlice());
         if (index < 0) {
             throw new IndexOutOfBoundsException();
         }
@@ -159,8 +152,7 @@ public class OakRValueBufferImpl implements OakRBuffer, OakUnsafeDirectBuffer {
     @Override
     public double getDouble(int index) {
         double d;
-        Slice s = getValueSlice();
-        start(s);
+        Slice s = start(getValueSlice());
         if (index < 0) {
             throw new IndexOutOfBoundsException();
         }
@@ -195,7 +187,7 @@ public class OakRValueBufferImpl implements OakRBuffer, OakUnsafeDirectBuffer {
         throw new RuntimeException("Transform failed: reached retry limit (1024).");
     }
 
-    private void start(Slice valueSlice) {
+    private Slice start(Slice valueSlice) {
         ValueUtils.ValueResult res = valueOperator.lockRead(valueSlice, version);
         if (res == FALSE) {
             throw new ConcurrentModificationException();
@@ -203,8 +195,9 @@ public class OakRValueBufferImpl implements OakRBuffer, OakUnsafeDirectBuffer {
         // In case the value moved or was the version does not match
         if (res == RETRY) {
             lookupValueReference();
-            start(getValueSlice());
+            return start(getValueSlice());
         }
+        return valueSlice;
     }
 
     private void end(Slice valueSlice) {

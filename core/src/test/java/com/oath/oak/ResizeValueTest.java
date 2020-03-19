@@ -109,4 +109,22 @@ public class ResizeValueTest {
         oak.zc().put("A", longValue);
         assertEquals(longValue.length(), buffer.getInt(0));
     }
+
+    private static final int BLOCK_SIZE = 256 * 1024 * 1024;
+
+    @Test
+    public void testResizeWithZCGetNewBuffer() {
+        String smallValue = "";
+        StringBuilder stringBuilder = new StringBuilder();
+        stringBuilder.setLength((BLOCK_SIZE / Character.BYTES) / 2);
+        String longValue = stringBuilder.toString();
+
+        oak.zc().put("A", "");
+        oak.zc().put("B", longValue);
+        OakRBuffer buffer = oak.zc().get("A");
+        assertEquals(0, buffer.getInt(0));
+
+        oak.zc().put("A", longValue);
+        assertEquals(longValue.length(), buffer.getInt(0));
+    }
 }
