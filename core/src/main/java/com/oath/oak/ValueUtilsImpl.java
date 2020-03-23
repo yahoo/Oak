@@ -100,13 +100,15 @@ public class ValueUtilsImpl implements ValueUtils {
         Chunk<?, V> chunk, EntrySet.LookUp lookUp, MemoryManager memoryManager,
         InternalOakMap internalOakMap, V newVal) {
 
-        Slice oldSlice = lookUp.valueSlice;
+        Slice oldSlice = lookUp.valueSlice.duplicate();
         setLockState(oldSlice, MOVED);
+
         Slice newSlice = internalOakMap.overwriteExistingValueForMove(lookUp, newVal, chunk);
         if (newSlice == null) {
             // rebalance was needed or the entry was updated by someone else, need to retry
             return null;
         }
+
         memoryManager.releaseSlice(oldSlice);
         return newSlice;
     }

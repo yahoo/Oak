@@ -129,6 +129,7 @@ public class Chunk<K, V> {
         // binary search sorted part of key array to quickly find node to start search at
         // it finds previous-to-key
         int curr = binaryFind(key);
+        curr = (curr == NONE_NEXT) ? entrySet.getHeadNextIndex() : entrySet.getNextEntryIndex(curr);
         int cmp;
         // iterate until end of list (or key is found)
 
@@ -145,18 +146,18 @@ public class Chunk<K, V> {
                 return entrySet.buildLookUp(curr);
             }
             // otherwise- proceed to next item
-            else {
-                curr = entrySet.getNextEntryIndex(curr);
-            }
+            curr = entrySet.getNextEntryIndex(curr);
         }
+
         return null;
     }
 
     /**
-     * This function completes the insertion of a value to Entry. When inserting a value, the value
-     * reference is CASed inside the entry first and only after the version is CASed. Thus, there
-     * can be a time in which the value reference is valid but the version is INVALID_VERSION or
-     * a negative one. In this function, the version is CASed to complete the insertion.
+     * This function completes the insertion (or deletion) of a value to Entry. When inserting a
+     * value, the value reference is CASed inside the entry first and only afterwards the version is
+     * CASed. Thus, there can be a time in which the value reference is valid but the version is
+     * INVALID_VERSION or a negative one. In this function, the version is CASed to complete the
+     * insertion.
      * <p>
      * The version written to entry is the version written in the off-heap memory. There is no worry
      * of concurrent removals since these removals will have to first call this function as well,
@@ -172,7 +173,7 @@ public class Chunk<K, V> {
      * returned.
      */
     int completeLinking(EntrySet.LookUp lookUp) {
-        if (!entrySet.isDeleteValueFinishNeeded(lookUp)) {
+        if (!entrySet.isDeleteValueFinishNeeded(lookUp) && entrySet.isValueLinkFinished(lookUp)) {
             // the version written in lookup is a good one!
             return lookUp.version;
         }
@@ -260,6 +261,10 @@ public class Chunk<K, V> {
      *
      * @return the index of the entry from which to start a linear search -
      * if key is found, its previous entry is returned!
+     * In cases when search from the head is needed, meaning:
+     * (1) the given key is less or equal than the smallest key in the chunk OR
+     * (2) entries are unsorted so there is a need to start from the beginning of the linked list
+     * NONE_NEXT is going to be returned
      */
     private int binaryFind(K key) {
         int sortedCount = this.sortedCount.get();
@@ -268,7 +273,7 @@ public class Chunk<K, V> {
         // return the head entry for a regular linear search
         if ((sortedCount == 0) ||
             comparator.compareKeyAndSerializedKey(key, entrySet.readKey(headIdx)) <= 0) {
-            return headIdx;
+            return NONE_NEXT;
         }
 
         // optimization: compare with last key to avoid binary search (here sortedCount is not zero)
@@ -276,7 +281,7 @@ public class Chunk<K, V> {
             return sortedCount;
         }
 
-        int start = headIdx;
+        int start = 0;
         int end = sortedCount;
         while (end - start > 1) {
             int curr = start + (end - start) / 2;
@@ -327,15 +332,18 @@ public class Chunk<K, V> {
             if (anchor == INVALID_ANCHOR_INDEX) {
                 anchor = binaryFind(key);
             }
-            curr = anchor;
+            if (anchor == NONE_NEXT) {
+                prev = NONE_NEXT;
+                curr = entrySet.getHeadNextIndex();
+            } else {
+                prev = anchor;
+                curr = entrySet.getNextEntryIndex(anchor);    // index of next item in list
+            }
 
             //TODO: use lookUp and location window inside lookUp (when key wasn't found),
             //TODO: so there us no need to iterate again in linkEntry
             // iterate items until key's position is found
             while (true) {
-                prev = curr;
-                curr = entrySet.getNextEntryIndex(prev);    // index of next item in list
-
                 // if no item, done searching - add to end of list
                 if (curr == NONE_NEXT) {
                     break;
@@ -352,6 +360,9 @@ public class Chunk<K, V> {
                 if (cmp == 0) {
                     return curr;
                 }
+
+                prev = curr;
+                curr = entrySet.getNextEntryIndex(prev);    // index of next item in list
             }
 
             // link to list between curr and previous, first change this entry's next to point to curr
@@ -390,7 +401,7 @@ public class Chunk<K, V> {
      * @return OpData to be used later in the writeValueCommit
      **/
     EntrySet.OpData writeValue(EntrySet.LookUp lookUp, V value, boolean writeForMove) {
-        return entrySet.writeValueStart(lookUp, value, false);
+        return entrySet.writeValueStart(lookUp, value, writeForMove);
     }
 
 
@@ -406,10 +417,12 @@ public class Chunk<K, V> {
      * @param opData - holds the entry to which the value reference is linked, the old and new value references and
      *               the old and new value versions.
      * @param linkForMove
+     * @param lookUp
      * @return {@code true} if the value reference was CASed successfully.
      */
-    ValueUtils.ValueResult linkValue(EntrySet.OpData opData, boolean linkForMove) {
-        if (entrySet.writeValueCommit(opData) == FALSE) {
+    ValueUtils.ValueResult linkValue(EntrySet.OpData opData, boolean linkForMove,
+        EntrySet.LookUp lookUp) {
+        if (entrySet.writeValueCommit(opData, linkForMove) == FALSE) {
             return FALSE;
         }
         if (!linkForMove) {
@@ -650,12 +663,13 @@ public class Chunk<K, V> {
         private int next;
 
         AscendingIter() {
-            next = entrySet.getNextEntryIndex(entrySet.getHeadNextIndex());
+            next = entrySet.getHeadNextIndex();
             next = advanceNextIndex(next);
         }
 
         AscendingIter(K from, boolean inclusive) {
-            next = entrySet.getNextEntryIndex(binaryFind(from));
+            next = binaryFind(from);
+            next = (next == NONE_NEXT) ? entrySet.getHeadNextIndex() : entrySet.getNextEntryIndex(next);
             int compare = -1;
             if (next != NONE_NEXT) {
                 compare = comparator.compareKeyAndSerializedKey(from, entrySet.readKey(next));
@@ -700,10 +714,10 @@ public class Chunk<K, V> {
 
         DescendingIter() {
             from = null;
-            stack = new IntStack(entrySet.getNumOfEntries());
+            stack = new IntStack(entrySet.getLastEntryIndex());
             int sortedCnt = sortedCount.get();
             anchor = // this is the last sorted entry
-                (sortedCnt == 0 ? entrySet.getNextEntryIndex(entrySet.getHeadNextIndex()) : sortedCnt);
+                (sortedCnt == 0 ? entrySet.getHeadNextIndex() : sortedCnt);
             stack.push(anchor);
             initNext();
         }
@@ -713,6 +727,8 @@ public class Chunk<K, V> {
             this.inclusive = inclusive;
             stack = new IntStack(entrySet.getNumOfEntries());
             anchor = binaryFind(from);
+            // translate to be valid index, if anchor is head we know to stop the iteration
+            anchor = (anchor == NONE_NEXT) ? entrySet.getHeadNextIndex() : anchor;
             stack.push(anchor);
             initNext();
         }
@@ -731,7 +747,7 @@ public class Chunk<K, V> {
                 return;
             }
             next = stack.pop();
-            while (next != NONE_NEXT && entrySet.isValueRefValid(next)) {
+            while (next != NONE_NEXT && !entrySet.isValueRefValid(next)) {
                 if (!stack.empty()) {
                     next = stack.pop();
                 } else {

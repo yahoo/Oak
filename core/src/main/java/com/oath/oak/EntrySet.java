@@ -86,7 +86,7 @@ class EntrySet<K, V> {
     private final int headNextIndex;
 
     // index of first item in array, after head (not necessarily first in list!)
-    private static final int FIRST_ITEM = 1;
+    private static final int HEAD_NEXT_INDEX_SIZE = 1;
 
     private static final int FIELDS = 6;  // # of fields in each item of entries array
     // key block is part of key length integer, thus key length is limited to 65KB
@@ -103,7 +103,10 @@ class EntrySet<K, V> {
     private final int entriesCapacity; // number of entries (not ints) to be maximally held
 
     private final AtomicInteger nextFreeIndex;    // points to next free index of entry array
-    private final AtomicInteger numOfEntries;     // counts number of entries inserted & not deleted
+    // counts number of entries inserted & not deleted, pay attention that not all entries counted
+    // in number of entries are finally linked into the linked list of the chunk above
+    // and participating in holding the "real" KV-mappings, the "real" are counted in Chunk
+    private final AtomicInteger numOfEntries;
     // for writing the keys into the off-heap bytebuffers (Blocks)
     private final OakSerializer<K> keySerializer;
     private final OakSerializer<V> valueSerializer;
@@ -121,8 +124,8 @@ class EntrySet<K, V> {
     EntrySet(MemoryManager memoryManager, int entriesCapacity, OakSerializer<K> keySerializer,
         OakSerializer<V> valueSerializer, ValueUtils valOffHeapOperator, int headNextIdx) {
         this.memoryManager   = memoryManager;
-        this.entries         = new int[entriesCapacity * FIELDS + FIRST_ITEM];
-        this.nextFreeIndex = new AtomicInteger(FIRST_ITEM);
+        this.entries         = new int[entriesCapacity * FIELDS + HEAD_NEXT_INDEX_SIZE];
+        this.nextFreeIndex = new AtomicInteger(HEAD_NEXT_INDEX_SIZE);
         this.numOfEntries = new AtomicInteger(0);
         this.entriesCapacity = entriesCapacity;
         this.headNextIndex   = Chunk.NONE_NEXT;
@@ -216,7 +219,7 @@ class EntrySet<K, V> {
         if (entryIdx == 0) { // assumed it is a head pointer access
             return 0;
         }
-        return ((entryIdx-1) * FIELDS) + FIRST_ITEM;
+        return ((entryIdx-1) * FIELDS) + HEAD_NEXT_INDEX_SIZE;
     }
 
     /**
@@ -460,6 +463,22 @@ class EntrySet<K, V> {
             mm);
         s.setVersion(version);
         return s;
+    }
+
+    /**
+     * getValuePosition returns value position from the value reference (service method)
+     */
+    static int getValuePosition(long valueReference) {
+        int[] valueArray = UnsafeUtils.longToInts(valueReference);
+        return getPositionFromIntArray(valueArray);
+    }
+
+    /**
+     * getValueLength returns value length from the value reference (service method)
+     */
+    static int getValueLength(long valueReference) {
+        int[] valueArray = UnsafeUtils.longToInts(valueReference);
+        return getValueLengthFromIntArray(valueArray);
     }
 
     /**
@@ -710,7 +729,9 @@ class EntrySet<K, V> {
         // for value written for the first time:
         // initializing the off-heap header (version and the lock to be free)
         // for value being moved, initialize the lock to be locked
-        if (writeForMove) { valOffHeapOperator.initLockedHeader(slice);}
+        if (writeForMove) {
+            valOffHeapOperator.initLockedHeader(slice);
+        }
         else { valOffHeapOperator.initHeader(slice); }
 
         // since this is a private environment, we can only use ByteBuffer::slice, instead of ByteBuffer::duplicate
@@ -721,8 +742,9 @@ class EntrySet<K, V> {
         // combines the blockID with the value's length (including the header)
         long valueReference = buildValueReference(slice, valueLength);
 
-        return new OpData(lookUp.entryIndex, INVALID_VALUE_REFERENCE, valueReference, lookUp.version,
-            slice.getVersion(), slice);
+        return new OpData(lookUp.entryIndex,
+            writeForMove ? lookUp.valueReference : INVALID_VALUE_REFERENCE,
+            valueReference, lookUp.version, slice.getVersion(), slice);
     }
 
     /**
@@ -732,11 +754,12 @@ class EntrySet<K, V> {
      *
      * @param opData - holds the entry to which the value reference is linked, the old and new value
      *                references and the old and new value versions.
+     * @param changeForMove
      * @return {@code true} if the value reference was CASed successfully.
      */
-    ValueUtils.ValueResult writeValueCommit(OpData opData) {
+    ValueUtils.ValueResult writeValueCommit(OpData opData, boolean changeForMove) {
 
-        assert opData.oldValueReference == INVALID_VALUE_REFERENCE;
+        if (!changeForMove) assert opData.oldValueReference == INVALID_VALUE_REFERENCE;
         assert opData.newValueReference != INVALID_VALUE_REFERENCE;
 
         if (!casEntriesArrayLong(entryIdx2intIdx(opData.entryIndex), OFFSET.VALUE_REFERENCE,
@@ -756,6 +779,10 @@ class EntrySet<K, V> {
      */
     int getNumOfEntries() {
         return numOfEntries.get();
+    }
+
+    int getLastEntryIndex() {
+        return nextFreeIndex.get();
     }
 
     /**
@@ -869,6 +896,7 @@ class EntrySet<K, V> {
         int intIdx = entryIdx2intIdx(ei);
         // key and value must be set before returned
         // setting the value reference to <INVALID_VALUE_REFERENCE, INVALID_VERSION>
+        // TODO: should we do the following setting? Because it is to set zero on zero...
         setEntryFieldLong(intIdx, OFFSET.VALUE_REFERENCE, INVALID_VALUE_REFERENCE);
         setEntryFieldInt(intIdx, OFFSET.VALUE_VERSION, INVALID_VERSION);
 
@@ -896,8 +924,17 @@ class EntrySet<K, V> {
     boolean isValueRefValid(int ei) {
         return (getValueReference(ei) != INVALID_VALUE_REFERENCE);
     }
-    boolean isValueRefValid(long valueReference) {
-        return (valueReference != INVALID_VALUE_REFERENCE);
+
+    /*
+    * When value is connected to entry, first the value reference is CASed to the new one and after
+    * the value version is set to the new one (written off-heap). Inside entry, when value reference
+    * is invalid its version can only be invalid (0) or negative. When value reference is valid and
+    * its version is either invalid (0) or negative, the insertion or deletion of the entry wasn't
+    * accomplished, and needs to be accomplished.
+    * */
+    boolean isValueLinkFinished(LookUp lookUp) {
+        return !((lookUp.valueReference != INVALID_VALUE_REFERENCE) &&
+                 (lookUp.version <= INVALID_VERSION));
     }
 
     /******************************************************************/

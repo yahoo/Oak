@@ -174,7 +174,7 @@ class InternalOakMap<K, V> {
         }
 
         // updating the old entry index
-        if (c.linkValue(opData, true) != TRUE) {
+        if (c.linkValue(opData, true, null) != TRUE) {
             c.releaseValue(opData);
             c.unpublish();
             return null;
@@ -450,7 +450,7 @@ class InternalOakMap<K, V> {
                 continue;
             }
 
-            if (c.linkValue(opData, false) != TRUE) {
+            if (c.linkValue(opData, false, null) != TRUE) {
                 c.releaseValue(opData);
                 c.unpublish();
             } else {
@@ -543,7 +543,7 @@ class InternalOakMap<K, V> {
                         continue;
                     } else {
                         // both threads compete for the put
-                        ei = prevEi;
+                        lookUp.entryIndex = prevEi;
                     }
                 }
             }
@@ -556,7 +556,7 @@ class InternalOakMap<K, V> {
                 continue;
             }
 
-            if (c.linkValue(opData, false) != TRUE) {
+            if (c.linkValue(opData, false, lookUp) != TRUE) {
                 c.releaseValue(opData);
                 c.unpublish();
             } else {
@@ -628,17 +628,16 @@ class InternalOakMap<K, V> {
                     continue;
                 }
                 int prevEi = c.linkEntry(lookUp, key);
-                // our entry wasn't inserted because other entry with same key was found.
-                // If this entry (with index prevEi) is valid we should move to continue
-                // with existing entry scenario (compute), otherwise we can reuse this entry because
-                // its value is invalid.
-                c.releaseKey(lookUp.entryIndex);
                 if (prevEi != lookUp.entryIndex) {
+                    // our entry wasn't inserted because other entry with same key was found.
+                    // If this entry (with index prevEi) is valid we should move to continue
+                    // with existing entry scenario (compute), otherwise we can reuse this entry because
+                    // its value is invalid.
                     c.releaseKey(lookUp.entryIndex);
                     if (c.isValueRefValid(prevEi)) {
                         continue;
                     } else {
-                        ei = prevEi;
+                        lookUp.entryIndex = prevEi;
                     }
                 }
             }
@@ -651,7 +650,7 @@ class InternalOakMap<K, V> {
                 continue;
             }
 
-            if (c.linkValue(opData, false) != TRUE) {
+            if (c.linkValue(opData, false, null) != TRUE) {
                 c.releaseValue(opData);
                 c.unpublish();
             } else {
@@ -1198,7 +1197,8 @@ class InternalOakMap<K, V> {
                         return advance(true);
                     }
                     // If we could not complete the linking or if the value is deleted, advance to the next value
-                    if (valueOperator.isValueDeleted(lookUp.valueSlice, lookUp.version) != FALSE) {
+                    if (lookUp.valueSlice == null ||
+                        (valueOperator.isValueDeleted(lookUp.valueSlice, lookUp.version) != FALSE)) {
                         advanceState();
                         return advance(true);
                     }
