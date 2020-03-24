@@ -127,8 +127,6 @@ public interface ValueUtils {
 
     /* ==================== More complex methods on off-heap values ==================== */
 
-    void unsafeBufferToIntArrayCopy(ByteBuffer bb, int srcPosition, int[] dstArray, int countInts);
-
     /**
      * Used to try and read a value off-heap
      *
