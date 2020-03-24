@@ -75,8 +75,7 @@ public class Chunk<K, V> {
         this.maxItems = maxItems;
         this.entrySet =
             new EntrySet<K,V>(memoryManager, maxItems, keySerializer, valueSerializer,
-                valueOperator,
-                1);
+                valueOperator);
         // if not zero, sorted count keeps the entry index of the last
         // subsequent and ordered entry in the entries array
         this.sortedCount = new AtomicInteger(0);

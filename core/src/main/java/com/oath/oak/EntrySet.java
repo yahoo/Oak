@@ -83,7 +83,7 @@ class EntrySet<K, V> {
     private static final int    POSITION_ARRAY_INDEX = 0;
 
     // location of the first (head) node - just a next pointer (always same value 0)
-    private final int headNextIndex;
+    private final int headNextIndex = Chunk.NONE_NEXT;
 
     // index of first item in array, after head (not necessarily first in list!)
     private static final int HEAD_NEXT_INDEX_SIZE = 1;
@@ -116,19 +116,17 @@ class EntrySet<K, V> {
     /*----------------- Constructor -------------------*/
     /**
      * Create a new EntrySet
-     *  @param memoryManager   for off-heap accesses and updates
+     * @param memoryManager   for off-heap accesses and updates
      * @param entriesCapacity how many entries should this EntrySet keep at maximum
      * @param keySerializer   used to serialize the key when written to off-heap
-     * @param headNextIdx
      */
     EntrySet(MemoryManager memoryManager, int entriesCapacity, OakSerializer<K> keySerializer,
-        OakSerializer<V> valueSerializer, ValueUtils valOffHeapOperator, int headNextIdx) {
+        OakSerializer<V> valueSerializer, ValueUtils valOffHeapOperator) {
         this.memoryManager   = memoryManager;
         this.entries         = new int[entriesCapacity * FIELDS + HEAD_NEXT_INDEX_SIZE];
         this.nextFreeIndex = new AtomicInteger(HEAD_NEXT_INDEX_SIZE);
         this.numOfEntries = new AtomicInteger(0);
         this.entriesCapacity = entriesCapacity;
-        this.headNextIndex   = Chunk.NONE_NEXT;
         this.keySerializer   = keySerializer;
         this.valueSerializer = valueSerializer;
         this.valOffHeapOperator = valOffHeapOperator;

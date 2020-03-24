@@ -64,30 +64,30 @@ public class ValueUtilsImpl implements ValueUtils {
     @Override
     public <V> ValueResult put(Chunk<?, V> chunk, EntrySet.LookUp lookUp, V newVal, OakSerializer<V> serializer,
         MemoryManager memoryManager, InternalOakMap internalOakMap) {
-        ValueResult result = lockWrite(lookUp.valueSlice, lookUp.version);
+        Slice s = lookUp.valueSlice;
+        ValueResult result = lockWrite(s, lookUp.version);
         if (result != TRUE) {
             return result;
         }
-        Slice s = lookUp.valueSlice;
         int capacity = serializer.calculateSize(newVal);
         if (capacity + getHeaderSize() > s.getByteBuffer().remaining()) {
             s = moveValue(chunk, lookUp, memoryManager, internalOakMap, newVal);
             if (s == null) {
                 // rebalance was needed or the entry was updated by someone else, need to retry
+                // here unlock is on old (!) slice
                 unlockWrite(lookUp.valueSlice);
                 return RETRY;
             }
         } else {
-            s = innerPut(chunk, lookUp, newVal, serializer, memoryManager);
+            s = innerPut(chunk, lookUp, newVal, serializer, capacity);
         }
-        unlockWrite(s);
+        unlockWrite(s); // here unlock might be on new (!) slice, the old one remains in moved state
         return TRUE;
     }
 
     private <V> Slice innerPut(Chunk<?, V> chunk, EntrySet.LookUp lookUp, V newVal, OakSerializer<V> serializer,
-                               MemoryManager memoryManager) {
+                               int capacity) {
         Slice s = lookUp.valueSlice;
-        int capacity = serializer.calculateSize(newVal);
         if (capacity + getHeaderSize() > s.getByteBuffer().remaining()) {
             throw new IllegalStateException(); // sanity check
         }
@@ -101,14 +101,13 @@ public class ValueUtilsImpl implements ValueUtils {
         InternalOakMap internalOakMap, V newVal) {
 
         Slice oldSlice = lookUp.valueSlice.duplicate();
-        setLockState(oldSlice, MOVED);
-
         Slice newSlice = internalOakMap.overwriteExistingValueForMove(lookUp, newVal, chunk);
         if (newSlice == null) {
             // rebalance was needed or the entry was updated by someone else, need to retry
             return null;
         }
-
+        // can not release the old slice or mark it moved, before the new one is updated!
+        setLockState(oldSlice, MOVED);
         memoryManager.releaseSlice(oldSlice);
         return newSlice;
     }
@@ -184,7 +183,7 @@ public class ValueUtilsImpl implements ValueUtils {
                 return Result.withFlag(RETRY);
             }
         } else {
-            s = innerPut(chunk, lookUp, value, serializer, memoryManager);
+            s = innerPut(chunk, lookUp, value, serializer, capacity);
         }
         unlockWrite(s);
         return Result.withValue(oldValue);
@@ -213,7 +212,7 @@ public class ValueUtilsImpl implements ValueUtils {
                 return RETRY;
             }
         } else {
-            s = innerPut(chunk, lookUp, value, serializer, memoryManager);
+            s = innerPut(chunk, lookUp, value, serializer, capacity);
         }
         unlockWrite(s);
         return TRUE;
