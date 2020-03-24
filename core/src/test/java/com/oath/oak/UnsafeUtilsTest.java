@@ -53,8 +53,8 @@ public class UnsafeUtilsTest {
             int size = entry.getKey().getInt(0);
             int[] dstArrayValue = new int[size];
             int[] dstArrayKey = new int[size];
-            OakUnsafeRef keyRef = ((OakUnsafeRef) entry.getKey());
-            OakUnsafeRef valueRef = ((OakUnsafeRef) entry.getValue());
+            OakUnsafeDirectBuffer keyRef = ((OakUnsafeDirectBuffer) entry.getKey());
+            OakUnsafeDirectBuffer valueRef = ((OakUnsafeDirectBuffer) entry.getValue());
             UnsafeUtils.unsafeCopyBufferToIntArray(keyRef.getByteBuffer(),
                 keyRef.getOffset() + Integer.BYTES, dstArrayKey, size);
             UnsafeUtils.unsafeCopyBufferToIntArray(valueRef.getByteBuffer(),
