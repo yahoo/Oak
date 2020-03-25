@@ -1,17 +1,17 @@
 # Oak
 > Oak (Off-heap Allocated Keys) is a scalable, concurrent, in-memory Key Value (KV) map.
 
-OakMap is a concurrent Key-Value Map that may keep all keys and values off-heap. This enables working with bigger heap sizes than JVM's managed heap.
+OakMap is a concurrent Key-Value Map that keeps all keys and values off-heap. This allows storing more data (up to 3 times more data) compare to using the standard JVM heap management, albeit using the same memory footprint.
 OakMap implements the industry standard Java8 ConcurrentNavigableMap API. It provides strong (atomic) semantics for read, write, and read-modify-write, as well as (non-atomic) range query (scan) operations, both forward and backward.
 OakMap is optimized for big keys and values, in particular, for incremental maintenance of objects (update in-place).
 It is faster and scales better with additional CPU cores than the popular Java ConcurrentNavigableMap [ConcurrentSkipListMap](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/ConcurrentSkipListMap.html).
 
 ## Why OakMap?
-1. OakMap provides great performance: it employs fine-grain synchronization, and thus scales well with numbers of threads; it also achieves cache-friendliness by avoiding memory fragmentation. [Performance evaluation](https://github.com/yahoo/Oak/wiki/Performance).
+1. OakMap provides great performance: it employs fine-grain synchronization, and thus scales well with numbers of threads; it also achieves cache-friendliness by avoiding memory fragmentation (see [performance evaluation](https://github.com/yahoo/Oak/wiki/Performance)).
 2. OakMap takes keys and the data off-heap, and thus allows working with a huge heap (RAM) -- even more than 50G -- without JVM GC overheads.
 	- To support off-heap, OakMap has embedded, efficient, epoch-based memory management that mostly eliminates JVM GC overheads.
 4. OakMap provides a rich API for **atomic** accesses to data. For example, OakMap supports atomic compute() -- in place computations on existing keys -- whereas the current Java ConcurrentSkipListMap implementation does not guarantee the atomicity of compute(). OakMap’s update operations (such as put and compute) take user-provided lambda functions for easy integration in diverse use cases.
-5. Descending Scans: OakMap expedites descending scans without additional complexity. In our experiments, OakMap’s descending scans are 4.8x faster than ConcurrentSkipListMap’s, and perform similarly to their ascending counterparts. [Performance evaluation](https://github.com/yahoo/Oak/wiki/Performance).
+5. Descending Scans: OakMap expedites descending scans without additional complexity. In our experiments, OakMap’s descending scans are 4.8x faster than ConcurrentSkipListMap’s, and perform similarly to their ascending counterparts (see [performance evaluation](https://github.com/yahoo/Oak/wiki/Performance)).
 
 ## Table of Contents
 
@@ -58,29 +58,48 @@ OakMap requires multiple parameters to be defined for the builder, as shall be e
 When constructing off-heap OakMap, the memory capacity (per OakMap instance) needs to be specified. OakMap allocates the off-heap memory with the requested capacity at construction time, and later manages this memory.
 
 ### OakSerializer
-As explained above, OakMap<K,V> is given key 'K' and value 'V', which are requested to come with a serializer, deserializer and size calculator. OakMap user is requested to implement the following interface that can be found in the Oak project.
+As explained above, OakMap<K,V> is given key 'K' and value 'V', which are requested to come with a serializer, deserializer and size calculator. OakMap user needs to implement the following interface that can be found in the Oak project.
 
 ```java
 public interface OakSerializer<T> {
+  // serializes the data
+  void serialize(T data, OakWriteBuffer serializedData);
 
-  // serializes the object
-  void serialize(T source, ByteBuffer targetBuffer);
+  // deserializes the data
+  T deserialize(OakReadBuffer serializedData);
 
-  // deserializes the given byte buffer
-  T deserialize(ByteBuffer byteBuffer);
-
-  // returns the number of bytes needed for serializing the given object
-  int calculateSize(T object);
+  // returns the number of bytes needed for serializing the given data
+  int calculateSize(T data);
 }
 ```
 
-This is how to create those classes in your code:
+*Note 1*: Oak use dedicated objects to access off-heap memory: `OakReadBuffer` and `OakWriteBuffer`.
+See [Oak Buffers](#oak-buffers) for more information.
+
+*Note 2*: `OakReadBuffer` and `OakWriteBuffer` should not be stored for future use.
+They are valid only in the context of these methods (`serialize()`/`deserialize()`).
+Using these buffers outside their intended context may yield unpredicted results.
+
+For example, the implementation of key serializer for an application that use integer as keys might like this:
 
 ```java
-public class OakKeySerializerImplementation implements OakSerializer<K>
-{...}
+public class MyAppKeySerializer implements OakSerializer<Integer> {
+  void serialize(Integer key, OakWriteBuffer serializedKey) {
+    // We store the value at the first position of the off-heap buffer.
+    storage.putInt(0, value);
+  }
+    
+  Integer deserialize(OakReadBuffer serializedKey) {
+    return serializedKey.getInt(0);
+  }
+    
+  int calculateSize(Integer key) {
+    // We only store one integer
+    return Integer.BYTES;
+  }
+}
 
-public class OakValueSerializerImplementation implements OakSerializer<V>
+public class MayAppValueSerializer implements OakSerializer<V>
 {...}
 ```
 
@@ -92,20 +111,38 @@ After a Key-Value pair is inserted into OakMap, it is kept in a serialized (buff
 Thus, while searching through the map, OakMap might compare between keys in their Object and Serialized modes. OakMap provides the following interface for such a comparator:
 ```java
 public interface OakComparator<K> {
-
   int compareKeys(K key1, K key2);
 
-  int compareSerializedKeys(ByteBuffer serializedKey1, ByteBuffer serializedKey2);
+  int compareSerializedKeys(OakReadBuffer serializedKey1, OakReadBuffer serializedKey2);
 
-  int compareSerializedKeyAndKey(ByteBuffer serializedKey, K key);
+  int compareSerializedKeyAndKey(OakReadBuffer serializedKey1, K key2);
 }
 ```
 
-This is how to create the comparator class in your code:
+*Note 1*: Oak use dedicated objects to access off-heap memory: `OakReadBuffer` and `OakWriteBuffer`.
+See [Oak Buffers](#oak-buffers) for more information.
+
+*Note 2*: `OakReadBuffer` and `OakWriteBuffer` should not be stored for future use.
+They are valid only in the context of these methods (`compareKeys()`/`compareSerializedKeys()/compareSerializedKeyAndKey()`).
+Using these buffers outside their intended context may yield unpredicted results.
+
+For example, the implementation of key serializer for an application that use integer as keys might like this:
 
 ```java
-public class OakKeyComparatorImplementation implements OakComparator<K>
-{...}
+public class MyAppKeyComparator implements OakComparator<Integer>
+{
+  int compareKeys(Integer key1, Integer key2) {
+    return key1 - key2;
+  }
+
+  int compareSerializedKeys(OakReadBuffer serializedKey1, OakReadBuffer serializedKey2) {
+    return serializedKey1.getInt(0) - serializedKey2.getInt(0); 
+  }
+
+  int compareSerializedKeyAndKey(OakReadBuffer serializedKey1, Integer key2) {
+    return serializedKey1.getInt(0) - key2;
+  }
+}
 ```
 
 ### Builder
@@ -113,10 +150,10 @@ We provide an example how to create OakMapBuilder and OakMap. For a more compreh
 
 ```java
 OakMapBuilder<K,V> builder = new OakMapBuilder()
-            .setKeySerializer(new OakKeySerializerImplementation(...))
-            .setValueSerializer(new OakValueSerializerImplementation(...))
+            .setKeySerializer(new MyAppKeySerializer())
+            .setValueSerializer(new MyAppValueSerializer())
             .setMinKey(...)
-            .setKeysComparator(new OakKeyComparatorImplementation(...))
+            .setKeysComparator(new MyAppKeyComparator())
             .setMemoryCapacity(...);
 
 OakMap<K,V> oak = builder.build();
@@ -128,13 +165,31 @@ OakMap<K,V> oak = builder.build();
 You are welcome to take a look on the OakMap's [full API](https://github.com/yahoo/Oak/wiki/Full-API).
 OakMap's API implements the ConcurrentNavigableMap interface. For improved performance, it offers additional non-standard zero-copy API methods that are discussed below.
 
-### OakBuffers
-OakMap provides two types of memory buffers: *OakRBuffer* (read-only) and *OakWBuffer* (read and write). These buffers support a similar API for read-only Java ByteBuffers and writable Java ByteBuffers, respectively.
+### Oak Buffers
+Oak use dedicated buffer objects to access off-heap memory. 
+These buffers cannot be instantiated by the user and are always supplied to the user by Oak.
+Their interfaces are:
+ 1. `OakReadBuffer`: scoped, read-only access to the data.
+ 2. `OakWriteBuffer`: scoped, read and write access to the data.
+ 3. `OakScopeFreeBuffer`: scope-free, read-only access to the data.
+ 
+The first two buffers (`OakReadBuffer` and `OakWriteBuffer`) are scoped, i.e., they can only be used in the scope of the callback method they were first introduced to the user. 
+Such callback method might be the application's serializer and comparator, or a lambda function that can read/store/update the data (see [full API](https://github.com/yahoo/Oak/wiki/Full-API) for more information).
+This access reduces unnecessary copies and deserialization of the underlying data.
+In their intended context, the user does not need to worry about concurrent accesses and memory management.
+Using these buffers outside their intended context may yield unpredicted results, e.g., reading non-consistent data and/or irrelevant data.
 
-OakMap buffers allow the user direct access to the underlying serialized key-value pairs, without needing to worry about  concurrent accesses and memory management. This access reduces unnecessary copies and deserialization of the underlying mappings.
-Note, however, that since OakMap's get method avoids copying the value and instead returns access to the same underlying memory buffer that compute operations update in-place, the reader may encounter different values -- and even value deletions -- when accessing the buffer returned from get multiple times. This is of course normal behavior for a concurrent map that avoids copying.
+`OakScopeFreeBuffer`, however, is scoped free. 
+Its usage is not scope limited and may be stored for future use.
+Some OakMap's methods returns `OakScopeFreeBuffer` to avoids copying the value and instead the user can access to the underlying memory buffer directly.
+The same memory might be access by a concurrent update operations.
+Thus, the reader may encounter different values -- and even value deletions -- when accessing `OakScopeFreeBuffer` multiple times.
+This is of course normal behavior for a concurrent map that avoids copying.
+See the [zero-copy API](#zero-copy-api) for more information.
 
-An OakRBuffer can represent either a key or a value. The OakRBuffer's user can use the standard interface of a *read-only* ByteBuffer, for example, `int getInt(int index)`, `char getChar(int index)`, `limit()`, etc. Note that ConcurrentModificationException can be thrown as a result of any OakRBuffer method in case the mapping is concurrently deleted.
+An OakRBuffer can represent either a key or a value.
+The OakRBuffer's user can use the standard interface of a *read-only* ByteBuffer, for example, `int getInt(int index)`, `char getChar(int index)`, `limit()`, etc. 
+Note that ConcurrentModificationException can be thrown as a result of any OakRBuffer method in case the mapping is concurrently deleted.
 
 For backward compatibility with applications that are already based on the use of ByteBuffers, Oak Buffers provide the transform method that atomically applies a transformation to a *read-only* instance of the underlying ByteBuffer. For a more comprehensive code example please refer to the [usage](#usage) section. 
 
