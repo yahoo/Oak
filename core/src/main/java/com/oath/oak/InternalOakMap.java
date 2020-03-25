@@ -982,7 +982,7 @@ class InternalOakMap<K, V> {
                 keyArray[POSITION_ARRAY_INDEX], keyArray[BLOCK_ID_LENGTH_ARRAY_INDEX] & KEY_LENGTH_MASK);
     }
 
-    private OakRKeyBufferImpl setKeyReference(long keyReference, OakRKeyBufferImpl key) {
+    private OakRBufferStream setKeyReference(long keyReference, OakRBufferStream key) {
         int[] keyArray = UnsafeUtils.longToInts(keyReference);
         int blockID = keyArray[BLOCK_ID_LENGTH_ARRAY_INDEX] >> KEY_BLOCK_SHIFT;
         int keyPosition = keyArray[POSITION_ARRAY_INDEX];
@@ -1194,7 +1194,7 @@ class InternalOakMap<K, V> {
          * Advances next to the next entry without creating a ByteBuffer for the key.
          * Return previous index
          */
-        OakRKeyBufferImpl advanceStream(OakRKeyBufferImpl key, OakRKeyBufferImpl value) {
+        OakRBufferStream advanceStream(OakRBufferStream key, OakRBufferStream value) {
 
             if (state == null) {
                 throw new NoSuchElementException();
@@ -1332,7 +1332,7 @@ class InternalOakMap<K, V> {
 
     class ValueStreamIterator extends Iter<OakRBuffer> {
 
-        private OakRKeyBufferImpl value = new OakRKeyBufferImpl(memoryManager, valueOperator.getHeaderSize());
+        private OakRBufferStream value = new OakRBufferStream(memoryManager, valueOperator.getHeaderSize());
 
         ValueStreamIterator(K lo, boolean loInclusive, K hi, boolean hiInclusive, boolean isDescending) {
             super(lo, loInclusive, hi, hiInclusive, isDescending);
@@ -1398,15 +1398,15 @@ class InternalOakMap<K, V> {
             long valueReference = myItem.valueReference;
             int version = myItem.valueVersion;
             return new AbstractMap.SimpleImmutableEntry<>(setKeyReference(keyReference,
-                    new OakRKeyBufferImpl(memoryManager, KEY_HEADER_SIZE)), new OakRValueBufferImpl(valueReference,
+                    new OakRBufferStream(memoryManager, KEY_HEADER_SIZE)), new OakRValueBufferImpl(valueReference,
                     version, keyReference, valueOperator, memoryManager, internalOakMap));
         }
     }
 
     class EntryStreamIterator extends Iter<Map.Entry<OakRBuffer, OakRBuffer>> implements Map.Entry<OakRBuffer, OakRBuffer> {
 
-        private OakRKeyBufferImpl key = new OakRKeyBufferImpl(memoryManager, KEY_HEADER_SIZE);
-        private OakRKeyBufferImpl value = new OakRKeyBufferImpl(memoryManager, valueOperator.getHeaderSize());
+        private OakRBufferStream key = new OakRBufferStream(memoryManager, KEY_HEADER_SIZE);
+        private OakRBufferStream value = new OakRBufferStream(memoryManager, valueOperator.getHeaderSize());
 
         EntryStreamIterator(K lo, boolean loInclusive, K hi, boolean hiInclusive, boolean isDescending) {
             super(lo, loInclusive, hi, hiInclusive, isDescending);
@@ -1495,14 +1495,14 @@ class InternalOakMap<K, V> {
         public OakRBuffer next() {
 
             IterItem myItem = advance(false);
-            return setKeyReference(myItem.keyReference, new OakRKeyBufferImpl(memoryManager, KEY_HEADER_SIZE));
+            return setKeyReference(myItem.keyReference, new OakRBufferStream(memoryManager, KEY_HEADER_SIZE));
 
         }
     }
 
     public class KeyStreamIterator extends Iter<OakRBuffer> {
 
-        private OakRKeyBufferImpl key = new OakRKeyBufferImpl(memoryManager, KEY_HEADER_SIZE);
+        private OakRBufferStream key = new OakRBufferStream(memoryManager, KEY_HEADER_SIZE);
 
         KeyStreamIterator(K lo, boolean loInclusive, K hi, boolean hiInclusive, boolean isDescending) {
             super(lo, loInclusive, hi, hiInclusive, isDescending);
