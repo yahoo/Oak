@@ -413,11 +413,9 @@ class InternalOakMap<K, V> {
             the absolute value of the version written in lookUp (this way, if the version is already negative, it
             remains negative).
              */
-            int ei;
             if (lookUp != null) {
                 lookUp.version = -Math.abs(lookUp.version);
-                ei = lookUp.entryIndex;
-                assert ei > 0;
+                assert lookUp.entryIndex > 0;
             } else {
                 // lookUp is null so there was no such key found, while EntrySet allocates the entry
                 // (holding the key) the new lookUp is going to be returned to be used by EntrySet's
@@ -505,14 +503,12 @@ class InternalOakMap<K, V> {
             the absolute value of the version written in lookUp (this way, if the version is already negative, it
             remains negative).
              */
-            int ei;
             if (lookUp != null) {
                 // There's an entry for this key, but it isn't linked to any value (in which case valueReference is
                 // DELETED_VALUE)
                 // or it's linked to a deleted value that is referenced by valueReference (a valid one)
                 lookUp.version = -Math.abs(lookUp.version);
-                ei = lookUp.entryIndex;
-                assert ei > 0;
+                assert lookUp.entryIndex > 0;
             } else {
                 // lookUp is null so there was no such key found, while EntrySet allocates the entry
                 // (holding the key) the new lookUp is going to be returned to be used by EntrySet's
@@ -613,11 +609,9 @@ class InternalOakMap<K, V> {
             // 1. no entry in the linked list at all
             // 2. entry in the linked list, but the value reference is INVALID_VALUE_REFERENCE
             // 3. entry in the linked list, the value referenced is marked as deleted
-            int ei;
             if (lookUp != null) {
                 lookUp.version = -Math.abs(lookUp.version);
-                ei = lookUp.entryIndex;
-                assert ei > 0;
+                assert lookUp.entryIndex > 0;
             } else {
                 // lookUp is null so there was no such key found, while EntrySet allocates the entry
                 // (holding the key) the new lookUp is going to be returned to be used by EntrySet's

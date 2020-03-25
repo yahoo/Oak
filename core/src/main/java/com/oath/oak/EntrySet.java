@@ -268,8 +268,7 @@ class EntrySet<K, V> {
             // *2 in order to get read of the signed vs unsigned limits
             assert value < Short.MAX_VALUE * 2;
             // set two low bytes of the key block id and length index
-            entries[intFieldIdx + offset.value] =
-                (entries[intFieldIdx + offset.value]) | (value & KEY_LENGTH_MASK);
+            entries[intFieldIdx + offset.value] |= (value & KEY_LENGTH_MASK);
             return;
         case KEY_BLOCK:
             // OFFSET_KEY_LENGTH and OFFSET_KEY_BLOCK should be less then 16 bits long
@@ -278,20 +277,17 @@ class EntrySet<K, V> {
             // offset must be OFFSET_KEY_BLOCK,
             // set 2 high bytes of the int inside OFFSET_KEY_LENGTH
             assert value > 0; // block id can never be 0
-            entries[intFieldIdx + offset.value] =
-                (entries[intFieldIdx + offset.value]) | (value << KEY_BLOCK_SHIFT);
+            entries[intFieldIdx + offset.value] |= (value << KEY_BLOCK_SHIFT);
             return;
         case VALUE_LENGTH:
             // make sure the length is at most 2^23 and at least 0
             assert (value & VALUE_LENGTH_MASK) == value;
-            entries[intFieldIdx + offset.value] =
-                (entries[intFieldIdx + offset.value]) | (value & VALUE_LENGTH_MASK);
+            entries[intFieldIdx + offset.value] |= (value & VALUE_LENGTH_MASK);
             return;
         case VALUE_BLOCK:
             assert value > 0; // block id can never be 0
             assert ((value << VALUE_BLOCK_SHIFT) >>> VALUE_BLOCK_SHIFT) == value; // value is up to 2^9
-            entries[intFieldIdx + offset.value] =
-                (entries[intFieldIdx + offset.value]) | (value << VALUE_BLOCK_SHIFT);
+            entries[intFieldIdx + offset.value] |= (value << VALUE_BLOCK_SHIFT);
             return;
         default:
             entries[intFieldIdx + offset.value] = value; // used for NEXT
