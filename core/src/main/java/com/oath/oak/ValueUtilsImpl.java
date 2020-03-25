@@ -69,27 +69,20 @@ public class ValueUtilsImpl implements ValueUtils {
         if (result != TRUE) {
             return result;
         }
-        int capacity = serializer.calculateSize(newVal);
-        if (capacity + getHeaderSize() > s.getByteBuffer().remaining()) {
-            s = moveValue(chunk, lookUp, memoryManager, internalOakMap, newVal);
-            if (s == null) {
-                // rebalance was needed or the entry was updated by someone else, need to retry
-                // here unlock is on old (!) slice
-                unlockWrite(lookUp.valueSlice);
-                return RETRY;
-            }
-        } else {
-            s = innerPut(chunk, lookUp, newVal, serializer, capacity);
-        }
-        unlockWrite(s); // here unlock might be on new (!) slice, the old one remains in moved state
-        return TRUE;
+        s = innerPut(chunk, lookUp, newVal, serializer, memoryManager, internalOakMap);
+        // in case move happened: a new slice can be returned or alternatively
+        // (returned slice is null) then rebalance might be needed
+        // or the entry might be updated by someone else, need to retry
+        unlockWrite(s!=null ? s : lookUp.valueSlice);
+        return (s!=null ? TRUE : RETRY);
     }
 
     private <V> Slice innerPut(Chunk<?, V> chunk, EntrySet.LookUp lookUp, V newVal, OakSerializer<V> serializer,
-                               int capacity) {
+            MemoryManager memoryManager, InternalOakMap internalOakMap) {
         Slice s = lookUp.valueSlice;
+        int capacity = serializer.calculateSize(newVal);
         if (capacity + getHeaderSize() > s.getByteBuffer().remaining()) {
-            throw new IllegalStateException(); // sanity check
+            return moveValue(chunk, lookUp, memoryManager, internalOakMap, newVal);
         }
         ByteBuffer bb = getValueByteBufferNoHeader(s);
         serializer.serialize(newVal, bb);
@@ -173,20 +166,12 @@ public class ValueUtilsImpl implements ValueUtils {
         if (valueDeserializeTransformer != null) {
             oldValue = valueDeserializeTransformer.apply(getValueByteBufferNoHeader(lookUp.valueSlice));
         }
-        Slice s = lookUp.valueSlice;
-        int capacity = serializer.calculateSize(value);
-        if (capacity + getHeaderSize() > s.getByteBuffer().remaining()) {
-            s = moveValue(chunk, lookUp, memoryManager, internalOakMap, value);
-            if (s == null) {
-                // rebalance was needed or the entry was updated by someone else, need to retry
-                unlockWrite(lookUp.valueSlice);
-                return Result.withFlag(RETRY);
-            }
-        } else {
-            s = innerPut(chunk, lookUp, value, serializer, capacity);
-        }
-        unlockWrite(s);
-        return Result.withValue(oldValue);
+        Slice s = innerPut(chunk, lookUp, value, serializer, memoryManager, internalOakMap);
+        // in case move happened: a new slice can be returned or alternatively
+        // (returned slice is null) then rebalance might be needed
+        // or the entry might be updated by someone else, need to retry
+        unlockWrite(s!=null ? s : lookUp.valueSlice);
+        return s != null ? Result.withValue(oldValue) : Result.withFlag(RETRY);
     }
 
     @Override
@@ -202,20 +187,12 @@ public class ValueUtilsImpl implements ValueUtils {
             unlockWrite(lookUp.valueSlice);
             return FALSE;
         }
-        Slice s = lookUp.valueSlice;
-        int capacity = serializer.calculateSize(value);
-        if (capacity + getHeaderSize() > s.getByteBuffer().remaining()) {
-            s = moveValue(chunk, lookUp, memoryManager, internalOakMap, value);
-            if (s == null) {
-                // rebalance was needed or the entry was updated by someone else, need to retry
-                unlockWrite(lookUp.valueSlice);
-                return RETRY;
-            }
-        } else {
-            s = innerPut(chunk, lookUp, value, serializer, capacity);
-        }
-        unlockWrite(s);
-        return TRUE;
+        Slice s = innerPut(chunk, lookUp, value, serializer, memoryManager, internalOakMap);
+        // in case move happened: a new slice can be returned or alternatively
+        // (returned slice is null) then rebalance might be needed
+        // or the entry might be updated by someone else, need to retry
+        unlockWrite(s!=null ? s : lookUp.valueSlice);
+        return s != null ? TRUE : RETRY;
     }
 
     @Override
