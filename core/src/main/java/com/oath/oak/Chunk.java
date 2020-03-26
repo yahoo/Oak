@@ -247,7 +247,7 @@ public class Chunk<K, V> {
      * The thread-local ByteBuffer can be reused by different threads, however as long as
      * a thread is invoked the ByteBuffer is related solely to this thread.
      */
-    void setKeyRefer(int entryIndex, OakRBufferStream keyReferBuffer) {
+    void setKeyRefer(int entryIndex, OakRKeyBuffer keyReferBuffer) {
         if (entryIndex == Chunk.NONE) {
             return;
         }
@@ -259,7 +259,7 @@ public class Chunk<K, V> {
         keyReferBuffer.setReference(blockID, keyPosition, length);
     }
 
-    boolean setValueRefer(int entryIndex, OakRBufferStream value) {
+    boolean setValueRefer(int entryIndex, OakRKeyBuffer value) {
         if (entryIndex == Chunk.NONE) {
             return false;
         }
