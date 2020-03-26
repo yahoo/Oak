@@ -431,7 +431,7 @@ class InternalOakMap<K, V> {
                     // If this entry (with index prevEi) is valid we should move to continue
                     // with existing entry scenario, otherwise we can reuse this entry because
                     // its value is invalid.
-                    c.releaseKey(lookUp.entryIndex);
+                    c.releaseKey(lookUp);
                     if (!c.isValueRefValid(prevEi)) {
                         continue;
                     }
@@ -523,7 +523,7 @@ class InternalOakMap<K, V> {
                     // our entry wasn't inserted because other entry with same key was found.
                     // If this entry (with index prevEi) is valid we should return false,
                     // otherwise we can reuse this entry because its value is invalid.
-                    c.releaseKey(lookUp.entryIndex);
+                    c.releaseKey(lookUp);
                     // for non-zc interface putIfAbsent returns the previous value associated with
                     // the specified key, or null if there was no mapping for the key.
                     // so we need to create a slice to let transformer create the value object
@@ -627,7 +627,7 @@ class InternalOakMap<K, V> {
                     // If this entry (with index prevEi) is valid we should move to continue
                     // with existing entry scenario (compute), otherwise we can reuse this entry because
                     // its value is invalid.
-                    c.releaseKey(lookUp.entryIndex);
+                    c.releaseKey(lookUp);
                     if (c.isValueRefValid(prevEi)) {
                         continue;
                     } else {

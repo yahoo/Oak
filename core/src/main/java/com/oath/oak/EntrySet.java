@@ -230,15 +230,15 @@ class EntrySet<K, V> {
         switch (offset) {
         case KEY_LENGTH:
             // return two low bytes of the key length index int
-            return (entries[intFieldIdx + offset.value] & KEY_LENGTH_MASK);
+            return entries[intFieldIdx + offset.value] & KEY_LENGTH_MASK;
         case KEY_BLOCK:
             // offset must be OFFSET_KEY_BLOCK, return 2 high bytes of the int inside key length
             // right-shift force, fill empty with zeroes
-            return (entries[intFieldIdx + offset.value] >>> KEY_BLOCK_SHIFT);
+            return entries[intFieldIdx + offset.value] >>> KEY_BLOCK_SHIFT;
         case VALUE_LENGTH:
-            return (entries[intFieldIdx + offset.value] & VALUE_LENGTH_MASK);
+            return entries[intFieldIdx + offset.value] & VALUE_LENGTH_MASK;
         case VALUE_BLOCK:
-            return (entries[intFieldIdx + offset.value] >>> VALUE_BLOCK_SHIFT);
+            return entries[intFieldIdx + offset.value] >>> VALUE_BLOCK_SHIFT;
         default:
             return entries[intFieldIdx + offset.value];
         }
@@ -476,7 +476,7 @@ class EntrySet<K, V> {
     }
 
     /**
-     * buildValueSlice builds a slice given entry index
+     * buildValueSlice builds a value slice given entry index
      */
     Slice buildValueSlice(int ei) {
 
@@ -487,11 +487,24 @@ class EntrySet<K, V> {
     }
 
     /**
+     * buildKeySlice builds a key slice given entry index
+     */
+    private Slice buildKeySlice(int ei) {
+        long keyReference = getKeyReference(ei);
+        assert keyReference != INVALID_KEY_REFERENCE;
+        int[] keyArray = UnsafeUtils.longToInts(keyReference);
+        int blockID = getKeyBlockIDFromIntArray(keyArray);
+        int keyPosition = getPositionFromIntArray(keyArray);
+        int length = getKeyLengthFromIntArray(keyArray);
+        return new Slice(blockID, keyPosition, length, memoryManager);
+    }
+
+    /**
      * buildValueReference builds a long reference given a slice
      */
     private long buildValueReference(Slice slice, int valueLength) {
         int valueBlockAndLength = (slice.getBlockID() << VALUE_BLOCK_SHIFT) | (valueLength & VALUE_LENGTH_MASK);
-        return UnsafeUtils.intsToLong(slice.getByteBuffer().position(), valueBlockAndLength);
+        return UnsafeUtils.intsToLong(slice.getOriginalPosition(), valueBlockAndLength);
     }
 
     /********************************************************************************************/
@@ -573,15 +586,15 @@ class EntrySet<K, V> {
                 null, valueReference, ei, version[0], getKeyReference(ei),
                 (version[0] >= INVALID_VERSION)); // if version is negative no need to finalize delete
         }
-        ValueUtils.ValueResult result = valOffHeapOperator.isValueDeleted(valueSlice, version[0]);
+        ValueUtils.ValueResult result = valOffHeapOperator.isValueDeleted(valueSlice, valueSlice.getVersion());
         if (result == TRUE) {
             // There is a deleted value associated with the given key
             return new LookUp(
-                null, valueReference, ei, version[0], getKeyReference(ei),
+                null, valueReference, ei, valueSlice.getVersion(), getKeyReference(ei),
                 true);
         }
         // If result == RETRY, we ignore it, since it will be discovered later down the line as well
-        return new LookUp(valueSlice, valueReference, ei, version[0], getKeyReference(ei), false);
+        return new LookUp(valueSlice, valueReference, ei, valueSlice.getVersion(), getKeyReference(ei), false);
     }
 
     /**
@@ -597,7 +610,7 @@ class EntrySet<K, V> {
         keySerializer.serialize(key, s.getByteBuffer().slice());
 
         setEntryFieldInt(intIdx, OFFSET.KEY_BLOCK, s.getBlockID());
-        setEntryFieldInt(intIdx, OFFSET.KEY_POSITION, s.getByteBuffer().position());
+        setEntryFieldInt(intIdx, OFFSET.KEY_POSITION, s.getOriginalPosition());
         setEntryFieldInt(intIdx, OFFSET.KEY_LENGTH, keySize);
     }
 
@@ -626,7 +639,7 @@ class EntrySet<K, V> {
         return mm.getByteBufferFromBlockID(blockID, keyPosition, length);
     }
 
-    void setKeyRefer(int ei, OakRReference keyRef) {
+    void setKeyOutputRBuff(int ei, OakRReference keyRef) {
         if (ei == INVALID_ENTRY_INDEX) {
             return;
         }
@@ -656,7 +669,7 @@ class EntrySet<K, V> {
      * Returns true otherwise
      * a thread is invoked on the ByteBuffer is related solely to this thread.
      */
-    boolean setValueRefer(int ei, OakRReference valueRef) {
+    boolean setValueOutputRBuff(int ei, OakRReference valueRef) {
         if (ei == INVALID_ENTRY_INDEX) {
             return false;
         }
@@ -676,16 +689,10 @@ class EntrySet<K, V> {
     /**
      * releaseKey releases key in slice, currently in use only for unreached keys,
      * waiting for GC to be arranged
-     **/
-    void releaseKey(int ei) {
-        long keyReference = getKeyReference(ei);
-        int[] keyArray = UnsafeUtils.longToInts(keyReference);
-        int blockID = getKeyBlockIDFromIntArray(keyArray);
-        int keyPosition = getPositionFromIntArray(keyArray);
-        int length = getKeyLengthFromIntArray(keyArray);
-
-        Slice s = new Slice(blockID, keyPosition, length, memoryManager);
-        memoryManager.releaseSlice(s);
+     *
+     * @param lookUp*/
+    void releaseKey(LookUp lookUp) {
+        memoryManager.releaseSlice(buildKeySlice(lookUp.entryIndex));
     }
 
     /**

@@ -219,9 +219,10 @@ public class Chunk<K, V> {
 
     /**
      * release key in slice, currently not in use, waiting for GC to be arranged
-     **/
-    void releaseKey(int entryIndex) {
-      entrySet.releaseKey(entryIndex);
+     *
+     * @param lookUp*/
+    void releaseKey(EntrySet.LookUp lookUp) {
+        entrySet.releaseKey(lookUp);
     }
 
     // Use this function to release an unreachable value reference
@@ -248,11 +249,11 @@ public class Chunk<K, V> {
     }
 
     void setKeyReference(int ei, OakRReference keyRef) {
-        entrySet.setKeyRefer(ei, keyRef);
+        entrySet.setKeyOutputRBuff(ei, keyRef);
     }
 
     boolean setValueReference(int ei, OakRReference valueRef) {
-        return entrySet.setValueRefer(ei, valueRef);
+        return entrySet.setValueOutputRBuff(ei, valueRef);
     }
 
     /**
@@ -376,7 +377,7 @@ public class Chunk<K, V> {
                 // index key. Then increase the sorted count.
                 int sortedCount = this.sortedCount.get();
                 if (sortedCount > 0) {
-                    if (ei == (sortedCount + 1)) {
+                    if (ei == (sortedCount + 1)) { // first entry has entry index 1, not 0
                         // the new entry's index is exactly after the sorted count
                         if (comparator.compareKeyAndSerializedKey(
                                 key, entrySet.readKey(sortedCount)) >= 0) {
