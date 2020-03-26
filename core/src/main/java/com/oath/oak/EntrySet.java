@@ -19,6 +19,40 @@ import static com.oath.oak.ValueUtils.ValueResult.TRUE;
 
 /* EntrySet keeps a set of entries. Entry is reference to key and value, both located off-heap.
 ** EntrySet provides access, updates and manipulation on each entry, provided its index.
+**
+** IMPORTANT: Due to limitation in amount of bits we use to represent Block ID the amount of memory
+** supported by ALL OAKs in one system is 128GB only!
+**
+** Entry is a set of 6 (FIELDS) consecutive integers, part of "entries" int array. The definition
+** of each integer is explained below. Also bits of each integer are represented in a very special
+** way (also explained below). This makes any changes made to this class very delicate. Please
+** update with care.
+**
+** Entries Array:
+** --------------------------------------------------------------------------------------
+** 0 | headNextIndex keeps entry index of the first ordered entry
+** --------------------------------------------------------------------------------------
+** 1 | NEXT  - entry index of the entry following the entry with entry index 1  |
+** -----------------------------------------------------------------------------|
+** 2 | KEY_POSITION           | those 2 integers together, represented as long  | entry with
+** ---------------------------| provide KEY_REFERENCE. Pay attention that       | entry index
+** 3 | KEY_BLOCK_AND_LENGTH   | KEY_REFERENCE is different than VALUE_REFERENCE | 1
+** -----------------------------------------------------------------------------|
+** 4 | VALUE_POSITION         | those 2 integers together, represented as long  | entry that
+** ---------------------------| provide VALUE_REFERENCE. Pay attention that     | was allocated
+** 5 | VALUE_BLOCK_AND_LENGTH | VALUE_REFERENCE is different than KEY_REFERENCE | first
+ ** ----------------------------------------------------------------------------|
+** 6 | VALUE_VERSION - the version of the value required for memory management  |
+** --------------------------------------------------------------------------------------
+** 7 | NEXT  - entry index of the entry following the entry with entry index 2  |
+** -----------------------------------------------------------------------------|
+** 8 | KEY_POSITION           | those 2 integers together, represented as long  | entry with
+** ---------------------------| provide KEY_REFERENCE. Pay attention that       | entry index
+** 9 | KEY_BLOCK_AND_LENGTH   | KEY_REFERENCE is different than VALUE_REFERENCE | 2
+** -----------------------------------------------------------------------------|
+** ...
+**
+**
 ** Internal class, package visibility */
 class EntrySet<K, V> {
 
@@ -38,8 +72,11 @@ class EntrySet<K, V> {
          *
          * KEY_POSITION
          *
-         * KEY_BLOCK_AND_LENGTH - similar to VALUE_BLOCK_AND_LENGTH, but using KEY_LENGTH_MASK and KEY_BLOCK_SHIFT.
-         * The length of a key is limited to 32KB.
+         * KEY_BLOCK_AND_LENGTH - this integer holds both the blockID and the length of the key pointed by the entry.
+         * Using KEY_LENGTH_MASK and KEY_BLOCK_SHIFT the blockID and length can be extracted.
+         * Currently, the length of a key is limited to 32KB, and blockID is limited to 512 blocks
+         * (with the current block size of 256MB, the total memory is up to 128GB).
+         *
          *
          * KEY_BLOCK
          *
@@ -83,7 +120,7 @@ class EntrySet<K, V> {
     private static final int    POSITION_ARRAY_INDEX = 0;
 
     // location of the first (head) node - just a next pointer (always same value 0)
-    private final int headNextIndex = Chunk.NONE_NEXT;
+    private final int headNextIndex = 0;
 
     // index of first item in array, after head (not necessarily first in list!)
     private static final int HEAD_NEXT_INDEX_SIZE = 1;
@@ -99,7 +136,7 @@ class EntrySet<K, V> {
     private static final Unsafe unsafe = UnsafeUtils.unsafe;
     private final MemoryManager memoryManager;
 
-    private final int[] entries;    // array is initialized to 0, i.e., Chunk.NONE_NEXT - this is important!
+    private final int[] entries;    // array is initialized to 0 - this is important!
     private final int entriesCapacity; // number of entries (not ints) to be maximally held
 
     private final AtomicInteger nextFreeIndex;    // points to next free index of entry array
@@ -192,8 +229,7 @@ class EntrySet<K, V> {
          * {@code version > INVALID_VERSION} if the insertion was completed.
          */
         int version;
-        /* key reference, build differently than value reference
-          * TODO: eliminate parsing key and value references by any entity other than EntrySet */
+        /* key reference, build differently than value reference */
         final long keyReference;
 
         LookUp(Slice valueSlice, long valueReference, int entryIndex, int version,
@@ -240,7 +276,7 @@ class EntrySet<K, V> {
         case VALUE_BLOCK:
             return entries[intFieldIdx + offset.value] >>> VALUE_BLOCK_SHIFT;
         default:
-            return entries[intFieldIdx + offset.value];
+            return entries[intFieldIdx + offset.value]; // used for NEXT and KEY/VALUE_POSITION
         }
     }
 
@@ -250,6 +286,7 @@ class EntrySet<K, V> {
      * The concurrency is ensured due to memory fence as part of "volatile"
      */
     private long getEntryArrayFieldLong(int intStartFieldIdx, OFFSET offset) {
+        assert offset == OFFSET.VALUE_REFERENCE || offset == OFFSET.KEY_REFERENCE;
         long arrayOffset =
             Unsafe.ARRAY_INT_BASE_OFFSET + (intStartFieldIdx + offset.value) * Unsafe.ARRAY_INT_INDEX_SCALE;
         assert arrayOffset % 8 == 0;
@@ -402,8 +439,8 @@ class EntrySet<K, V> {
      * The method serves external EntrySet users.
      */
     int getNextEntryIndex(int ei) {
-        if (ei == Chunk.NONE_NEXT) {
-            return Chunk.NONE_NEXT;
+        if (ei == INVALID_ENTRY_INDEX) {
+            return INVALID_ENTRY_INDEX;
         }
         return getEntryArrayFieldInt(entryIdx2intIdx(ei), OFFSET.NEXT);
     }
@@ -762,14 +799,12 @@ class EntrySet<K, V> {
 
         if (!changeForMove) assert opData.oldValueReference == INVALID_VALUE_REFERENCE;
         assert opData.newValueReference != INVALID_VALUE_REFERENCE;
-
-        if (!casEntriesArrayLong(entryIdx2intIdx(opData.entryIndex), OFFSET.VALUE_REFERENCE,
+        int intIdx = entryIdx2intIdx(opData.entryIndex);
+        if (!casEntriesArrayLong(intIdx, OFFSET.VALUE_REFERENCE,
             opData.oldValueReference, opData.newValueReference)) {
             return FALSE;
         }
-        casEntriesArrayInt(entryIdx2intIdx(opData.entryIndex), OFFSET.VALUE_VERSION,
-            opData.oldVersion, opData.newVersion);
-
+        casEntriesArrayInt(intIdx, OFFSET.VALUE_VERSION, opData.oldVersion, opData.newVersion);
         return TRUE;
     }
 
@@ -865,14 +900,14 @@ class EntrySet<K, V> {
         if (version <= INVALID_VERSION) { // version is marked deleted
             return false;
         }
+        int indIdx = entryIdx2intIdx(lookUp.entryIndex);
         // Scenario: this value space is allocated once again and assigned into the same entry,
         // while this thread is sleeping. So later a valid value reference is CASed to invalid.
         // In order to not allow this scenario happen we must release the
         // value's off-heap slice to memory manager only after deleteValueFinish is called.
-        casEntriesArrayLong(entryIdx2intIdx(lookUp.entryIndex), OFFSET.VALUE_REFERENCE,
+        casEntriesArrayLong(indIdx, OFFSET.VALUE_REFERENCE,
             lookUp.valueReference, INVALID_VALUE_REFERENCE);
-        if (casEntriesArrayInt(entryIdx2intIdx(lookUp.entryIndex), OFFSET.VALUE_VERSION,
-            version, -version)) {
+        if (casEntriesArrayInt(indIdx, OFFSET.VALUE_VERSION, version, -version)) {
             numOfEntries.getAndDecrement();
             // release the slice
             if (lookUp.valueSlice != null) {
@@ -923,7 +958,7 @@ class EntrySet<K, V> {
      * by other thread just after this check. For the thread safety use a copy of value reference (next method.)
      * */
     boolean isValueRefValid(int ei) {
-        return (getValueReference(ei) != INVALID_VALUE_REFERENCE);
+        return getValueReference(ei) != INVALID_VALUE_REFERENCE;
     }
 
     /*

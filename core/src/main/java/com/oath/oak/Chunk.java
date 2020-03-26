@@ -824,9 +824,9 @@ public class Chunk<K, V> {
                 if ((anchor - SKIP_ENTRIES_FOR_BIGGER_STACK) > 1) {
                     // try to skip more then one backward step at a time
                     // if it shows better performance
-                    anchor = anchor - SKIP_ENTRIES_FOR_BIGGER_STACK;
+                    anchor -= SKIP_ENTRIES_FOR_BIGGER_STACK;
                 } else {
-                    anchor = anchor - 1;
+                    anchor -= 1;
                 }
             }
             stack.push(anchor);
