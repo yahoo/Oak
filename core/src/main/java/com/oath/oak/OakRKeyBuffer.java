@@ -7,25 +7,26 @@
 package com.oath.oak;
 
 import com.oath.oak.NativeAllocator.OakNativeMemoryAllocator;
+import sun.nio.ch.DirectBuffer;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.function.Function;
 
 /*
- * The OakRReference allows reuse of the same OakRBuffer implementation object and is used for
+ * The OakRKeyBuffer allows reuse of the same OakRBuffer implementation object and is used for
  * Oak's StreamIterators, where the iterated OakRBuffers can be used only once.
  * This class is actually a reference into internal BB object rather than new BB object.
- * It references the internal BB object as far as OakRReference wasn't moved to point on other BB.
+ * It references the internal BB object as far as OakRKeyBuffer wasn't moved to point on other BB.
  *
- * The OakRReference is intended to be used in threads that are for iterations only and are not involved in
+ * The OakRKeyBuffer is intended to be used in threads that are for iterations only and are not involved in
  * concurrent/parallel reading/updating the mappings
  *
- * Unlike other ephemeral objects, even if OakRReference references a value it does not have to acquire a read lock
+ * Unlike other ephemeral objects, even if OakRKeyBuffer references a value it does not have to acquire a read lock
  * before each access since it can only be used without other concurrent writes in the background.
  * */
 
-public class OakRReference implements OakRBuffer {
+public class OakRKeyBuffer implements OakRBuffer, OakUnsafeDirectBuffer {
 
     private int blockID = OakNativeMemoryAllocator.INVALID_BLOCK_ID;
     private int position = -1;
@@ -33,10 +34,10 @@ public class OakRReference implements OakRBuffer {
     private final MemoryManager memoryManager;
     private final int headerSize;
 
-    // The OakRReference user accesses OakRReference as it would be a ByteBuffer with initially zero position.
+    // The OakRKeyBuffer user accesses OakRKeyBuffer as it would be a ByteBuffer with initially zero position.
     // We translate it to the relevant ByteBuffer position, by adding keyPosition and the header size to any given index
 
-    OakRReference(MemoryManager memoryManager, int headerSize) {
+    OakRKeyBuffer(MemoryManager memoryManager, int headerSize) {
         this.memoryManager = memoryManager;
         this.headerSize = headerSize;
     }
@@ -112,16 +113,6 @@ public class OakRReference implements OakRBuffer {
         return transformer.apply(buffer);
     }
 
-    // the method provides an optimal way to copy data as array of integers from the key's buffer
-    // srcPosition - index from where to start copying the internal key buffer,
-    // srcPosition = 0 if to start from the beginning
-    @Override
-    public void unsafeCopyBufferToIntArray(int srcPosition, int[] dstArray, int countInts) {
-        UnsafeUtils.unsafeCopyBufferToIntArray(getTemporaryPerThreadByteBuffer().slice(),
-                srcPosition + headerSize, dstArray, countInts);
-
-    }
-
     private ByteBuffer getTemporaryPerThreadByteBuffer() {
         // No access is allowed once the memory manager is closed.
         // We avoid validating this here due to performance concerns.
@@ -132,5 +123,32 @@ public class OakRReference implements OakRBuffer {
         assert position != -1;
         assert length != -1;
         return memoryManager.getByteBufferFromBlockID(blockID, position, length);
+    }
+
+    /*-------------- OakUnsafeRef --------------*/
+
+    @Override
+    public ByteBuffer getByteBuffer() {
+        ByteBuffer buff = getTemporaryPerThreadByteBuffer().asReadOnlyBuffer();
+        buff.position(headerSize + position);
+        buff.limit(headerSize + position + length);
+        return buff.slice();
+    }
+
+    @Override
+    public int getOffset() {
+        return 0;
+    }
+
+    @Override
+    public int getLength() {
+        return length;
+    }
+
+    @Override
+    public long getAddress() {
+        ByteBuffer buff = getTemporaryPerThreadByteBuffer();
+        long address = ((DirectBuffer) buff).address();
+        return address + headerSize + position;
     }
 }

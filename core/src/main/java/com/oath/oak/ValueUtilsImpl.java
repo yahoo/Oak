@@ -44,11 +44,6 @@ public class ValueUtilsImpl implements ValueUtils {
     }
 
     @Override
-    public void unsafeBufferToIntArrayCopy(ByteBuffer bb, int srcPosition, int[] dstArray, int countInts) {
-        UnsafeUtils.unsafeCopyBufferToIntArray(bb, srcPosition, dstArray, countInts);
-    }
-
-    @Override
     public <T> Result<T> transform(Slice s, Function<ByteBuffer, T> transformer,
                                    int version) {
         ValueResult result = lockRead(s, version);
