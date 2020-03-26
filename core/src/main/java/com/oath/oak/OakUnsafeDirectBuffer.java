@@ -1,7 +1,6 @@
 package com.oath.oak;
 
 import java.nio.ByteBuffer;
-import java.util.function.Function;
 
 /**
  * This interface allows high performance access to the underlying data of Oak.
@@ -10,18 +9,26 @@ import java.util.function.Function;
  *
  * Specifically, the developer should be concerned by two issues:
  * 1. Concurrency: using this interface inside the context of serialize, compute, compare and transform is thread safe.
- *    In other contexts (e.g., zero copy API), the developer should ensure that there is no concurrent access to this
+ *    In other contexts (e.g., get output), the developer should ensure that there is no concurrent access to this
  *    data. Failing to ensure that might result in corrupted data.
  * 2. Data boundaries: when using this interface, Oak will not alert the developer regarding any out of boundary access.
  *    Thus, the developer should use getOffset() and getLength() to obtain the data boundaries and carefully access
  *    the data. Writing data out of these boundaries might result in corrupted data, a crash or a deadlock.
  *
- * To use this interface, the developer should cast Oak's buffer (OakRBuffer/OakWBuffer) to this interface,
+ * To use this interface, the developer should cast Oak's buffer (OakRBuffer or OakWBuffer) to this interface,
  * similarly to how Java's internal DirectBuffer is used. For example:
- * void foo(OakRBuffer b) {
- *     long address = ((OakUnsafeDirectBuffer) b).getAddress();
- *     ...
+ * <pre>
+ * {@code
+ * int foo(OakRBuffer b) {
+ *     OakUnsafeDirectBuffer ub = (OakUnsafeDirectBuffer) b;
+ *     ByteBuffer bb = ub.getByteBuffer();
+ *     return bb.getInt(ub.getOffset());
  * }
+ * }
+ * </pre>
+ *
+ * Note: in the above example, the following will throw a ReadOnlyBufferException because the buffer mode is read-only:
+ * {@code bb.putInt(ub.getOffset(), someInteger); }
  */
 public interface OakUnsafeDirectBuffer {
 
@@ -30,7 +37,7 @@ public interface OakUnsafeDirectBuffer {
      * This buffer might contain data that is unrelated to the context in which this object was introduced.
      * For example, it might contain internal Oak data and other user data.
      * Thus, the developer should use getOffset() and getLength() to validate the data boundaries.
-     * Note 1: depending on the context, the buffer might be ready only.
+     * Note 1: depending on the context (casting from OakRBuffer or OakWBuffer), the buffer mode might be ready only.
      * Note 2: the buffer internal state (e.g., byte order, position, limit and so on) should not be modified as this
      *         object might be shared and used elsewhere.
      * @return the underlying ByteBuffer.
