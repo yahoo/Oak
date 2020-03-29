@@ -1,5 +1,6 @@
 package com.oath.oak;
 
+import com.oath.oak.common.OakCommonFactory;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -28,7 +29,7 @@ public class PutIfAbsentTest {
 
     @Before
     public void init() {
-        OakMapBuilder<Integer, Integer> builder = IntegerOakMap.getDefaultBuilder();
+        OakMapBuilder<Integer, Integer> builder = OakCommonFactory.getDefaultIntBuilder();
         oak = builder.build();
         startSignal = new CountDownLatch(1);
         threads = new ArrayList<>(NUM_THREADS);

@@ -1,20 +1,9 @@
 package com.oath.oak.NativeAllocator;
 
-
-
-import com.oath.oak.OakMap;
-import com.oath.oak.OakMapBuilder;
-
-import com.oath.oak.StringComparator;
-import com.oath.oak.StringSerializer;
-
 import org.junit.Test;
 
 
 public class MemoryReleaseTest {
-
-
-
 
     @Test(timeout = 300_000)
     public void testByteBuffersReleased() {

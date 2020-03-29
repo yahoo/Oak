@@ -6,6 +6,7 @@
 
 package com.oath.oak;
 
+import com.oath.oak.common.OakCommonFactory;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -44,12 +45,7 @@ public class GetBenchmark {
 
         @Setup()
         public void setup() {
-
-            OakMapBuilder<String, String> builder =
-                new OakMapBuilder<String, String>(
-                    new StringComparator(),
-                    new StringSerializer(), new StringSerializer(),"");
-
+            OakMapBuilder<String, String> builder = OakCommonFactory.getDefaultStringBuilder();
             oakMap = builder.build();
 
             keys = new ArrayList<>(numRows);

@@ -6,6 +6,7 @@
 
 package com.oath.oak;
 
+import com.oath.oak.common.OakCommonFactory;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -26,7 +27,7 @@ public class SingleThreadIteratorTest {
 
     @Before
     public void init() {
-        OakMapBuilder<Integer, Integer> builder = IntegerOakMap.getDefaultBuilder()
+        OakMapBuilder<Integer, Integer> builder = OakCommonFactory.getDefaultIntBuilder()
                 .setChunkMaxItems(maxItemsPerChunk);
         oak = builder.build();
     }

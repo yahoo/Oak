@@ -6,6 +6,7 @@
 
 package com.oath.oak;
 
+import com.oath.oak.common.OakCommonFactory;
 import org.junit.Test;
 
 import java.nio.ByteBuffer;
@@ -31,85 +32,6 @@ public class ComputeTest {
 
     static private ArrayList<Thread> threads = new ArrayList<>(NUM_THREADS);
     static private CountDownLatch latch = new CountDownLatch(1);
-
-    public static class ComputeTestKeySerializer implements OakSerializer<ByteBuffer> {
-
-        @Override
-        public void serialize(ByteBuffer obj, ByteBuffer targetBuffer) {
-            for (int i = 0; i < keySize; i++) {
-                targetBuffer.putInt(targetBuffer.position() + Integer.BYTES * i, obj.getInt(Integer.BYTES * i));
-            }
-        }
-
-        @Override
-        public ByteBuffer deserialize(ByteBuffer byteBuffer) {
-            ByteBuffer key = ByteBuffer.allocate(keySize);
-            key.position(0);
-            for (int i = 0; i < keySize; i++) {
-                key.putInt(Integer.BYTES * i, byteBuffer.getInt(byteBuffer.position() + Integer.BYTES * i));
-            }
-            key.position(0);
-            return key;
-        }
-
-        @Override
-        public int calculateSize(ByteBuffer buff) {
-            return keySize * Integer.BYTES;
-        }
-    }
-
-    public static class ComputeTestValueSerializer implements OakSerializer<ByteBuffer> {
-
-        @Override
-        public void serialize(ByteBuffer value, ByteBuffer targetBuffer) {
-            for (int i = 0; i < valSize; i++) {
-                targetBuffer.putInt(targetBuffer.position() + Integer.BYTES * i, value.getInt(Integer.BYTES * i));
-            }
-        }
-
-        @Override
-        public ByteBuffer deserialize(ByteBuffer serializedValue) {
-            ByteBuffer value = ByteBuffer.allocate(valSize * Integer.BYTES);
-            value.position(0);
-            for (int i = 0; i < valSize; i++) {
-                value.putInt(Integer.BYTES * i, serializedValue.getInt(serializedValue.position() + Integer.BYTES * i));
-            }
-            value.position(0);
-            return value;
-        }
-
-        @Override
-        public int calculateSize(ByteBuffer buff) {
-            return valSize * Integer.BYTES;
-        }
-    }
-
-    public static class ComputeTestComparator implements OakComparator<ByteBuffer> {
-
-        @Override
-        public int compareKeys(ByteBuffer buff1, ByteBuffer buff2) {
-            for (int i = 0; i < keySize; i++) {
-                int i1 = buff1.getInt(buff1.position() + Integer.BYTES * i);
-                int i2 = buff2.getInt(buff2.position() + Integer.BYTES * i);
-                if (i1 > i2) {
-                    return 1;
-                } else if (i1 < i2) {
-                    return -1;
-                }
-            }
-            return 0;
-        }
-
-        @Override
-        public int compareSerializedKeys(ByteBuffer serializedKey1, ByteBuffer serializedKey2) {
-            return compareKeys(serializedKey1, serializedKey2);
-        }
-
-        @Override
-        public int compareKeyAndSerializedKey(ByteBuffer key, ByteBuffer serializedKey) {
-            return compareKeys(key, serializedKey);
-        }
-    }
 
     private static Consumer<OakWBuffer> computer = oakWBuffer -> {
         if (oakWBuffer.getInt(0) == oakWBuffer.getInt(Integer.BYTES * keySize)) {
@@ -174,12 +96,8 @@ public class ComputeTest {
         }
         minKey.position(0);
 
-        OakMapBuilder<ByteBuffer, ByteBuffer> builder
-            = new OakMapBuilder<ByteBuffer, ByteBuffer>(
-                new ComputeTestComparator(),
-                new ComputeTestKeySerializer(), new ComputeTestValueSerializer(), minKey)
-                .setChunkMaxItems(2048)
-                ;
+        OakMapBuilder<ByteBuffer, ByteBuffer> builder = OakCommonFactory.getDefaultIntBufferBuilder(keySize, valSize)
+            .setChunkMaxItems(2048);
 
         oak = builder.build();
 
