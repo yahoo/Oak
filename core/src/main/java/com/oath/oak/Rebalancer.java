@@ -152,13 +152,13 @@ class Rebalancer<K, V> {
                     break;
                 } else {
                     // we have to open an new chunk
-                    // here we create a new on-heap minimal key for the second new chunk,
-                    // created by the split. The new min key is on-heap copy of the one off-heap
+                    // here we create a new minimal key buffer for the second new chunk,
+                    // created by the split. The new min key is a copy of the older one
                     // We need to use slice() method here as we want new object to be created
                     ByteBuffer bb = currFrozen.readKey(ei).slice();
                     int remaining = bb.remaining();
                     int position = bb.position();
-                    ByteBuffer newMinKey = ByteBuffer.allocate(remaining);
+                    ByteBuffer newMinKey = ByteBuffer.allocateDirect(remaining);
                     int myPos = newMinKey.position();
                     for (int i = 0; i < remaining; i++) {
                         newMinKey.put(myPos + i, bb.get(i + position));
