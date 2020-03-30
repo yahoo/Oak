@@ -368,7 +368,7 @@ class InternalOakMap<K, V> {
 
     /*-------------- OakMap Methods --------------*/
 
-    V put(K key, V value, Function<ByteBuffer, V> transformer) {
+    V put(K key, V value, OakTransformer<V> transformer) {
         if (key == null || value == null) {
             throw new NullPointerException();
         }
@@ -459,7 +459,7 @@ class InternalOakMap<K, V> {
         }
     }
 
-    Result<V> putIfAbsent(K key, V value, Function<ByteBuffer, V> transformer) {
+    Result<V> putIfAbsent(K key, V value, OakTransformer<V> transformer) {
         if (key == null || value == null) {
             throw new NullPointerException();
         }
@@ -655,7 +655,7 @@ class InternalOakMap<K, V> {
         }
     }
 
-    Result<V> remove(K key, V oldValue, Function<ByteBuffer, V> transformer) {
+    Result<V> remove(K key, V oldValue, OakTransformer<V> transformer) {
         if (key == null) {
             throw new NullPointerException();
         }
@@ -795,12 +795,12 @@ class InternalOakMap<K, V> {
         }
     }
 
-    private <T> T getValueTransformation(ByteBuffer key, Function<ByteBuffer, T> transformer) {
+    private <T> T getValueTransformation(ByteBuffer key, OakTransformer<T> transformer) {
         K deserializedKey = keySerializer.deserialize(key);
         return getValueTransformation(deserializedKey, transformer);
     }
 
-    <T> T getValueTransformation(K key, Function<ByteBuffer, T> transformer) {
+    <T> T getValueTransformation(K key, OakTransformer<T> transformer) {
         if (key == null || transformer == null) {
             throw new NullPointerException();
         }
@@ -830,7 +830,7 @@ class InternalOakMap<K, V> {
 
     }
 
-    <T> T getKeyTransformation(K key, Function<ByteBuffer, T> transformer) {
+    <T> T getKeyTransformation(K key, OakTransformer<T> transformer) {
         ByteBuffer serializedKey = getKey(key);
         if (serializedKey == null) {
             return null;
@@ -857,7 +857,7 @@ class InternalOakMap<K, V> {
         return c.readMinKey().slice();
     }
 
-    <T> T getMinKeyTransformation(Function<ByteBuffer, T> transformer) {
+    <T> T getMinKeyTransformation(OakTransformer<T> transformer) {
         if (transformer == null) {
             throw new NullPointerException();
         }
@@ -881,7 +881,7 @@ class InternalOakMap<K, V> {
         return c.readMaxKey().slice();
     }
 
-    <T> T getMaxKeyTransformation(Function<ByteBuffer, T> transformer) {
+    <T> T getMaxKeyTransformation(OakTransformer<T> transformer) {
         if (transformer == null) {
             throw new NullPointerException();
         }
@@ -906,7 +906,7 @@ class InternalOakMap<K, V> {
         return c;
     }
 
-    V replace(K key, V value, Function<ByteBuffer, V> valueDeserializeTransformer) {
+    V replace(K key, V value, OakTransformer<V> valueDeserializeTransformer) {
         int infiLoopCount = 0;
         while (true) {
             infiLoopCount++;
@@ -929,7 +929,7 @@ class InternalOakMap<K, V> {
         }
     }
 
-    boolean replace(K key, V oldValue, V newValue, Function<ByteBuffer, V> valueDeserializeTransformer) {
+    boolean replace(K key, V oldValue, V newValue, OakTransformer<V> valueDeserializeTransformer) {
         int infiLoopCount = 0;
         while (true) {
             infiLoopCount++;
@@ -1367,10 +1367,10 @@ class InternalOakMap<K, V> {
 
     class ValueTransformIterator<T> extends Iter<T> {
 
-        final Function<ByteBuffer, T> transformer;
+        final OakTransformer<T> transformer;
 
         ValueTransformIterator(K lo, boolean loInclusive, K hi, boolean hiInclusive, boolean isDescending,
-                               Function<ByteBuffer, T> transformer) {
+                               OakTransformer<T> transformer) {
             super(lo, loInclusive, hi, hiInclusive, isDescending);
             this.transformer = transformer;
         }
@@ -1534,10 +1534,10 @@ class InternalOakMap<K, V> {
 
     class KeyTransformIterator<T> extends Iter<T> {
 
-        final Function<ByteBuffer, T> transformer;
+        final OakTransformer<T> transformer;
 
         KeyTransformIterator(K lo, boolean loInclusive, K hi, boolean hiInclusive, boolean isDescending,
-                             Function<ByteBuffer, T> transformer) {
+                             OakTransformer<T> transformer) {
             super(lo, loInclusive, hi, hiInclusive, isDescending);
             this.transformer = transformer;
         }
@@ -1581,7 +1581,7 @@ class InternalOakMap<K, V> {
     }
 
     <T> Iterator<T> valuesTransformIterator(K lo, boolean loInclusive, K hi, boolean hiInclusive,
-                                            boolean isDescending, Function<ByteBuffer, T> transformer) {
+                                            boolean isDescending, OakTransformer<T> transformer) {
         return new ValueTransformIterator<>(lo, loInclusive, hi, hiInclusive, isDescending, transformer);
     }
 
@@ -1592,7 +1592,7 @@ class InternalOakMap<K, V> {
     }
 
     <T> Iterator<T> keysTransformIterator(K lo, boolean loInclusive, K hi, boolean hiInclusive, boolean isDescending,
-                                          Function<ByteBuffer, T> transformer) {
+                                          OakTransformer<T> transformer) {
         return new KeyTransformIterator<>(lo, loInclusive, hi, hiInclusive, isDescending, transformer);
     }
 

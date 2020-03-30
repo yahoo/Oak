@@ -162,7 +162,7 @@ class OakRValueBuffer implements OakRBuffer, OakUnsafeDirectBuffer {
      * @return a transformation of the ByteBuffer content
      * @throws NullPointerException if the transformer is null
      */
-    public <T> T transform(Function<ByteBuffer, T> transformer) {
+    public <T> T transform(OakTransformer<T> transformer) {
         if (transformer == null) {
             throw new NullPointerException();
         }
