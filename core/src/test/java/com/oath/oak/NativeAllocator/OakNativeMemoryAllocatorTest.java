@@ -15,6 +15,7 @@ import com.oath.oak.OakMap;
 import com.oath.oak.OakMapBuilder;
 import com.oath.oak.OakOutOfMemoryException;
 import com.oath.oak.OakSerializer;
+import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -130,6 +131,11 @@ public class OakNativeMemoryAllocatorTest {
     @Before
     public void init() {
         BlocksPool.setBlockSize(8 * 1024 * 1024);
+    }
+
+    @After
+    public void tearDown() {
+        BlocksPool.setBlockSize(BlocksPool.BLOCK_SIZE);
     }
 
     @Test
