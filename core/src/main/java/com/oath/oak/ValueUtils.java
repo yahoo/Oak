@@ -120,10 +120,16 @@ public interface ValueUtils {
     /**
      * Initializing the header version.
      * May also set other members in the header to their default values.
-     * @param s the value Slice (including the header)
-     * @param version the new version
+     * @param s the value Slice (including the header), includes the version
      */
-    void initHeader(Slice s, int version) ;
+    void initHeader(Slice s);
+
+    /**
+     * Initializing the header version and lock to be locked.
+     * May also set other members in the header to their default values.
+     * @param s the value Slice (including the header), includes the version
+     */
+    void initLockedHeader(Slice s) ;
 
     /* ==================== More complex methods on off-heap values ==================== */
 
@@ -142,11 +148,11 @@ public interface ValueUtils {
     <T> Result<T> transform(Slice s, Function<ByteBuffer, T> transformer, int version);
 
     /**
-     * @see #exchange(Chunk, Chunk.LookUp, Object, Function, OakSerializer, MemoryManager)
+     * @see #exchange(Chunk, EntrySet.LookUp, Object, Function, OakSerializer, MemoryManager, InternalOakMap)
      * Does not return the value previously written off-heap
      */
-    <V> ValueResult put(Chunk<?, V> chunk, Chunk.LookUp lookUp, V newVal, OakSerializer<V> serializer,
-                        MemoryManager memoryManager);
+    <V> ValueResult put(Chunk<?, V> chunk, EntrySet.LookUp lookUp, V newVal, OakSerializer<V> serializer,
+        MemoryManager memoryManager, InternalOakMap internalOakMap);
 
     /**
      * @param s        the value Slice (including the header)
@@ -181,13 +187,14 @@ public interface ValueUtils {
      * {@code chuck} is used iff {@code newValue} takes more space than the old value does, meaning it has to move.
      * If the value moves, the old slice is marked as moved and freed.
      *
+     * @param <V>                         the type of the value
      * @param chunk                       the chunk with the entry to which the value is linked to
      * @param lookUp                      has the Slice of the value and the entry index
      * @param value                       the new value to write
      * @param valueDeserializeTransformer used to read the previous value
      * @param serializer                  value serializer to write {@code newValue}
      * @param memoryManager               the memory manager to free a slice with is not needed after the value moved
-     * @param <V>                         the type of the value
+     * @param internalOakMap
      * @return {@code TRUE} if the value was written off-heap successfully
      * {@code FALSE} if the value is deleted (cannot be overwritten)
      * {@code RETRY} if the value was moved, if the chuck is frozen/released (prevents the moving of the value), or
@@ -195,18 +202,19 @@ public interface ValueUtils {
      * Along side the flag of the result, in case the exchange succeeded, it also returns the value that
      * was written before the exchange.
      */
-    <V> Result<V> exchange(Chunk<?, V> chunk, Chunk.LookUp lookUp, V value,
-                           Function<ByteBuffer, V> valueDeserializeTransformer, OakSerializer<V> serializer,
-                           MemoryManager memoryManager);
+    <V> Result<V> exchange(Chunk<?, V> chunk, EntrySet.LookUp lookUp, V value, Function<ByteBuffer, V> valueDeserializeTransformer, OakSerializer<V> serializer,
+        MemoryManager memoryManager, InternalOakMap internalOakMap);
 
     /**
      * @param expected the old value to which we compare the current value
+     * @param internalOakMap
      * @return {@code TRUE} if the exchange went successfully
      * {@code FAILURE} if the value is deleted or if the actual value referenced in {@code lookUp} does not equal to
      * {@code expected}
      * {@code RETRY} for the same reasons as exchange
-     * @see #exchange(Chunk, Chunk.LookUp, Object, Function, OakSerializer, MemoryManager)
+     * @see #exchange(Chunk, EntrySet.LookUp, Object, Function, OakSerializer, MemoryManager, InternalOakMap)
      */
-    <V> ValueResult compareExchange(Chunk<?, V> chunk, Chunk.LookUp lookUp, V expected, V value, Function<ByteBuffer,
-            V> valueDeserializeTransformer, OakSerializer<V> serializer, MemoryManager memoryManager);
+    <V> ValueResult compareExchange(Chunk<?, V> chunk, EntrySet.LookUp lookUp, V expected, V value,
+        Function<ByteBuffer, V> valueDeserializeTransformer, OakSerializer<V> serializer,
+        MemoryManager memoryManager, InternalOakMap internalOakMap);
 }

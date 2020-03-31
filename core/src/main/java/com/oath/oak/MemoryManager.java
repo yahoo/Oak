@@ -39,7 +39,9 @@ public interface MemoryManager extends Closeable {
     void releaseSlice(Slice s);
 
     default Slice getSliceFromBlockID(int blockID, int bufferPosition, int bufferLength) {
-        return new Slice(blockID, getByteBufferFromBlockID(blockID, bufferPosition, bufferLength));
+        return new Slice(
+            blockID,
+            getByteBufferFromBlockID(blockID, bufferPosition, bufferLength));
     }
 
     /**

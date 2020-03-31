@@ -13,6 +13,8 @@ import java.nio.ByteBuffer;
 public class Slice {
     private final int blockID;
     private final ByteBuffer buffer;
+    // version with which this slice was allocated, if slice is not a result of a new creation the version can be invalid
+    private int version;
     // This field is only used for sanity checks purposes and it should not be used, nor changed.
     private final int originalPosition;
 
@@ -20,6 +22,7 @@ public class Slice {
         this.blockID = blockID;
         this.buffer = buffer;
         this.originalPosition = buffer.position();
+        this.version = ValueUtilsImpl.INVALID_VERSION;
     }
 
     Slice(int blockID, int position, int length, MemoryManager memoryManager) {
@@ -41,4 +44,10 @@ public class Slice {
     boolean validatePosition() {
         return originalPosition == buffer.position();
     }
+
+    int getOriginalPosition() { return originalPosition; }
+
+    void setVersion(int version) {this.version = version;}
+
+    int getVersion() { return version; }
 }

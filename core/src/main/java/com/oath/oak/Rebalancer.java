@@ -34,7 +34,6 @@ class Rebalancer<K, V> {
     private Chunk<K, V> last;
     private int chunksInRange;
     private int itemsInRange;
-    private final boolean offHeap;
     private final MemoryManager memoryManager;
     private final OakSerializer<K> keySerializer;
     private final OakSerializer<V> valueSerializer;
@@ -42,12 +41,11 @@ class Rebalancer<K, V> {
 
     /*-------------- Constructors --------------*/
 
-    Rebalancer(Chunk<K, V> chunk, boolean offHeap, MemoryManager memoryManager,
-               OakSerializer<K> keySerializer, OakSerializer<V> valueSerializer, ValueUtils valueOperator) {
+    Rebalancer(Chunk<K, V> chunk, MemoryManager memoryManager, OakSerializer<K> keySerializer,
+        OakSerializer<V> valueSerializer, ValueUtils valueOperator) {
         this.entriesLowThreshold = (int) (chunk.getMaxItems() * LOW_THRESHOLD);
         this.maxRangeToAppend = (int) (chunk.getMaxItems() * APPEND_THRESHOLD);
         this.maxAfterMergeItems = (int) (chunk.getMaxItems() * MAX_AFTER_MERGE_PART);
-        this.offHeap = offHeap;
         this.memoryManager = memoryManager;
         nextToEngage = new AtomicReference<>(chunk);
         this.first = chunk;
@@ -113,7 +111,6 @@ class Rebalancer<K, V> {
      */
     boolean createNewChunks() {
 
-        assert offHeap;
         if (this.newChunks.get() != null) {
             return false; // this was done by another thread already
         }
@@ -133,7 +130,7 @@ class Rebalancer<K, V> {
         while (true) {
             ei = currNewChunk.copyPartNoKeys(currFrozen, ei, entriesLowThreshold);
             // if completed reading curr frozen chunk
-            if (ei == Chunk.NONE) {
+            if (ei == Chunk.NONE_NEXT) {
                 if (!iterFrozen.hasNext()) {
                     break;
                 }
@@ -155,7 +152,7 @@ class Rebalancer<K, V> {
                     // here we create a new minimal key buffer for the second new chunk,
                     // created by the split. The new min key is a copy of the older one
                     // We need to use slice() method here as we want new object to be created
-                    ByteBuffer bb = currFrozen.readKey(ei).slice();
+                    ByteBuffer bb = currFrozen.readKeyFromEntryIndex(ei).slice();
                     int remaining = bb.remaining();
                     int position = bb.position();
                     ByteBuffer newMinKey = ByteBuffer.allocateDirect(remaining);
