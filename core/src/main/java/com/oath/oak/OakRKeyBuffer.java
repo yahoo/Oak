@@ -133,7 +133,7 @@ public class OakRKeyBuffer implements OakRBuffer, OakUnsafeDirectBuffer {
     public ByteBuffer getByteBuffer() {
         ByteBuffer buff = getTemporaryPerThreadByteBuffer().asReadOnlyBuffer();
         buff.position(position + headerSize);
-        buff.limit(position + length);
+        // The buffer's limit was set to the correct position by getTemporaryPerThreadByteBuffer()
         return buff.slice();
     }
 
