@@ -45,6 +45,8 @@ public class OakRKeyBuffer implements OakRBuffer, OakUnsafeDirectBuffer {
     void setReference(int blockID, int position, int length) {
         this.blockID = blockID;
         this.position = position;
+        // length includes the header size.
+        // The user's data length is: length - headerSize
         this.length = length;
     }
 
@@ -58,7 +60,7 @@ public class OakRKeyBuffer implements OakRBuffer, OakUnsafeDirectBuffer {
 
     @Override
     public int capacity() {
-        return getTemporaryPerThreadByteBuffer().capacity();
+        return getTemporaryPerThreadByteBuffer().capacity() - headerSize;
     }
 
     @Override
@@ -130,8 +132,8 @@ public class OakRKeyBuffer implements OakRBuffer, OakUnsafeDirectBuffer {
     @Override
     public ByteBuffer getByteBuffer() {
         ByteBuffer buff = getTemporaryPerThreadByteBuffer().asReadOnlyBuffer();
-        buff.position(headerSize + position);
-        buff.limit(headerSize + position + length);
+        buff.position(position + headerSize);
+        // The buffer's limit was set to the correct position by getTemporaryPerThreadByteBuffer()
         return buff.slice();
     }
 
@@ -149,6 +151,6 @@ public class OakRKeyBuffer implements OakRBuffer, OakUnsafeDirectBuffer {
     public long getAddress() {
         ByteBuffer buff = getTemporaryPerThreadByteBuffer();
         long address = ((DirectBuffer) buff).address();
-        return address + headerSize + position;
+        return address + position + headerSize;
     }
 }

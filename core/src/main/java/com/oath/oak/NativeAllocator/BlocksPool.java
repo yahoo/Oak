@@ -21,7 +21,7 @@ class BlocksPool implements BlocksProvider, Closeable {
     private final ConcurrentLinkedQueue<Block> blocks = new ConcurrentLinkedQueue<>();
 
     // TODO change BLOCK_SIZE and NUMBER_OF_BLOCKS to be pre-configurable
-    private static final int BLOCK_SIZE = 256 * 1024 * 1024; // currently 256MB, the one block size
+    static final int BLOCK_SIZE = 256 * 1024 * 1024; // currently 256MB, the one block size
     // Number of memory blocks to be pre-allocated (currently gives us 2GB). When it is not enough,
     // another half such amount of memory (1GB) will be allocated at once.
     private final static int NUMBER_OF_BLOCKS = 10;
@@ -57,6 +57,9 @@ class BlocksPool implements BlocksProvider, Closeable {
     // used only in OakNativeMemoryAllocatorTest.java
     static void setBlockSize(int blockSize) {
         synchronized (BlocksPool.class) { // can be easily changed to lock-free
+            if (instance != null) {
+                instance.close();
+            }
             instance = new BlocksPool(blockSize);
         }
     }
