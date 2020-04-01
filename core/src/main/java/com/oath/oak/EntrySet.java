@@ -676,7 +676,7 @@ class EntrySet<K, V> {
         return mm.getByteBufferFromBlockID(blockID, keyPosition, length);
     }
 
-    void setKeyOutputRBuff(int ei, OakRKeyBuffer keyRef) {
+    void setKeyOutputRBuff(int ei, OakDetachedReadKeyBuffer keyRef) {
         if (ei == INVALID_ENTRY_INDEX) {
             return;
         }
@@ -691,7 +691,7 @@ class EntrySet<K, V> {
      * The thread-local ByteBuffer can be reused by different threads, however as long as
      * a thread is invoked the ByteBuffer is related solely to this thread.
      */
-    static void keyRefToOakRRef(long keyReference, OakRKeyBuffer oakKeyRef) {
+    static void keyRefToOakRRef(long keyReference, OakDetachedReadKeyBuffer oakKeyRef) {
         int[] keyArray = UnsafeUtils.longToInts(keyReference);
         int blockID = getKeyBlockIDFromIntArray(keyArray);
         int keyPosition = getPositionFromIntArray(keyArray);
@@ -706,7 +706,7 @@ class EntrySet<K, V> {
      * Returns true otherwise
      * a thread is invoked on the ByteBuffer is related solely to this thread.
      */
-    boolean setValueOutputRBuff(int ei, OakRKeyBuffer valueRef) {
+    boolean setValueOutputRBuff(int ei, OakDetachedReadKeyBuffer valueRef) {
         if (ei == INVALID_ENTRY_INDEX) {
             return false;
         }

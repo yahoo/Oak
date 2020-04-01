@@ -247,7 +247,7 @@ public class IteratorModificationTest {
         AtomicBoolean passed = new AtomicBoolean(false);
 
         Thread scanThread = new Thread(() -> {
-            Iterator<Map.Entry<OakRBuffer, OakRBuffer>> iterator = oak.zc().entryStreamSet().iterator();
+            Iterator<Map.Entry<OakDetachedBuffer, OakDetachedBuffer>> iterator = oak.zc().entryStreamSet().iterator();
             assertTrue(iterator.hasNext());
             deleteLatch.countDown();
             try {
@@ -300,13 +300,13 @@ public class IteratorModificationTest {
         assertTrue(valueIterator.hasNext());
         assertNull(valueIterator.next());
 
-        Iterator<OakRBuffer> bufferValuesIterator = oak.zc().values().iterator();
+        Iterator<OakDetachedBuffer> bufferValuesIterator = oak.zc().values().iterator();
         assertTrue(bufferValuesIterator.hasNext());
         oak.zc().remove(generateString(2, KEY_SIZE));
         assertTrue(bufferValuesIterator.hasNext());
         assertNull(bufferValuesIterator.next());
 
-        Iterator<Map.Entry<OakRBuffer, OakRBuffer>> bufferEntriesIterator = oak.zc().entrySet().iterator();
+        Iterator<Map.Entry<OakDetachedBuffer, OakDetachedBuffer>> bufferEntriesIterator = oak.zc().entrySet().iterator();
         assertTrue(bufferEntriesIterator.hasNext());
         oak.zc().remove(generateString(3, KEY_SIZE));
         assertTrue(bufferEntriesIterator.hasNext());

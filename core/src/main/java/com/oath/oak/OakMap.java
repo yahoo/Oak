@@ -516,7 +516,7 @@ public class OakMap<K, V> extends AbstractMap<K, V> implements AutoCloseable, Co
             m.internalOakMap.put(key, value, null);
         }
 
-        public OakRBuffer get(K key) {
+        public OakDetachedBuffer get(K key) {
             m.checkKey(key);
 
             return m.internalOakMap.get(key);
@@ -537,7 +537,7 @@ public class OakMap<K, V> extends AbstractMap<K, V> implements AutoCloseable, Co
             return m.internalOakMap.putIfAbsent(key, value, null).operationResult == ValueUtils.ValueResult.TRUE;
         }
 
-        public boolean computeIfPresent(K key, Consumer<OakWBuffer> computer) {
+        public boolean computeIfPresent(K key, Consumer<OakWriteBuffer> computer) {
             m.checkKey(key);
             if (computer == null) {
                 throw new NullPointerException();
@@ -547,7 +547,7 @@ public class OakMap<K, V> extends AbstractMap<K, V> implements AutoCloseable, Co
         }
 
 
-        public boolean putIfAbsentComputeIfPresent(K key, V value, Consumer<OakWBuffer> computer) {
+        public boolean putIfAbsentComputeIfPresent(K key, V value, Consumer<OakWriteBuffer> computer) {
             m.checkKey(key);
             if (value == null || computer == null) {
                 throw new IllegalArgumentException();
@@ -557,27 +557,27 @@ public class OakMap<K, V> extends AbstractMap<K, V> implements AutoCloseable, Co
         }
 
 
-        public Set<OakRBuffer> keySet() {
+        public Set<OakDetachedBuffer> keySet() {
             return new KeyBufferSet<>(m);
         }
 
-        public Collection<OakRBuffer> values() {
+        public Collection<OakDetachedBuffer> values() {
             return new ValueBuffers<>(m);
         }
 
-        public Set<Entry<OakRBuffer, OakRBuffer>> entrySet() {
+        public Set<Entry<OakDetachedBuffer, OakDetachedBuffer>> entrySet() {
             return new EntryBufferSet<>(m);
         }
 
-        public Set<OakRBuffer> keyStreamSet() {
+        public Set<OakDetachedBuffer> keyStreamSet() {
             return new KeyStreamBufferSet<>(m);
         }
 
-        public Collection<OakRBuffer> valuesStream() {
+        public Collection<OakDetachedBuffer> valuesStream() {
             return new ValueStreamBuffers<>(m);
         }
 
-        public Set<Entry<OakRBuffer, OakRBuffer>> entryStreamSet() {
+        public Set<Entry<OakDetachedBuffer, OakDetachedBuffer>> entryStreamSet() {
             return new EntryStreamBufferSet<>(m);
         }
     }
@@ -638,29 +638,29 @@ public class OakMap<K, V> extends AbstractMap<K, V> implements AutoCloseable, Co
                 keyDeserializeTransformer);
     }
 
-    private Iterator<OakRBuffer> keysBufferIterator() {
+    private Iterator<OakDetachedBuffer> keysBufferIterator() {
         return internalOakMap.keysBufferViewIterator(fromKey, fromInclusive, toKey, toInclusive, isDescending);
     }
 
 
-    private Iterator<OakRBuffer> valuesBufferIterator() {
+    private Iterator<OakDetachedBuffer> valuesBufferIterator() {
         return internalOakMap.valuesBufferViewIterator(fromKey, fromInclusive, toKey, toInclusive, isDescending);
     }
 
-    private Iterator<Map.Entry<OakRBuffer, OakRBuffer>> entriesBufferIterator() {
+    private Iterator<Map.Entry<OakDetachedBuffer, OakDetachedBuffer>> entriesBufferIterator() {
         return internalOakMap.entriesBufferViewIterator(fromKey, fromInclusive, toKey, toInclusive, isDescending);
     }
 
-    private Iterator<OakRBuffer> keysStreamIterator() {
+    private Iterator<OakDetachedBuffer> keysStreamIterator() {
         return internalOakMap.keysStreamIterator(fromKey, fromInclusive, toKey, toInclusive, isDescending);
     }
 
 
-    private Iterator<OakRBuffer> valuesStreamIterator() {
+    private Iterator<OakDetachedBuffer> valuesStreamIterator() {
         return internalOakMap.valuesStreamIterator(fromKey, fromInclusive, toKey, toInclusive, isDescending);
     }
 
-    private Iterator<Map.Entry<OakRBuffer, OakRBuffer>> entriesStreamIterator() {
+    private Iterator<Map.Entry<OakDetachedBuffer, OakDetachedBuffer>> entriesStreamIterator() {
         return internalOakMap.entriesStreamIterator(fromKey, fromInclusive, toKey, toInclusive, isDescending);
     }
 
@@ -882,7 +882,7 @@ public class OakMap<K, V> extends AbstractMap<K, V> implements AutoCloseable, Co
         }
     }
 
-    static final class KeyBufferSet<K, V> extends AbstractSet<OakRBuffer> {
+    static final class KeyBufferSet<K, V> extends AbstractSet<OakDetachedBuffer> {
 
         private final OakMap<K, V> m;
 
@@ -891,7 +891,7 @@ public class OakMap<K, V> extends AbstractMap<K, V> implements AutoCloseable, Co
         }
 
         @Override
-        public Iterator<OakRBuffer> iterator() {
+        public Iterator<OakDetachedBuffer> iterator() {
             return m.keysBufferIterator();
         }
 
@@ -901,7 +901,7 @@ public class OakMap<K, V> extends AbstractMap<K, V> implements AutoCloseable, Co
         }
     }
 
-    static class EntryBufferSet<K, V> extends AbstractSet<Entry<OakRBuffer, OakRBuffer>> {
+    static class EntryBufferSet<K, V> extends AbstractSet<Entry<OakDetachedBuffer, OakDetachedBuffer>> {
         private final OakMap<K, V> m;
 
         EntryBufferSet(OakMap<K, V> m) {
@@ -909,7 +909,7 @@ public class OakMap<K, V> extends AbstractMap<K, V> implements AutoCloseable, Co
         }
 
         @Override
-        public Iterator<Entry<OakRBuffer, OakRBuffer>> iterator() {
+        public Iterator<Entry<OakDetachedBuffer, OakDetachedBuffer>> iterator() {
             return m.entriesBufferIterator();
         }
 
@@ -919,7 +919,7 @@ public class OakMap<K, V> extends AbstractMap<K, V> implements AutoCloseable, Co
         }
     }
 
-    static final class ValueBuffers<K, V> extends AbstractCollection<OakRBuffer> {
+    static final class ValueBuffers<K, V> extends AbstractCollection<OakDetachedBuffer> {
 
         private final OakMap<K, V> m;
 
@@ -928,7 +928,7 @@ public class OakMap<K, V> extends AbstractMap<K, V> implements AutoCloseable, Co
         }
 
         @Override
-        public Iterator<OakRBuffer> iterator() {
+        public Iterator<OakDetachedBuffer> iterator() {
             return m.valuesBufferIterator();
         }
 
@@ -938,7 +938,7 @@ public class OakMap<K, V> extends AbstractMap<K, V> implements AutoCloseable, Co
         }
     }
 
-    static final class KeyStreamBufferSet<K, V> extends AbstractSet<OakRBuffer> {
+    static final class KeyStreamBufferSet<K, V> extends AbstractSet<OakDetachedBuffer> {
 
         private final OakMap<K, V> m;
 
@@ -947,7 +947,7 @@ public class OakMap<K, V> extends AbstractMap<K, V> implements AutoCloseable, Co
         }
 
         @Override
-        public Iterator<OakRBuffer> iterator() {
+        public Iterator<OakDetachedBuffer> iterator() {
             return m.keysStreamIterator();
         }
 
@@ -957,7 +957,7 @@ public class OakMap<K, V> extends AbstractMap<K, V> implements AutoCloseable, Co
         }
     }
 
-    static class EntryStreamBufferSet<K, V> extends AbstractSet<Entry<OakRBuffer, OakRBuffer>> {
+    static class EntryStreamBufferSet<K, V> extends AbstractSet<Entry<OakDetachedBuffer, OakDetachedBuffer>> {
         private final OakMap<K, V> m;
 
         EntryStreamBufferSet(OakMap<K, V> m) {
@@ -965,7 +965,7 @@ public class OakMap<K, V> extends AbstractMap<K, V> implements AutoCloseable, Co
         }
 
         @Override
-        public Iterator<Entry<OakRBuffer, OakRBuffer>> iterator() {
+        public Iterator<Entry<OakDetachedBuffer, OakDetachedBuffer>> iterator() {
             return m.entriesStreamIterator();
         }
 
@@ -975,7 +975,7 @@ public class OakMap<K, V> extends AbstractMap<K, V> implements AutoCloseable, Co
         }
     }
 
-    static final class ValueStreamBuffers<K, V> extends AbstractCollection<OakRBuffer> {
+    static final class ValueStreamBuffers<K, V> extends AbstractCollection<OakDetachedBuffer> {
 
         private final OakMap<K, V> m;
 
@@ -984,7 +984,7 @@ public class OakMap<K, V> extends AbstractMap<K, V> implements AutoCloseable, Co
         }
 
         @Override
-        public Iterator<OakRBuffer> iterator() {
+        public Iterator<OakDetachedBuffer> iterator() {
             return m.valuesStreamIterator();
         }
 

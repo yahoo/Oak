@@ -243,7 +243,7 @@ public class MultiThreadTest {
             }
             Assert.assertTrue(i > maxItemsPerChunk);
 
-            Consumer<OakWBuffer> computer = oakWBuffer -> {
+            Consumer<OakWriteBuffer> computer = oakWBuffer -> {
                 if (oakWBuffer.getInt(0) == 0) {
                     oakWBuffer.putInt(0, 1);
                 }

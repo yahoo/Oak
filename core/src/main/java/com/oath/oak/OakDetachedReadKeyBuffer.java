@@ -10,11 +10,10 @@ import sun.nio.ch.DirectBuffer;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
-import java.util.function.Function;
 
 /*
- * The OakRKeyBuffer allows reuse of the same OakRBuffer implementation object and is used both
- * in Oak's StreamIterators, where the iterated OakRBuffers can be used only once, and in normal
+ * The OakRKeyBuffer allows reuse of the same object and is used both
+ * in Oak's StreamIterators, where the iterated buffer can be used only once, and in normal
  * iterations without reusing.
  * This class is actually a reference into internal BB object rather than new BB object.
  * It references the internal BB object as far as OakRKeyBuffer wasn't moved to point on other BB.
@@ -26,7 +25,7 @@ import java.util.function.Function;
  * before each access since it can only be used without other concurrent writes in the background.
  * */
 
-class OakRKeyBuffer implements OakRBuffer, OakUnsafeDirectBuffer {
+class OakDetachedReadKeyBuffer implements OakDetachedBuffer, OakUnsafeDirectBuffer {
 
     private int blockID = OakNativeMemoryAllocator.INVALID_BLOCK_ID;
     private int position = -1;
@@ -37,7 +36,7 @@ class OakRKeyBuffer implements OakRBuffer, OakUnsafeDirectBuffer {
     // The OakRKeyBuffer user accesses OakRKeyBuffer as it would be a ByteBuffer with initially zero position.
     // We translate it to the relevant ByteBuffer position, by adding keyPosition and the header size to any given index
 
-    OakRKeyBuffer(MemoryManager memoryManager, int headerSize) {
+    OakDetachedReadKeyBuffer(MemoryManager memoryManager, int headerSize) {
         this.memoryManager = memoryManager;
         this.headerSize = headerSize;
     }

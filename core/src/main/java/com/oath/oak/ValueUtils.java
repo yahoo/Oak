@@ -162,7 +162,7 @@ interface ValueUtils {
      * {@code FAILURE} if the value is deleted,
      * {@code RETRY} if the value was moved.
      */
-    ValueResult compute(Slice s, Consumer<OakWBuffer> computer, int version);
+    ValueResult compute(Slice s, Consumer<OakWriteBuffer> computer, int version);
 
     /**
      * Marks a value as deleted and frees its slice (whether the header is freed or not is implementation dependant).

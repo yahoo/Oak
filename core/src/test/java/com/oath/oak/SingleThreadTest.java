@@ -148,7 +148,7 @@ public class SingleThreadTest {
     @Test
     public void testComputeIf() {
         Integer value;
-        Consumer<OakWBuffer> computer = oakWBuffer -> {
+        Consumer<OakWriteBuffer> computer = oakWBuffer -> {
             if (oakWBuffer.getInt(0) == 0) {
                 oakWBuffer.putInt(0, 1);
             }
@@ -184,7 +184,7 @@ public class SingleThreadTest {
     @Test
     public void testCompute() {
         Integer value;
-        Consumer<OakWBuffer> computer = oakWBuffer -> {
+        Consumer<OakWriteBuffer> computer = oakWBuffer -> {
             if (oakWBuffer.getInt(0) == 0) {
                 oakWBuffer.putInt(0, 1);
             }

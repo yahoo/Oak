@@ -92,8 +92,8 @@ public class OakMapApiTest {
         int key = r.nextInt(), expectedValue = r.nextInt();
         oak.put(key, expectedValue);
 
-        OakRBuffer result = oak.zc().get(key);
-        assertNotNull("Looking up an existing key should return non-null OakRBuffer", result);
+        OakDetachedBuffer result = oak.zc().get(key);
+        assertNotNull("Looking up an existing key should return non-null OakDetachedBuffer", result);
         int actualValue = result.getInt(0);
         assertEquals("Looking up an existing key should return the mapped value", expectedValue, actualValue);
         assertNull("Looking up a non-existing key should return null", oak.zc().get(key + 1));
@@ -263,7 +263,7 @@ public class OakMapApiTest {
 
     @Test
     public void computeIfPresentZC() {
-        Consumer<OakWBuffer> func = oakWBuffer -> oakWBuffer.putInt(0, oakWBuffer.getInt(0) * 2);
+        Consumer<OakWriteBuffer> func = oakWBuffer -> oakWBuffer.putInt(0, oakWBuffer.getInt(0) * 2);
 
         assertFalse("computeIfPresentZC should return false if mapping doesn't exist", oak.zc().computeIfPresent(0,
                 func));
@@ -317,7 +317,7 @@ public class OakMapApiTest {
     public void immutableKeyBuffers() {
         oak.put(0, 0);
 
-        OakRBuffer buffer = oak.zc().keySet().iterator().next();
+        OakDetachedBuffer buffer = oak.zc().keySet().iterator().next();
 
         buffer.transform(b -> b.putInt(0, 1));
 
@@ -328,7 +328,7 @@ public class OakMapApiTest {
     public void immutableValueBuffers() {
         oak.put(0, 0);
 
-        OakRBuffer buffer = oak.zc().values().iterator().next();
+        OakDetachedBuffer buffer = oak.zc().values().iterator().next();
 
         buffer.transform(b -> b.putInt(0, 1));
 

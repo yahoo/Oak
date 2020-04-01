@@ -25,8 +25,8 @@ public class MultiThreadComputeTest {
     private final int NUM_THREADS = 31;
     private ArrayList<Thread> threads;
     private CountDownLatch latch;
-    private Consumer<OakWBuffer> computer;
-    private Consumer<OakWBuffer> emptyComputer;
+    private Consumer<OakWriteBuffer> computer;
+    private Consumer<OakWriteBuffer> emptyComputer;
     private int maxItemsPerChunk = 1024;
 
     @Before

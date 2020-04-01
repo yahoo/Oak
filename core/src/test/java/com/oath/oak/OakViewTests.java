@@ -40,7 +40,7 @@ public class OakViewTests {
     }
 
     @Test
-    public void uniTestOakRBuffer() {
+    public void uniTestOakDetachedBufferBuffer() {
         String testVal = String.valueOf(123);
         ByteBuffer testValBB = ByteBuffer.allocate(Integer.BYTES + testVal.length() * Character.BYTES);
         testValBB.putInt(0, testVal.length());
@@ -48,7 +48,7 @@ public class OakViewTests {
             testValBB.putChar(Integer.BYTES + i * Character.BYTES, testVal.charAt(i));
         }
 
-        OakRBuffer valBuffer = oak.zc().get(testVal);
+        OakDetachedBuffer valBuffer = oak.zc().get(testVal);
         String transformed = valBuffer.transform(OakCommonBuildersFactory.defaultStringSerializer::deserialize);
         assertEquals(testVal, transformed);
 
@@ -69,7 +69,7 @@ public class OakViewTests {
     @Test(expected = ConcurrentModificationException.class)
     public void testOakRBufferConcurrency() {
         String testVal = "987";
-        OakRBuffer valBuffer = oak.zc().get(testVal);
+        OakDetachedBuffer valBuffer = oak.zc().get(testVal);
         oak.zc().remove(testVal);
         valBuffer.get(0);
     }
@@ -82,23 +82,23 @@ public class OakViewTests {
         }
         Arrays.sort(values);
 
-        Iterator<OakRBuffer> keyIterator = oak.zc().keySet().iterator();
+        Iterator<OakDetachedBuffer> keyIterator = oak.zc().keySet().iterator();
         for (int i = 0; i < ELEMENTS; i++) {
-            OakRBuffer keyBB = keyIterator.next();
+            OakDetachedBuffer keyBB = keyIterator.next();
             String key = keyBB.transform(OakCommonBuildersFactory.defaultStringSerializer::deserialize);
             assertEquals(values[i], key);
         }
 
-        Iterator<OakRBuffer> valueIterator = oak.zc().values().iterator();
+        Iterator<OakDetachedBuffer> valueIterator = oak.zc().values().iterator();
         for (int i = 0; i < ELEMENTS; i++) {
-            OakRBuffer valueBB = valueIterator.next();
+            OakDetachedBuffer valueBB = valueIterator.next();
             String value = valueBB.transform(OakCommonBuildersFactory.defaultStringSerializer::deserialize);
             assertEquals(values[i], value);
         }
 
-        Iterator<Map.Entry<OakRBuffer, OakRBuffer>> entryIterator = oak.zc().entrySet().iterator();
+        Iterator<Map.Entry<OakDetachedBuffer, OakDetachedBuffer>> entryIterator = oak.zc().entrySet().iterator();
         for (int i = 0; i < ELEMENTS; i++) {
-            Map.Entry<OakRBuffer, OakRBuffer> entryBB = entryIterator.next();
+            Map.Entry<OakDetachedBuffer, OakDetachedBuffer> entryBB = entryIterator.next();
             String value = entryBB.getValue().transform(OakCommonBuildersFactory.defaultStringSerializer::deserialize);
             assertEquals(values[i], value);
         }
@@ -112,24 +112,24 @@ public class OakViewTests {
         }
         Arrays.sort(values);
 
-        Iterator<OakRBuffer> keyStreamIterator = oak.zc().keyStreamSet().iterator();
+        Iterator<OakDetachedBuffer> keyStreamIterator = oak.zc().keyStreamSet().iterator();
         for (int i = 0; i < ELEMENTS; i++) {
-            OakRBuffer keyBB = keyStreamIterator.next();
+            OakDetachedBuffer keyBB = keyStreamIterator.next();
             String key = keyBB.transform(OakCommonBuildersFactory.defaultStringSerializer::deserialize);
             assertEquals(values[i], key);
         }
 
-        Iterator<OakRBuffer> valueStreamIterator = oak.zc().valuesStream().iterator();
+        Iterator<OakDetachedBuffer> valueStreamIterator = oak.zc().valuesStream().iterator();
         for (int i = 0; i < ELEMENTS; i++) {
-            OakRBuffer valueBB = valueStreamIterator.next();
+            OakDetachedBuffer valueBB = valueStreamIterator.next();
             String value = valueBB.transform(OakCommonBuildersFactory.defaultStringSerializer::deserialize);
             assertEquals(values[i], value);
         }
 
-        Iterator<Map.Entry<OakRBuffer, OakRBuffer>> entryStreamIterator
+        Iterator<Map.Entry<OakDetachedBuffer, OakDetachedBuffer>> entryStreamIterator
                 = oak.zc().entryStreamSet().iterator();
         for (int i = 0; i < ELEMENTS; i++) {
-            Map.Entry<OakRBuffer, OakRBuffer> entryBB = entryStreamIterator.next();
+            Map.Entry<OakDetachedBuffer, OakDetachedBuffer> entryBB = entryStreamIterator.next();
             String value = entryBB.getValue().transform(OakCommonBuildersFactory.defaultStringSerializer::deserialize);
             assertEquals(values[i], value);
         }
@@ -137,7 +137,7 @@ public class OakViewTests {
 
     @Test
     public void testTransformViewAPIs() {
-        Function<Map.Entry<OakRBuffer, OakRBuffer>, Integer> transformer = (entry) -> {
+        Function<Map.Entry<OakDetachedBuffer, OakDetachedBuffer>, Integer> transformer = (entry) -> {
             assertNotNull(entry.getKey());
             assertNotNull(entry.getValue());
             int size = entry.getValue().getInt(0);

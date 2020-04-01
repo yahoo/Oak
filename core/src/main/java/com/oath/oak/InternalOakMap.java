@@ -563,7 +563,7 @@ class InternalOakMap<K, V> {
         }
     }
 
-    boolean putIfAbsentComputeIfPresent(K key, V value, Consumer<OakWBuffer> computer) {
+    boolean putIfAbsentComputeIfPresent(K key, V value, Consumer<OakWriteBuffer> computer) {
         if (key == null || value == null || computer == null) {
             throw new NullPointerException();
         }
@@ -720,7 +720,7 @@ class InternalOakMap<K, V> {
         }
     }
 
-    OakRBuffer get(K key) {
+    OakDetachedBuffer get(K key) {
         if (key == null) {
             throw new NullPointerException();
         }
@@ -740,12 +740,12 @@ class InternalOakMap<K, V> {
                 continue;
             }
 
-            return new OakRValueBuffer(lookUp.valueReference, lookUp.version, lookUp.keyReference, valueOperator,
+            return new OakDetachedReadValueBuffer(lookUp.valueReference, lookUp.version, lookUp.keyReference, valueOperator,
                     memoryManager, this);
         }
     }
 
-    boolean computeIfPresent(K key, Consumer<OakWBuffer> computer) {
+    boolean computeIfPresent(K key, Consumer<OakWriteBuffer> computer) {
         if (key == null || computer == null) {
             throw new NullPointerException();
         }
@@ -1005,7 +1005,7 @@ class InternalOakMap<K, V> {
         return EntrySet.keyRefToByteBuffer(keyReference, memoryManager);
     }
 
-    private OakRKeyBuffer setKeyReference(long keyReference, OakRKeyBuffer key) {
+    private OakDetachedReadKeyBuffer setKeyReference(long keyReference, OakDetachedReadKeyBuffer key) {
         EntrySet.keyRefToOakRRef(keyReference, key);
         return key;
     }
@@ -1211,7 +1211,7 @@ class InternalOakMap<K, V> {
          * Advances next to the next entry without creating a ByteBuffer for the key.
          * Return previous index
          */
-        OakRKeyBuffer advanceStream(OakRKeyBuffer key, OakRKeyBuffer value) {
+        OakDetachedReadKeyBuffer advanceStream(OakDetachedReadKeyBuffer key, OakDetachedReadKeyBuffer value) {
 
             if (state == null) {
                 throw new NoSuchElementException();
@@ -1326,7 +1326,7 @@ class InternalOakMap<K, V> {
         }
     }
 
-    class ValueIterator extends Iter<OakRBuffer> {
+    class ValueIterator extends Iter<OakDetachedBuffer> {
 
         private final InternalOakMap<K, V> internalOakMap;
 
@@ -1337,26 +1337,26 @@ class InternalOakMap<K, V> {
         }
 
         @Override
-        public OakRBuffer next() {
+        public OakDetachedBuffer next() {
             IterItem myItem = advance(true);
             long keyReference = myItem.keyReference;
             long valueReference = myItem.valueReference;
             int version = myItem.valueVersion;
-            return new OakRValueBuffer(valueReference, version, keyReference, valueOperator, memoryManager,
+            return new OakDetachedReadValueBuffer(valueReference, version, keyReference, valueOperator, memoryManager,
                     internalOakMap);
         }
     }
 
-    class ValueStreamIterator extends Iter<OakRBuffer> {
+    class ValueStreamIterator extends Iter<OakDetachedBuffer> {
 
-        private OakRKeyBuffer value = new OakRKeyBuffer(memoryManager, valueOperator.getHeaderSize());
+        private OakDetachedReadKeyBuffer value = new OakDetachedReadKeyBuffer(memoryManager, valueOperator.getHeaderSize());
 
         ValueStreamIterator(K lo, boolean loInclusive, K hi, boolean hiInclusive, boolean isDescending) {
             super(lo, loInclusive, hi, hiInclusive, isDescending);
         }
 
         @Override
-        public OakRBuffer next() {
+        public OakDetachedBuffer next() {
             value = advanceStream(null, value);
             if (value == null) {
                 return null;
@@ -1399,7 +1399,7 @@ class InternalOakMap<K, V> {
         }
     }
 
-    class EntryIterator extends Iter<Map.Entry<OakRBuffer, OakRBuffer>> {
+    class EntryIterator extends Iter<Map.Entry<OakDetachedBuffer, OakDetachedBuffer>> {
 
         private final InternalOakMap<K, V> internalOakMap;
 
@@ -1409,27 +1409,27 @@ class InternalOakMap<K, V> {
             this.internalOakMap = internalOakMap;
         }
 
-        public Map.Entry<OakRBuffer, OakRBuffer> next() {
+        public Map.Entry<OakDetachedBuffer, OakDetachedBuffer> next() {
             IterItem myItem = advance(true);
             long keyReference = myItem.keyReference;
             long valueReference = myItem.valueReference;
             int version = myItem.valueVersion;
             return new AbstractMap.SimpleImmutableEntry<>(setKeyReference(keyReference,
-                    new OakRKeyBuffer(memoryManager, KEY_HEADER_SIZE)), new OakRValueBuffer(valueReference,
+                    new OakDetachedReadKeyBuffer(memoryManager, KEY_HEADER_SIZE)), new OakDetachedReadValueBuffer(valueReference,
                     version, keyReference, valueOperator, memoryManager, internalOakMap));
         }
     }
 
-    class EntryStreamIterator extends Iter<Map.Entry<OakRBuffer, OakRBuffer>> implements Map.Entry<OakRBuffer, OakRBuffer> {
+    class EntryStreamIterator extends Iter<Map.Entry<OakDetachedBuffer, OakDetachedBuffer>> implements Map.Entry<OakDetachedBuffer, OakDetachedBuffer> {
 
-        private OakRKeyBuffer key = new OakRKeyBuffer(memoryManager, KEY_HEADER_SIZE);
-        private OakRKeyBuffer value = new OakRKeyBuffer(memoryManager, valueOperator.getHeaderSize());
+        private OakDetachedReadKeyBuffer key = new OakDetachedReadKeyBuffer(memoryManager, KEY_HEADER_SIZE);
+        private OakDetachedReadKeyBuffer value = new OakDetachedReadKeyBuffer(memoryManager, valueOperator.getHeaderSize());
 
         EntryStreamIterator(K lo, boolean loInclusive, K hi, boolean hiInclusive, boolean isDescending) {
             super(lo, loInclusive, hi, hiInclusive, isDescending);
         }
 
-        public Map.Entry<OakRBuffer, OakRBuffer> next() {
+        public Map.Entry<OakDetachedBuffer, OakDetachedBuffer> next() {
             value = advanceStream(key, value);
             if (value == null) {
                 return null;
@@ -1438,17 +1438,17 @@ class InternalOakMap<K, V> {
         }
 
         @Override
-        public OakRBuffer getKey() {
+        public OakDetachedBuffer getKey() {
             return key;
         }
 
         @Override
-        public OakRBuffer getValue() {
+        public OakDetachedBuffer getValue() {
             return value;
         }
 
         @Override
-        public OakRBuffer setValue(OakRBuffer value) {
+        public OakDetachedBuffer setValue(OakDetachedBuffer value) {
             throw new UnsupportedOperationException();
         }
     }
@@ -1502,31 +1502,31 @@ class InternalOakMap<K, V> {
     }
 
     // May return deleted keys
-    class KeyIterator extends Iter<OakRBuffer> {
+    class KeyIterator extends Iter<OakDetachedBuffer> {
 
         KeyIterator(K lo, boolean loInclusive, K hi, boolean hiInclusive, boolean isDescending) {
             super(lo, loInclusive, hi, hiInclusive, isDescending);
         }
 
         @Override
-        public OakRBuffer next() {
+        public OakDetachedBuffer next() {
 
             IterItem myItem = advance(false);
-            return setKeyReference(myItem.keyReference, new OakRKeyBuffer(memoryManager, KEY_HEADER_SIZE));
+            return setKeyReference(myItem.keyReference, new OakDetachedReadKeyBuffer(memoryManager, KEY_HEADER_SIZE));
 
         }
     }
 
-    public class KeyStreamIterator extends Iter<OakRBuffer> {
+    public class KeyStreamIterator extends Iter<OakDetachedBuffer> {
 
-        private OakRKeyBuffer key = new OakRKeyBuffer(memoryManager, KEY_HEADER_SIZE);
+        private OakDetachedReadKeyBuffer key = new OakDetachedReadKeyBuffer(memoryManager, KEY_HEADER_SIZE);
 
         KeyStreamIterator(K lo, boolean loInclusive, K hi, boolean hiInclusive, boolean isDescending) {
             super(lo, loInclusive, hi, hiInclusive, isDescending);
         }
 
         @Override
-        public OakRBuffer next() {
+        public OakDetachedBuffer next() {
             advanceStream(key, null);
             return key;
         }
@@ -1550,33 +1550,33 @@ class InternalOakMap<K, V> {
 
     // Factory methods for iterators
 
-    Iterator<OakRBuffer> valuesBufferViewIterator(K lo, boolean loInclusive, K hi, boolean hiInclusive,
-                                                  boolean isDescending) {
+    Iterator<OakDetachedBuffer> valuesBufferViewIterator(K lo, boolean loInclusive, K hi, boolean hiInclusive,
+                                                         boolean isDescending) {
         return new ValueIterator(lo, loInclusive, hi, hiInclusive, isDescending, this);
     }
 
-    Iterator<Map.Entry<OakRBuffer, OakRBuffer>> entriesBufferViewIterator(K lo, boolean loInclusive, K hi,
-                                                                          boolean hiInclusive, boolean isDescending) {
+    Iterator<Map.Entry<OakDetachedBuffer, OakDetachedBuffer>> entriesBufferViewIterator(K lo, boolean loInclusive, K hi,
+                                                                                        boolean hiInclusive, boolean isDescending) {
         return new EntryIterator(lo, loInclusive, hi, hiInclusive, isDescending, this);
     }
 
-    Iterator<OakRBuffer> keysBufferViewIterator(K lo, boolean loInclusive, K hi, boolean hiInclusive,
-                                                boolean isDescending) {
+    Iterator<OakDetachedBuffer> keysBufferViewIterator(K lo, boolean loInclusive, K hi, boolean hiInclusive,
+                                                       boolean isDescending) {
         return new KeyIterator(lo, loInclusive, hi, hiInclusive, isDescending);
     }
 
-    Iterator<OakRBuffer> valuesStreamIterator(K lo, boolean loInclusive, K hi, boolean hiInclusive,
-                                              boolean isDescending) {
+    Iterator<OakDetachedBuffer> valuesStreamIterator(K lo, boolean loInclusive, K hi, boolean hiInclusive,
+                                                     boolean isDescending) {
         return new ValueStreamIterator(lo, loInclusive, hi, hiInclusive, isDescending);
     }
 
-    Iterator<Map.Entry<OakRBuffer, OakRBuffer>> entriesStreamIterator(K lo, boolean loInclusive, K hi,
-                                                                      boolean hiInclusive, boolean isDescending) {
+    Iterator<Map.Entry<OakDetachedBuffer, OakDetachedBuffer>> entriesStreamIterator(K lo, boolean loInclusive, K hi,
+                                                                                    boolean hiInclusive, boolean isDescending) {
         return new EntryStreamIterator(lo, loInclusive, hi, hiInclusive, isDescending);
     }
 
-    Iterator<OakRBuffer> keysStreamIterator(K lo, boolean loInclusive, K hi, boolean hiInclusive,
-                                            boolean isDescending) {
+    Iterator<OakDetachedBuffer> keysStreamIterator(K lo, boolean loInclusive, K hi, boolean hiInclusive,
+                                                   boolean isDescending) {
         return new KeyStreamIterator(lo, loInclusive, hi, hiInclusive, isDescending);
     }
 

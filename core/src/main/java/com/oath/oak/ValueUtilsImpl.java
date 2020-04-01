@@ -5,7 +5,6 @@ import sun.nio.ch.DirectBuffer;
 
 import java.nio.ByteBuffer;
 import java.util.function.Consumer;
-import java.util.function.Function;
 
 import static com.oath.oak.ValueUtilsImpl.LockStates.DELETED;
 import static com.oath.oak.ValueUtilsImpl.LockStates.FREE;
@@ -101,12 +100,12 @@ class ValueUtilsImpl implements ValueUtils {
     }
 
     @Override
-    public ValueResult compute(Slice s, Consumer<OakWBuffer> computer, int version) {
+    public ValueResult compute(Slice s, Consumer<OakWriteBuffer> computer, int version) {
         ValueResult result = lockWrite(s, version);
         if (result != TRUE) {
             return result;
         }
-        computer.accept(new OakWBufferImpl(s, this));
+        computer.accept(new OakAttachedWriteBuffer(s, this));
         unlockWrite(s);
         return TRUE;
     }
