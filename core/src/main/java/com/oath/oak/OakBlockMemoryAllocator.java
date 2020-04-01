@@ -14,7 +14,7 @@ import java.nio.ByteBuffer;
 // allocator is also getting a Slice to reuse the memory, given this Slice is no longer in use by any thread.
 // Note that Slice cannot be merged into a single Slice, and a Slice currently is not split.
 
-public interface OakBlockMemoryAllocator {
+interface OakBlockMemoryAllocator {
 
     // Allocates ByteBuffer of the given size, thread safe.
     Slice allocateSlice(int size, MemoryManager.Allocate allocate);

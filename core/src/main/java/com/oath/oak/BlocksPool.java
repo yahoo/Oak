@@ -4,7 +4,7 @@
  * Please see LICENSE file in the project root for terms.
  */
 
-package com.oath.oak.NativeAllocator;
+package com.oath.oak;
 
 import java.io.Closeable;
 import java.util.concurrent.ConcurrentLinkedQueue;

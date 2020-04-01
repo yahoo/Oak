@@ -1,15 +1,12 @@
 package com.oath.oak;
 
-import com.oath.oak.NativeAllocator.OakNativeMemoryAllocator;
-
-import java.io.Closeable;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicInteger;
 
-public class NovaManager implements MemoryManager {
+class NovaManager implements MemoryManager {
     static final int RELEASE_LIST_LIMIT = 1024;
     private ThreadIndexCalculator threadIndexCalculator;
     private List<List<Slice>> releaseLists;

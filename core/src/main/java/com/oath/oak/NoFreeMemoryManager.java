@@ -6,12 +6,10 @@
 
 package com.oath.oak;
 
-import com.oath.oak.NativeAllocator.OakNativeMemoryAllocator;
-
 import java.nio.ByteBuffer;
 
 
-public class NoFreeMemoryManager implements MemoryManager {
+class NoFreeMemoryManager implements MemoryManager {
     private final OakBlockMemoryAllocator keysMemoryAllocator;
     private final OakBlockMemoryAllocator valuesMemoryAllocator;
 

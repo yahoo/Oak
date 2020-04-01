@@ -4,7 +4,7 @@ import java.nio.ByteBuffer;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
-public interface ValueUtils {
+interface ValueUtils {
 
     int VERSION_SIZE = 4;
     int INVALID_VERSION = 0;

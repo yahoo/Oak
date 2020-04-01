@@ -1,15 +1,13 @@
-package com.oath.oak.synchrobench.maps;
+package com.oath.oak;
 
 
-import com.oath.oak.Chunk;
-import com.oath.oak.NativeAllocator.OakNativeMemoryAllocator;
-import com.oath.oak.OakMapBuilder;
 import com.oath.oak.synchrobench.contention.abstractions.CompositionalOakMap;
 import com.oath.oak.synchrobench.contention.benchmark.Parameters;
+import com.oath.oak.synchrobench.maps.MyBuffer;
 
 import java.util.Iterator;
 
-public class OakMap<K extends MyBuffer, V extends MyBuffer> implements CompositionalOakMap<K, V> {
+public class OakMyBufferMap<K extends MyBuffer, V extends MyBuffer> implements CompositionalOakMap<K, V> {
     private com.oath.oak.OakMap<MyBuffer, MyBuffer> oak;
     private OakMapBuilder<MyBuffer, MyBuffer> builder;
     private MyBuffer minKey;
@@ -18,7 +16,7 @@ public class OakMap<K extends MyBuffer, V extends MyBuffer> implements Compositi
     private static final long GB = KB * KB * KB;
     private static final long OAK_MAX_OFF_MEMORY = 256 * GB;
 
-    public OakMap() {
+    public OakMyBufferMap() {
         ma = new OakNativeMemoryAllocator(OAK_MAX_OFF_MEMORY);
         if (Parameters.detailedStats) {
             ma.collectStats();
@@ -33,8 +31,8 @@ public class OakMap<K extends MyBuffer, V extends MyBuffer> implements Compositi
         oak = builder.build();
     }
 
-    public OakNativeMemoryAllocator getMemoryAllocator() {
-        return ma;
+    public long allocated() {
+        return ma.allocated();
     }
 
     @Override

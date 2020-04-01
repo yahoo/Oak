@@ -18,12 +18,12 @@ iterations="5"
 duration="30000"
 #gcAlgorithms="-XX:+UseParallelOldGC -XX:+UseConcMarkSweepGC -XX:+UseG1GC"
 
-declare -A heap_limit=(["OakMap"]="12g"
+declare -A heap_limit=(["OakMyBufferMap"]="12g"
                        ["OffHeapList"]="12g"
                        ["JavaSkipListMap"]="36g"
                       )
 
-declare -A direct_limit=(["OakMap"]="24g"
+declare -A direct_limit=(["OakMyBufferMap"]="24g"
                          ["OffHeapList"]="24g"
                          ["JavaSkipListMap"]="0g"
                         )
@@ -54,7 +54,7 @@ declare -A scenarios=(
 
 # Oak vs JavaSkipList
 benchClassPrefix="com.oath.oak.synchrobench.maps"
-benchs="JavaSkipListMap OakMap OffHeapList"
+benchs="JavaSkipListMap OakMyBufferMap OffHeapList"
 
 summary="${output}/summary.csv"
 

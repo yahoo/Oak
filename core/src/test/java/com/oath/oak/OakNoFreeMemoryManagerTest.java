@@ -6,7 +6,6 @@
 
 package com.oath.oak;
 
-import com.oath.oak.NativeAllocator.OakNativeMemoryAllocator;
 import org.junit.Before;
 import org.junit.Test;
 

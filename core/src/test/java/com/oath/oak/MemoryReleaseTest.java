@@ -1,4 +1,4 @@
-package com.oath.oak.NativeAllocator;
+package com.oath.oak;
 
 import org.junit.Test;
 

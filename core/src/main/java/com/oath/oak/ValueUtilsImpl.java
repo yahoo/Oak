@@ -15,7 +15,7 @@ import static com.oath.oak.ValueUtils.ValueResult.FALSE;
 import static com.oath.oak.ValueUtils.ValueResult.RETRY;
 import static com.oath.oak.ValueUtils.ValueResult.TRUE;
 
-public class ValueUtilsImpl implements ValueUtils {
+class ValueUtilsImpl implements ValueUtils {
     enum LockStates {
         FREE(0), LOCKED(1), DELETED(2), MOVED(3);
 
