@@ -34,9 +34,10 @@ class BlocksPool implements BlocksProvider, Closeable {
         prealloc(NUMBER_OF_BLOCKS);
     }
 
+    // used in tests only!!
     private BlocksPool(int blockSize) {
         this.blockSize = blockSize;
-        prealloc(NUMBER_OF_BLOCKS);
+        prealloc(NUMBER_OF_BLOCKS/3);
     }
 
     /**
