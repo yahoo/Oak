@@ -6,7 +6,7 @@
 
 package com.oath.oak;
 
-import com.oath.oak.common.OakCommonFactory;
+import com.oath.oak.common.OakCommonBuildersFactory;
 import org.junit.Test;
 
 import java.nio.ByteBuffer;
@@ -96,7 +96,7 @@ public class ComputeTest {
         }
         minKey.position(0);
 
-        OakMapBuilder<ByteBuffer, ByteBuffer> builder = OakCommonFactory.getDefaultIntBufferBuilder(keySize, valSize)
+        OakMapBuilder<ByteBuffer, ByteBuffer> builder = OakCommonBuildersFactory.getDefaultIntBufferBuilder(keySize, valSize)
             .setChunkMaxItems(2048);
 
         oak = builder.build();

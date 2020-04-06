@@ -1,6 +1,6 @@
 package com.oath.oak;
 
-import com.oath.oak.common.OakCommonFactory;
+import com.oath.oak.common.OakCommonBuildersFactory;
 import com.oath.oak.common.integer.OakIntSerializer;
 import org.junit.Before;
 import org.junit.Test;
@@ -18,7 +18,7 @@ public class OverheadTest {
 
     @Before
     public void init() {
-        OakMapBuilder<Integer, Integer> builder = OakCommonFactory.getDefaultIntBuilder()
+        OakMapBuilder<Integer, Integer> builder = OakCommonBuildersFactory.getDefaultIntBuilder()
                 .setChunkMaxItems(100)
                 .setKeySerializer(new OakIntSerializer(KEY_SIZE))
                 .setValueSerializer(new OakIntSerializer(VALUE_SIZE));

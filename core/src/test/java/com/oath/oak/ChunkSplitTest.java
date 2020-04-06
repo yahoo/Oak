@@ -1,7 +1,7 @@
 package com.oath.oak;
 
 
-import com.oath.oak.common.OakCommonFactory;
+import com.oath.oak.common.OakCommonBuildersFactory;
 import org.junit.Test;
 
 import java.lang.reflect.Field;
@@ -16,7 +16,7 @@ public class ChunkSplitTest {
 
     @Test
     public void testSplitByCount() throws NoSuchFieldException, IllegalAccessException {
-        OakMapBuilder<String, String> builder = OakCommonFactory.getDefaultStringBuilder()
+        OakMapBuilder<String, String> builder = OakCommonBuildersFactory.getDefaultStringBuilder()
             .setChunkMaxItems(maxItemsPerChunk);
         OakMap<String, String> oak = builder.build();
 
@@ -39,7 +39,7 @@ public class ChunkSplitTest {
 
     @Test
     public void testSplitByGet() {
-        OakMapBuilder<Integer, Integer> builder = OakCommonFactory.getDefaultIntBuilder()
+        OakMapBuilder<Integer, Integer> builder = OakCommonBuildersFactory.getDefaultIntBuilder()
                 .setChunkMaxItems(maxItemsPerChunk);
         OakMap<Integer, Integer> oak = builder.build();
         Integer value;

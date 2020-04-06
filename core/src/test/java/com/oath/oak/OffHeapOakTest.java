@@ -6,7 +6,7 @@
 
 package com.oath.oak;
 
-import com.oath.oak.common.OakCommonFactory;
+import com.oath.oak.common.OakCommonBuildersFactory;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -30,7 +30,7 @@ public class OffHeapOakTest {
 
     @Before
     public void init() {
-        OakMapBuilder<Integer, Integer> builder = OakCommonFactory.getDefaultIntBuilder()
+        OakMapBuilder<Integer, Integer> builder = OakCommonBuildersFactory.getDefaultIntBuilder()
                 .setChunkMaxItems(maxItemsPerChunk);
         oak = builder.build();
         latch = new CountDownLatch(1);

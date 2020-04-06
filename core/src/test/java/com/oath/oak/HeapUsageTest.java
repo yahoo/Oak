@@ -6,13 +6,12 @@
 
 package com.oath.oak;
 
-import com.oath.oak.common.OakCommonFactory;
+import com.oath.oak.common.OakCommonBuildersFactory;
 import com.oath.oak.common.integer.OakIntSerializer;
 import org.junit.Ignore;
 import org.junit.Test;
 
 import java.io.IOException;
-import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -28,7 +27,7 @@ public class HeapUsageTest {
     @Test
     public void testMain() throws InterruptedException {
 
-        OakMapBuilder<Integer, Integer> builder = OakCommonFactory.getDefaultIntBuilder()
+        OakMapBuilder<Integer, Integer> builder = OakCommonBuildersFactory.getDefaultIntBuilder()
                 .setChunkMaxItems(2048)
                 .setKeySerializer(new OakIntSerializer(keySize))
                 .setValueSerializer(new OakIntSerializer(valSize));
@@ -109,7 +108,7 @@ public class HeapUsageTest {
 
         System.out.println("key size: " + keySize + "B" + ", value size: " + ((double) valSize) / K + "KB");
         for (long numOfEntries : configurations) {
-            OakMapBuilder<Integer, Integer> builder = OakCommonFactory.getDefaultIntBuilder()
+            OakMapBuilder<Integer, Integer> builder = OakCommonBuildersFactory.getDefaultIntBuilder()
                     .setChunkMaxItems(2048)
                     .setKeySerializer(new OakIntSerializer(keySize))
                     .setValueSerializer(new OakIntSerializer(valSize));

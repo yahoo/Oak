@@ -1,6 +1,6 @@
 package com.oath.oak;
 
-import com.oath.oak.common.OakCommonFactory;
+import com.oath.oak.common.OakCommonBuildersFactory;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Ignore;
@@ -33,7 +33,7 @@ public class IteratorModificationTest {
 
     @Before
     public void init() {
-        OakMapBuilder<String, String> builder = OakCommonFactory.getDefaultStringBuilder()
+        OakMapBuilder<String, String> builder = OakCommonBuildersFactory.getDefaultStringBuilder()
             .setChunkMaxItems(100);
 
         oak = builder.build();

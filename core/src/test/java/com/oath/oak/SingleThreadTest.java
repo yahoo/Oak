@@ -6,7 +6,7 @@
 
 package com.oath.oak;
 
-import com.oath.oak.common.OakCommonFactory;
+import com.oath.oak.common.OakCommonBuildersFactory;
 import junit.framework.TestCase;
 import org.junit.After;
 import org.junit.Before;
@@ -23,7 +23,7 @@ public class SingleThreadTest {
 
     @Before
     public void init() {
-        OakMapBuilder<Integer, Integer> builder = OakCommonFactory.getDefaultIntBuilder()
+        OakMapBuilder<Integer, Integer> builder = OakCommonBuildersFactory.getDefaultIntBuilder()
                 .setChunkMaxItems(maxItemsPerChunk);
         oak = builder.build();
     }

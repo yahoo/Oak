@@ -1,6 +1,6 @@
 package com.oath.oak;
 
-import com.oath.oak.common.OakCommonFactory;
+import com.oath.oak.common.OakCommonBuildersFactory;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -15,7 +15,7 @@ public class ResizeValueTest {
 
     @Before
     public void initStuff() {
-        OakMapBuilder<String, String> builder = OakCommonFactory.getDefaultStringBuilder()
+        OakMapBuilder<String, String> builder = OakCommonBuildersFactory.getDefaultStringBuilder()
             .setChunkMaxItems(100);
 
         oak = builder.build();
@@ -31,11 +31,11 @@ public class ResizeValueTest {
             stringBuilder.append(i);
         }
         OakRBuffer valBuffer = oak.zc().get(key);
-        String transformed = valBuffer.transform(OakCommonFactory.defaultStringSerializer::deserialize);
+        String transformed = valBuffer.transform(OakCommonBuildersFactory.defaultStringSerializer::deserialize);
         assertEquals(value, transformed);
         oak.zc().put(key, stringBuilder.toString());
         valBuffer = oak.zc().get(key);
-        transformed = valBuffer.transform(OakCommonFactory.defaultStringSerializer::deserialize);
+        transformed = valBuffer.transform(OakCommonBuildersFactory.defaultStringSerializer::deserialize);
         assertEquals(stringBuilder.toString(), transformed);
     }
 

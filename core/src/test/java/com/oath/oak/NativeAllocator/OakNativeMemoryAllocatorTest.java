@@ -13,7 +13,7 @@ import com.oath.oak.ValueUtilsImpl;
 import com.oath.oak.OakMap;
 import com.oath.oak.OakMapBuilder;
 import com.oath.oak.OakOutOfMemoryException;
-import com.oath.oak.common.OakCommonFactory;
+import com.oath.oak.common.OakCommonBuildersFactory;
 import com.oath.oak.common.integer.OakIntSerializer;
 import org.junit.After;
 import org.junit.Before;
@@ -128,7 +128,7 @@ public class OakNativeMemoryAllocatorTest {
         int keysSizeAfterSerialization;
         OakNativeMemoryAllocator ma = new OakNativeMemoryAllocator(capacity);
         int maxItemsPerChunk = 1024;
-        OakMapBuilder<Integer, Integer> builder = OakCommonFactory.getDefaultIntBuilder()
+        OakMapBuilder<Integer, Integer> builder = OakCommonBuildersFactory.getDefaultIntBuilder()
             .setValueSerializer(new OakIntSerializer(valueSizeAfterSerialization))
             .setChunkMaxItems(maxItemsPerChunk)
             .setMemoryAllocator(ma);

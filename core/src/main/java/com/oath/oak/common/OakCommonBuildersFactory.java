@@ -11,9 +11,8 @@ import com.oath.oak.common.string.OakStringComparator;
 import com.oath.oak.common.string.OakStringSerializer;
 
 import java.nio.ByteBuffer;
-import java.util.Comparator;
 
-public class OakCommonFactory {
+public class OakCommonBuildersFactory {
 
     // #####################################################################################
     // Integers factories

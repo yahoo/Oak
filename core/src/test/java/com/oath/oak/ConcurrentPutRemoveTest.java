@@ -1,6 +1,6 @@
 package com.oath.oak;
 
-import com.oath.oak.common.OakCommonFactory;
+import com.oath.oak.common.OakCommonBuildersFactory;
 import org.junit.Before;
 import org.junit.Ignore;
 import org.junit.Test;
@@ -28,7 +28,7 @@ public class ConcurrentPutRemoveTest {
 
     @Before
     public void initStuff() {
-        OakMapBuilder<Integer, Integer> builder = OakCommonFactory.getDefaultIntBuilder();
+        OakMapBuilder<Integer, Integer> builder = OakCommonBuildersFactory.getDefaultIntBuilder();
         oak = builder.build();
         barrier = new CyclicBarrier(NUM_THREADS + 1);
         stop = new AtomicBoolean(false);
