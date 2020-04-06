@@ -868,6 +868,13 @@ class EntrySet<K, V> {
             return entryVersion;
         }
 
+        // the value is not written yet or deleted (or in process of being deleted)
+        // this method doesn't complete those things.
+        // In case the value is deleted the negative version is going to be returned
+        if (lookUp.valueReference == INVALID_VALUE_REFERENCE) {
+            return entryVersion;
+        }
+
         Slice valueSlice = buildValueSlice(lookUp.valueReference, entryVersion, memoryManager);
         int offHeapVersion = valOffHeapOperator.getOffHeapVersion(valueSlice);
         casEntriesArrayInt(entryIdx2intIdx(lookUp.entryIndex), OFFSET.VALUE_VERSION,

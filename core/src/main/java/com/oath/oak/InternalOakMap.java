@@ -1178,11 +1178,11 @@ class InternalOakMap<K, V> {
             if (chunkState == Chunk.State.RELEASED) {
                 initAfterRebalance();
             }
+            // build LookUp that sets key/value references and checks for value validity,
+            // if value is deleted lookUp.value slice is going to be null
             EntrySet.LookUp lookUp = state.getChunk().buildLookUp(state.getIndex());
 
-
             if (needsValue) {
-
                 if (lookUp.valueReference != EntrySet.INVALID_VALUE_REFERENCE) {
                     lookUp.version = state.getChunk().completeLinking(lookUp);
                     // The CAS could not complete due to concurrent rebalance, so rebalance and try again
@@ -1190,9 +1190,8 @@ class InternalOakMap<K, V> {
                         rebalance(state.getChunk());
                         return advance(true);
                     }
-                    // If we could not complete the linking or if the value is deleted, advance to the next value
-                    if (lookUp.valueSlice == null ||
-                        (valueOperator.isValueDeleted(lookUp.valueSlice, lookUp.version) != FALSE)) {
+                    // If the value is deleted, advance to the next value
+                    if (lookUp.valueSlice == null ) {
                         advanceState();
                         return advance(true);
                     }
