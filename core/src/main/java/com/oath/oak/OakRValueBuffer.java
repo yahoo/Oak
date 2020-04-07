@@ -13,13 +13,9 @@ import java.nio.ByteOrder;
 import java.util.ConcurrentModificationException;
 import java.util.function.Function;
 
-import static com.oath.oak.Chunk.BLOCK_ID_LENGTH_ARRAY_INDEX;
-import static com.oath.oak.Chunk.POSITION_ARRAY_INDEX;
-import static com.oath.oak.Chunk.VALUE_BLOCK_SHIFT;
-import static com.oath.oak.Chunk.VALUE_LENGTH_MASK;
 import static com.oath.oak.ValueUtils.ValueResult.*;
 
-public class OakRValueBufferImpl implements OakRBuffer, OakUnsafeDirectBuffer {
+public class OakRValueBuffer implements OakRBuffer, OakUnsafeDirectBuffer {
     /**
      * These are the fields used when accessing the value stored in this buffer (the reference to it in the off-heap,
      * and the version we expect the value to have.
@@ -44,7 +40,7 @@ public class OakRValueBufferImpl implements OakRBuffer, OakUnsafeDirectBuffer {
      */
     private final InternalOakMap<?, ?> internalOakMap;
 
-    OakRValueBufferImpl(long valueReference, int valueVersion, long keyReference, ValueUtils valueOperator,
+    OakRValueBuffer(long valueReference, int valueVersion, long keyReference, ValueUtils valueOperator,
                         MemoryManager memoryManager, InternalOakMap<?, ?> internalOakMap) {
         this.valueReference = valueReference;
         this.keyReference = keyReference;
@@ -55,18 +51,16 @@ public class OakRValueBufferImpl implements OakRBuffer, OakUnsafeDirectBuffer {
     }
 
     private Slice getValueSlice() {
-        int[] valueArray = UnsafeUtils.longToInts(valueReference);
-        return memoryManager.getSliceFromBlockID(valueArray[BLOCK_ID_LENGTH_ARRAY_INDEX] >>> VALUE_BLOCK_SHIFT,
-                valueArray[POSITION_ARRAY_INDEX], valueArray[BLOCK_ID_LENGTH_ARRAY_INDEX] & VALUE_LENGTH_MASK);
+        return EntrySet.buildValueSlice(valueReference, version, memoryManager);
     }
 
     private int valuePosition() {
-        return UnsafeUtils.longToInts(valueReference)[POSITION_ARRAY_INDEX] + valueOperator.getHeaderSize();
+        return EntrySet.getValuePosition(valueReference) + valueOperator.getHeaderSize();
     }
 
     @Override
     public int capacity() {
-        return (UnsafeUtils.longToInts(valueReference)[BLOCK_ID_LENGTH_ARRAY_INDEX] & VALUE_LENGTH_MASK) - valueOperator.getHeaderSize();
+        return (EntrySet.getValueLength(valueReference) - valueOperator.getHeaderSize());
     }
 
     @Override
@@ -205,7 +199,7 @@ public class OakRValueBufferImpl implements OakRBuffer, OakUnsafeDirectBuffer {
     }
 
     private void lookupValueReference() {
-        Chunk.LookUp lookUp = internalOakMap.getValueFromIndex(keyReference);
+        EntrySet.LookUp lookUp = internalOakMap.refreshValuePosition(keyReference);
         if (lookUp == null || lookUp.valueSlice == null) {
             throw new ConcurrentModificationException();
         }

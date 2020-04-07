@@ -14,8 +14,9 @@ import java.nio.ByteOrder;
 import java.util.function.Function;
 
 /*
- * The OakRKeyBuffer allows reuse of the same OakRBuffer implementation object and is used for
- * Oak's StreamIterators, where the iterated OakRBuffers can be used only once.
+ * The OakRKeyBuffer allows reuse of the same OakRBuffer implementation object and is used both
+ * in Oak's StreamIterators, where the iterated OakRBuffers can be used only once, and in normal
+ * iterations without reusing.
  * This class is actually a reference into internal BB object rather than new BB object.
  * It references the internal BB object as far as OakRKeyBuffer wasn't moved to point on other BB.
  *
@@ -127,7 +128,7 @@ public class OakRKeyBuffer implements OakRBuffer, OakUnsafeDirectBuffer {
         return memoryManager.getByteBufferFromBlockID(blockID, position, length);
     }
 
-    /*-------------- OakUnsafeRef --------------*/
+    /*-------------- OakUnsafeDirectBuffer --------------*/
 
     @Override
     public ByteBuffer getByteBuffer() {
