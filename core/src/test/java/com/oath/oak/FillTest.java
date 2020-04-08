@@ -6,9 +6,10 @@
 
 package com.oath.oak;
 
+import com.oath.oak.common.OakCommonBuildersFactory;
+import com.oath.oak.common.integer.OakIntSerializer;
 import org.junit.Test;
 
-import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Random;
 import java.util.concurrent.CountDownLatch;
@@ -29,42 +30,6 @@ public class FillTest {
 
     static private ArrayList<Thread> threads = new ArrayList<>(NUM_THREADS);
     static private CountDownLatch latch = new CountDownLatch(1);
-
-    public static class FillTestKeySerializer implements OakSerializer<Integer> {
-
-        @Override
-        public void serialize(Integer key, ByteBuffer targetBuffer) {
-            targetBuffer.putInt(targetBuffer.position(), key);
-        }
-
-        @Override
-        public Integer deserialize(ByteBuffer serializedKey) {
-            return serializedKey.getInt(serializedKey.position());
-        }
-
-        @Override
-        public int calculateSize(Integer key) {
-            return KEY_SIZE;
-        }
-    }
-
-    public static class FillTestValueSerializer implements OakSerializer<Integer> {
-
-        @Override
-        public void serialize(Integer value, ByteBuffer targetBuffer) {
-            targetBuffer.putInt(targetBuffer.position(), value);
-        }
-
-        @Override
-        public Integer deserialize(ByteBuffer serializedValue) {
-            return serializedValue.getInt(serializedValue.position());
-        }
-
-        @Override
-        public int calculateSize(Integer value) {
-            return VALUE_SIZE;
-        }
-    }
 
     static class RunThreads implements Runnable {
         CountDownLatch latch;
@@ -108,7 +73,7 @@ public class FillTest {
                 oak.zc().putIfAbsent(next, next);
             }
 
-            for (Integer i = end - 1; i >= start; i--) {
+            for (int i = end - 1; i >= start; i--) {
                 assertNotEquals(oak.get(i), null);
             }
 
@@ -118,10 +83,10 @@ public class FillTest {
     @Test
     public void testMain() throws InterruptedException {
 
-        OakMapBuilder<Integer, Integer> builder = IntegerOakMap.getDefaultBuilder()
-                .setChunkMaxItems(2048)
-                .setKeySerializer(new FillTestKeySerializer())
-                .setValueSerializer(new FillTestValueSerializer());
+        OakMapBuilder<Integer, Integer> builder = OakCommonBuildersFactory.getDefaultIntBuilder()
+            .setChunkMaxItems(2048)
+            .setKeySerializer(new OakIntSerializer(KEY_SIZE))
+            .setValueSerializer(new OakIntSerializer(VALUE_SIZE));
 
         oak = builder.build();
 

@@ -6,6 +6,7 @@
 
 package com.oath.oak;
 
+import com.oath.oak.common.OakCommonBuildersFactory;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -30,7 +31,7 @@ public class MultiThreadComputeTest {
 
     @Before
     public void init() {
-        OakMapBuilder<Integer, Integer> builder = IntegerOakMap.getDefaultBuilder()
+        OakMapBuilder<Integer, Integer> builder = OakCommonBuildersFactory.getDefaultIntBuilder()
                 .setChunkMaxItems(maxItemsPerChunk);
         oak = builder.build();
         latch = new CountDownLatch(1);

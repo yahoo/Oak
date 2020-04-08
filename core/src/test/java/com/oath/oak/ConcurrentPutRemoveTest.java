@@ -1,5 +1,6 @@
 package com.oath.oak;
 
+import com.oath.oak.common.OakCommonBuildersFactory;
 import org.junit.Before;
 import org.junit.Ignore;
 import org.junit.Test;
@@ -11,7 +12,6 @@ import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 
@@ -28,7 +28,7 @@ public class ConcurrentPutRemoveTest {
 
     @Before
     public void initStuff() {
-        OakMapBuilder<Integer, Integer> builder = IntegerOakMap.getDefaultBuilder();
+        OakMapBuilder<Integer, Integer> builder = OakCommonBuildersFactory.getDefaultIntBuilder();
         oak = builder.build();
         barrier = new CyclicBarrier(NUM_THREADS + 1);
         stop = new AtomicBoolean(false);

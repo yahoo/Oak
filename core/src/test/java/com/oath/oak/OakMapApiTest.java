@@ -1,8 +1,8 @@
 package com.oath.oak;
 
+import com.oath.oak.common.OakCommonBuildersFactory;
 import org.junit.After;
 import org.junit.Before;
-import org.junit.Ignore;
 import org.junit.Test;
 
 import java.nio.ReadOnlyBufferException;
@@ -21,7 +21,7 @@ public class OakMapApiTest {
     @Before
     public void init() {
         int maxItemsPerChunk = 2048;
-        OakMapBuilder<Integer, Integer> builder = IntegerOakMap.getDefaultBuilder()
+        OakMapBuilder<Integer, Integer> builder = OakCommonBuildersFactory.getDefaultIntBuilder()
                 .setChunkMaxItems(maxItemsPerChunk);
         oak = builder.build();
     }

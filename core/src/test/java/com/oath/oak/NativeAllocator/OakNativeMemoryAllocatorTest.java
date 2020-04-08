@@ -9,12 +9,12 @@ import java.util.Random;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-import com.oath.oak.IntegerOakMap;
 import com.oath.oak.ValueUtilsImpl;
 import com.oath.oak.OakMap;
 import com.oath.oak.OakMapBuilder;
 import com.oath.oak.OakOutOfMemoryException;
-import com.oath.oak.OakSerializer;
+import com.oath.oak.common.OakCommonBuildersFactory;
+import com.oath.oak.common.integer.OakIntSerializer;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -28,24 +28,6 @@ import static org.mockito.Mockito.when;
 public class OakNativeMemoryAllocatorTest {
     private static int valueSizeAfterSerialization = 4 * 1024 * 1024;
     private static ValueUtilsImpl valueOperator = new ValueUtilsImpl();
-
-    public static class CheckOakCapacityValueSerializer implements OakSerializer<Integer> {
-
-        @Override
-        public void serialize(Integer value, ByteBuffer targetBuffer) {
-            targetBuffer.putInt(targetBuffer.position(), value);
-        }
-
-        @Override
-        public Integer deserialize(ByteBuffer serializedValue) {
-            return serializedValue.getInt(serializedValue.position());
-        }
-
-        @Override
-        public int calculateSize(Integer value) {
-            return valueSizeAfterSerialization;
-        }
-    }
 
     @Test
     public void allocateContention() throws InterruptedException {
@@ -146,10 +128,10 @@ public class OakNativeMemoryAllocatorTest {
         int keysSizeAfterSerialization;
         OakNativeMemoryAllocator ma = new OakNativeMemoryAllocator(capacity);
         int maxItemsPerChunk = 1024;
-        OakMapBuilder<Integer, Integer> builder = IntegerOakMap.getDefaultBuilder()
-                .setChunkMaxItems(maxItemsPerChunk)
-                .setValueSerializer(new CheckOakCapacityValueSerializer())
-                .setMemoryAllocator(ma);
+        OakMapBuilder<Integer, Integer> builder = OakCommonBuildersFactory.getDefaultIntBuilder()
+            .setValueSerializer(new OakIntSerializer(valueSizeAfterSerialization))
+            .setChunkMaxItems(maxItemsPerChunk)
+            .setMemoryAllocator(ma);
 
         OakMap<Integer, Integer> oak = builder.build();
 

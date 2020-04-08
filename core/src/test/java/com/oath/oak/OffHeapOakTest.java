@@ -6,21 +6,19 @@
 
 package com.oath.oak;
 
+import com.oath.oak.common.OakCommonBuildersFactory;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
 import java.util.ArrayList;
-import java.util.ConcurrentModificationException;
 import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.concurrent.CountDownLatch;
 
 import static junit.framework.TestCase.assertNotNull;
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertTrue;
 
 public class OffHeapOakTest {
     private OakMap<Integer, Integer> oak;
@@ -32,7 +30,7 @@ public class OffHeapOakTest {
 
     @Before
     public void init() {
-        OakMapBuilder<Integer, Integer> builder = IntegerOakMap.getDefaultBuilder()
+        OakMapBuilder<Integer, Integer> builder = OakCommonBuildersFactory.getDefaultIntBuilder()
                 .setChunkMaxItems(maxItemsPerChunk);
         oak = builder.build();
         latch = new CountDownLatch(1);

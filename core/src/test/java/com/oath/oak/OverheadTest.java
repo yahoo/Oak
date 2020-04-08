@@ -1,9 +1,10 @@
 package com.oath.oak;
 
+import com.oath.oak.common.OakCommonBuildersFactory;
+import com.oath.oak.common.integer.OakIntSerializer;
 import org.junit.Before;
 import org.junit.Test;
 
-import java.nio.ByteBuffer;
 import java.util.Random;
 
 public class OverheadTest {
@@ -17,40 +18,10 @@ public class OverheadTest {
 
     @Before
     public void init() {
-        OakMapBuilder<Integer, Integer> builder = IntegerOakMap.getDefaultBuilder()
+        OakMapBuilder<Integer, Integer> builder = OakCommonBuildersFactory.getDefaultIntBuilder()
                 .setChunkMaxItems(100)
-                .setKeySerializer(new OakSerializer<Integer>() {
-                    @Override
-                    public void serialize(Integer value, ByteBuffer targetBuffer) {
-                        targetBuffer.putInt(targetBuffer.position(), value);
-                    }
-
-                    @Override
-                    public Integer deserialize(ByteBuffer serializedValue) {
-                        return serializedValue.getInt(serializedValue.position());
-                    }
-
-                    @Override
-                    public int calculateSize(Integer value) {
-                        return KEY_SIZE;
-                    }
-                })
-                .setValueSerializer(new OakSerializer<Integer>() {
-                    @Override
-                    public void serialize(Integer value, ByteBuffer targetBuffer) {
-                        targetBuffer.putInt(targetBuffer.position(), value);
-                    }
-
-                    @Override
-                    public Integer deserialize(ByteBuffer serializedValue) {
-                        return serializedValue.getInt(serializedValue.position());
-                    }
-
-                    @Override
-                    public int calculateSize(Integer value) {
-                        return VALUE_SIZE;
-                    }
-                });
+                .setKeySerializer(new OakIntSerializer(KEY_SIZE))
+                .setValueSerializer(new OakIntSerializer(VALUE_SIZE));
 
         oak = builder.build();
     }

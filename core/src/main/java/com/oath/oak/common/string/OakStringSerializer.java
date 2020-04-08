@@ -1,24 +1,31 @@
-package com.oath.oak;
+package com.oath.oak.common.string;
+
+import com.oath.oak.OakSerializer;
 
 import java.nio.ByteBuffer;
 
-public class StringSerializer implements OakSerializer<String> {
+public class OakStringSerializer implements OakSerializer<String> {
 
     @Override
     public void serialize(String object, ByteBuffer targetBuffer) {
-        targetBuffer.putInt(targetBuffer.position(), object.length());
+        final int offset = targetBuffer.position();
+        final int size = object.length();
+
+        targetBuffer.putInt(offset, size);
         for (int i = 0; i < object.length(); i++) {
             char c = object.charAt(i);
-            targetBuffer.putChar(Integer.BYTES + targetBuffer.position() + i * Character.BYTES, c);
+            targetBuffer.putChar(offset + Integer.BYTES + i * Character.BYTES, c);
         }
     }
 
     @Override
     public String deserialize(ByteBuffer byteBuffer) {
-        int size = byteBuffer.getInt(byteBuffer.position());
+        final int offset = byteBuffer.position();
+        final int size = byteBuffer.getInt(offset);
+
         StringBuilder object = new StringBuilder(size);
         for (int i = 0; i < size; i++) {
-            char c = byteBuffer.getChar(Integer.BYTES + byteBuffer.position() + i * Character.BYTES);
+            char c = byteBuffer.getChar(offset + Integer.BYTES + i * Character.BYTES);
             object.append(c);
         }
         return object.toString();
