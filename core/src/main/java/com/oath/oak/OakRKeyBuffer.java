@@ -6,7 +6,6 @@
 
 package com.oath.oak;
 
-import com.oath.oak.NativeAllocator.OakNativeMemoryAllocator;
 import sun.nio.ch.DirectBuffer;
 
 import java.nio.ByteBuffer;
@@ -27,7 +26,7 @@ import java.util.function.Function;
  * before each access since it can only be used without other concurrent writes in the background.
  * */
 
-public class OakRKeyBuffer implements OakRBuffer, OakUnsafeDirectBuffer {
+class OakRKeyBuffer implements OakRBuffer, OakUnsafeDirectBuffer {
 
     private int blockID = OakNativeMemoryAllocator.INVALID_BLOCK_ID;
     private int position = -1;

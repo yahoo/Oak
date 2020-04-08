@@ -11,7 +11,7 @@ def scan_put_run(heap, data, threads):
     print('running scan_put test')
 
     data_range = data*2
-    maps = ['com.oath.oak.synchrobench.maps.OakMap']
+    maps = ['com.oath.oak.OakMyBufferMap']
     maps_output = {}
     for ma in maps:
         throughputs = []
@@ -57,7 +57,7 @@ def ingestion_run(heap, data, offheap=''):
     print('running ingestion test')
 
     data_range = data*2
-    maps = ['com.oath.oak.synchrobench.maps.OakMap']
+    maps = ['com.oath.oak.OakMyBufferMap']
     maps_output = {}
 
     for ma in maps:

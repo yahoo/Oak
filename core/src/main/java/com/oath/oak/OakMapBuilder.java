@@ -6,8 +6,6 @@
 
 package com.oath.oak;
 
-import com.oath.oak.NativeAllocator.OakNativeMemoryAllocator;
-
 /**
  * This class builds a new OakMap instance, and sets serializers, deserializers and allocation size calculators,
  * received from the user.

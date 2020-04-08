@@ -4,13 +4,7 @@
  * Please see LICENSE file in the project root for terms.
  */
 
-package com.oath.oak.NativeAllocator;
-
-import com.oath.oak.MemoryManager;
-import com.oath.oak.OakBlockMemoryAllocator;
-import com.oath.oak.OakOutOfMemoryException;
-import com.oath.oak.Slice;
-import com.oath.oak.ThreadIndexCalculator;
+package com.oath.oak;
 
 import java.nio.ByteBuffer;
 
@@ -19,7 +13,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
-public class OakNativeMemoryAllocator implements OakBlockMemoryAllocator {
+class OakNativeMemoryAllocator implements OakBlockMemoryAllocator {
 
     private static class FreeChuck {
         long id;

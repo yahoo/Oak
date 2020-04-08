@@ -1,4 +1,4 @@
-package com.oath.oak.NativeAllocator;
+package com.oath.oak;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
@@ -9,10 +9,6 @@ import java.util.Random;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-import com.oath.oak.ValueUtilsImpl;
-import com.oath.oak.OakMap;
-import com.oath.oak.OakMapBuilder;
-import com.oath.oak.OakOutOfMemoryException;
 import com.oath.oak.common.OakCommonBuildersFactory;
 import com.oath.oak.common.integer.OakIntSerializer;
 import org.junit.After;

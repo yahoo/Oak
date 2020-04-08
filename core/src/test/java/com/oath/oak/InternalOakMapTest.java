@@ -1,6 +1,5 @@
 package com.oath.oak;
 
-import com.oath.oak.NativeAllocator.OakNativeMemoryAllocator;
 import com.oath.oak.common.OakCommonBuildersFactory;
 import org.junit.Before;
 import org.junit.Test;

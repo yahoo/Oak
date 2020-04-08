@@ -4,18 +4,15 @@
  * Please see LICENSE file in the project root for terms.
  */
 
-package com.oath.oak.NativeAllocator;
+package com.oath.oak;
 
-import com.oath.oak.OakOutOfMemoryException;
-import com.oath.oak.Slice;
-import com.oath.oak.ThreadIndexCalculator;
 import sun.misc.Cleaner;
 
 import java.lang.reflect.Field;
 import java.nio.ByteBuffer;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static com.oath.oak.NativeAllocator.OakNativeMemoryAllocator.INVALID_BLOCK_ID;
+import static com.oath.oak.OakNativeMemoryAllocator.INVALID_BLOCK_ID;
 
 class Block {
 

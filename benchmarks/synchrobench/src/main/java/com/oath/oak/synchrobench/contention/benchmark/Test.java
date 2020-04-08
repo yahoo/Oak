@@ -1,11 +1,10 @@
 package com.oath.oak.synchrobench.contention.benchmark;
 
-import com.oath.oak.NativeAllocator.OakNativeMemoryAllocator;
+import com.oath.oak.OakMyBufferMap;
 import com.oath.oak.synchrobench.contention.abstractions.CompositionalMap;
 import com.oath.oak.synchrobench.contention.abstractions.CompositionalOakMap;
 import com.oath.oak.synchrobench.contention.abstractions.MaintenanceAlg;
 import com.oath.oak.synchrobench.maps.MyBuffer;
-import com.oath.oak.synchrobench.maps.OakMap;
 
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Method;
@@ -190,7 +189,7 @@ public class Test {
         System.out.println("\n" + message);
         System.out.println((float) (heapSize - heapFreeSize) / (1024 * 1024));
         try {
-            System.out.println((float) (((OakMap) oakBench).getMemoryAllocator().allocated()) / (1024 * 1024));
+            System.out.println((float) (((OakMyBufferMap) oakBench).allocated()) / (1024 * 1024));
         } catch (ClassCastException ignored) {
             System.out.println("Cannot Print Off-Heap Stats for non-Oak Maps.");
         }
@@ -288,7 +287,7 @@ public class Test {
             test.printBasicStats();
             if (Parameters.detailedStats) {
                 test.printDetailedStats();
-                ((OakMap) test.oakBench).printMemStats();
+                ((OakMyBufferMap) test.oakBench).printMemStats();
             }
 
             firstIteration = false;

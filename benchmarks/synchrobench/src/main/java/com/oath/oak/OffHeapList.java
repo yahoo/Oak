@@ -1,11 +1,8 @@
-package com.oath.oak.synchrobench.maps;
+package com.oath.oak;
 
-import com.oath.oak.MemoryManager;
-import com.oath.oak.NativeAllocator.OakNativeMemoryAllocator;
-import com.oath.oak.OakBlockMemoryAllocator;
-import com.oath.oak.Slice;
 import com.oath.oak.synchrobench.contention.abstractions.CompositionalOakMap;
 import com.oath.oak.synchrobench.contention.benchmark.Parameters;
+import com.oath.oak.synchrobench.maps.MyBuffer;
 
 import java.nio.ByteBuffer;
 import java.util.Comparator;

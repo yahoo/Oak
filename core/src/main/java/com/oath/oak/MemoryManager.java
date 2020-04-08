@@ -3,7 +3,7 @@ package com.oath.oak;
 import java.io.Closeable;
 import java.nio.ByteBuffer;
 
-public interface MemoryManager extends Closeable {
+interface MemoryManager extends Closeable {
 
     /**
      * This enum indicates whether the slice allocated will belong to a key or to a value.

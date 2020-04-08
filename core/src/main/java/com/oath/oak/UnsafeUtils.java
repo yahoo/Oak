@@ -6,7 +6,7 @@ import sun.nio.ch.DirectBuffer;
 import java.lang.reflect.Constructor;
 import java.nio.ByteBuffer;
 
-public final class UnsafeUtils {
+final class UnsafeUtils {
 
     static Unsafe unsafe;
 

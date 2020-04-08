@@ -18,7 +18,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import static com.oath.oak.ValueUtils.INVALID_VERSION;
 import static com.oath.oak.ValueUtils.ValueResult.*;
 
-public class Chunk<K, V> {
+class Chunk<K, V> {
     static final int NONE_NEXT = 0;    // an entry with NONE_NEXT as its next pointer, points to a null entry
 
     /*-------------- Constants --------------*/

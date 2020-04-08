@@ -5,7 +5,7 @@ import sun.misc.Unsafe;
 
 import java.util.NoSuchElementException;
 
-public class ThreadIndexCalculator {
+class ThreadIndexCalculator {
 
     public static final int MAX_THREADS = 64;
     private static final int INVALID_THREAD_ID = -1;
