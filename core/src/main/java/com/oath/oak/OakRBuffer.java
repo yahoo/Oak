@@ -132,5 +132,5 @@ public interface OakRBuffer {
      * @param transformer The function to apply on the ByteBuffer
      * @return The return value of the transform
      */
-    <T> T transform(Function<ByteBuffer, T> transformer);
+    <T> T transform(OakTransformer<T> transformer);
 }

@@ -44,7 +44,7 @@ class ValueUtilsImpl implements ValueUtils {
     }
 
     @Override
-    public <T> Result<T> transform(Slice s, Function<ByteBuffer, T> transformer,
+    public <T> Result<T> transform(Slice s, OakTransformer<T> transformer,
                                    int version) {
         ValueResult result = lockRead(s, version);
         if (result != TRUE) {
@@ -113,7 +113,7 @@ class ValueUtilsImpl implements ValueUtils {
 
     @Override
     public <V> Result<V> remove(Slice s, MemoryManager memoryManager, int version, V oldValue,
-                                Function<ByteBuffer, V> transformer) {
+                                OakTransformer<V> transformer) {
         // Not a conditional remove, so we can delete immediately
         if (oldValue == null) {
             // try to delete
@@ -151,7 +151,7 @@ class ValueUtilsImpl implements ValueUtils {
 
     @Override
     public <V> Result<V> exchange(Chunk<?, V> chunk, EntrySet.LookUp lookUp, V value,
-        Function<ByteBuffer, V> valueDeserializeTransformer, OakSerializer<V> serializer,
+        OakTransformer<V> valueDeserializeTransformer, OakSerializer<V> serializer,
         MemoryManager memoryManager, InternalOakMap internalOakMap) {
         ValueResult result = lockWrite(lookUp.valueSlice, lookUp.version);
         if (result != TRUE) {
@@ -171,7 +171,7 @@ class ValueUtilsImpl implements ValueUtils {
 
     @Override
     public <V> ValueResult compareExchange(Chunk<?, V> chunk, EntrySet.LookUp lookUp, V expected, V value,
-        Function<ByteBuffer, V> valueDeserializeTransformer, OakSerializer<V> serializer,
+        OakTransformer<V> valueDeserializeTransformer, OakSerializer<V> serializer,
         MemoryManager memoryManager, InternalOakMap internalOakMap) {
         ValueResult result = lockWrite(lookUp.valueSlice, lookUp.version);
         if (result != TRUE) {

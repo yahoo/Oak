@@ -104,7 +104,7 @@ class OakRKeyBuffer implements OakRBuffer, OakUnsafeDirectBuffer {
     }
 
     @Override
-    public <T> T transform(Function<ByteBuffer, T> transformer) {
+    public <T> T transform(OakTransformer<T> transformer) {
         // The new ByteBuffer object is created here via slice(), to be sure that (user provided)
         // transformer can not access anything beyond given ByteBuffer
         ByteBuffer buffer = getTemporaryPerThreadByteBuffer().asReadOnlyBuffer();

@@ -145,7 +145,7 @@ interface ValueUtils {
      * {@code RETRY} if the value was moved, or the version of the off-heap value does not match {@code version}.
      * In case of {@code TRUE}, the read value is stored in the returned Result, otherwise, the value is {@code null}.
      */
-    <T> Result<T> transform(Slice s, Function<ByteBuffer, T> transformer, int version);
+    <T> Result<T> transform(Slice s, OakTransformer<T> transformer, int version);
 
     /**
      * @see #exchange(Chunk, EntrySet.LookUp, Object, Function, OakSerializer, MemoryManager, InternalOakMap)
@@ -180,7 +180,7 @@ interface ValueUtils {
      * removal (if {@code transformer} is not null), otherwise, it is {@code null}.
      */
     <V> Result<V> remove(Slice s, MemoryManager memoryManager, int version, V oldValue,
-                         Function<ByteBuffer, V> transformer);
+                         OakTransformer<V> transformer);
 
     /**
      * Replaces the value written in the Slice referenced by {@code lookUp} with {@code value}.
@@ -202,7 +202,7 @@ interface ValueUtils {
      * Along side the flag of the result, in case the exchange succeeded, it also returns the value that
      * was written before the exchange.
      */
-    <V> Result<V> exchange(Chunk<?, V> chunk, EntrySet.LookUp lookUp, V value, Function<ByteBuffer, V> valueDeserializeTransformer, OakSerializer<V> serializer,
+    <V> Result<V> exchange(Chunk<?, V> chunk, EntrySet.LookUp lookUp, V value, OakTransformer<V> valueDeserializeTransformer, OakSerializer<V> serializer,
         MemoryManager memoryManager, InternalOakMap internalOakMap);
 
     /**
@@ -215,6 +215,6 @@ interface ValueUtils {
      * @see #exchange(Chunk, EntrySet.LookUp, Object, Function, OakSerializer, MemoryManager, InternalOakMap)
      */
     <V> ValueResult compareExchange(Chunk<?, V> chunk, EntrySet.LookUp lookUp, V expected, V value,
-        Function<ByteBuffer, V> valueDeserializeTransformer, OakSerializer<V> serializer,
+        OakTransformer<V> valueDeserializeTransformer, OakSerializer<V> serializer,
         MemoryManager memoryManager, InternalOakMap internalOakMap);
 }
