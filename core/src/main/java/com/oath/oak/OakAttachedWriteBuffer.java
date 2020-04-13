@@ -12,8 +12,8 @@ import java.nio.ByteBuffer;
 // This is the reason no lock is acquired in each access.
 class OakAttachedWriteBuffer extends OakAttachedReadBuffer implements OakWriteBuffer, OakUnsafeDirectBuffer {
 
-    OakAttachedWriteBuffer(Slice s, ValueUtils valueOperator) {
-        super(s, valueOperator);
+    OakAttachedWriteBuffer(Slice s, int headerSize) {
+        super(s, headerSize);
     }
 
     @Override

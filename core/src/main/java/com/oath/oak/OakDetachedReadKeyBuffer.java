@@ -12,16 +12,12 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 
 /*
- * The OakRKeyBuffer allows reuse of the same object and is used both
- * in Oak's StreamIterators, where the iterated buffer can be used only once, and in normal
- * iterations without reusing.
- * This class is actually a reference into internal BB object rather than new BB object.
- * It references the internal BB object as far as OakRKeyBuffer wasn't moved to point on other BB.
+ * This detached buffer allows reuse of the same object and is used in:
+ *   (1) Oak's stream iterators, where we reuse the same detached buffer, i.e., it refers to different internal
+ *       buffers as we iterate the map.
+ *   (2) normal iterations without reusing.
  *
- * The OakRKeyBuffer is intended to be used in threads that are for iterations only and are not involved in
- * concurrent/parallel reading/updating the mappings
- *
- * Unlike other ephemeral objects, even if OakRKeyBuffer references a value it does not have to acquire a read lock
+ * Unlike other ephemeral objects, even if this references a value, it does not have to acquire a read lock
  * before each access since it can only be used without other concurrent writes in the background.
  * */
 
@@ -33,8 +29,8 @@ class OakDetachedReadKeyBuffer implements OakDetachedBuffer, OakUnsafeDirectBuff
     private final MemoryManager memoryManager;
     private final int headerSize;
 
-    // The OakRKeyBuffer user accesses OakRKeyBuffer as it would be a ByteBuffer with initially zero position.
-    // We translate it to the relevant ByteBuffer position, by adding keyPosition and the header size to any given index
+    // The user accesses this buffer as it would be a ByteBuffer with initially zero position.
+    // We translate it to the relevant ByteBuffer position, by adding the position and the header size to any given index
 
     OakDetachedReadKeyBuffer(MemoryManager memoryManager, int headerSize) {
         this.memoryManager = memoryManager;

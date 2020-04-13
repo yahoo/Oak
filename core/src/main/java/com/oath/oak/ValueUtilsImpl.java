@@ -105,7 +105,7 @@ class ValueUtilsImpl implements ValueUtils {
         if (result != TRUE) {
             return result;
         }
-        computer.accept(new OakAttachedWriteBuffer(s, this));
+        computer.accept(new OakAttachedWriteBuffer(s, getHeaderSize()));
         unlockWrite(s);
         return TRUE;
     }

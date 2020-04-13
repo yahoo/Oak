@@ -17,9 +17,9 @@ class OakAttachedReadBuffer implements OakReadBuffer, OakUnsafeDirectBuffer {
     protected int dataPos;
     protected int dataLength;
 
-    OakAttachedReadBuffer(Slice s, ValueUtils valueOperator) {
+    OakAttachedReadBuffer(Slice s, int headerSize) {
         bb = s.getByteBuffer();
-        dataPos = bb.position() + valueOperator.getHeaderSize();
+        dataPos = bb.position() + headerSize;
         dataLength = bb.limit() - dataPos;
     }
 
