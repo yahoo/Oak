@@ -11,11 +11,10 @@ import sun.nio.ch.DirectBuffer;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.ConcurrentModificationException;
-import java.util.function.Function;
 
 import static com.oath.oak.ValueUtils.ValueResult.*;
 
-class OakRValueBuffer implements OakRBuffer, OakUnsafeDirectBuffer {
+class OakDetachedReadValueBuffer implements OakDetachedBuffer, OakUnsafeDirectBuffer {
     /**
      * These are the fields used when accessing the value stored in this buffer (the reference to it in the off-heap,
      * and the version we expect the value to have.
@@ -40,8 +39,8 @@ class OakRValueBuffer implements OakRBuffer, OakUnsafeDirectBuffer {
      */
     private final InternalOakMap<?, ?> internalOakMap;
 
-    OakRValueBuffer(long valueReference, int valueVersion, long keyReference, ValueUtils valueOperator,
-                        MemoryManager memoryManager, InternalOakMap<?, ?> internalOakMap) {
+    OakDetachedReadValueBuffer(long valueReference, int valueVersion, long keyReference, ValueUtils valueOperator,
+                               MemoryManager memoryManager, InternalOakMap<?, ?> internalOakMap) {
         this.valueReference = valueReference;
         this.keyReference = keyReference;
         this.version = valueVersion;

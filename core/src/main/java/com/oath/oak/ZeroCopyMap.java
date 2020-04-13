@@ -35,7 +35,7 @@ public interface ZeroCopyMap<K, V> {
      * @throws NullPointerException     if the specified key is null
      * @throws IllegalArgumentException if the specified key is out of bounds
      */
-    OakRBuffer get(K key);
+    OakDetachedBuffer get(K key);
 
     /**
      * Removes the mapping for a key from this map if it is present.
@@ -69,7 +69,7 @@ public interface ZeroCopyMap<K, V> {
      * @throws NullPointerException     if the specified key or the function is null
      * @throws IllegalArgumentException if the specified key is out of bounds
      */
-    boolean computeIfPresent(K key, Consumer<OakWBuffer> computer);
+    boolean computeIfPresent(K key, Consumer<OakWriteBuffer> computer);
 
 
     /**
@@ -84,7 +84,7 @@ public interface ZeroCopyMap<K, V> {
      * @throws NullPointerException     if any of the parameters is null
      * @throws IllegalArgumentException if the specified key is out of bounds
      */
-    boolean putIfAbsentComputeIfPresent(K key, V value, Consumer<OakWBuffer> computer);
+    boolean putIfAbsentComputeIfPresent(K key, V value, Consumer<OakWriteBuffer> computer);
 
 
     /**
@@ -93,7 +93,7 @@ public interface ZeroCopyMap<K, V> {
      *
      * @return a set view of the serialized keys contained in this map
      */
-    Set<OakRBuffer> keySet();
+    Set<OakDetachedBuffer> keySet();
 
     /**
      * Returns a {@link Collection} view of read only buffers containing the
@@ -101,7 +101,7 @@ public interface ZeroCopyMap<K, V> {
      *
      * @return a collection view of the values contained in this map
      */
-    Collection<OakRBuffer> values();
+    Collection<OakDetachedBuffer> values();
 
     /**
      * Returns a {@link Set} view of the serialized mappings contained in this
@@ -109,7 +109,7 @@ public interface ZeroCopyMap<K, V> {
      *
      * @return a set view of the serialized mappings contained in this map
      */
-    Set<Map.Entry<OakRBuffer, OakRBuffer>> entrySet();
+    Set<Map.Entry<OakDetachedBuffer, OakDetachedBuffer>> entrySet();
 
     /**
      * Returns a {@link Set} view of read only OakByteBuffers containing the
@@ -122,7 +122,7 @@ public interface ZeroCopyMap<K, V> {
      *
      * @return a set view of the serialized keys contained in this map
      */
-    Set<OakRBuffer> keyStreamSet();
+    Set<OakDetachedBuffer> keyStreamSet();
 
     /**
      * Returns a {@link Collection} view of read only OakByteBuffers containing the
@@ -135,7 +135,7 @@ public interface ZeroCopyMap<K, V> {
      *
      * @return a collection view of the values contained in this map
      */
-    Collection<OakRBuffer> valuesStream();
+    Collection<OakDetachedBuffer> valuesStream();
 
     /**
      * Returns a {@link Set} view of the serialized mappings contained in this
@@ -148,5 +148,5 @@ public interface ZeroCopyMap<K, V> {
      *
      * @return a set view of the serialized mappings contained in this map
      */
-    Set<Map.Entry<OakRBuffer, OakRBuffer>> entryStreamSet();
+    Set<Map.Entry<OakDetachedBuffer, OakDetachedBuffer>> entryStreamSet();
 }

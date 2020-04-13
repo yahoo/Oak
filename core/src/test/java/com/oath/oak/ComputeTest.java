@@ -33,7 +33,7 @@ public class ComputeTest {
     static private ArrayList<Thread> threads = new ArrayList<>(NUM_THREADS);
     static private CountDownLatch latch = new CountDownLatch(1);
 
-    private static Consumer<OakWBuffer> computer = oakWBuffer -> {
+    private static Consumer<OakWriteBuffer> computer = oakWBuffer -> {
         if (oakWBuffer.getInt(0) == oakWBuffer.getInt(Integer.BYTES * keySize)) {
             return;
         }
