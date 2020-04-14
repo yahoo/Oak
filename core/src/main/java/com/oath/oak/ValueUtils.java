@@ -1,6 +1,5 @@
 package com.oath.oak;
 
-import java.nio.ByteBuffer;
 import java.util.function.Consumer;
 
 interface ValueUtils {
@@ -25,36 +24,9 @@ interface ValueUtils {
     int getLockSize();
 
     /**
-     * This method only works when the byte buffer is thread local, i.e., not reachable by other threads.
-     * Using this assumption, one can save one object allocation.
-     *
-     * @param s the value's off-heap object
-     * @return the sliced ByteBuffer of the value without its header.
-     */
-    ByteBuffer getValueByteBufferNoHeaderPrivate(Slice s);
-
-    /**
-     * Similar to #getValueByteBufferNoHeaderPrivate(Slice), without the assumption of a thread local
-     * environment.
-     * It is used when calling user's function in a concurrent setting.
-     *
-     * @param s the value's off-heap object
-     * @return the sliced ByteBuffer of the value without its header.
-     */
-    ByteBuffer getValueByteBufferNoHeader(Slice s);
-
-    /**
-     * Similar to #getValueByteBufferNoHeader(Slice), but returns a read-only buffer (instead of regular duplicate).
-     *
-     * @param s the value's off-heap object
-     * @return the sliced ByteBuffer of the value without its header.
-     */
-    ByteBuffer getValueByteBufferNoHeaderReadOnly(Slice s);
-
-    /**
      * Acquires a read lock
      *
-     * @param s the value's off-heap object
+     * @param s the value's off-heap Slice object
      * @return {@code TRUE} if the read lock was acquires successfully
      * {@code FALSE} if the value is marked as deleted
      * {@code RETRY} if the value was moved, or the version of the off-heap value does not match {@code version}.
@@ -64,7 +36,7 @@ interface ValueUtils {
     /**
      * Releases a read lock
      *
-     * @param s the value's off-heap object
+     * @param s the value's off-heap Slice object
      * @return {@code TRUE} if the read lock was released successfully
      * {@code FALSE} if the value is marked as deleted
      * {@code RETRY} if the value was moved, or the version of the off-heap value does not match {@code version}.
@@ -74,7 +46,7 @@ interface ValueUtils {
     /**
      * Acquires a write lock
      *
-     * @param s the value's off-heap object
+     * @param s the value's off-heap Slice object
      * @return {@code TRUE} if the write lock was acquires successfully
      * {@code FALSE} if the value is marked as deleted
      * {@code RETRY} if the value was moved, or the version of the off-heap value does not match {@code version}.
@@ -86,7 +58,7 @@ interface ValueUtils {
      * Since a write lock is exclusive (unlike read lock), there is no way for the version to change, so no need to
      * pass it.
      *
-     * @param s the value's off-heap object
+     * @param s the value's off-heap Slice object
      * @return {@code TRUE} if the write lock was released successfully
      * {@code FALSE} if the value is marked as deleted
      * {@code RETRY} if the value was moved, or the version of the off-heap value does not match {@code version}.
@@ -96,7 +68,7 @@ interface ValueUtils {
     /**
      * Marks the value pointed by {@code s} as deleted only if the version of that value matches {@code version}.
      *
-     * @param s the value's off-heap object
+     * @param s the value's off-heap Slice object
      * @return {@code TRUE} if the value was marked successfully
      * {@code FALSE} if the value is already marked as deleted
      * {@code RETRY} if the value was moved, or the version of the off-heap value does not match {@code version}.
@@ -104,7 +76,7 @@ interface ValueUtils {
     ValueResult deleteValue(Slice s);
 
     /**
-     * @param s the value's off-heap object
+     * @param s the value's off-heap Slice object
      * @return {@code TRUE} if the value is marked
      * {@code FALSE} if the value is not marked
      * {@code RETRY} if the value was moved, or the version of the off-heap value does not match {@code version}.
@@ -112,7 +84,7 @@ interface ValueUtils {
     ValueResult isValueDeleted(Slice s);
 
     /**
-     * @param s the value's off-heap object
+     * @param s the value's off-heap Slice object
      * @return the version of the value pointed by {@code s}
      */
     int getOffHeapVersion(Slice s);
@@ -120,14 +92,14 @@ interface ValueUtils {
     /**
      * Initializing the header version.
      * May also set other members in the header to their default values.
-     * @param s the value's off-heap object
+     * @param s the value's off-heap Slice object
      */
     void initHeader(Slice s);
 
     /**
      * Initializing the header version and lock to be locked.
      * May also set other members in the header to their default values.
-     * @param s the value's off-heap object
+     * @param s the value's off-heap Slice object
      */
     void initLockedHeader(Slice s) ;
 
@@ -137,7 +109,7 @@ interface ValueUtils {
      * Used to try and read a value off-heap
      *
      * @param result      The result object
-     * @param s           the value's off-heap object
+     * @param value       the value's off-heap Slice object
      * @param transformer value deserializer
      * @param <T>         the type of {@code transformer}'s output
      * @return {@code TRUE} if the value was read successfully
@@ -145,7 +117,7 @@ interface ValueUtils {
      * {@code RETRY} if the value was moved, or the version of the off-heap value does not match {@code version}.
      * In case of {@code TRUE}, the read value is stored in the returned Result, otherwise, the value is {@code null}.
      */
-    <T> Result transform(Result result, Slice s, OakTransformer<T> transformer);
+    <T> Result transform(Result result, ValueBuffer value, OakTransformer<T> transformer);
 
     /**
      * @see #exchange(Chunk, ThreadContext, Object, OakTransformer, OakSerializer, MemoryManager, InternalOakMap)
@@ -155,13 +127,13 @@ interface ValueUtils {
                         MemoryManager memoryManager, InternalOakMap internalOakMap);
 
     /**
-     * @param s        the value's off-heap object
+     * @param value    the value's off-heap Slice object
      * @param computer the function to apply on the Slice
      * @return {@code TRUE} if the function was applied successfully,
      * {@code FAILURE} if the value is deleted,
      * {@code RETRY} if the value was moved.
      */
-    ValueResult compute(Slice s, Consumer<OakWriteBuffer> computer);
+    ValueResult compute(ValueBuffer value, Consumer<OakWriteBuffer> computer);
 
     /**
      * Marks a value as deleted and frees its slice (whether the header is freed or not is implementation dependant).

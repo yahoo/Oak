@@ -8,7 +8,6 @@ package com.oath.oak;
 
 
 import java.io.IOException;
-import java.nio.ByteBuffer;
 import java.util.AbstractMap;
 import java.util.Comparator;
 import java.util.ConcurrentModificationException;
@@ -31,7 +30,6 @@ class InternalOakMap<K, V> {
 
     final ConcurrentSkipListMap<Object, Chunk<K, V>> skiplist;    // skiplist of chunks for fast navigation
     private final AtomicReference<Chunk<K, V>> head;
-    private final ByteBuffer minKey;
     private final OakComparator<K> comparator;
     private final MemoryManager memoryManager;
     private final AtomicInteger size;
@@ -62,23 +60,19 @@ class InternalOakMap<K, V> {
 
         this.comparator = oakComparator;
 
-        this.minKey = ByteBuffer.allocateDirect(this.keySerializer.calculateSize(minKey));
-        // newly allocated buffer is always positioned at its beginning.
-        this.keySerializer.serialize(minKey, this.minKey);
-
         // This is a trick for letting us search through the skiplist using both serialized and unserialized keys.
         // Might be nicer to replace it with a proper visitor
         Comparator<Object> mixedKeyComparator = (o1, o2) -> {
-            if (o1 instanceof ByteBuffer) {
-                if (o2 instanceof ByteBuffer) {
-                    return oakComparator.compareSerializedKeys((ByteBuffer) o1, (ByteBuffer) o2);
+            if (o1 instanceof OakReadBuffer) {
+                if (o2 instanceof OakReadBuffer) {
+                    return oakComparator.compareSerializedKeys((OakReadBuffer) o1, (OakReadBuffer) o2);
                 } else {
                     // Note the inversion of arguments, hence sign flip
-                    return (-1) * oakComparator.compareKeyAndSerializedKey((K) o2, (ByteBuffer) o1);
+                    return (-1) * oakComparator.compareKeyAndSerializedKey((K) o2, (OakReadBuffer) o1);
                 }
             } else {
-                if (o2 instanceof ByteBuffer) {
-                    return oakComparator.compareKeyAndSerializedKey((K) o1, (ByteBuffer) o2);
+                if (o2 instanceof OakReadBuffer) {
+                    return oakComparator.compareKeyAndSerializedKey((K) o1, (OakReadBuffer) o2);
                 } else {
                     return oakComparator.compareKeys((K) o1, (K) o2);
                 }
@@ -86,8 +80,8 @@ class InternalOakMap<K, V> {
         };
         this.skiplist = new ConcurrentSkipListMap<>(mixedKeyComparator);
 
-        Chunk<K, V> head = new Chunk<>(this.minKey, null, this.comparator, memoryManager, chunkMaxItems,
-                this.size, keySerializer, valueSerializer, valueOperator);
+        Chunk<K, V> head = new Chunk<>(minKey, chunkMaxItems, this.size, memoryManager, this.comparator,
+                keySerializer, valueSerializer, valueOperator);
         this.skiplist.put(head.minKey, head);    // add first chunk (head) into skiplist
         this.head = new AtomicReference<>(head);
         this.valueOperator = valueOperator;
@@ -203,8 +197,7 @@ class InternalOakMap<K, V> {
         if (c == null) {
             return;
         }
-        Rebalancer<K, V> rebalancer = new Rebalancer<>(c, memoryManager, keySerializer,
-                valueSerializer, valueOperator);
+        Rebalancer<K, V> rebalancer = new Rebalancer<>(c);
 
         rebalancer = rebalancer.engageChunks(); // maybe we encountered a different rebalancer
 
@@ -790,7 +783,7 @@ class InternalOakMap<K, V> {
      * @reutrn    true if the refresh was successful.
      */
     boolean refreshValuePosition(ThreadContext ctx) {
-        K deserializedKey = keySerializer.deserialize(ctx.key.getDataByteBuffer());
+        K deserializedKey = keySerializer.deserialize(ctx.key);
 
         for (int i = 0; i < MAX_RETRIES; i++) {
             Chunk<K, V> c = findChunk(deserializedKey); // find chunk matching key
@@ -829,7 +822,7 @@ class InternalOakMap<K, V> {
         return true;
     }
 
-    private <T> T getValueTransformation(ByteBuffer key, OakTransformer<T> transformer) {
+    private <T> T getValueTransformation(OakReadBuffer key, OakTransformer<T> transformer) {
         K deserializedKey = keySerializer.deserialize(key);
         return getValueTransformation(deserializedKey, transformer);
     }
@@ -872,7 +865,7 @@ class InternalOakMap<K, V> {
         if (!ctx.isValueValid()) {
             return null;
         }
-        return transformer.apply(ctx.key.getDuplicatedReadByteBuffer().slice());
+        return transformer.apply(ctx.key);
     }
 
     OakDetachedBuffer getMinKey() {
@@ -890,7 +883,7 @@ class InternalOakMap<K, V> {
         Chunk<K, V> c = skiplist.firstEntry().getValue();
         ThreadContext ctx = getThreadContext();
         boolean isAllocated = c.readMinKey(ctx.tempKey);
-        return isAllocated ? transformer.apply(ctx.tempKey.getDataByteBuffer()) : null;
+        return isAllocated ? transformer.apply(ctx.tempKey) : null;
     }
 
     OakDetachedBuffer getMaxKey() {
@@ -923,7 +916,7 @@ class InternalOakMap<K, V> {
         }
         ThreadContext ctx = getThreadContext();
         boolean isAllocated = c.readMaxKey(ctx.tempKey);
-        return isAllocated ? transformer.apply(ctx.tempKey.getDataByteBuffer()) : null;
+        return isAllocated ? transformer.apply(ctx.tempKey) : null;
     }
 
     // encapsulates finding of the chunk in the skip list and later chunk list traversal
@@ -991,9 +984,7 @@ class InternalOakMap<K, V> {
 
         while (chunkIter.hasNext()) {
             int nextIndex = chunkIter.next(ctx);
-            c.readKeyFromEntryIndex(ctx.tempKey, nextIndex);
-            int cmp = comparator.compareKeyAndSerializedKey(key, ctx.tempKey.getDataByteBuffer());
-            if (cmp <= 0) {
+            if (c.compareKeyAndEntryIndex(ctx.tempKey, key, nextIndex) <= 0) {
                 break;
             }
             prevIndex = nextIndex;
@@ -1001,12 +992,11 @@ class InternalOakMap<K, V> {
 
         /* Edge case: we're looking for the lowest key in the map and it's still greater than minkey
             (in which  case prevKey == key) */
-        c.readKeyFromEntryIndex(ctx.tempKey, prevIndex);
-        ByteBuffer buff = ctx.tempKey.getDataByteBuffer();
-        if (comparator.compareKeyAndSerializedKey(key, buff) == 0) {
+        if (c.compareKeyAndEntryIndex(ctx.tempKey, key, prevIndex) == 0) {
             return new AbstractMap.SimpleImmutableEntry<>(null, null);
         }
-        K keyDeserialized = keySerializer.deserialize(buff.slice());
+        // ctx.tempKey was updated with prevIndex key as a side effect of compareKeyAndEntryIndex()
+        K keyDeserialized = keySerializer.deserialize(ctx.tempKey);
 
         // get value associated with this (prev) key
         boolean isAllocated = c.readValueFromEntryIndex(ctx.value, prevIndex);
@@ -1119,20 +1109,20 @@ class InternalOakMap<K, V> {
 
         }
 
-        boolean tooLow(ByteBuffer key) {
+        boolean tooLow(OakReadBuffer key) {
             int c;
             return (lo != null && ((c = comparator.compareKeyAndSerializedKey(lo, key)) > 0 ||
                     (c == 0 && !loInclusive)));
         }
 
-        boolean tooHigh(ByteBuffer key) {
+        boolean tooHigh(OakReadBuffer key) {
             int c;
             return (hi != null && ((c = comparator.compareKeyAndSerializedKey(hi, key)) < 0 ||
                     (c == 0 && !hiInclusive)));
         }
 
 
-        boolean inBounds(ByteBuffer key) {
+        boolean inBounds(OakReadBuffer key) {
             if (!isDescending) {
                 return !tooHigh(key);
             } else {
@@ -1145,9 +1135,9 @@ class InternalOakMap<K, V> {
         }
 
         private void initAfterRebalance() {
-            //TODO - refactor to use ByeBuffer without deserializing.
+            //TODO - refactor to use OakReadBuffer without deserializing.
             state.getChunk().readKeyFromEntryIndex(ctx.tempKey, state.getIndex());
-            K nextKey = keySerializer.deserialize(ctx.tempKey.getDataByteBuffer().slice());
+            K nextKey = keySerializer.deserialize(ctx.tempKey);
 
             if (isDescending) {
                 hiInclusive = true;
@@ -1304,8 +1294,7 @@ class InternalOakMap<K, V> {
             if (!isDescending) {
                 return current.next.getReference();
             } else {
-                ByteBuffer serializedMinKey = current.minKey;
-                Map.Entry<Object, Chunk<K, V>> entry = skiplist.lowerEntry(serializedMinKey);
+                Map.Entry<Object, Chunk<K, V>> entry = skiplist.lowerEntry(current.minKey);
                 if (entry == null) {
                     return null;
                 } else {
@@ -1342,10 +1331,9 @@ class InternalOakMap<K, V> {
 
             // The boundary check is costly and need to be performed only when required,
             // meaning not on the full scan.
-            // The check of the boundaries under condition is an optimization.
             if (needBoundCheck) {
                 chunk.readKeyFromEntryIndex(ctx.tempKey, nextIndex);
-                if (!inBounds(ctx.tempKey.getDataByteBuffer())) {
+                if (!inBounds(ctx.tempKey)) {
                     state = null;
                 }
             }
@@ -1403,7 +1391,7 @@ class InternalOakMap<K, V> {
             }
             // if the value was moved, fetch it from the
             else if (res.operationResult == RETRY) {
-                T result = getValueTransformation(ctx.key.getDataByteBuffer(), transformer);
+                T result = getValueTransformation(ctx.key, transformer);
                 if (result == null) {
                     // the value was deleted, try the next one
                     return next();
@@ -1462,10 +1450,10 @@ class InternalOakMap<K, V> {
 
     class EntryTransformIterator<T> extends Iter<T> {
 
-        final Function<Map.Entry<ByteBuffer, ByteBuffer>, T> transformer;
+        final Function<Map.Entry<OakReadBuffer, OakReadBuffer>, T> transformer;
 
         EntryTransformIterator(K lo, boolean loInclusive, K hi, boolean hiInclusive, boolean isDescending,
-                               Function<Map.Entry<ByteBuffer, ByteBuffer>, T> transformer) {
+                               Function<Map.Entry<OakReadBuffer, OakReadBuffer>, T> transformer) {
             super(lo, loInclusive, hi, hiInclusive, isDescending);
             assert (transformer != null);
             this.transformer = transformer;
@@ -1474,7 +1462,6 @@ class InternalOakMap<K, V> {
         public T next() {
             advance(true);
             ValueUtils.ValueResult res = valueOperator.lockRead(ctx.value);
-            ByteBuffer serializedValue;
             if (res == FALSE) {
                 return next();
             } else if (res == RETRY) {
@@ -1486,9 +1473,7 @@ class InternalOakMap<K, V> {
                     res = valueOperator.lockRead(ctx.value);
                 } while (res != TRUE);
             }
-            serializedValue = valueOperator.getValueByteBufferNoHeaderReadOnly(ctx.value);
-            Map.Entry<ByteBuffer, ByteBuffer> entry =
-                    new AbstractMap.SimpleEntry<>(ctx.key.getDuplicatedReadByteBuffer(), serializedValue);
+            Map.Entry<OakReadBuffer, OakReadBuffer> entry = new AbstractMap.SimpleEntry<>(ctx.key, ctx.value);
 
             T transformation = transformer.apply(entry);
             valueOperator.unlockRead(ctx.value);
@@ -1538,7 +1523,7 @@ class InternalOakMap<K, V> {
 
         public T next() {
             advance(false);
-            return transformer.apply(ctx.key.getDuplicatedReadByteBuffer());
+            return transformer.apply(ctx.key);
         }
     }
 
@@ -1581,7 +1566,7 @@ class InternalOakMap<K, V> {
 
     <T> Iterator<T> entriesTransformIterator(K lo, boolean loInclusive, K hi, boolean hiInclusive,
                                              boolean isDescending,
-                                             Function<Map.Entry<ByteBuffer, ByteBuffer>, T> transformer) {
+                                             Function<Map.Entry<OakReadBuffer, OakReadBuffer>, T> transformer) {
         return new EntryTransformIterator<>(lo, loInclusive, hi, hiInclusive, isDescending, transformer);
     }
 

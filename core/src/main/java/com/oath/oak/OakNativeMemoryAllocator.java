@@ -195,9 +195,7 @@ class OakNativeMemoryAllocator implements OakBlockMemoryAllocator {
     @Override
     public void readByteBuffer(Slice s) {
         Block b = blocksArray[s.getAllocatedBlockID()];
-        // The returned buffer is this thread's block buffer.
-        // Therefore, a thread cannot read two slices from the same block without duplicating one of them.
-        b.getBufferForThread(s);
+        b.readByteBuffer(s);
     }
 
     // used only for testing

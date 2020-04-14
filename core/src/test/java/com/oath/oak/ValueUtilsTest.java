@@ -27,11 +27,11 @@ public class ValueUtilsTest {
     }
 
     private void putInt(int index, int value) {
-        s.getDataByteBuffer().putInt(s.getOffset() + index, value);
+        s.writeBuffer.putInt(s.getOffset() + index, value);
     }
 
     private int getInt(int index) {
-        return s.getDataByteBuffer().getInt(s.getOffset() + index);
+        return s.readBuffer.getInt(s.getOffset() + index);
     }
 
     @Test
@@ -138,14 +138,14 @@ public class ValueUtilsTest {
         }
         assertEquals(TRUE, valueOperator.put(null, ctx, 10, new OakSerializer<Integer>() {
             @Override
-            public void serialize(Integer object, ByteBuffer targetBuffer) {
-                for (int randomValue : randomValues) {
-                    targetBuffer.putInt(randomValue);
+            public void serialize(Integer object, OakWriteBuffer targetBuffer) {
+                for (int i = 0; i < randomValues.length; i++) {
+                    targetBuffer.putInt(i * Integer.BYTES, randomValues[i]);
                 }
             }
 
             @Override
-            public Integer deserialize(ByteBuffer byteBuffer) {
+            public Integer deserialize(OakReadBuffer byteBuffer) {
                 return null;
             }
 
@@ -163,12 +163,12 @@ public class ValueUtilsTest {
     public void putUpperBoundTest() {
         valueOperator.put(null, ctx, 5, new OakSerializer<Integer>() {
             @Override
-            public void serialize(Integer object, ByteBuffer targetBuffer) {
+            public void serialize(Integer object, OakWriteBuffer targetBuffer) {
                 targetBuffer.putInt(12, 30);
             }
 
             @Override
-            public Integer deserialize(ByteBuffer byteBuffer) {
+            public Integer deserialize(OakReadBuffer byteBuffer) {
                 return null;
             }
 
@@ -183,12 +183,12 @@ public class ValueUtilsTest {
     public void putLowerBoundTest() {
         valueOperator.put(null, ctx, 5, new OakSerializer<Integer>() {
             @Override
-            public void serialize(Integer object, ByteBuffer targetBuffer) {
+            public void serialize(Integer object, OakWriteBuffer targetBuffer) {
                 targetBuffer.putInt(-4, 30);
             }
 
             @Override
-            public Integer deserialize(ByteBuffer byteBuffer) {
+            public Integer deserialize(OakReadBuffer byteBuffer) {
                 return null;
             }
 
@@ -215,14 +215,14 @@ public class ValueUtilsTest {
             }
             valueOperator.put(null, ctx, 10, new OakSerializer<Integer>() {
                 @Override
-                public void serialize(Integer object, ByteBuffer targetBuffer) {
-                    for (int randomValue : randomValues) {
-                        targetBuffer.putInt(randomValue);
+                public void serialize(Integer object, OakWriteBuffer targetBuffer) {
+                    for (int i = 0; i < randomValues.length; i++) {
+                        targetBuffer.putInt(i * Integer.BYTES, randomValues[i]);
                     }
                 }
 
                 @Override
-                public Integer deserialize(ByteBuffer byteBuffer) {
+                public Integer deserialize(OakReadBuffer byteBuffer) {
                     return null;
                 }
 
@@ -267,14 +267,14 @@ public class ValueUtilsTest {
             }
             valueOperator.put(null, ctx, 10, new OakSerializer<Integer>() {
                 @Override
-                public void serialize(Integer object, ByteBuffer targetBuffer) {
-                    for (int i = 0; i < targetBuffer.remaining(); i += 4) {
+                public void serialize(Integer object, OakWriteBuffer targetBuffer) {
+                    for (int i = 0; i < targetBuffer.capacity(); i += 4) {
                         assertEquals(randomValues[i / 4], targetBuffer.getInt(i));
                     }
                 }
 
                 @Override
-                public Integer deserialize(ByteBuffer byteBuffer) {
+                public Integer deserialize(OakReadBuffer byteBuffer) {
                     return null;
                 }
 

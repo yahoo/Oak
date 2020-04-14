@@ -40,7 +40,7 @@ public class OakMap<K, V> extends AbstractMap<K, V> implements AutoCloseable, Co
     private final MemoryManager memoryManager;
     private final OakTransformer<K> keyDeserializeTransformer;
     private final OakTransformer<V> valueDeserializeTransformer;
-    private final Function<Map.Entry<ByteBuffer, ByteBuffer>, Map.Entry<K, V>> entryDeserializeTransformer;
+    private final Function<Map.Entry<OakReadBuffer, OakReadBuffer>, Map.Entry<K, V>> entryDeserializeTransformer;
     private final OakComparator<K> comparator;
 
     // SubOakMap fields
@@ -75,7 +75,7 @@ public class OakMap<K, V> extends AbstractMap<K, V> implements AutoCloseable, Co
     private OakMap(InternalOakMap<K, V> internalOakMap, MemoryManager memoryManager,
                    OakTransformer<K> keyDeserializeTransformer,
                    OakTransformer<V> valueDeserializeTransformer,
-                   Function<Map.Entry<ByteBuffer, ByteBuffer>, Map.Entry<K, V>> entryDeserializeTransformer,
+                   Function<Map.Entry<OakReadBuffer, OakReadBuffer>, Map.Entry<K, V>> entryDeserializeTransformer,
                    OakComparator<K> oakComparator,
                    K fromKey, boolean fromInclusive, K toKey,
                    boolean toInclusive, boolean isDescending) {

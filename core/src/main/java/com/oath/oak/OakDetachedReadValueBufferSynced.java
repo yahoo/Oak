@@ -40,12 +40,26 @@ class OakDetachedReadValueBufferSynced extends OakDetachedReadBuffer<ValueBuffer
     }
 
     @Override
-    protected <T> T safeAccessToAttachedBuffer(Function<OakAttachedReadBuffer, T> transformer) {
-        // Internal call. No input validation.
+    public <T> T transform(OakTransformer<T> transformer) {
+        if (transformer == null) {
+            throw new NullPointerException();
+        }
 
         start();
         try {
             return transformer.apply(buffer);
+        } finally {
+            end();
+        }
+    }
+
+    @Override
+    protected <R> R safeAccessToAttachedBuffer(Getter<R> getter, int index) {
+        // Internal call. No input validation.
+
+        start();
+        try {
+            return getter.get(buffer, index);
         } finally {
             end();
         }

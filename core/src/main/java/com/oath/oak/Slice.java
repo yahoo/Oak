@@ -12,7 +12,7 @@ import java.nio.ByteBuffer;
 
 // Represents a portion of a bigger block which is part of the underlying managed memory.
 // It is allocated via block memory allocator, and can be de-allocated later
-class Slice implements Comparable<Slice> {
+class Slice implements OakUnsafeDirectBuffer, Comparable<Slice> {
 
     /**
      * An allocated slice might have reserved space for meta-data, i.e., a header.
@@ -29,7 +29,11 @@ class Slice implements Comparable<Slice> {
     // Allocation time version
     protected int version;
 
-    protected ByteBuffer buffer;
+    // This instance of the buffer is read-only and is used by OakAttachedReadBuffer
+    protected ByteBuffer readBuffer;
+
+    // This instance of the buffer is writable and is used by OakAttachedWriteBuffer
+    protected ByteBuffer writeBuffer;
 
     public Slice(int headerSize) {
         this.headerSize = headerSize;
@@ -48,9 +52,9 @@ class Slice implements Comparable<Slice> {
     }
 
     // Used by OffHeapList in "synchrobench" module, and for testings.
-    Slice duplicateBuffer() {
-        buffer = buffer.duplicate();
-        return this;
+    void duplicateBuffer() {
+        readBuffer = readBuffer.duplicate();
+        writeBuffer = writeBuffer.duplicate();
     }
 
     /* ------------------------------------------------------------------------------------
@@ -63,7 +67,8 @@ class Slice implements Comparable<Slice> {
         offset = -1;
         length = -1;
         version = EntrySet.INVALID_VERSION;
-        buffer = null;
+        readBuffer = null;
+        writeBuffer = null;
     }
 
     /*
@@ -79,7 +84,8 @@ class Slice implements Comparable<Slice> {
 
         // Invalidate the buffer and version. Will be assigned by the allocator.
         this.version = EntrySet.INVALID_VERSION;
-        this.buffer = null;
+        this.readBuffer = null;
+        this.writeBuffer = null;
     }
 
     // Copy the block allocation information from another block allocation.
@@ -92,13 +98,15 @@ class Slice implements Comparable<Slice> {
         this.offset = other.offset;
         this.length = other.length;
         this.version = other.version;
-        this.buffer = other.buffer;
+        this.readBuffer = other.readBuffer;
+        this.writeBuffer = other.writeBuffer;
     }
 
     // Set the internal buffer.
     // This method should be used only by the block memory allocator.
-    void setBuffer(ByteBuffer buffer) {
-        this.buffer = buffer;
+    void setBuffer(ByteBuffer readBuffer, ByteBuffer writeBuffer) {
+        this.readBuffer = readBuffer;
+        this.writeBuffer = writeBuffer;
     }
 
     // Set the version. Should be used by the memory allocator.
@@ -139,43 +147,29 @@ class Slice implements Comparable<Slice> {
     }
 
     long getMetadataAddress() {
-        return ((DirectBuffer) buffer).address() + offset;
-    }
-
-    /* ------------------------------------------------------------------------------------
-     * Data getters
-     * ------------------------------------------------------------------------------------*/
-
-    private ByteBuffer updateDataByteBuffer(ByteBuffer buffer) {
-        buffer.limit(offset + length);
-        buffer.position(getOffset());
-        return buffer;
-    }
-
-    ByteBuffer getDataByteBuffer() {
-        return updateDataByteBuffer(buffer);
-    }
-
-    ByteBuffer getDuplicatedReadByteBuffer() {
-        return updateDataByteBuffer(buffer.asReadOnlyBuffer());
-    }
-
-    ByteBuffer getDuplicatedWriteByteBuffer() {
-        return updateDataByteBuffer(buffer.duplicate());
+        return ((DirectBuffer) writeBuffer).address() + offset;
     }
 
     /*-------------- OakUnsafeDirectBuffer --------------*/
 
+    @Override
+    public ByteBuffer getByteBuffer() {
+        return readBuffer;
+    }
+
+    @Override
     public int getOffset() {
         return offset + headerSize;
     }
 
+    @Override
     public int getLength() {
         return length - headerSize;
     }
 
+    @Override
     public long getAddress() {
-        return ((DirectBuffer) buffer).address() + getOffset();
+        return ((DirectBuffer) writeBuffer).address() + getOffset();
     }
 
     /*-------------- Comparable<Slice> --------------*/

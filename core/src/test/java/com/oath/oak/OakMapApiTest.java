@@ -319,7 +319,7 @@ public class OakMapApiTest {
 
         OakDetachedBuffer buffer = oak.zc().keySet().iterator().next();
 
-        buffer.transform(b -> b.putInt(0, 1));
+        buffer.transform(b -> ((OakUnsafeDirectBuffer) b).getByteBuffer().putInt(0, 1));
 
         fail("Key Buffer should be read only");
     }
@@ -330,7 +330,7 @@ public class OakMapApiTest {
 
         OakDetachedBuffer buffer = oak.zc().values().iterator().next();
 
-        buffer.transform(b -> b.putInt(0, 1));
+        buffer.transform(b -> ((OakUnsafeDirectBuffer) b).getByteBuffer().putInt(0, 1));
 
         fail("Value Buffer should be read only");
     }
