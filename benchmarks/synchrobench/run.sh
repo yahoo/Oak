@@ -53,7 +53,7 @@ declare -A scenarios=(
 
 
 # Oak vs JavaSkipList
-benchClassPrefix="com.oath.oak.synchrobench.maps"
+benchClassPrefix="com.oath.oak"
 benchs="JavaSkipListMap OakMyBufferMap OffHeapList"
 
 summary="${output}/summary.csv"

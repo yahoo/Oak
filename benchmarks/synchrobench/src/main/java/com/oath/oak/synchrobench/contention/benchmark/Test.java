@@ -4,7 +4,7 @@ import com.oath.oak.OakMyBufferMap;
 import com.oath.oak.synchrobench.contention.abstractions.CompositionalMap;
 import com.oath.oak.synchrobench.contention.abstractions.CompositionalOakMap;
 import com.oath.oak.synchrobench.contention.abstractions.MaintenanceAlg;
-import com.oath.oak.synchrobench.maps.MyBuffer;
+import com.oath.oak.synchrobench.MyBuffer;
 
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Method;

@@ -3,7 +3,7 @@ package com.oath.oak;
 
 import com.oath.oak.synchrobench.contention.abstractions.CompositionalOakMap;
 import com.oath.oak.synchrobench.contention.benchmark.Parameters;
-import com.oath.oak.synchrobench.maps.MyBuffer;
+import com.oath.oak.synchrobench.MyBuffer;
 
 import java.util.Iterator;
 
