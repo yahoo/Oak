@@ -726,7 +726,7 @@ class Chunk<K, V> {
         DescendingIter(K from, boolean inclusive) {
             this.from = from;
             this.inclusive = inclusive;
-            stack = new IntStack(entrySet.getNumOfEntries());
+            stack = new IntStack(entrySet.getLastEntryIndex());
             anchor = binaryFind(from);
             // translate to be valid index, if anchor is head we know to stop the iteration
             anchor = (anchor == NONE_NEXT) ? entrySet.getHeadNextIndex() : anchor;
@@ -878,9 +878,6 @@ class Chunk<K, V> {
         }
 
         void push(int i) {
-            if (top == stack.length) {
-                throw new ArrayIndexOutOfBoundsException();
-            }
             stack[top] = i;
             top++;
         }
