@@ -1,4 +1,4 @@
-package com.oath.oak.synchrobench.maps;
+package com.oath.oak.synchrobench;
 
 
 import com.oath.oak.OakComparator;
