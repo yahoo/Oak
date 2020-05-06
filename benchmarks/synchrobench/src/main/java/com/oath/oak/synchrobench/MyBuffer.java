@@ -29,10 +29,13 @@ public class MyBuffer implements Comparable<MyBuffer> {
     }
 
     public static void serialize(MyBuffer inputBuffer, ByteBuffer targetBuffer, int targetPos) {
-        // write the capacity in the beginning of the buffer
+        // In the serialized buffer, the first integer signifies the size.
         targetBuffer.putInt(targetPos, inputBuffer.capacity);
+        // Thus, the data position starts after the first integer.
+        targetPos += Integer.BYTES;
+
         OakIntBufferSerializer.copyBuffer(inputBuffer.buffer, 0, inputBuffer.capacity / Integer.BYTES,
-            targetBuffer, targetPos + Integer.BYTES);
+            targetBuffer, targetPos);
     }
 
     public static MyBuffer deserialize(ByteBuffer inputBuffer) {
@@ -41,10 +44,13 @@ public class MyBuffer implements Comparable<MyBuffer> {
     }
 
     public static MyBuffer deserialize(ByteBuffer inputBuffer, int inputPos) {
+        // In the serialized buffer, the first integer signifies the size.
         int capacity = inputBuffer.getInt(inputPos);
+        // Thus, the data position starts after the first integer.
+        inputPos += Integer.BYTES;
+
         MyBuffer ret = new MyBuffer(capacity);
-        OakIntBufferSerializer.copyBuffer(inputBuffer, inputPos + Integer.BYTES, capacity / Integer.BYTES,
-            ret.buffer, 0);
+        OakIntBufferSerializer.copyBuffer(inputBuffer, inputPos, capacity / Integer.BYTES, ret.buffer, 0);
         return ret;
     }
 
@@ -99,9 +105,16 @@ public class MyBuffer implements Comparable<MyBuffer> {
         @Override
         public int compareSerializedKeys(ByteBuffer serializedKey1, ByteBuffer serializedKey2) {
             int pos1 = serializedKey1.position();
-            int cap1 = serializedKey1.getInt(pos1);
             int pos2 = serializedKey2.position();
+
+            // In the serialized buffer, the first integer signifies the size.
+            int cap1 = serializedKey1.getInt(pos1);
             int cap2 = serializedKey2.getInt(pos2);
+
+            // Thus, the data position starts after the first integer.
+            pos1 += Integer.BYTES;
+            pos2 += Integer.BYTES;
+
             return compareBuffers(serializedKey1, pos1, cap1, serializedKey2, pos2, cap2);
         }
 
@@ -110,7 +123,11 @@ public class MyBuffer implements Comparable<MyBuffer> {
             int keyPosition = key.buffer.position();
             int keyLength = key.buffer.capacity();
             int serializedKeyPosition = serializedKey.position();
+            // In the serialized buffer, the first integer signifies the size.
             int serializedKeyLength = serializedKey.getInt(serializedKeyPosition);
+            // Thus, the data position starts after the first integer.
+            serializedKeyPosition += Integer.BYTES;
+
             // The order of the arguments is crucial and should match the signature of this function
             // (compareKeyAndSerializedKey).
             // Thus key.buffer with its parameters should be passed, and only then serializedKey with its parameters.

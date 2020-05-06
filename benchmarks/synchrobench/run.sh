@@ -2,7 +2,6 @@
 
 dir=`pwd`
 
-
 # trap ctrl-c and call ctrl_c()
 trap ctrl_c INT
 CONTINUE=1
@@ -12,7 +11,7 @@ function ctrl_c() {
   CONTINUE=0
 }
 
-# Get the output path as the first parameter. Default is <pwd>/output.
+# Default output is <pwd>/output.
 output=${dir}/output
 java=java
 jarfile="target/oak-benchmarks-synchrobench-0.1.6-SNAPSHOT.jar"
