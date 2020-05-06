@@ -2,8 +2,18 @@
 
 dir=`pwd`
 
+
+# trap ctrl-c and call ctrl_c()
+trap ctrl_c INT
+CONTINUE=1
+
+function ctrl_c() {
+  echo "#### User enter CTRL-C"
+  CONTINUE=0
+}
+
 # Get the output path as the first parameter. Default is <pwd>/output.
-output=${1:-${dir}/output}
+output=${dir}/output
 java=java
 jarfile="target/oak-benchmarks-synchrobench-0.1.6-SNAPSHOT.jar"
 
@@ -16,7 +26,28 @@ writes="0"
 warmup="0"
 iterations="5"
 duration="30000"
+benchs="JavaSkipListMap OakMyBufferMap OffHeapList"
 #gcAlgorithms="-XX:+UseParallelOldGC -XX:+UseConcMarkSweepGC -XX:+UseG1GC"
+
+
+while getopts "o:d:i:w:s:b:" opt; do
+  case ${opt} in
+    o ) output=$OPTARG;;
+    d ) duration=$(($OPTARG * 1000));;
+    i ) iterations=$OPTARG;;
+    w ) warmup=$OPTARG;;
+    s ) size=$OPTARG;;
+    b ) benchs=$OPTARG;;
+    \? )
+      echo "Invalid Option: -$OPTARG" 1>&2
+      exit 1
+      ;;
+    : )
+      echo "Invalid Option: -$OPTARG requires an argument" 1>&2
+      exit 1
+      ;;
+  esac
+done
 
 declare -A heap_limit=(["OakMyBufferMap"]="12g"
                        ["OffHeapList"]="12g"
@@ -52,9 +83,7 @@ declare -A scenarios=(
                      )
 
 
-# Oak vs JavaSkipList
 benchClassPrefix="com.oath.oak"
-benchs="JavaSkipListMap OakMyBufferMap OffHeapList"
 
 summary="${output}/summary.csv"
 
@@ -74,9 +103,11 @@ for scenario in ${!scenarios[@]}; do
         for write in ${writes}; do
           for t in ${thread}; do
             for i in ${size}; do
-              r=`echo "2*${i}" | bc`
+              r=$((2 * i));
               out=${output}/oak-${scenario}-${bench}-xmx${heapLimit}-DirectMeM${directMemSize}-t${t}-${gcAlg}.log
-              cmd="${java} ${javaopt} -jar ${jarfile} -b ${benchClassPrefix}.${bench} ${scenarios[$scenario]} -k ${keysize} -v ${valuesize} -i ${i} -r ${r} -n ${iterations} -t ${t} -d ${duration} -W ${warmup}"
+              cmd="${java} ${javaopt} -jar ${jarfile} -b ${benchClassPrefix}.${bench} ${scenarios[$scenario]} \
+                                      -k ${keysize} -v ${valuesize} -i ${i} -r ${r} -n ${iterations} -t ${t} \
+                                      -d ${duration} -W ${warmup}"
               echo ${cmd}
               echo ${cmd} >> ${out}
               ${cmd} >> ${out} 2>&1
@@ -85,6 +116,10 @@ for scenario in ${!scenarios[@]}; do
               finalSize=`grep "Mean Total Size:" ${out} | cut -d : -f2 | tr -d '[:space:]'`
               throughput=`grep "Mean:" ${out} | cut -d : -f2 | tr -d '[:space:]'`
               echo "${scenario}, ${bench}, ${heapLimit}, ${directMemSize}, ${t}, ${finalSize}, ${throughput} $gcAlg" >> ${summary}
+              if [[ "$CONTINUE" -ne 1 ]]; then
+                echo "#### Quiting..."
+                exit 1
+              fi
             done
           done
         done
