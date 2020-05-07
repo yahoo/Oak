@@ -39,6 +39,6 @@ public class OakIntBufferComparator implements OakComparator<ByteBuffer> {
             }
         }
 
-        return size1 - size2;
+        return Integer.compare(size1, size2);
     }
 }
