@@ -195,11 +195,12 @@ class Chunk<K, V> {
      * successful {@code putIfAbsent}).
      *
      * @param lookUp - holds the entry to change, the old value reference to CAS out, and the current value version.
+     * @param ongoingDeletion - true if this is the thread performing the deletion that must be finished
      * @return {@code true} if a rebalance is needed
      */
-    boolean finalizeDeletion(EntrySet.LookUp lookUp) {
+    boolean finalizeDeletion(EntrySet.LookUp lookUp, boolean ongoingDeletion) {
 
-        if (!entrySet.isDeleteValueFinishNeeded(lookUp)) {
+        if (!ongoingDeletion && !entrySet.isDeleteValueFinishNeeded(lookUp)) {
             return false;
         }
         if (!publish()) {

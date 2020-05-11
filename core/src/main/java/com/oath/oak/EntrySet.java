@@ -911,7 +911,7 @@ class EntrySet<K, V> {
         // Scenario: this value space is allocated once again and assigned into the same entry,
         // while this thread is sleeping. So later a valid value reference is CASed to invalid.
         // In order to not allow this scenario happen we must release the
-        // value's off-heap slice to memory manager only after deleteValueFinish is called.
+        // value's off-heap slice to memory manager only after deleteValueFinish is done.
         casEntriesArrayLong(indIdx, OFFSET.VALUE_REFERENCE,
             lookUp.valueReference, INVALID_VALUE_REFERENCE);
         if (casEntriesArrayInt(indIdx, OFFSET.VALUE_VERSION, version, -version)) {

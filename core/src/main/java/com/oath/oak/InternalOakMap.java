@@ -340,7 +340,7 @@ class InternalOakMap<K, V> {
 
     private boolean finalizeDeletion(Chunk<K, V> c, EntrySet.LookUp lookUp) {
         if (lookUp != null) {
-            if (c.finalizeDeletion(lookUp)) {
+            if (c.finalizeDeletion(lookUp, false)) {
                 rebalance(c);
                 return true;
             }
@@ -680,7 +680,7 @@ class InternalOakMap<K, V> {
                 // then the old value is saved in v. Otherwise v is (correctly) null
                 return transformer == null ? Result.withFlag(logicallyDeleted ? TRUE : FALSE) : Result.withValue(v);
             } else if (lookUp.valueSlice == null) {
-                if (!c.finalizeDeletion(lookUp)) {
+                if (!c.finalizeDeletion(lookUp, false)) {
                     return transformer == null ? Result.withFlag(logicallyDeleted ? TRUE : FALSE) : Result.withValue(v);
                 }
                 rebalance(c);
@@ -714,7 +714,7 @@ class InternalOakMap<K, V> {
             assert lookUp.valueReference != EntrySet.INVALID_VALUE_REFERENCE;
 
             // publish
-            if (c.finalizeDeletion(lookUp)) {
+            if (c.finalizeDeletion(lookUp, true)) {
                 rebalance(c);
             }
         }
