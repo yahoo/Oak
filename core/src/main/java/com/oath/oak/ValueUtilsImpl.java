@@ -142,8 +142,8 @@ class ValueUtilsImpl implements ValueUtils {
             }
             // both values match so the value is marked as deleted. No need for a CAS since a write lock is exclusive
             setLockState(s, DELETED);
-            // release the slice (no need to re-read it).
-            memoryManager.releaseSlice(s);
+            // delete the value in the entry happens next and the slice will be released as part of it
+            // slice can be released only after the entry is marked appropriately
             return Result.withValue(v);
         }
     }
