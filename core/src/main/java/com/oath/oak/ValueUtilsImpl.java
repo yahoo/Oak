@@ -95,7 +95,8 @@ class ValueUtilsImpl implements ValueUtils {
         }
         // can not release the old slice or mark it moved, before the new one is updated!
         setLockState(oldSlice, MOVED);
-        memoryManager.releaseSlice(oldSlice);
+        // currently the slices which value was moved aren't going to be released, to keep the MOVED mark
+        // TODO: deal with the reallocation of the moved memory
         return newSlice;
     }
 
