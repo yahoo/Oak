@@ -80,7 +80,7 @@ public class InternalOakMapTest {
         List<Thread> threadList = new ArrayList<>(results.length);
         threadList.add(new Thread(() -> results[0] = testMap.put(k, v1, OakCommonBuildersFactory.defaultIntSerializer::deserialize)));
         threadList.add(new Thread(() -> results[1] =
-                testMap.remove(k, null, InternalOakMapTest::slowDeserialize).value));
+            (Integer) testMap.remove(k, null, InternalOakMapTest::slowDeserialize).value));
         threadList.add(new Thread(() -> results[2] = testMap.put(k, v2, OakCommonBuildersFactory.defaultIntSerializer::deserialize)));
 
         runThreads(threadList);
@@ -100,9 +100,9 @@ public class InternalOakMapTest {
 
         List<Thread> threadList = new ArrayList<>(results.length);
         threadList.add(new Thread(() -> results[0] =
-                testMap.remove(k, null, InternalOakMapTest::slowDeserialize).value));
+            (Integer) testMap.remove(k, null, InternalOakMapTest::slowDeserialize).value));
         threadList.add(new Thread(() -> results[1] =
-                testMap.remove(k, null, OakCommonBuildersFactory.defaultIntSerializer::deserialize).value));
+            (Integer) testMap.remove(k, null, OakCommonBuildersFactory.defaultIntSerializer::deserialize).value));
 
         runThreads(threadList);
 

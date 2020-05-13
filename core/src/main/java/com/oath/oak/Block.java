@@ -46,19 +46,19 @@ class Block {
 
     // Block manages its linear allocation. Thread safe.
     // The returned buffer doesn't have all zero bytes.
-    Slice allocate(int size) {
+    boolean allocate(Slice s, int size) {
         int now = allocated.getAndAdd(size);
         if (now + size > this.capacity) {
             allocated.getAndAdd(-size);
             throw new OakOutOfMemoryException();
         }
-        // The position and limit of this thread's buffer are changed.
-        // This means that a thread cannot allocate two slices from the same block at the same time without
+        // The position and limit of this thread's buffer does not change here.
+        // Any slicing/positioning will be made on demand by the Slice instance itself.
+        // This means that a thread can allocate two slices from the same block at the same time without
         // duplicating one of them.
-        ByteBuffer bb = getMyBuffer();
-        bb.limit(now + size);
-        bb.position(now);
-        return new Slice(id, bb);
+        s.update(id, now, size);
+        getBufferForThread(s);
+        return true;
     }
 
     // use when this Block is no longer in any use, not thread safe
@@ -107,13 +107,10 @@ class Block {
         return byteBufferPerThread[idx];
     }
 
-    ByteBuffer getBufferForThread(int position, int length) {
-        ByteBuffer bb = getMyBuffer();
-        bb.limit(position + length);
-        bb.position(position);
-        // on purpose not creating a ByteBuffer slice() here,
-        // slice() will be used only per demand when buffer is passed outside Oak
-        return bb;
+    void getBufferForThread(Slice s) {
+        // Were not slicing the buffer and not changing its position/limit.
+        // Any slicing/positioning will be made on demand by the Slice instance itself.
+        s.setBuffer(getMyBuffer());
     }
 
     // how many bytes a block may include, regardless allocated/free

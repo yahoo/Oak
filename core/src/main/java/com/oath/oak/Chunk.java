@@ -15,7 +15,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicMarkableReference;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static com.oath.oak.ValueUtils.INVALID_VERSION;
 import static com.oath.oak.ValueUtils.ValueResult.*;
 
 class Chunk<K, V> {
@@ -40,6 +39,8 @@ class Chunk<K, V> {
     // defaults
     public static final int MAX_ITEMS_DEFAULT = 4096;
 
+    /*-------------- Members --------------*/
+
     private static final Unsafe unsafe = UnsafeUtils.unsafe;
     ByteBuffer minKey;       // minimal key that can be put in this chunk
     AtomicMarkableReference<Chunk<K, V>> next;
@@ -50,7 +51,7 @@ class Chunk<K, V> {
     // chunk can be in the following states: normal, frozen or infant(has a creator)
     private final AtomicReference<State> state;
     private AtomicReference<Rebalancer<K, V>> rebalancer;
-    private final EntrySet<K,V> entrySet;
+    private final EntrySet<K, V> entrySet;
 
     private AtomicInteger pendingOps;
 
@@ -73,9 +74,7 @@ class Chunk<K, V> {
           ValueUtils valueOperator) {
 
         this.maxItems = maxItems;
-        this.entrySet =
-            new EntrySet<K,V>(memoryManager, maxItems, keySerializer, valueSerializer,
-                valueOperator);
+        this.entrySet = new EntrySet<>(memoryManager, maxItems, keySerializer, valueSerializer, valueOperator);
         // if not zero, sorted count keeps the entry index of the last
         // subsequent and ordered entry in the entries array
         this.sortedCount = new AtomicInteger(0);
@@ -94,191 +93,199 @@ class Chunk<K, V> {
         this.externalSize = externalSize;
     }
 
-    /*-------------- Methods --------------*/
 
-    void release() {
-        // try to change the state
-        state.compareAndSet(State.FROZEN, State.RELEASED);
+    /********************************************************************************************/
+    /*-----------------------------  Wrappers for EntrySet methods -----------------------------*/
+
+    /** See {@code EntrySet.isValueRefValid(int)} for more information */
+    boolean isValueRefValid(int ei) {
+        return entrySet.isValueRefValid(ei);
     }
 
-    ByteBuffer readMinKey() {
-        return entrySet.readKey(entrySet.getHeadNextIndex());
+    /** See {@code EntrySet.readKey(ThreadContext)} for more information */
+    void readKeyFromEntryIndex(ThreadContext ctx) {
+        entrySet.readKey(ctx);
     }
 
-    ByteBuffer readMaxKey() {
-        int maxEntry = getLastItemEntryIndex();
-        return entrySet.readKey(maxEntry);
+    /** See {@code EntrySet.readValue(ThreadContext)} for more information */
+    void readValueFromEntryIndex(ThreadContext ctx) {
+        entrySet.readValue(ctx);
+    }
+
+    /** See {@code EntrySet.readKey(KeyBuffer)} for more information */
+    boolean readKeyFromEntryIndex(KeyBuffer key, int ei) {
+        return entrySet.readKey(key, ei);
+    }
+
+    /** See {@code EntrySet.readValue(ValueBuffer)} for more information */
+    boolean readValueFromEntryIndex(ValueBuffer value, int ei) {
+        return entrySet.readValue(value, ei);
+    }
+
+    /** See {@code EntrySet.readValueNoVersion(ValueBuffer)} for more information */
+    boolean readValueNoVersionFromEntryIndex(ValueBuffer value, int ei) {
+        return entrySet.readValueNoVersion(value, ei);
+    }
+
+    /** See {@code EntrySet.allocateEntry(ThreadContext)} for more information */
+    boolean allocateEntryAndKey(ThreadContext ctx, K key) {
+        return entrySet.allocateEntry(ctx, key);
+    }
+
+    /** See {@code EntrySet.writeValueStart(ThreadContext)} for more information */
+    void writeValue(ThreadContext ctx, V value, boolean writeForMove) {
+        entrySet.writeValueStart(ctx, value, writeForMove);
+    }
+
+    /** See {@code EntrySet.releaseKey(ThreadContext)} for more information */
+    void releaseKey(ThreadContext ctx) {
+        entrySet.releaseKey(ctx);
+    }
+
+    /** See {@code EntrySet.releaseNewValue(ThreadContext)} for more information */
+    void releaseNewValue(ThreadContext ctx) {
+        entrySet.releaseNewValue(ctx);
     }
 
     /**
-     * look up key
-     *
-     * @param key the key to look up
-     * @return a LookUp object describing the condition of the value associated with {@code key}.
-     * If {@code lookup == null}, there is no entry with that key in this chunk.
-     * If {@code lookup.valueReference == INVALID_VALUE}, it means that there is an entry with that key (can be
-     * reused in case
-     * of {@code put}, but there is no value attached to this key (it can happen if this entry is in the midst of
-     * being inserted, or some thread removed this key and no rebalanace occurred leaving the entry in the chunk).
-     * It implies that {@code lookup.valueSlice = null}.
-     * If {@code lookup.valueSlice == null && lookup.valueReference != INVALID_VALUE} it means that the value is
-     * marked off-heap as deleted, but the connection between the entry and the value was not unlinked yet.
+     * @param key a key buffer to be updated with the minimal key
+     * @return    true if successful
      */
-    EntrySet.LookUp lookUp(K key) {
+    boolean readMinKey(KeyBuffer key) {
+        return entrySet.readKey(key, entrySet.getHeadNextIndex());
+    }
+
+    /**
+     * @param key a key buffer to be updated with the maximal key
+     * @return    true if successful
+     */
+    boolean readMaxKey(KeyBuffer key) {
+        return entrySet.readKey(key, getLastItemEntryIndex());
+    }
+
+    /**
+     * @return the index of the first item in the chunk
+     * See {@code EntrySet.getHeadNextIndex} for more information.
+     */
+    final int getFirstItemEntryIndex() {
+        return entrySet.getHeadNextIndex();
+    }
+
+    /**
+     * Finds the last sorted entry.
+     * @return the last sorted entry
+     */
+    private int getLastItemEntryIndex() {
+        int sortedCount = this.sortedCount.get();
+        int entryIndex = sortedCount == 0 ? entrySet.getHeadNextIndex() : sortedCount;
+        int nextEntryIndex = entrySet.getNextEntryIndex(entryIndex);
+        while (nextEntryIndex != NONE_NEXT) {
+            entryIndex = nextEntryIndex;
+            nextEntryIndex = entrySet.getNextEntryIndex(entryIndex);
+        }
+        return entryIndex;
+    }
+
+
+    /********************************************************************************************/
+    /*-----------------------  Methods for looking up item in this chunk -----------------------*/
+
+    /**
+     * Compare a key with a serialized key that is pointed by a specific entry index
+     * @param tempKeyBuff a reusable buffer object for internal temporary usage
+     *                    As a side effect, this buffer will contain the compared
+     *                    serialized key.
+     * @param key         the key to compare
+     * @param ei          the entry index to compare with
+     * @return            the comparison result
+     */
+    private int compareKeyAndEntryIndex(KeyBuffer tempKeyBuff, K key, int ei) {
+        boolean isAllocated = entrySet.readKey(tempKeyBuff, ei);
+        assert isAllocated;
+        return comparator.compareKeyAndSerializedKey(key, tempKeyBuff.getDataByteBuffer());
+    }
+
+    /**
+     *  Look up a key in this chunk.
+     *
+     * @param ctx The context that follows the operation following this key look up.
+     *            It will describe the state of the entry (key and value) associated with the input {@code key}.
+     *            Following are the possible states of the entry:
+     *             (1) {@code key} was not found.
+     *                   This means there is no entry with the this key in this chunk.
+     *                   In this case, {@code ctx.isKeyValid() == False} and {@code ctx.isValueValid() == False}.
+     *             (2) {@code key} was found.
+     *                   In this case, {@code (ctx.isKeyValid() == True}
+     *                   The state of the value associated with {@code key} is described in {@code ctx.valueState}.
+     *                   It can be one of the following states:
+     *                     (1) not yet inserted, (2) in the process of being inserted, (3) valid,
+     *                     (4) in the process of being deleted, (5) deleted.
+     *                   For cases (2) and (3), {@code ctx.isValueValid() == True}.
+     *                   Otherwise, {@code ctx.isValueValid() == False}.
+     *                   This means that there is an entry with that key, but there is no value attached to this key.
+     *                   Such entry can be reused after finishing the deletion process, if needed.
+     * @param key the key to look up
+     */
+    void lookUp(ThreadContext ctx, K key) {
         // binary search sorted part of key array to quickly find node to start search at
         // it finds previous-to-key
-        int curr = binaryFind(key);
+        int curr = binaryFind(ctx.tempKey, key);
         curr = (curr == NONE_NEXT) ? entrySet.getHeadNextIndex() : entrySet.getNextEntryIndex(curr);
-        int cmp;
-        // iterate until end of list (or key is found)
 
+        // iterate until end of list (or key is found)
         while (curr != NONE_NEXT) {
             // compare current item's key to searched key
-            cmp = comparator.compareKeyAndSerializedKey(key, entrySet.readKey(curr));
+            int cmp = compareKeyAndEntryIndex(ctx.key, key, curr);
             // if item's key is larger - we've exceeded our key
             // it's not in chunk - no need to search further
             if (cmp < 0) {
-                return null;
+                // Reset entry context to be INVALID
+                ctx.invalidate();
+                return;
             }
             // if keys are equal - we've found the item
             else if (cmp == 0) {
-                return entrySet.buildLookUp(curr);
+                // Updates the entry's context
+                // ctx.key was already updated as a side effect of compareKeyAndEntryIndex()
+                ctx.entryIndex = curr;
+                entrySet.readValue(ctx);
+                return;
             }
             // otherwise- proceed to next item
             curr = entrySet.getNextEntryIndex(curr);
         }
 
-        return null;
-    }
-
-    /**
-     * This function completes the insertion (or deletion) of a value to Entry. When inserting a
-     * value, the value reference is CASed inside the entry first and only afterwards the version is
-     * CASed. Thus, there can be a time in which the value reference is valid but the version is
-     * INVALID_VERSION or a negative one. In this function, the version is CASed to complete the
-     * insertion.
-     * <p>
-     * The version written to entry is the version written in the off-heap memory. There is no worry
-     * of concurrent removals since these removals will have to first call this function as well,
-     * and they eventually change the version as well.
-     *
-     * @param lookUp - It holds the entry to CAS, the value version written in this entry and the
-     *               value reference from which the correct version can be read.
-     * @return a version is returned.
-     * If it is {@code INVALID_VERSION} it means that a CAS was not preformed. Otherwise, a positive version is
-     * returned, and it the version written to the entry (maybe by some other thread).
-     * <p>
-     * Note that the version in the input param {@code lookUp} is updated to be the right one if a valid version was
-     * returned.
-     */
-    int completeLinking(EntrySet.LookUp lookUp) {
-        if (!entrySet.isDeleteValueFinishNeeded(lookUp) && entrySet.isValueLinkFinished(lookUp)) {
-            // the version written in lookup is a good one!
-            return lookUp.version;
-        }
-        if (!publish()) {
-            return INVALID_VERSION;
-        }
-        try {
-            return entrySet.writeValueFinish(lookUp); // TODO: eliminate returning version
-        } finally {
-            unpublish();
-        }
-    }
-
-    /**
-     * As written in {@code writeValueFinish(LookUp)}, when changing an entry, the value reference is CASed first and
-     * later the value version, and the same applies when removing a value. However, there is another step before
-     * changing an entry to remove a value and it is marking the value off-heap (the LP). This function is used to
-     * first CAS the value reference to {@code INVALID_VALUE_REFERENCE} and then CAS the version to be a negative one.
-     * Other threads seeing a marked value call this function before they proceed (e.g., before performing a
-     * successful {@code putIfAbsent}).
-     *
-     * @param lookUp - holds the entry to change, the old value reference to CAS out, and the current value version.
-     * @return {@code true} if a rebalance is needed
-     */
-    boolean finalizeDeletion(EntrySet.LookUp lookUp) {
-
-        if (!entrySet.isDeleteValueFinishNeeded(lookUp)) {
-            return false;
-        }
-        if (!publish()) {
-            return true;
-        }
-        try {
-            if (!entrySet.deleteValueFinish(lookUp)) {
-                return false;
-            }
-            externalSize.decrementAndGet();
-            statistics.decrementAddedCount();
-            return false;
-        } finally {
-            unpublish();
-        }
-    }
-
-    /**
-     * release key in slice, currently not in use, waiting for GC to be arranged
-     *
-     * @param lookUp*/
-    void releaseKey(EntrySet.LookUp lookUp) {
-        entrySet.releaseKey(lookUp);
-    }
-
-    // Use this function to release an unreachable value reference
-    void releaseValue(EntrySet.OpData opData) {
-        entrySet.releaseValue(opData);
-    }
-
-    // Check if value reference is valid. Doesn't check further than that
-    // (meaning whether the underlined off-heap is marked deleted or version is negative)
-    boolean isValueRefValid(int ei) {
-      return entrySet.isValueRefValid(ei);
-    }
-
-    Slice buildValueSlice(int ei) {
-      return entrySet.buildValueSlice(ei);
-    }
-
-    EntrySet.LookUp buildLookUp(int ei) {
-        return entrySet.buildLookUp(ei);
-    }
-
-    ByteBuffer readKeyFromEntryIndex(int ei) {
-        return entrySet.readKey(ei);
-    }
-
-    void setRKeyBuffer(int ei, OakDetachedReadKeyBuffer keyRef) {
-        entrySet.setKeyOutputRBuff(ei, keyRef);
-    }
-
-    // TODO: to change OakRKeyBuffer to OakRValueBuffer
-    boolean setValueReference(int ei, OakDetachedReadKeyBuffer valueRef) {
-        return entrySet.setValueOutputRBuff(ei, valueRef);
+        // Reset entry context to be INVALID
+        ctx.invalidate();
     }
 
     /**
      * binary search for largest-entry smaller than 'key' in sorted part of key array.
      *
-     * @return the index of the entry from which to start a linear search -
+     * @param tempKey a reusable buffer object for internal temporary usage
+     * @param key     the key to look up
+     * @return        the index of the entry from which to start a linear search -
      * if key is found, its previous entry is returned!
      * In cases when search from the head is needed, meaning:
      * (1) the given key is less or equal than the smallest key in the chunk OR
      * (2) entries are unsorted so there is a need to start from the beginning of the linked list
      * NONE_NEXT is going to be returned
      */
-    private int binaryFind(K key) {
+    private int binaryFind(KeyBuffer tempKey, K key) {
         int sortedCount = this.sortedCount.get();
-        int headIdx = entrySet.getHeadNextIndex();
-        // if there are no sorted keys, or the first item is already larger than key -
-        // return the head entry for a regular linear search
-        if ((sortedCount == 0) ||
-            comparator.compareKeyAndSerializedKey(key, entrySet.readKey(headIdx)) <= 0) {
+        // if there are no sorted keys, return NONE_NEXT to indicate that a regular linear search is needed
+        if (sortedCount == 0) {
+            return NONE_NEXT;
+        }
+
+        // if the first item is already larger than key,
+        // return NONE_NEXT to indicate that a regular linear search is needed
+        if (compareKeyAndEntryIndex(tempKey, key, entrySet.getHeadNextIndex()) <= 0) {
             return NONE_NEXT;
         }
 
         // optimization: compare with last key to avoid binary search (here sortedCount is not zero)
-        if (comparator.compareKeyAndSerializedKey(key, entrySet.readKey(sortedCount)) > 0) {
+        if (compareKeyAndEntryIndex(tempKey, key, sortedCount) > 0) {
             return sortedCount;
         }
 
@@ -286,7 +293,7 @@ class Chunk<K, V> {
         int end = sortedCount;
         while (end - start > 1) {
             int curr = start + (end - start) / 2;
-            if (comparator.compareKeyAndSerializedKey(key, entrySet.readKey(curr)) <= 0) {
+            if (compareKeyAndEntryIndex(tempKey, key, curr) <= 0) {
                 end = curr;
             } else {
                 start = curr;
@@ -295,6 +302,10 @@ class Chunk<K, V> {
 
         return start;
     }
+
+
+    /********************************************************************************************/
+    /*---------- Methods for managing the put/remove path of the keys and values  --------------*/
 
     /**
      * publish operation into thread array
@@ -320,18 +331,92 @@ class Chunk<K, V> {
         pendingOps.decrementAndGet();
     }
 
-    EntrySet.LookUp allocateEntryAndKey(K key) {
-        return entrySet.allocateEntry(key);
+    /**
+     * This function completes the insertion of a value to Entry. When inserting a
+     * value, the value reference is CASed inside the entry first and only afterwards the version is
+     * CASed. Thus, there can be a time in which the value reference is valid but the version is
+     * INVALID_VERSION or a negative one. In this function, the version is CASed to complete the
+     * insertion.
+     *
+     * The version written to entry is the version written in the off-heap memory. There is no worry
+     * of concurrent removals since these removals will have to first call this function as well,
+     * and they eventually change the version as well.
+     *
+     * This method expects the value buffer to be valid, the valueState to be VALID_INSERT_NOT_FINALIZED, and the
+     * version to be positive.
+     * If the context that not match these requirements, its behavior is undefined.
+     *
+     * @param ctx The context that follows the operation since the key was found/created.
+     *            It holds the entry to CAS, the value version written in this entry and the
+     *            value reference from which the correct version can be read.
+     * @return a version is returned.
+     *
+     * Note: the value's version and state in {@code ctx} are updated in this method to be the
+     * updated positive version and a valid state.
+     */
+    int completeLinking(ThreadContext ctx) {
+        if (ctx.valueState != EntrySet.ValueState.VALID_INSERT_NOT_FINALIZED) {
+            // the version written in the value is a good one!
+            return ctx.value.getVersion();
+        }
+        if (!publish()) {
+            return EntrySet.INVALID_VERSION;
+        }
+        try {
+            entrySet.writeValueFinish(ctx);
+        } finally {
+            unpublish();
+        }
+
+        return ctx.value.getVersion();
     }
 
-    int linkEntry(EntrySet.LookUp lookUp, K key) {
+    /**
+     * As written in {@code writeValueFinish(ctx)}, when changing an entry, the value reference is CASed first and
+     * later the value version, and the same applies when removing a value. However, there is another step before
+     * changing an entry to remove a value and it is marking the value off-heap (the LP). This function is used to
+     * first CAS the value reference to {@code INVALID_VALUE_REFERENCE} and then CAS the version to be a negative one.
+     * Other threads seeing a marked value call this function before they proceed (e.g., before performing a
+     * successful {@code putIfAbsent()}).
+     *
+     * @param ctx The context that follows the operation since the key was found/created.
+     *            Holds the entry to change, the old value reference to CAS out, and the current value version.
+     * @return    true if a rebalance is needed
+     */
+    boolean finalizeDeletion(ThreadContext ctx) {
+        if (ctx.valueState != EntrySet.ValueState.DELETED_NOT_FINALIZED) {
+            return false;
+        }
+        if (!publish()) {
+            return true;
+        }
+        try {
+            if (!entrySet.deleteValueFinish(ctx)) {
+                return false;
+            }
+            externalSize.decrementAndGet();
+            statistics.decrementAddedCount();
+            return false;
+        } finally {
+            unpublish();
+        }
+    }
+
+    /**
+     * @param ctx the context that follows the operation since the key was found/created
+     * @param key the key to link
+     * @return    The previous entry index if the key was already added by another thread.
+     *            Otherwise, if successful, it will return the current entry index.
+     */
+    int linkEntry(ThreadContext ctx, K key) {
         int prev, curr, cmp;
         int anchor = INVALID_ANCHOR_INDEX;
-        int ei = lookUp.entryIndex;
+        final int ei = ctx.entryIndex;
+        final KeyBuffer tempKeyBuff = ctx.tempKey;
         while (true) {
             // start iterating from quickly-found node (by binary search) in sorted part of order-array
             if (anchor == INVALID_ANCHOR_INDEX) {
-                anchor = binaryFind(key);
+                anchor = binaryFind(tempKeyBuff, key);
             }
             if (anchor == NONE_NEXT) {
                 prev = NONE_NEXT;
@@ -341,7 +426,7 @@ class Chunk<K, V> {
                 curr = entrySet.getNextEntryIndex(anchor);    // index of next item in list
             }
 
-            //TODO: use lookUp and location window inside lookUp (when key wasn't found),
+            //TODO: use ctx and location window inside ctx (when key wasn't found),
             //TODO: so there us no need to iterate again in linkEntry
             // iterate items until key's position is found
             while (true) {
@@ -350,7 +435,7 @@ class Chunk<K, V> {
                     break;
                 }
                 // compare current item's key to ours
-                cmp = comparator.compareKeyAndSerializedKey(key, entrySet.readKey(curr));
+                cmp = compareKeyAndEntryIndex(tempKeyBuff, key, curr);
 
                 // if current item's key is larger, done searching - add between prev and curr
                 if (cmp < 0) {
@@ -368,7 +453,7 @@ class Chunk<K, V> {
 
             // link to list between curr and previous, first change this entry's next to point to curr
             // no need for CAS since put is not even published yet
-            entrySet.setNextEntryIndex(ei,curr);
+            entrySet.setNextEntryIndex(ei, curr);
             if (entrySet.casNextEntryIndex(prev, curr, ei)) {
                 // Here is the single place where we do enter a new entry to the chunk, meaning
                 // there is none else who can simultaneously insert the same key
@@ -380,8 +465,7 @@ class Chunk<K, V> {
                 if (sortedCount > 0) {
                     if (ei == (sortedCount + 1)) { // first entry has entry index 1, not 0
                         // the new entry's index is exactly after the sorted count
-                        if (comparator.compareKeyAndSerializedKey(
-                                key, entrySet.readKey(sortedCount)) >= 0) {
+                        if (compareKeyAndEntryIndex(tempKeyBuff, key, sortedCount) >= 0) {
                             // compare with sorted count key, if inserting the "if-statement",
                             // the sorted count key is less or equal to the key just inserted
                             this.sortedCount.compareAndSet(sortedCount, (sortedCount + 1));
@@ -395,42 +479,34 @@ class Chunk<K, V> {
     }
 
     /**
-     * write value off-heap, promoted to EntrySet.
-     *
-     * @param value the value to write off-heap
-     * @param writeForMove
-     * @return OpData to be used later in the writeValueCommit
-     **/
-    EntrySet.OpData writeValue(EntrySet.LookUp lookUp, V value, boolean writeForMove) {
-        return entrySet.writeValueStart(lookUp, value, writeForMove);
-    }
-
-
-    int getMaxItems() {
-        return maxItems;
-    }
-
-    /**
      * This function does the physical CAS of the value reference, which is the LP of the insertion. It then tries to
-     * complete the insertion (@see #writeValueFinish(LookUp)).
+     * complete the insertion @see writeValueFinish(ctx).
      * This is also the only place in which the size of Oak is updated.
      *
-     * @param opData - holds the entry to which the value reference is linked, the old and new value references and
-     *               the old and new value versions.
-     * @param linkForMove
-     * @param lookUp
-     * @return {@code true} if the value reference was CASed successfully.
+     * @param ctx The context that follows the operation since the key was found/created.
+     *            Holds the entry to which the value reference is linked, the old and new value references and
+     *            the old and new value versions.
+     * @return    true if the value reference was CASed successfully.
      */
-    ValueUtils.ValueResult linkValue(EntrySet.OpData opData, boolean linkForMove,
-        EntrySet.LookUp lookUp) {
-        if (entrySet.writeValueCommit(opData, linkForMove) == FALSE) {
+    ValueUtils.ValueResult linkValue(ThreadContext ctx) {
+        if (entrySet.writeValueCommit(ctx) == FALSE) {
             return FALSE;
         }
-        if (!linkForMove) {
+
+        // If we move a value, the statistics shouldn't change
+        if (!ctx.isNewValueForMove) {
             statistics.incrementAddedCount();
             externalSize.incrementAndGet();
         }
         return TRUE;
+    }
+
+
+    /********************************************************************************************/
+    /*------------------------- Methods that are used for rebalance  ---------------------------*/
+
+    int getMaxItems() {
+        return maxItems;
     }
 
     /**
@@ -461,59 +537,39 @@ class Chunk<K, V> {
         return rebalancer.get();
     }
 
-    Chunk<K, V> creator() {
-        return creator.get();
-    }
-
-    State state() {
-        return state.get();
-    }
-
-    private void setState(State state) {
-        this.state.set(state);
-    }
-
-    void normalize() {
-        state.compareAndSet(State.INFANT, State.NORMAL);
-        creator.set(null);
-        // using fence so other puts can continue working immediately on this chunk
-        Chunk.unsafe.storeFence();
-    }
-
-    final int getFirstItemEntryIndex() {
-        return entrySet.getHeadNextIndex();
-    }
-
-    private int getLastItemEntryIndex() {
-        // find the last sorted entry
-        int sortedCount = this.sortedCount.get();
-        int entryIndex = sortedCount == 0 ? entrySet.getHeadNextIndex() : sortedCount;
-        int nextEntryIndex = entrySet.getNextEntryIndex(entryIndex);
-        while (nextEntryIndex != NONE_NEXT) {
-            entryIndex = nextEntryIndex;
-            nextEntryIndex = entrySet.getNextEntryIndex(entryIndex);
+    boolean shouldRebalance() {
+        // perform actual check only in pre defined percentage of puts
+        if (ThreadLocalRandom.current().nextInt(100) > REBALANCE_PROB_PERC) {
+            return false;
         }
-        return entryIndex;
+
+        // if another thread already runs rebalance -- skip it
+        if (!isEngaged(null)) {
+            return false;
+        }
+        int numOfEntries = entrySet.getNumOfEntries();
+        int numOfItems = statistics.getCompactedCount();
+        int sortedCount = this.sortedCount.get();
+        // Reasons for executing a rebalance:
+        // 1. There are no sorted keys and the total number of entries is above a certain threshold.
+        // 2. There are sorted keys, but the total number of unsorted keys is too big.
+        // 3. Out of the occupied entries, there are not enough actual items.
+        return (sortedCount == 0 && numOfEntries * MAX_ENTRIES_FACTOR > maxItems) ||
+                (sortedCount > 0 && (sortedCount * SORTED_REBALANCE_RATIO) < numOfEntries) ||
+                (numOfEntries * MAX_IDLE_ENTRIES_FACTOR > maxItems && numOfItems * MAX_IDLE_ENTRIES_FACTOR < numOfEntries);
     }
 
     /**
-     * freezes chunk so no more changes can be done to it (marks pending items as frozen)
-     */
-    void freeze() {
-        setState(State.FROZEN); // prevent new puts to this chunk
-        while (pendingOps.get() != 0) ;
-    }
-
-    /***
      * Copies entries from srcChunk (starting srcEntryIdx) to this chunk,
      * performing entries sorting on the fly (delete entries that are removed as well).
-     * @param srcChunk -- chunk to copy from
-     * @param srcEntryIdx -- start position for copying
-     * @param maxCapacity -- max number of entries "this" chunk can contain after copy
-     * @return entry index of next to the last copied entry (in the srcChunk),
-     *              NONE_NEXT if all items were copied
+     * @param tempValue   a reusable buffer object for internal temporary usage
+     * @param srcChunk    chunk to copy from
+     * @param srcEntryIdx start position for copying
+     * @param maxCapacity max number of entries "this" chunk can contain after copy
+     * @return            entry index of next to the last copied entry (in the srcChunk),
+     *                    NONE_NEXT if all items were copied
      */
-    final int copyPartNoKeys(Chunk<K, V> srcChunk, int srcEntryIdx, int maxCapacity) {
+    final int copyPartNoKeys(ValueBuffer tempValue, Chunk<K, V> srcChunk, int srcEntryIdx, int maxCapacity) {
 
         if (srcEntryIdx == NONE_NEXT) {
             return NONE_NEXT;
@@ -522,7 +578,7 @@ class Chunk<K, V> {
         // use local variables and just set the atomic variables once at the end
         int numOfEntries = entrySet.getNumOfEntries();
         // next *free* index of this entries array
-        int sortedThisEntryIndex = numOfEntries+1;
+        int sortedThisEntryIndex = numOfEntries + 1;
 
         // check that we are not beyond allowed number of entries to copy from source chunk
         if (numOfEntries >= maxCapacity) {
@@ -542,7 +598,7 @@ class Chunk<K, V> {
         // the long copy array doesn't happen since "next" needs to be updated separately.
 
         // copy entry by entry traversing the source linked list
-        while(entrySet.copyEntry(srcChunk.entrySet, srcEntryIdx)) {
+        while (entrySet.copyEntry(tempValue, srcChunk.entrySet, srcEntryIdx)) {
             // the source entry was either copied or disregarded as deleted
             // anyway move to next source entry (according to the linked list)
             srcEntryIdx = srcChunk.entrySet.getNextEntryIndex(srcEntryIdx);
@@ -578,6 +634,44 @@ class Chunk<K, V> {
         return srcEntryIdx; // if NONE_NEXT then we finished copying old chunk, else we reached max in new chunk
     }
 
+
+    /********************************************************************************************/
+    /*----------------------- Methods for managing the chunk's state  --------------------------*/
+
+    State state() {
+        return state.get();
+    }
+
+    Chunk<K, V> creator() {
+        return creator.get();
+    }
+
+    private void setState(State state) {
+        this.state.set(state);
+    }
+
+    void normalize() {
+        state.compareAndSet(State.INFANT, State.NORMAL);
+        creator.set(null);
+        // using fence so other puts can continue working immediately on this chunk
+        Chunk.unsafe.storeFence();
+    }
+
+    /**
+     * freezes chunk so no more changes can be done to it (marks pending items as frozen)
+     */
+    void freeze() {
+        setState(State.FROZEN); // prevent new puts to this chunk
+        while (pendingOps.get() != 0) ;
+    }
+
+    /**
+     * try to change the state from frozen to released
+     */
+    void release() {
+        state.compareAndSet(State.FROZEN, State.RELEASED);
+    }
+
     /**
      * marks this chunk's next pointer so this chunk is marked as deleted
      *
@@ -607,44 +701,22 @@ class Chunk<K, V> {
     }
 
 
-    boolean shouldRebalance() {
-        // perform actual check only in pre defined percentage of puts
-        if (ThreadLocalRandom.current().nextInt(100) > REBALANCE_PROB_PERC) {
-            return false;
-        }
-
-        // if another thread already runs rebalance -- skip it
-        if (!isEngaged(null)) {
-            return false;
-        }
-        int numOfEntries = entrySet.getNumOfEntries();
-        int numOfItems = statistics.getCompactedCount();
-        int sortedCount = this.sortedCount.get();
-        // Reasons for executing a rebalance:
-        // 1. There are no sorted keys and the total number of entries is above a certain threshold.
-        // 2. There are sorted keys, but the total number of unsorted keys is too big.
-        // 3. Out of the occupied entries, there are not enough actual items.
-        return (sortedCount == 0 && numOfEntries * MAX_ENTRIES_FACTOR > maxItems) ||
-                (sortedCount > 0 && (sortedCount * SORTED_REBALANCE_RATIO) < numOfEntries) ||
-                (numOfEntries * MAX_IDLE_ENTRIES_FACTOR > maxItems && numOfItems * MAX_IDLE_ENTRIES_FACTOR < numOfEntries);
-    }
-
     /*-------------- Iterators --------------*/
 
     AscendingIter ascendingIter() {
         return new AscendingIter();
     }
 
-    AscendingIter ascendingIter(K from, boolean inclusive) {
-        return new AscendingIter(from, inclusive);
+    AscendingIter ascendingIter(ThreadContext ctx, K from, boolean inclusive) {
+        return new AscendingIter(ctx, from, inclusive);
     }
 
-    DescendingIter descendingIter() {
-        return new DescendingIter();
+    DescendingIter descendingIter(ThreadContext ctx) {
+        return new DescendingIter(ctx);
     }
 
-    DescendingIter descendingIter(K from, boolean inclusive) {
-        return new DescendingIter(from, inclusive);
+    DescendingIter descendingIter(ThreadContext ctx, K from, boolean inclusive) {
+        return new DescendingIter(ctx, from, inclusive);
     }
 
     private int advanceNextIndex(int next) {
@@ -656,7 +728,8 @@ class Chunk<K, V> {
 
     interface ChunkIter {
         boolean hasNext();
-        int next();
+
+        int next(ThreadContext ctx);
     }
 
     class AscendingIter implements ChunkIter {
@@ -668,18 +741,19 @@ class Chunk<K, V> {
             next = advanceNextIndex(next);
         }
 
-        AscendingIter(K from, boolean inclusive) {
-            next = binaryFind(from);
+        AscendingIter(ThreadContext ctx, K from, boolean inclusive) {
+            KeyBuffer tempKeyBuff = ctx.tempKey;
+            next = binaryFind(tempKeyBuff, from);
             next = (next == NONE_NEXT) ? entrySet.getHeadNextIndex() : entrySet.getNextEntryIndex(next);
             int compare = -1;
             if (next != NONE_NEXT) {
-                compare = comparator.compareKeyAndSerializedKey(from, entrySet.readKey(next));
+                compare = compareKeyAndEntryIndex(tempKeyBuff, from, next);
             }
             while (next != NONE_NEXT &&
-                (compare > 0 || (compare >= 0 && !inclusive) || !entrySet.isValueRefValid(next))) {
+                    (compare > 0 || (compare >= 0 && !inclusive) || !entrySet.isValueRefValid(next))) {
                 next = entrySet.getNextEntryIndex(next);
                 if (next != NONE_NEXT) {
-                    compare = comparator.compareKeyAndSerializedKey(from, entrySet.readKey(next));
+                    compare = compareKeyAndEntryIndex(tempKeyBuff, from, next);
                 }
             }
         }
@@ -695,7 +769,7 @@ class Chunk<K, V> {
         }
 
         @Override
-        public int next() {
+        public int next(ThreadContext ctx) {
             int toReturn = next;
             advance();
             return toReturn;
@@ -713,30 +787,34 @@ class Chunk<K, V> {
 
         static final int SKIP_ENTRIES_FOR_BIGGER_STACK = 1; // 1 is the lowest possible value
 
-        DescendingIter() {
+        DescendingIter(ThreadContext ctx) {
+            KeyBuffer tempKeyBuff = ctx.tempKey;
+
             from = null;
             stack = new IntStack(entrySet.getLastEntryIndex());
             int sortedCnt = sortedCount.get();
             anchor = // this is the last sorted entry
-                (sortedCnt == 0 ? entrySet.getHeadNextIndex() : sortedCnt);
+                    (sortedCnt == 0 ? entrySet.getHeadNextIndex() : sortedCnt);
             stack.push(anchor);
-            initNext();
+            initNext(tempKeyBuff);
         }
 
-        DescendingIter(K from, boolean inclusive) {
+        DescendingIter(ThreadContext ctx, K from, boolean inclusive) {
+            KeyBuffer tempKeyBuff = ctx.tempKey;
+
             this.from = from;
             this.inclusive = inclusive;
             stack = new IntStack(entrySet.getLastEntryIndex());
-            anchor = binaryFind(from);
+            anchor = binaryFind(tempKeyBuff, from);
             // translate to be valid index, if anchor is head we know to stop the iteration
             anchor = (anchor == NONE_NEXT) ? entrySet.getHeadNextIndex() : anchor;
             stack.push(anchor);
-            initNext();
+            initNext(tempKeyBuff);
         }
 
-        private void initNext() {
-            traverseLinkedList(true);
-            advance();
+        private void initNext(KeyBuffer keyBuff) {
+            traverseLinkedList(keyBuff, true);
+            advance(keyBuff);
         }
 
         /**
@@ -776,9 +854,10 @@ class Chunk<K, V> {
 
         /**
          * fill the stack
+         *
          * @param firstTimeInvocation
          */
-        private void traverseLinkedList(boolean firstTimeInvocation) {
+        private void traverseLinkedList(KeyBuffer tempKeyBuff, boolean firstTimeInvocation) {
             assert stack.size() == 1;   // ancor is in the stack
             if (prevAnchor == entrySet.getNextEntryIndex(anchor)) {
                 next = NONE_NEXT;   // there is no next;
@@ -790,18 +869,13 @@ class Chunk<K, V> {
                 pushToStack(!firstTimeInvocation);
             } else {
                 if (firstTimeInvocation) {
-                    if (inclusive) {
-                        while (next != NONE_NEXT
-                            && comparator.compareKeyAndSerializedKey(from, entrySet.readKey(next)) >= 0) {
-                            stack.push(next);
-                            next = entrySet.getNextEntryIndex(next);
-                        }
-                    } else {
-                        while (next != NONE_NEXT
-                            && comparator.compareKeyAndSerializedKey(from, entrySet.readKey(next)) > 0) {
-                            stack.push(next);
-                            next = entrySet.getNextEntryIndex(next);
-                        }
+                    final int threshold = inclusive ? -1 : 0;
+                    // This is equivalent to continue while:
+                    //         when inclusive: CMP >= 0
+                    //     when non-inclusive: CMP > 0
+                    while (next != NONE_NEXT && compareKeyAndEntryIndex(tempKeyBuff, from, next) > threshold) {
+                        stack.push(next);
+                        next = entrySet.getNextEntryIndex(next);
                     }
                 } else {
                     // stop when reaching previous anchor
@@ -833,7 +907,7 @@ class Chunk<K, V> {
             stack.push(anchor);
         }
 
-        private void advance() {
+        private void advance(KeyBuffer keyBuff) {
             while (true) {
                 findNewNextInStack();
                 if (next != NONE_NEXT) {
@@ -845,7 +919,7 @@ class Chunk<K, V> {
                     return;
                 }
                 findNewAnchor();
-                traverseLinkedList(false);
+                traverseLinkedList(keyBuff, false);
             }
         }
 
@@ -855,9 +929,9 @@ class Chunk<K, V> {
         }
 
         @Override
-        public int next() {
+        public int next(ThreadContext ctx) {
             int toReturn = next;
-            advance();
+            advance(ctx.tempKey);
             return toReturn;
         }
 

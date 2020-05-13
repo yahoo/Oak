@@ -25,11 +25,16 @@ public class OakNoFreeMemoryManagerTest {
 
     @Test
     public void allocate() {
-        ByteBuffer bb = noFreeMemoryManager.allocateSlice(4).getByteBuffer();
+        Slice s = new Slice();
+        ByteBuffer bb;
+
+        noFreeMemoryManager.allocate(s, 4, MemoryManager.Allocate.KEY);
+        bb = s.getDataByteBuffer();
         assertEquals(4, bb.remaining());
         assertEquals(4, noFreeMemoryManager.allocated());
 
-        bb = noFreeMemoryManager.allocateSlice(4).getByteBuffer();
+        noFreeMemoryManager.allocate(s, 4, MemoryManager.Allocate.KEY);
+        bb = s.getDataByteBuffer();
         assertEquals(4, bb.remaining());
         assertEquals(8, noFreeMemoryManager.allocated());
     }

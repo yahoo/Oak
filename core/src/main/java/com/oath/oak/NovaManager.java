@@ -1,6 +1,5 @@
 package com.oath.oak;
 
-import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -44,30 +43,28 @@ class NovaManager implements MemoryManager {
     }
 
     @Override
-    public Slice allocateSlice(int size, Allocate allocate) {
-        Slice s = allocator.allocateSlice(size, allocate);
+    public void allocate(Slice s, int size, Allocate allocate) {
+        boolean allocated = allocator.allocate(s, size, allocate);
+        assert allocated;
         s.setVersion(globalNovaNumber.get());
-        assert s.getByteBuffer().remaining() >= size;
-        return s;
     }
 
     @Override
-    public void releaseSlice(Slice s) {
+    public void release(Slice s) {
         int idx = threadIndexCalculator.getIndex();
         List<Slice> myReleaseList = this.releaseLists.get(idx);
-        myReleaseList.add(s.duplicate());
+        myReleaseList.add(new Slice(s));
         if (myReleaseList.size() >= RELEASE_LIST_LIMIT) {
             globalNovaNumber.incrementAndGet();
-            for (Slice releasedSlice : myReleaseList) {
-                allocator.freeSlice(releasedSlice);
+            for (Slice allocToRelease : myReleaseList) {
+                allocator.free(allocToRelease);
             }
             myReleaseList.clear();
         }
     }
 
     @Override
-    public ByteBuffer getByteBufferFromBlockID(int blockID, int bufferPosition, int bufferLength) {
-        return allocator.readByteBufferFromBlockID(blockID, bufferPosition, bufferLength);
+    public void readByteBuffer(Slice s) {
+        allocator.readByteBuffer(s);
     }
-
 }

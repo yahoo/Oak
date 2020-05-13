@@ -25,6 +25,12 @@ public class OakNativeMemoryAllocatorTest {
     private static int valueSizeAfterSerialization = 4 * 1024 * 1024;
     private static ValueUtilsImpl valueOperator = new ValueUtilsImpl();
 
+    ByteBuffer allocate(OakNativeMemoryAllocator allocator, int size) {
+        Slice s = new Slice();
+        allocator.allocate(s, size, MemoryManager.Allocate.KEY);
+        return s.getDataByteBuffer();
+    }
+
     @Test
     public void allocateContention() throws InterruptedException {
         Random random = new Random();
@@ -48,7 +54,7 @@ public class OakNativeMemoryAllocatorTest {
         ArrayList<Thread> threads = new ArrayList<>();
 
         for (int i = 0; i < numAllocators; i++) {
-            Thread fn = new Thread(() -> allocator.allocate(allocationSize));
+            Thread fn = new Thread(() -> allocate(allocator, allocationSize));
             threads.add(fn);
         }
         for (int i = 0; i < numAllocators; i++) {
@@ -71,34 +77,34 @@ public class OakNativeMemoryAllocatorTest {
         OakNativeMemoryAllocator ma = new OakNativeMemoryAllocator(capacity);
 
         /* simple allocation */
-        ByteBuffer bb = ma.allocate(4);
+        ByteBuffer bb = allocate(ma, 4);
         assertEquals(4, bb.remaining());
         assertEquals(4, ma.getCurrentBlock().allocated());
 
 
-        ByteBuffer bb1 = ma.allocate(4);
+        ByteBuffer bb1 = allocate(ma, 4);
         assertEquals(4, bb1.remaining());
         assertEquals(8, ma.getCurrentBlock().allocated());
 
-        ByteBuffer bb2 = ma.allocate(8);
+        ByteBuffer bb2 = allocate(ma, 8);
         assertEquals(8, bb2.remaining());
         assertEquals(16, ma.getCurrentBlock().allocated());
 
         /* big allocation */
-        ByteBuffer bb3 = ma.allocate(blockSize - 8);
+        ByteBuffer bb3 = allocate(ma, blockSize - 8);
         assertEquals(blockSize - 8,
                 bb3.remaining());                                   // check the new ByteBuffer size
         assertEquals(blockSize - 8,  // check the new block allocation
                 ma.getCurrentBlock().allocated());
 
         /* complete up to full block allocation */
-        ByteBuffer bb4 = ma.allocate(8);
+        ByteBuffer bb4 = allocate(ma, 8);
         assertEquals(8, bb4.remaining());              // check the new ByteBuffer size
         assertEquals(blockSize,               // check the new block allocation
                 ma.getCurrentBlock().allocated());
 
         /* next small allocation should move us to the next block */
-        ByteBuffer bb5 = ma.allocate(8);
+        ByteBuffer bb5 = allocate(ma, 8);
         assertEquals(8, bb5.remaining());           // check the newest ByteBuffer size
         assertEquals(8,                             // check the newest block allocation
                 ma.getCurrentBlock().allocated());
@@ -234,9 +240,12 @@ public class OakNativeMemoryAllocatorTest {
 
         // Order is important here!
         int[] sizes = new int[]{4, 16, 8, 32};
-        List<ByteBuffer> allocated = Arrays.stream(sizes)
-                .mapToObj(allocator::allocate).map(ByteBuffer::duplicate)
-                .collect(Collectors.toList());
+        List<Slice> allocated = Arrays.stream(sizes)
+                .mapToObj(curSize -> {
+                    Slice s = new Slice();
+                    allocator.allocate(s, curSize, MemoryManager.Allocate.KEY);
+                    return s.duplicateBuffer();
+                }).collect(Collectors.toList());
         int bytesAllocated = IntStream.of(sizes).sum();
 
         allocated.forEach(allocator::free);
@@ -246,23 +255,23 @@ public class OakNativeMemoryAllocatorTest {
         assertEquals(bytesAllocated, stats.releasedBytes);
 
         // Requesting a small buffer should not reclaim existing buffers
-        allocator.allocate(1);
+        allocate(allocator, 1);
         stats = allocator.getStats();
         assertEquals(0, stats.reclaimedBuffers);
 
         // Verify free list ordering
-        ByteBuffer bb = allocator.allocate(4);
+        ByteBuffer bb = allocate(allocator, 4);
         assertEquals(4, bb.remaining());
-        bb = allocator.allocate(4);
+        bb = allocate(allocator, 4);
         assertEquals(8, bb.remaining());
 
         stats = allocator.getStats();
         assertEquals(2, stats.reclaimedBuffers);
         assertEquals(8, stats.reclaimedBytes);
 
-        bb = allocator.allocate(32);
+        bb = allocate(allocator, 32);
         assertEquals(32, bb.remaining());
-        bb = allocator.allocate(16);
+        bb = allocate(allocator, 16);
         assertEquals(16, bb.remaining());
 
         assertEquals(sizes.length, stats.reclaimedBuffers);
