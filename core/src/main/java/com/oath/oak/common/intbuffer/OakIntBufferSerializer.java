@@ -19,8 +19,6 @@ public class OakIntBufferSerializer implements OakSerializer<ByteBuffer> {
 
     @Override
     public ByteBuffer deserialize(ByteBuffer byteBuffer) {
-        final int offset = byteBuffer.position();
-
         ByteBuffer ret = ByteBuffer.allocate(getSizeBytes());
         copyBuffer(byteBuffer, byteBuffer.position(), size, ret, 0);
         ret.position(0);
