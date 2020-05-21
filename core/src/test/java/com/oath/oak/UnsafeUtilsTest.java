@@ -2,38 +2,31 @@ package com.oath.oak;
 
 import org.junit.Test;
 
-import java.nio.ByteBuffer;
-import java.util.Iterator;
-import java.util.Map;
-
 import static junit.framework.TestCase.assertEquals;
-import static org.junit.Assert.assertArrayEquals;
-import static org.junit.Assert.fail;
 
 public class UnsafeUtilsTest {
+    static final int[] testNumbers = new int[] {0, 1, 2, Integer.MAX_VALUE, -1, -2, Integer.MIN_VALUE};
 
-    @Test
-    public void testIntsToLong(){
-        int i1 = 1, i2 = 2;
+    int[] longToInts(long l) {
+        return new int [] {
+                (int) (l & UnsafeUtils.LONG_INT_MASK),
+                (int) ((l >>> Integer.SIZE) & UnsafeUtils.LONG_INT_MASK)
+        };
+    }
+
+    public void singleIntLongTest(int i1, int i2) {
         long combine = UnsafeUtils.intsToLong(i1, i2);
-        int[] res = UnsafeUtils.longToInts(combine);
-        assertEquals(i1, res[0]);
-        assertEquals(i2, res[1]);
-        i2 = -2;
-        combine = UnsafeUtils.intsToLong(i1, i2);
-        res = UnsafeUtils.longToInts(combine);
-        assertEquals(i1, res[0]);
-        assertEquals(i2, res[1]);
-        i1 = -1;
-        combine = UnsafeUtils.intsToLong(i1, i2);
-        res = UnsafeUtils.longToInts(combine);
-        assertEquals(i1, res[0]);
-        assertEquals(i2, res[1]);
-        i2 = 2;
-        combine = UnsafeUtils.intsToLong(i1, i2);
-        res = UnsafeUtils.longToInts(combine);
+        int[] res = longToInts(combine);
         assertEquals(i1, res[0]);
         assertEquals(i2, res[1]);
     }
 
+    @Test
+    public void testIntsToLong() {
+        for (int i1 : testNumbers) {
+            for (int i2 : testNumbers) {
+                singleIntLongTest(i1, i2);
+            }
+        }
+    }
 }

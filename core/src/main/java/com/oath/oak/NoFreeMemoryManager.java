@@ -6,8 +6,6 @@
 
 package com.oath.oak;
 
-import java.nio.ByteBuffer;
-
 
 class NoFreeMemoryManager implements MemoryManager {
     private final OakBlockMemoryAllocator keysMemoryAllocator;
@@ -25,28 +23,23 @@ class NoFreeMemoryManager implements MemoryManager {
         keysMemoryAllocator.close();
     }
 
-    // how many memory is allocated for this OakMap
     public long allocated() {
         return valuesMemoryAllocator.allocated();
     }
 
     @Override
-    public Slice allocateSlice(int size, Allocate allocate) {
-        return keysMemoryAllocator.allocateSlice(size, allocate);
-    }
-
-    public Slice allocateSlice(int size) {
-        return allocateSlice(size, MemoryManager.Allocate.KEY);
+    public void allocate(Slice s, int size, Allocate allocate) {
+        boolean allocated = keysMemoryAllocator.allocate(s, size, allocate);
+        assert allocated;
     }
 
     @Override
-    public void releaseSlice(Slice slice) {
+    public void release(Slice s) {
     }
 
     @Override
-    public ByteBuffer getByteBufferFromBlockID(int blockID, int bufferPosition, int bufferLength) {
-        return keysMemoryAllocator.readByteBufferFromBlockID(
-                blockID, bufferPosition, bufferLength);
+    public void readByteBuffer(Slice s) {
+        keysMemoryAllocator.readByteBuffer(s);
     }
 
     public boolean isClosed() {

@@ -1,26 +1,35 @@
 package com.oath.oak;
 
+import static com.oath.oak.ValueUtils.ValueResult.FALSE;
 import static com.oath.oak.ValueUtils.ValueResult.TRUE;
 
 /**
  * A sum type for holding either a generic type value or a boolean flag.
  */
-class Result<V> {
+class Result {
     // This value holds whether the value succeeded or not, and whether the relevant value was moved.
-    final ValueUtils.ValueResult operationResult;
-    // In case of success, the hasValue flag is set, and the value is written in value.
-    final V value;              // stored value
+    ValueUtils.ValueResult operationResult;
+    // In case of success, the result value is set in value.
+    Object value;
 
-    static <V> Result<V> withValue(V value) {
-        return new Result<>(TRUE, value);
+    Result() {
+        invalidate();
     }
 
-    static <V> Result<V> withFlag(ValueUtils.ValueResult flag) {
-        return new Result<>(flag, null);
+    void invalidate() {
+        this.operationResult = FALSE;
+        this.value = null;
     }
 
-    private Result(ValueUtils.ValueResult operationResult, V value) {
-        this.operationResult = operationResult;
+    Result withValue(Object value) {
+        this.operationResult = TRUE;
         this.value = value;
+        return this;
+    }
+
+    Result withFlag(ValueUtils.ValueResult flag) {
+        this.operationResult = flag;
+        this.value = null;
+        return this;
     }
 }

@@ -8,72 +8,82 @@ package com.oath.oak;
 
 import java.nio.ByteBuffer;
 
-// An instance of OakWBufferScoped is only used when the write lock of the value referenced by it is already acquired.
-// This is the reason no lock is acquired in each access.
+/**
+ * An instance of this buffer is only used when the write lock of the key/value referenced by it is already acquired.
+ * This is the reason no lock is acquired in each access.
+ */
 class OakAttachedWriteBuffer extends OakAttachedReadBuffer implements OakWriteBuffer, OakUnsafeDirectBuffer {
 
-    OakAttachedWriteBuffer(Slice s, int headerSize) {
-        super(s, headerSize);
+    protected boolean enabled;
+
+    OakAttachedWriteBuffer(Slice s) {
+        super(s);
+        enabled = true;
+    }
+
+    void disable() {
+        enabled = false;
+    }
+
+    void validateAccess() {
+        if (!enabled) {
+            throw new RuntimeException("Attached buffer cannot be used outside of its attached scope.");
+        }
     }
 
     @Override
-    public OakWriteBuffer put(int index, byte b) {
-        checkIndex(index);
-        bb.put(dataPos + index, b);
+    public OakWriteBuffer put(int index, byte value) {
+        validateAccess();
+        getDataByteBuffer().put(getDataOffset(index), value);
         return this;
     }
 
     @Override
     public OakWriteBuffer putChar(int index, char value) {
-        checkIndex(index);
-        bb.putChar(dataPos + index, value);
+        validateAccess();
+        getDataByteBuffer().putChar(getDataOffset(index), value);
         return this;
     }
 
     @Override
     public OakWriteBuffer putShort(int index, short value) {
-        checkIndex(index);
-        bb.putShort(dataPos + index, value);
+        validateAccess();
+        getDataByteBuffer().putShort(getDataOffset(index), value);
         return this;
     }
 
     @Override
     public OakWriteBuffer putInt(int index, int value) {
-        checkIndex(index);
-        bb.putInt(dataPos + index, value);
+        validateAccess();
+        getDataByteBuffer().putInt(getDataOffset(index), value);
         return this;
     }
 
     @Override
     public OakWriteBuffer putLong(int index, long value) {
-        checkIndex(index);
-        bb.putLong(dataPos + index, value);
+        validateAccess();
+        getDataByteBuffer().putLong(getDataOffset(index), value);
         return this;
     }
 
     @Override
     public OakWriteBuffer putFloat(int index, float value) {
-        checkIndex(index);
-        bb.putFloat(dataPos + index, value);
+        validateAccess();
+        getDataByteBuffer().putFloat(getDataOffset(index), value);
         return this;
     }
 
     @Override
     public OakWriteBuffer putDouble(int index, double value) {
-        checkIndex(index);
-        bb.putDouble(dataPos + index, value);
+        validateAccess();
+        getDataByteBuffer().putDouble(getDataOffset(index), value);
         return this;
     }
 
-    /*-------------- OakUnsafeRef --------------*/
+    /*-------------- OakUnsafeDirectBuffer --------------*/
 
     @Override
     public ByteBuffer getByteBuffer() {
-        int initPos = bb.position();
-        bb.position(dataPos);
-        ByteBuffer ret = bb.slice();
-        // It is important to return the original buffer to its original state.
-        bb.position(initPos);
-        return ret;
+        return getDuplicatedWriteByteBuffer();
     }
 }

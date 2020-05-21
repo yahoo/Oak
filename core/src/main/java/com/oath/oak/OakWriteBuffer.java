@@ -6,10 +6,19 @@
 
 package com.oath.oak;
 
-import java.nio.ReadOnlyBufferException;
-
 /**
- * A similar to ByteBuffer interface that allows internal Oak data access for read and write
+ * This buffer may represent either a key or a value for read/write access.
+ * It mimic the standard interface of Java's ByteBuffer, for example, int getInt(int index), char getChar(int index),
+ * capacity(), etc.
+ *
+ * It is attached to the scope of the callback method it were first introduced to the user.
+ * The behaviour of this buffer outside their attached scope is undefined.
+ * Such callback method might be the application's serializer and comparator, or a lambda function that can
+ * read/store/update the data.
+ * This access reduces unnecessary copies and deserialization of the underlying data.
+ * In their intended context, the user does not need to worry about concurrent accesses and memory management.
+ * Using these buffers outside their intended context may yield unpredicted results, e.g., reading non-consistent data
+ * and/or irrelevant data.
  */
 public interface OakWriteBuffer extends OakReadBuffer {
 
@@ -23,7 +32,6 @@ public interface OakWriteBuffer extends OakReadBuffer {
      * @return This buffer
      * @throws IndexOutOfBoundsException If <tt>index</tt> is negative
      *                                   or not smaller than the buffer's limit
-     * @throws ReadOnlyBufferException   If this buffer is read-only
      */
     OakWriteBuffer put(int index, byte b);
 
@@ -39,7 +47,6 @@ public interface OakWriteBuffer extends OakReadBuffer {
      * @throws IndexOutOfBoundsException If <tt>index</tt> is negative
      *                                   or not smaller than the buffer's limit,
      *                                   minus one
-     * @throws ReadOnlyBufferException   If this buffer is read-only
      */
     OakWriteBuffer putChar(int index, char value);
 
@@ -55,7 +62,6 @@ public interface OakWriteBuffer extends OakReadBuffer {
      * @throws IndexOutOfBoundsException If <tt>index</tt> is negative
      *                                   or not smaller than the buffer's limit,
      *                                   minus one
-     * @throws ReadOnlyBufferException   If this buffer is read-only
      */
     OakWriteBuffer putShort(int index, short value);
 
@@ -71,7 +77,6 @@ public interface OakWriteBuffer extends OakReadBuffer {
      * @throws IndexOutOfBoundsException If <tt>index</tt> is negative
      *                                   or not smaller than the buffer's limit,
      *                                   minus three
-     * @throws ReadOnlyBufferException   If this buffer is read-only
      */
     OakWriteBuffer putInt(int index, int value);
 
@@ -87,7 +92,6 @@ public interface OakWriteBuffer extends OakReadBuffer {
      * @throws IndexOutOfBoundsException If <tt>index</tt> is negative
      *                                   or not smaller than the buffer's limit,
      *                                   minus seven
-     * @throws ReadOnlyBufferException   If this buffer is read-only
      */
     OakWriteBuffer putLong(int index, long value);
 
@@ -103,7 +107,6 @@ public interface OakWriteBuffer extends OakReadBuffer {
      * @throws IndexOutOfBoundsException If <tt>index</tt> is negative
      *                                   or not smaller than the buffer's limit,
      *                                   minus three
-     * @throws ReadOnlyBufferException   If this buffer is read-only
      */
     OakWriteBuffer putFloat(int index, float value);
 
@@ -120,7 +123,6 @@ public interface OakWriteBuffer extends OakReadBuffer {
      * @throws IndexOutOfBoundsException If <tt>index</tt> is negative
      *                                   or not smaller than the buffer's limit,
      *                                   minus seven
-     * @throws ReadOnlyBufferException   If this buffer is read-only
      */
     OakWriteBuffer putDouble(int index, double value);
 

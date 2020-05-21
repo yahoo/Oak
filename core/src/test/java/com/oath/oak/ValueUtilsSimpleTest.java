@@ -19,33 +19,34 @@ public class ValueUtilsSimpleTest {
     @Before
     public void init() {
         NovaManager novaManager = new NovaManager(new OakNativeMemoryAllocator(128));
-        s = novaManager.allocateSlice(16, MemoryManager.Allocate.VALUE);
-        s.getByteBuffer().putInt(s.getByteBuffer().position(), 1);
+        s = new Slice();
+        novaManager.allocate(s, 16, MemoryManager.Allocate.VALUE);
+        s.getDataByteBuffer().putInt(s.getDataByteBuffer().position(), 1);
         valueOperator.initHeader(s);
     }
 
     @Test
     public void testCannotReadLockDeleted() {
-        assertEquals(TRUE, valueOperator.deleteValue(s, 1));
-        assertEquals(FALSE, valueOperator.lockRead(s, 1));
+        assertEquals(TRUE, valueOperator.deleteValue(s));
+        assertEquals(FALSE, valueOperator.lockRead(s));
     }
 
     @Test
     public void testCannotWriteLockDeleted() {
-        assertEquals(TRUE, valueOperator.deleteValue(s, 1));
-        assertEquals(FALSE, valueOperator.lockWrite(s, 1));
+        assertEquals(TRUE, valueOperator.deleteValue(s));
+        assertEquals(FALSE, valueOperator.lockWrite(s));
     }
 
     @Test
     public void testCannotDeletedMultipleTimes() {
-        assertEquals(TRUE, valueOperator.deleteValue(s, 1));
-        assertEquals(FALSE, valueOperator.deleteValue(s, 1));
+        assertEquals(TRUE, valueOperator.deleteValue(s));
+        assertEquals(FALSE, valueOperator.deleteValue(s));
     }
 
     @Test
     public void testCanReadLockMultipleTimes() {
         for (int i = 0; i < 10000; i++) {
-            assertEquals(TRUE, valueOperator.lockRead(s, 1));
+            assertEquals(TRUE, valueOperator.lockRead(s));
         }
     }
 
@@ -59,7 +60,7 @@ public class ValueUtilsSimpleTest {
             } catch (InterruptedException | BrokenBarrierException e) {
                 e.printStackTrace();
             }
-            assertEquals(TRUE, valueOperator.lockWrite(s, 1));
+            assertEquals(TRUE, valueOperator.lockWrite(s));
             assertEquals(2, flag.get());
         });
         Thread reader = new Thread(() -> {
@@ -68,11 +69,11 @@ public class ValueUtilsSimpleTest {
             } catch (InterruptedException | BrokenBarrierException e) {
                 e.printStackTrace();
             }
-            assertEquals(TRUE, valueOperator.lockRead(s, 1));
+            assertEquals(TRUE, valueOperator.lockRead(s));
             flag.incrementAndGet();
-            valueOperator.unlockRead(s, 1);
+            valueOperator.unlockRead(s);
         });
-        assertEquals(TRUE, valueOperator.lockRead(s, 1));
+        assertEquals(TRUE, valueOperator.lockRead(s));
         writer.start();
         reader.start();
         try {
@@ -82,7 +83,7 @@ public class ValueUtilsSimpleTest {
         }
         Thread.sleep(2000);
         flag.incrementAndGet();
-        valueOperator.unlockRead(s, 1);
+        valueOperator.unlockRead(s);
         reader.join();
         writer.join();
     }
@@ -97,7 +98,7 @@ public class ValueUtilsSimpleTest {
             } catch (InterruptedException | BrokenBarrierException e) {
                 e.printStackTrace();
             }
-            assertEquals(TRUE, valueOperator.deleteValue(s, 1));
+            assertEquals(TRUE, valueOperator.deleteValue(s));
             assertEquals(2, flag.get());
         });
         Thread reader = new Thread(() -> {
@@ -106,11 +107,11 @@ public class ValueUtilsSimpleTest {
             } catch (InterruptedException | BrokenBarrierException e) {
                 e.printStackTrace();
             }
-            assertEquals(TRUE, valueOperator.lockRead(s, 1));
+            assertEquals(TRUE, valueOperator.lockRead(s));
             flag.incrementAndGet();
-            valueOperator.unlockRead(s, 1);
+            valueOperator.unlockRead(s);
         });
-        assertEquals(TRUE, valueOperator.lockRead(s, 1));
+        assertEquals(TRUE, valueOperator.lockRead(s));
         deleter.start();
         reader.start();
         try {
@@ -120,7 +121,7 @@ public class ValueUtilsSimpleTest {
         }
         Thread.sleep(2000);
         flag.incrementAndGet();
-        valueOperator.unlockRead(s, 1);
+        valueOperator.unlockRead(s);
         reader.join();
         deleter.join();
     }
@@ -135,10 +136,10 @@ public class ValueUtilsSimpleTest {
             } catch (InterruptedException | BrokenBarrierException e) {
                 e.printStackTrace();
             }
-            assertEquals(TRUE, valueOperator.lockRead(s, 1));
+            assertEquals(TRUE, valueOperator.lockRead(s));
             assertTrue(flag.get());
         });
-        assertEquals(TRUE, valueOperator.lockWrite(s, 1));
+        assertEquals(TRUE, valueOperator.lockWrite(s));
         reader.start();
         try {
             barrier.await();
@@ -161,10 +162,10 @@ public class ValueUtilsSimpleTest {
             } catch (InterruptedException | BrokenBarrierException e) {
                 e.printStackTrace();
             }
-            assertEquals(TRUE, valueOperator.lockWrite(s, 1));
+            assertEquals(TRUE, valueOperator.lockWrite(s));
             assertTrue(flag.get());
         });
-        assertEquals(TRUE, valueOperator.lockWrite(s, 1));
+        assertEquals(TRUE, valueOperator.lockWrite(s));
         writer.start();
         try {
             barrier.await();
@@ -187,10 +188,10 @@ public class ValueUtilsSimpleTest {
             } catch (InterruptedException | BrokenBarrierException e) {
                 e.printStackTrace();
             }
-            assertEquals(TRUE, valueOperator.deleteValue(s, 1));
+            assertEquals(TRUE, valueOperator.deleteValue(s));
             assertTrue(flag.get());
         });
-        assertEquals(TRUE, valueOperator.lockWrite(s, 1));
+        assertEquals(TRUE, valueOperator.lockWrite(s));
         deleter.start();
         try {
             barrier.await();
@@ -205,16 +206,19 @@ public class ValueUtilsSimpleTest {
 
     @Test
     public void testCannotReadLockDifferentVersion() {
-        assertEquals(RETRY, valueOperator.lockRead(s, 2));
+        s.setVersion(2);
+        assertEquals(RETRY, valueOperator.lockRead(s));
     }
 
     @Test
     public void testCannotWriteLockDifferentVersion() {
-        assertEquals(RETRY, valueOperator.lockWrite(s, 2));
+        s.setVersion(2);
+        assertEquals(RETRY, valueOperator.lockWrite(s));
     }
 
     @Test
     public void testCannotDeletedDifferentVersion() {
-        assertEquals(RETRY, valueOperator.deleteValue(s, 2));
+        s.setVersion(2);
+        assertEquals(RETRY, valueOperator.deleteValue(s));
     }
 }

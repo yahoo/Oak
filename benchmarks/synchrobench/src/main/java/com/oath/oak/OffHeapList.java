@@ -34,7 +34,7 @@ public class OffHeapList<K extends MyBuffer, V extends MyBuffer> implements Comp
                 if (key2 instanceof MyBuffer) {
                     return MyBuffer.compareBuffers((MyBuffer) o1, (MyBuffer) key2);
                 } else {
-                    return MyBuffer.compareBuffers((MyBuffer) o1, ((Slice) key2).getByteBuffer());
+                    return MyBuffer.compareBuffers((MyBuffer) o1, ((Slice) key2).getDataByteBuffer());
                 }
 
             } else if (o2 instanceof MyBuffer) {
@@ -43,7 +43,7 @@ public class OffHeapList<K extends MyBuffer, V extends MyBuffer> implements Comp
                 if (key1 instanceof MyBuffer) {
                     return MyBuffer.compareBuffers((MyBuffer) key1, (MyBuffer) o2);
                 } else {
-                    return -1 * MyBuffer.compareBuffers((MyBuffer) o2, ((Slice) key1).getByteBuffer());
+                    return -1 * MyBuffer.compareBuffers((MyBuffer) o2, ((Slice) key1).getDataByteBuffer());
                 }
             } else if (o1 instanceof OffHeapList.Cell && o2 instanceof OffHeapList.Cell) {
                 Cell cell1 = (Cell) o1;
@@ -54,11 +54,11 @@ public class OffHeapList<K extends MyBuffer, V extends MyBuffer> implements Comp
                 if (key1 instanceof MyBuffer && key2 instanceof MyBuffer) {
                     return MyBuffer.compareBuffers((MyBuffer) key1, (MyBuffer) key2);
                 } else if (key1 instanceof Slice && key2 instanceof Slice) {
-                    return MyBuffer.compareBuffers(((Slice) key1).getByteBuffer(), ((Slice) key2).getByteBuffer());
+                    return MyBuffer.compareBuffers(((Slice) key1).getDataByteBuffer(), ((Slice) key2).getDataByteBuffer());
                 } else if (key1 instanceof MyBuffer && key2 instanceof Slice) {
-                    return MyBuffer.compareBuffers((MyBuffer) key1, ((Slice) key2).getByteBuffer());
+                    return MyBuffer.compareBuffers((MyBuffer) key1, ((Slice) key2).getDataByteBuffer());
                 } else {
-                    return -1 * MyBuffer.compareBuffers((MyBuffer) key2, ((Slice) key1).getByteBuffer());
+                    return -1 * MyBuffer.compareBuffers((MyBuffer) key2, ((Slice) key1).getDataByteBuffer());
                 }
             } else {
                 throw new UnsupportedOperationException();
@@ -76,7 +76,7 @@ public class OffHeapList<K extends MyBuffer, V extends MyBuffer> implements Comp
             return value != null && value.value != null;
         } else {
             if (value != null && value.value != null) {
-                MyBuffer des = MyBuffer.deserialize(value.value.get().getByteBuffer());
+                MyBuffer des = MyBuffer.deserialize(value.value.get().getDataByteBuffer());
                 return (des != null);
             } else {
                 return false;
@@ -92,27 +92,33 @@ public class OffHeapList<K extends MyBuffer, V extends MyBuffer> implements Comp
         Cell prevValue = skipListMap.putIfAbsent(newCell, newCell);
 
         if (prevValue == null) {
-            Slice keybb = allocator.allocateSlice(key.calculateSerializedSize(),
-                    MemoryManager.Allocate.KEY).duplicate();
-            MyBuffer.serialize(key, keybb.getByteBuffer());
+            Slice keybb = new Slice();
+            Slice valuebb = new Slice();
+            allocator.allocate(keybb, key.calculateSerializedSize(),
+                MemoryManager.Allocate.KEY);
+            keybb.duplicateBuffer();
+            MyBuffer.serialize(key, keybb.getDataByteBuffer());
             newCell.key.set(keybb);
-            Slice valuebb = allocator.allocateSlice(value.calculateSerializedSize(),
-                    MemoryManager.Allocate.VALUE).duplicate();
-            MyBuffer.serialize(value, valuebb.getByteBuffer());
+            allocator.allocate(valuebb, value.calculateSerializedSize(),
+                MemoryManager.Allocate.VALUE);
+            valuebb.duplicateBuffer();
+            MyBuffer.serialize(value, valuebb.getDataByteBuffer());
             if (!newCell.value.compareAndSet(null, valuebb)) {
-                allocator.freeSlice(valuebb);
+                allocator.free(valuebb);
             }
         } else {
             if (prevValue.value.get() == null) {
-                Slice valuebb = allocator.allocateSlice(value.calculateSerializedSize(),
-                        MemoryManager.Allocate.VALUE).duplicate();
-                MyBuffer.serialize(value, valuebb.getByteBuffer());
+                Slice valuebb = new Slice();
+                allocator.allocate(valuebb, value.calculateSerializedSize(),
+                    MemoryManager.Allocate.VALUE);
+                valuebb.duplicateBuffer();
+                MyBuffer.serialize(value, valuebb.getDataByteBuffer());
                 if (!prevValue.value.compareAndSet(null, valuebb)) {
-                    allocator.freeSlice(valuebb);
+                    allocator.free(valuebb);
                 }
             } else {
                 synchronized (prevValue.value) {
-                    MyBuffer.serialize(value, prevValue.value.get().getByteBuffer());
+                    MyBuffer.serialize(value, prevValue.value.get().getDataByteBuffer());
                 }
             }
         }
@@ -126,15 +132,19 @@ public class OffHeapList<K extends MyBuffer, V extends MyBuffer> implements Comp
         newCell.key.set(key);
         Cell prevValue = skipListMap.putIfAbsent(newCell, newCell);
         if (prevValue == null) {
-            Slice keybb = allocator.allocateSlice(key.calculateSerializedSize(),
-                    MemoryManager.Allocate.KEY).duplicate();
-            MyBuffer.serialize(key, keybb.getByteBuffer());
+            Slice keybb = new Slice();
+            Slice valuebb = new Slice();
+            allocator.allocate(keybb, key.calculateSerializedSize(),
+                MemoryManager.Allocate.KEY);
+            keybb.duplicateBuffer();
+            MyBuffer.serialize(key, keybb.getDataByteBuffer());
             newCell.key.set(keybb);
-            Slice valuebb = allocator.allocateSlice(value.calculateSerializedSize(),
-                    MemoryManager.Allocate.VALUE).duplicate();
-            MyBuffer.serialize(value, valuebb.getByteBuffer());
+            allocator.allocate(valuebb, value.calculateSerializedSize(),
+                MemoryManager.Allocate.VALUE);
+            valuebb.duplicateBuffer();
+            MyBuffer.serialize(value, valuebb.getDataByteBuffer());
             if (!newCell.value.compareAndSet(null, valuebb)) {
-                allocator.freeSlice(valuebb);
+                allocator.free(valuebb);
                 return false;
             }
             return true;
@@ -146,8 +156,8 @@ public class OffHeapList<K extends MyBuffer, V extends MyBuffer> implements Comp
     @Override
     public void removeOak(K key) {
         Cell val = skipListMap.remove(key);
-        allocator.freeSlice((Slice) val.key.get());
-        allocator.freeSlice(val.value.get());
+        allocator.free((Slice) val.key.get());
+        allocator.free(val.value.get());
         // TODO YONIGO - need some sync here!
     }
 
@@ -180,7 +190,7 @@ public class OffHeapList<K extends MyBuffer, V extends MyBuffer> implements Comp
             //only if cell is not null value is not deleted or not set yet.
             if (cell.getValue().value.get() != null) {
                 if (!Parameters.zeroCopy) {
-                    MyBuffer des = MyBuffer.deserialize(cell.getValue().value.get().getByteBuffer());
+                    MyBuffer des = MyBuffer.deserialize(cell.getValue().value.get().getDataByteBuffer());
                     //YONIGO - I just do this so that hopefully jvm doesnt optimize out the deserialize
                     if (des != null) {
                         i++;
@@ -198,8 +208,8 @@ public class OffHeapList<K extends MyBuffer, V extends MyBuffer> implements Comp
     public void clear() {
 
         skipListMap.values().forEach(cell -> {
-            allocator.freeSlice((Slice) cell.key.get());
-            allocator.freeSlice(cell.value.get());
+            allocator.free((Slice) cell.key.get());
+            allocator.free(cell.value.get());
         });
         skipListMap = new ConcurrentSkipListMap<>(comparator);
         allocator.close();
@@ -223,18 +233,20 @@ public class OffHeapList<K extends MyBuffer, V extends MyBuffer> implements Comp
             Cell prevValue = (Cell) prevValueO;
             // cell is in map but maybe not initialized yet
             if (prevValue.value.get() == null) {
-                Slice valuebb = allocator.allocateSlice(value.calculateSerializedSize(),
-                        MemoryManager.Allocate.VALUE).duplicate();
-                MyBuffer.serialize(value, valuebb.getByteBuffer());
+                Slice valuebb = new Slice();
+                allocator.allocate(valuebb, value.calculateSerializedSize(),
+                    MemoryManager.Allocate.VALUE);
+                valuebb.duplicateBuffer();
+                MyBuffer.serialize(value, valuebb.getDataByteBuffer());
                 if (!prevValue.value.compareAndSet(null, valuebb)) {
-                    allocator.freeSlice(valuebb);
+                    allocator.free(valuebb);
                     synchronized (prevValue.value) {
-                        computeFunction.accept(prevValue.value.get().getByteBuffer());
+                        computeFunction.accept(prevValue.value.get().getDataByteBuffer());
                     }
                 }
             } else {
                 synchronized (prevValue.value) {
-                    computeFunction.accept(prevValue.value.get().getByteBuffer());
+                    computeFunction.accept(prevValue.value.get().getDataByteBuffer());
                 }
             }
             return prevValue;
@@ -250,17 +262,21 @@ public class OffHeapList<K extends MyBuffer, V extends MyBuffer> implements Comp
 
         // If we only added and didnt do any compute, still have to init cell
         if (retval.value.get() == null) {
-            Slice keybb = allocator.allocateSlice(key.calculateSerializedSize(),
-                    MemoryManager.Allocate.KEY).duplicate();
-            MyBuffer.serialize(key, keybb.getByteBuffer());
+            Slice keybb = new Slice();
+            Slice valuebb = new Slice();
+            allocator.allocate(keybb, key.calculateSerializedSize(),
+                MemoryManager.Allocate.KEY);
+            keybb.duplicateBuffer();
+            MyBuffer.serialize(key, keybb.getDataByteBuffer());
             retval.key.set(keybb);
-            Slice valuebb = allocator.allocateSlice(value.calculateSerializedSize(),
-                    MemoryManager.Allocate.VALUE).duplicate();
-            MyBuffer.serialize(value, valuebb.getByteBuffer());
+            allocator.allocate(valuebb, value.calculateSerializedSize(),
+                MemoryManager.Allocate.VALUE);
+            valuebb.duplicateBuffer();
+            MyBuffer.serialize(value, valuebb.getDataByteBuffer());
             if (!retval.value.compareAndSet(null, valuebb)) {
-                allocator.freeSlice(valuebb);
+                allocator.free(valuebb);
                 synchronized (retval.value) {
-                    computeFunction.accept(retval.value.get().getByteBuffer());
+                    computeFunction.accept(retval.value.get().getDataByteBuffer());
                 }
             }
         }

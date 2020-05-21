@@ -6,104 +6,79 @@
 
 package com.oath.oak;
 
-import sun.nio.ch.DirectBuffer;
-
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 
-class OakAttachedReadBuffer implements OakReadBuffer, OakUnsafeDirectBuffer {
+/**
+ * An instance of this buffer is only used when the read lock of the key/value referenced by it is already acquired.
+ * This is the reason no lock is acquired in each access.
+ */
+class OakAttachedReadBuffer extends Slice implements OakReadBuffer, OakUnsafeDirectBuffer {
 
-    protected ByteBuffer bb;
-    protected int dataPos;
-    protected int dataLength;
-
-    OakAttachedReadBuffer(Slice s, int headerSize) {
-        bb = s.getByteBuffer();
-        dataPos = bb.position() + headerSize;
-        dataLength = bb.limit() - dataPos;
+    OakAttachedReadBuffer(int headerSize) {
+        super(headerSize);
     }
 
-    protected void checkIndex(int index) {
-        if (index < 0 || index >= dataLength) {
+    OakAttachedReadBuffer(Slice other) {
+        super(other);
+    }
+
+    protected int getDataOffset(int index) {
+        if (index < 0 || index >= getLength()) {
             throw new IndexOutOfBoundsException();
         }
+        return getOffset() + index;
     }
 
     @Override
     public int capacity() {
-        return dataLength;
+        return getLength();
     }
 
     @Override
     public ByteOrder order() {
-        return bb.order();
+        return buffer.order();
     }
 
     @Override
     public byte get(int index) {
-        checkIndex(index);
-        return bb.get(dataPos + index);
+        return getDataByteBuffer().get(getDataOffset(index));
     }
 
     @Override
     public char getChar(int index) {
-        checkIndex(index);
-        return bb.getChar(dataPos + index);
+        return getDataByteBuffer().getChar(getDataOffset(index));
     }
 
     @Override
     public short getShort(int index) {
-        checkIndex(index);
-        return bb.getShort(dataPos + index);
+        return getDataByteBuffer().getShort(getDataOffset(index));
     }
 
     @Override
     public int getInt(int index) {
-        checkIndex(index);
-        return bb.getInt(dataPos + index);
+        return getDataByteBuffer().getInt(getDataOffset(index));
     }
 
     @Override
     public long getLong(int index) {
-        checkIndex(index);
-        return bb.getLong(dataPos + index);
+        return getDataByteBuffer().getLong(getDataOffset(index));
     }
 
     @Override
     public float getFloat(int index) {
-        checkIndex(index);
-        return bb.getFloat(dataPos + index);
+        return getDataByteBuffer().getFloat(getDataOffset(index));
     }
 
     @Override
     public double getDouble(int index) {
-        checkIndex(index);
-        return bb.getDouble(dataPos + index);
+        return getDataByteBuffer().getDouble(getDataOffset(index));
     }
 
-    /*-------------- OakUnsafeRef --------------*/
+    /*-------------- OakUnsafeDirectBuffer --------------*/
 
     @Override
     public ByteBuffer getByteBuffer() {
-        ByteBuffer tempBuff = bb.asReadOnlyBuffer();
-        tempBuff.position(dataPos);
-        tempBuff.limit(bb.limit());
-        return tempBuff.slice();
-    }
-
-    @Override
-    public int getOffset() {
-        return 0;
-    }
-
-    @Override
-    public int getLength() {
-        return dataLength;
-    }
-
-    @Override
-    public long getAddress() {
-        long address = ((DirectBuffer) bb).address();
-        return address + dataPos;
+        return getDuplicatedReadByteBuffer();
     }
 }

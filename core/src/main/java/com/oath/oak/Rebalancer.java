@@ -109,7 +109,7 @@ class Rebalancer<K, V> {
      * @return if managed to CAS to newChunk list of rebalance
      * if we did then the put was inserted
      */
-    boolean createNewChunks() {
+    boolean createNewChunks(ThreadContext ctx) {
 
         if (this.newChunks.get() != null) {
             return false; // this was done by another thread already
@@ -127,8 +127,10 @@ class Rebalancer<K, V> {
         int ei = firstFrozen.getFirstItemEntryIndex();
         List<Chunk<K, V>> newChunks = new LinkedList<>();
 
+        ValueBuffer valueBuff = ctx.tempValue;
+
         while (true) {
-            ei = currNewChunk.copyPartNoKeys(currFrozen, ei, entriesLowThreshold);
+            ei = currNewChunk.copyPartNoKeys(valueBuff, currFrozen, ei, entriesLowThreshold);
             // if completed reading curr frozen chunk
             if (ei == Chunk.NONE_NEXT) {
                 if (!iterFrozen.hasNext()) {
@@ -145,23 +147,25 @@ class Rebalancer<K, V> {
                 if (canAppendSuffix(frozenSuffix, maxRangeToAppend)) {
                     // maybe there is just a little bit copying left
                     // and we don't want to open a whole new chunk just for it
-                    completeCopy(currNewChunk, ei, frozenSuffix);
+                    completeCopy(valueBuff, currNewChunk, ei, frozenSuffix);
                     break;
                 } else {
                     // we have to open an new chunk
                     // here we create a new minimal key buffer for the second new chunk,
                     // created by the split. The new min key is a copy of the older one
                     // We need to use slice() method here as we want new object to be created
-                    ByteBuffer bb = currFrozen.readKeyFromEntryIndex(ei).slice();
-                    int remaining = bb.remaining();
-                    int position = bb.position();
-                    ByteBuffer newMinKey = ByteBuffer.allocateDirect(remaining);
-                    int myPos = newMinKey.position();
-                    for (int i = 0; i < remaining; i++) {
-                        newMinKey.put(myPos + i, bb.get(i + position));
+
+                    KeyBuffer keyBuff = ctx.tempKey;
+                    currFrozen.readKeyFromEntryIndex(keyBuff, ei);
+                    ByteBuffer bb = keyBuff.getDataByteBuffer();
+                    int size = keyBuff.getLength();
+                    int offset = keyBuff.getOffset();
+                    ByteBuffer newMinKey = ByteBuffer.allocateDirect(size);
+                    // newly allocated buffer is always positioned at its beginning.
+                    for (int i = 0; i < size; i++) {
+                        newMinKey.put(i, bb.get(offset + i));
                     }
                     newMinKey.rewind();
-
 
                     Chunk<K, V> c = new Chunk<>(newMinKey, firstFrozen, currFrozen.comparator, memoryManager,
                             currFrozen.getMaxItems(), currFrozen.externalSize,
@@ -197,15 +201,15 @@ class Rebalancer<K, V> {
         return counter < maxCount;
     }
 
-    private void completeCopy(Chunk<K, V> dest, int ei, List<Chunk<K, V>> srcChunks) {
+    private void completeCopy(ValueBuffer tempValue, Chunk<K, V> dest, int ei, List<Chunk<K, V>> srcChunks) {
         Iterator<Chunk<K, V>> iter = srcChunks.iterator();
         Chunk<K, V> src = iter.next();
         int maxItems = src.getMaxItems();
-        dest.copyPartNoKeys(src, ei, maxItems);
+        dest.copyPartNoKeys(tempValue, src, ei, maxItems);
         while (iter.hasNext()) {
             src = iter.next();
             ei = src.getFirstItemEntryIndex();
-            dest.copyPartNoKeys(src, ei, maxItems);
+            dest.copyPartNoKeys(tempValue, src, ei, maxItems);
         }
     }
 
