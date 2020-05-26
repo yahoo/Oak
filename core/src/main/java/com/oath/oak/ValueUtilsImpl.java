@@ -41,17 +41,17 @@ class ValueUtilsImpl implements ValueUtils {
     }
 
     @Override
-    public <T> Result transform(Result result, Slice s, OakTransformer<T> transformer) {
-        ValueResult ret = lockRead(s);
+    public <T> Result transform(Result result, ValueBuffer value, OakTransformer<T> transformer) {
+        ValueResult ret = lockRead(value);
         if (ret != TRUE) {
             return result.withFlag(ret);
         }
 
         try {
-            T transformation = transformer.apply(getValueByteBufferNoHeaderReadOnly(s));
+            T transformation = transformer.apply(value);
             return result.withValue(transformation);
         } finally {
-            unlockRead(s);
+            unlockRead(value);
         }
     }
 
@@ -76,8 +76,7 @@ class ValueUtilsImpl implements ValueUtils {
         if (capacity > ctx.value.getLength()) {
             return moveValue(chunk, ctx, memoryManager, internalOakMap, newVal);
         }
-        ByteBuffer bb = getValueByteBufferNoHeader(ctx.value);
-        serializer.serialize(newVal, bb);
+        OakAttachedWriteBuffer.serialize(ctx.value, newVal, serializer);
         return TRUE;
     }
 
@@ -100,18 +99,16 @@ class ValueUtilsImpl implements ValueUtils {
     }
 
     @Override
-    public ValueResult compute(Slice s, Consumer<OakWriteBuffer> computer) {
-        ValueResult result = lockWrite(s);
+    public ValueResult compute(ValueBuffer value, Consumer<OakWriteBuffer> computer) {
+        ValueResult result = lockWrite(value);
         if (result != TRUE) {
             return result;
         }
 
-        OakAttachedWriteBuffer writeBuffer = new OakAttachedWriteBuffer(s);
         try {
-            computer.accept(writeBuffer);
+            OakAttachedWriteBuffer.compute(value, computer);
         } finally {
-            writeBuffer.disable();
-            unlockWrite(s);
+            unlockWrite(value);
         }
 
         return TRUE;
@@ -130,7 +127,7 @@ class ValueUtilsImpl implements ValueUtils {
             // Now the value is deleted, and all other threads will treat it as deleted, but it is not yet freed, so
             // this thread can read from it.
             // read the old value (the slice is not reclaimed yet)
-            V v = transformer != null ? transformer.apply(getValueByteBufferNoHeaderReadOnly(ctx.value)) : null;
+            V v = transformer != null ? transformer.apply(ctx.value) : null;
             // return TRUE with the old value
             return ctx.result.withValue(v);
         } else {
@@ -141,7 +138,7 @@ class ValueUtilsImpl implements ValueUtils {
             if (result != TRUE) {
                 return ctx.result.withFlag(result);
             }
-            V v = transformer.apply(getValueByteBufferNoHeaderReadOnly(ctx.value));
+            V v = transformer.apply(ctx.value);
             // This is where we check the equality between the expected value and the actual value
             if (!oldValue.equals(v)) {
                 unlockWrite(ctx.value);
@@ -165,7 +162,7 @@ class ValueUtilsImpl implements ValueUtils {
         }
         V oldValue = null;
         if (valueDeserializeTransformer != null) {
-            oldValue = valueDeserializeTransformer.apply(getValueByteBufferNoHeaderReadOnly(ctx.value));
+            oldValue = valueDeserializeTransformer.apply(ctx.value);
         }
         result = innerPut(chunk, ctx, value, serializer, memoryManager, internalOakMap);
         // in case move happened: ctx.value might be set to a new slice.
@@ -183,7 +180,7 @@ class ValueUtilsImpl implements ValueUtils {
         if (result != TRUE) {
             return result;
         }
-        V oldValue = valueDeserializeTransformer.apply(getValueByteBufferNoHeaderReadOnly(ctx.value));
+        V oldValue = valueDeserializeTransformer.apply(ctx.value);
         if (!oldValue.equals(expected)) {
             unlockWrite(ctx.value);
             return FALSE;
@@ -209,21 +206,6 @@ class ValueUtilsImpl implements ValueUtils {
     @Override
     public int getLockSize() {
         return VALUE_HEADER_SIZE;
-    }
-
-    @Override
-    public ByteBuffer getValueByteBufferNoHeaderPrivate(Slice alloc) {
-        return alloc.getDataByteBuffer().slice();
-    }
-
-    @Override
-    public ByteBuffer getValueByteBufferNoHeader(Slice alloc) {
-        return alloc.getDuplicatedWriteByteBuffer().slice();
-    }
-
-    @Override
-    public ByteBuffer getValueByteBufferNoHeaderReadOnly(Slice alloc) {
-        return alloc.getDuplicatedReadByteBuffer().slice();
     }
 
     @Override

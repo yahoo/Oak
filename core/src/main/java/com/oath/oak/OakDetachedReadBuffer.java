@@ -8,7 +8,6 @@ package com.oath.oak;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
-import java.util.function.Function;
 
 /**
  * This is a generic class for key/value detached buffers.
@@ -34,7 +33,6 @@ class OakDetachedReadBuffer<B extends OakAttachedReadBuffer> implements OakDetac
         this.buffer = buffer;
     }
 
-    // capacity method does not require accessing the ByteBuffer, so no need for atomic operation.
     @Override
     public int capacity() {
         return buffer.capacity();
@@ -42,46 +40,48 @@ class OakDetachedReadBuffer<B extends OakAttachedReadBuffer> implements OakDetac
 
     @Override
     public ByteOrder order() {
-        return safeAccessToAttachedBuffer(OakReadBuffer::order);
+        return buffer.order();
     }
 
     @Override
     public byte get(int index) {
-        return safeAccessToAttachedBuffer(buffer -> buffer.get(index));
+        return safeAccessToAttachedBuffer(OakAttachedReadBuffer::get, index);
     }
 
     @Override
     public char getChar(int index) {
-        return safeAccessToAttachedBuffer(buffer -> buffer.getChar(index));
+        return safeAccessToAttachedBuffer(OakAttachedReadBuffer::getChar, index);
     }
 
     @Override
     public short getShort(int index) {
-        return safeAccessToAttachedBuffer(buffer -> buffer.getShort(index));
+        return safeAccessToAttachedBuffer(OakAttachedReadBuffer::getShort, index);
     }
 
     @Override
     public int getInt(int index) {
-        return safeAccessToAttachedBuffer(buffer -> buffer.getInt(index));
+        return safeAccessToAttachedBuffer(OakAttachedReadBuffer::getInt, index);
     }
 
     @Override
     public long getLong(int index) {
-        return safeAccessToAttachedBuffer(buffer -> buffer.getLong(index));
+        return safeAccessToAttachedBuffer(OakAttachedReadBuffer::getLong, index);
     }
 
     @Override
     public float getFloat(int index) {
-        return safeAccessToAttachedBuffer(buffer -> buffer.getFloat(index));
+        return safeAccessToAttachedBuffer(OakAttachedReadBuffer::getFloat, index);
     }
 
     @Override
     public double getDouble(int index) {
-        return safeAccessToAttachedBuffer(buffer -> buffer.getDouble(index));
+        return safeAccessToAttachedBuffer(OakAttachedReadBuffer::getDouble, index);
     }
 
     /**
      * Returns a transformation of ByteBuffer content.
+     * If the child class needs synchronization before accessing the data, it should implement the synchronization
+     * in this method, surrounding the call for the transformer function.
      *
      * @param transformer the function that executes the transformation
      * @return a transformation of the ByteBuffer content
@@ -91,34 +91,37 @@ class OakDetachedReadBuffer<B extends OakAttachedReadBuffer> implements OakDetac
         if (transformer == null) {
             throw new NullPointerException();
         }
-        return safeAccessToAttachedBuffer(buffer -> transformer.apply(buffer.getDuplicatedReadByteBuffer().slice()));
+        return transformer.apply(buffer);
+    }
+
+    @FunctionalInterface
+    public interface Getter<R> {
+        R get(OakAttachedReadBuffer buffer, int index);
     }
 
     /**
-     * Apply a transformation on the inner attached buffer in a safe manner (atomically if needed).
+     * Apply a get operation on the inner attached buffer in a safe manner (atomically if needed).
      * It is used internally by this class for when we use the internal buffer to read the data.
      * If the child class needs synchronization before accessing the data, it should implement the synchronization
-     * in this method, surrounding the call for the transformer function.
+     * in this method, surrounding the call for the getter function.
      */
-    protected <T> T safeAccessToAttachedBuffer(Function<OakAttachedReadBuffer, T> transformer) {
+    protected <R> R safeAccessToAttachedBuffer(Getter<R> getter, int index) {
         // Internal call. No input validation.
-        return transformer.apply(buffer);
+        return getter.get(buffer, index);
     }
 
     /*-------------- OakUnsafeDirectBuffer --------------*/
 
     @Override
     public ByteBuffer getByteBuffer() {
-        return safeAccessToAttachedBuffer(OakAttachedReadBuffer::getByteBuffer);
+        return buffer.getByteBuffer();
     }
 
-    // Offset method does not require accessing the ByteBuffer, so no need for atomic operation.
     @Override
     public int getOffset() {
         return buffer.getOffset();
     }
 
-    // Length method does not require accessing the ByteBuffer, so no need for atomic operation.
     @Override
     public int getLength() {
         return buffer.getLength();
@@ -126,6 +129,6 @@ class OakDetachedReadBuffer<B extends OakAttachedReadBuffer> implements OakDetac
 
     @Override
     public long getAddress() {
-        return safeAccessToAttachedBuffer(OakAttachedReadBuffer::getAddress);
+        return buffer.getAddress();
     }
 }

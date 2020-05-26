@@ -8,7 +8,6 @@ package com.oath.oak;
 
 import sun.misc.Unsafe;
 
-import java.nio.ByteBuffer;
 import java.util.EmptyStackException;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -42,57 +41,83 @@ class Chunk<K, V> {
     /*-------------- Members --------------*/
 
     private static final Unsafe unsafe = UnsafeUtils.unsafe;
-    ByteBuffer minKey;       // minimal key that can be put in this chunk
+    KeyBuffer minKey;       // minimal key that can be put in this chunk
     AtomicMarkableReference<Chunk<K, V>> next;
     OakComparator<K> comparator;
 
     // in split/compact process, represents parent of split (can be null!)
-    private AtomicReference<Chunk<K, V>> creator;
+    private final AtomicReference<Chunk<K, V>> creator;
     // chunk can be in the following states: normal, frozen or infant(has a creator)
     private final AtomicReference<State> state;
-    private AtomicReference<Rebalancer<K, V>> rebalancer;
+    private final AtomicReference<Rebalancer<K, V>> rebalancer;
     private final EntrySet<K, V> entrySet;
 
-    private AtomicInteger pendingOps;
+    private final AtomicInteger pendingOps;
 
     private final Statistics statistics;
     // # of sorted items at entry-array's beginning (resulting from split)
-    private AtomicInteger sortedCount;
+    private final AtomicInteger sortedCount;
     private final int maxItems;
     AtomicInteger externalSize; // for updating oak's size (reference to one global per Oak size)
 
     /*-------------- Constructors --------------*/
 
     /**
-     * Create a new chunk
-     *
-     * @param minKey  minimal key to be placed in chunk
-     * @param creator the chunk that is responsible for this chunk creation
+     * This constructor is only used internally to instantiate a Chunk without a creator and a min-key.
+     * The caller should set the creator and min-key before returning the Chunk to the user.
      */
-    Chunk(ByteBuffer minKey, Chunk<K, V> creator, OakComparator<K> comparator, MemoryManager memoryManager,
-          int maxItems, AtomicInteger externalSize, OakSerializer<K> keySerializer, OakSerializer<V> valueSerializer,
-          ValueUtils valueOperator) {
-
+    private Chunk(int maxItems, AtomicInteger externalSize, MemoryManager memoryManager, OakComparator<K> comparator,
+          OakSerializer<K> keySerializer, OakSerializer<V> valueSerializer, ValueUtils valueOperator) {
         this.maxItems = maxItems;
+        this.externalSize = externalSize;
+        this.comparator = comparator;
         this.entrySet = new EntrySet<>(memoryManager, maxItems, keySerializer, valueSerializer, valueOperator);
         // if not zero, sorted count keeps the entry index of the last
         // subsequent and ordered entry in the entries array
         this.sortedCount = new AtomicInteger(0);
-        this.minKey = minKey;
-        this.creator = new AtomicReference<>(creator);
-        if (creator == null) {
-            this.state = new AtomicReference<>(State.NORMAL);
-        } else {
-            this.state = new AtomicReference<>(State.INFANT);
-        }
+        this.minKey = new KeyBuffer();
+        this.creator = new AtomicReference<>(null);
+        this.state = new AtomicReference<>(State.NORMAL);
         this.next = new AtomicMarkableReference<>(null, false);
         this.pendingOps = new AtomicInteger();
         this.rebalancer = new AtomicReference<>(null); // to be updated on rebalance
         this.statistics = new Statistics();
-        this.comparator = comparator;
-        this.externalSize = externalSize;
     }
 
+    /**
+     * This constructor is only used when creating the first chunk (without a creator).
+     */
+    Chunk(K minKey, int maxItems, AtomicInteger externalSize, MemoryManager memoryManager, OakComparator<K> comparator,
+          OakSerializer<K> keySerializer, OakSerializer<V> valueSerializer, ValueUtils valueOperator) {
+        this(maxItems, externalSize, memoryManager, comparator, keySerializer, valueSerializer, valueOperator);
+        entrySet.allocateKey(minKey, this.minKey);
+    }
+
+    /**
+     * Create a child Chunk where this Chunk object as its creator.
+     * The child Chunk will have the same minKey as this Chunk (without duplicating the KeyBuffer data).
+     */
+    Chunk<K, V> createFirstChild() {
+        Chunk<K, V> child = new Chunk<>(maxItems, externalSize, entrySet.memoryManager, comparator,
+                entrySet.keySerializer, entrySet.valueSerializer, entrySet.valOffHeapOperator);
+        child.creator.set(this);
+        child.state.set(State.INFANT);
+        child.minKey.copyFrom(this.minKey);
+        return child;
+    }
+
+    /**
+     * Create a child Chunk where this Chunk object as its creator.
+     * The child Chunk will use a duplicate minKey of the input (allocates a new buffer).
+     */
+    Chunk<K, V> createNextChild(KeyBuffer minKey) {
+        Chunk<K, V> child = new Chunk<>(maxItems, externalSize, entrySet.memoryManager, comparator,
+                entrySet.keySerializer, entrySet.valueSerializer, entrySet.valOffHeapOperator);
+        child.creator.set(this);
+        child.state.set(State.INFANT);
+        entrySet.duplicateKey(minKey, child.minKey);
+        return child;
+    }
 
     /********************************************************************************************/
     /*-----------------------------  Wrappers for EntrySet methods -----------------------------*/
@@ -199,10 +224,10 @@ class Chunk<K, V> {
      * @param ei          the entry index to compare with
      * @return            the comparison result
      */
-    private int compareKeyAndEntryIndex(KeyBuffer tempKeyBuff, K key, int ei) {
+    int compareKeyAndEntryIndex(KeyBuffer tempKeyBuff, K key, int ei) {
         boolean isAllocated = entrySet.readKey(tempKeyBuff, ei);
         assert isAllocated;
-        return comparator.compareKeyAndSerializedKey(key, tempKeyBuff.getDataByteBuffer());
+        return comparator.compareKeyAndSerializedKey(key, tempKeyBuff);
     }
 
     /**

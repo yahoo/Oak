@@ -6,7 +6,6 @@
 
 package com.oath.oak;
 
-import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
@@ -34,27 +33,18 @@ class Rebalancer<K, V> {
     private Chunk<K, V> last;
     private int chunksInRange;
     private int itemsInRange;
-    private final MemoryManager memoryManager;
-    private final OakSerializer<K> keySerializer;
-    private final OakSerializer<V> valueSerializer;
-    private final ValueUtils valueOperator;
 
     /*-------------- Constructors --------------*/
 
-    Rebalancer(Chunk<K, V> chunk, MemoryManager memoryManager, OakSerializer<K> keySerializer,
-        OakSerializer<V> valueSerializer, ValueUtils valueOperator) {
+    Rebalancer(Chunk<K, V> chunk) {
         this.entriesLowThreshold = (int) (chunk.getMaxItems() * LOW_THRESHOLD);
         this.maxRangeToAppend = (int) (chunk.getMaxItems() * APPEND_THRESHOLD);
         this.maxAfterMergeItems = (int) (chunk.getMaxItems() * MAX_AFTER_MERGE_PART);
-        this.memoryManager = memoryManager;
         nextToEngage = new AtomicReference<>(chunk);
         this.first = chunk;
         last = chunk;
         chunksInRange = 1;
         itemsInRange = first.getStatistics().getCompactedCount();
-        this.keySerializer = keySerializer;
-        this.valueSerializer = valueSerializer;
-        this.valueOperator = valueOperator;
     }
 
     /*-------------- Methods --------------*/
@@ -121,12 +111,12 @@ class Rebalancer<K, V> {
 
         Chunk<K, V> firstFrozen = iterFrozen.next();
         Chunk<K, V> currFrozen = firstFrozen;
-        Chunk<K, V> currNewChunk = new Chunk<>(firstFrozen.minKey, firstFrozen, firstFrozen.comparator, memoryManager,
-                currFrozen.getMaxItems(), currFrozen.externalSize, keySerializer, valueSerializer, valueOperator);
+        Chunk<K, V> currNewChunk = firstFrozen.createFirstChild();
 
         int ei = firstFrozen.getFirstItemEntryIndex();
         List<Chunk<K, V>> newChunks = new LinkedList<>();
 
+        KeyBuffer keyBuff = ctx.tempKey;
         ValueBuffer valueBuff = ctx.tempValue;
 
         while (true) {
@@ -153,23 +143,9 @@ class Rebalancer<K, V> {
                     // we have to open an new chunk
                     // here we create a new minimal key buffer for the second new chunk,
                     // created by the split. The new min key is a copy of the older one
-                    // We need to use slice() method here as we want new object to be created
 
-                    KeyBuffer keyBuff = ctx.tempKey;
                     currFrozen.readKeyFromEntryIndex(keyBuff, ei);
-                    ByteBuffer bb = keyBuff.getDataByteBuffer();
-                    int size = keyBuff.getLength();
-                    int offset = keyBuff.getOffset();
-                    ByteBuffer newMinKey = ByteBuffer.allocateDirect(size);
-                    // newly allocated buffer is always positioned at its beginning.
-                    for (int i = 0; i < size; i++) {
-                        newMinKey.put(i, bb.get(offset + i));
-                    }
-                    newMinKey.rewind();
-
-                    Chunk<K, V> c = new Chunk<>(newMinKey, firstFrozen, currFrozen.comparator, memoryManager,
-                            currFrozen.getMaxItems(), currFrozen.externalSize,
-                            keySerializer, valueSerializer, valueOperator);
+                    Chunk<K, V> c = firstFrozen.createNextChild(keyBuff);
                     currNewChunk.next.set(c, false);
                     newChunks.add(currNewChunk);
                     currNewChunk = c;

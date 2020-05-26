@@ -7,6 +7,7 @@
 package com.oath.oak;
 
 import java.nio.ByteBuffer;
+import java.util.function.Consumer;
 
 /**
  * An instance of this buffer is only used when the write lock of the key/value referenced by it is already acquired.
@@ -14,15 +15,46 @@ import java.nio.ByteBuffer;
  */
 class OakAttachedWriteBuffer extends OakAttachedReadBuffer implements OakWriteBuffer, OakUnsafeDirectBuffer {
 
-    protected boolean enabled;
+    private boolean enabled = true;
 
-    OakAttachedWriteBuffer(Slice s) {
+    /**
+     * This class is instantiated only internally to ensure that the buffer is disabled for writes once the scope
+     * is finished.
+     * @param s the buffer to use.
+     */
+    private OakAttachedWriteBuffer(Slice s) {
         super(s);
-        enabled = true;
     }
 
-    void disable() {
-        enabled = false;
+    /**
+     * Serialize an object using this class, following three steps:
+     * (1) instantiate a new OakAttachedWriteBuffer object from the input Slice
+     * (2) serialize the input object to this buffer
+     * (3) disable the OakAttachedWriteBuffer
+     * This procedure ensures no out of scope writes will be possible
+     * @param s          the buffer to write to
+     * @param obj        the object to write
+     * @param serializer the serialization method
+     */
+    static <T> void serialize(Slice s, T obj, OakSerializer<T> serializer) {
+        OakAttachedWriteBuffer writeBuffer = new OakAttachedWriteBuffer(s);
+        serializer.serialize(obj, writeBuffer);
+        writeBuffer.enabled = false;
+    }
+
+    /**
+     * Perform an update on an object using this class, following three steps:
+     * (1) instantiate a new OakAttachedWriteBuffer object from the input Slice
+     * (2) perform the update on this buffer
+     * (3) disable the OakAttachedWriteBuffer
+     * This procedure ensures no out of scope writes will be possible
+     * @param s        the buffer to write to
+     * @param computer the update method
+     */
+    static void compute(Slice s, Consumer<OakWriteBuffer> computer) {
+        OakAttachedWriteBuffer writeBuffer = new OakAttachedWriteBuffer(s);
+        computer.accept(writeBuffer);
+        writeBuffer.enabled = false;
     }
 
     void validateAccess() {
@@ -34,49 +66,49 @@ class OakAttachedWriteBuffer extends OakAttachedReadBuffer implements OakWriteBu
     @Override
     public OakWriteBuffer put(int index, byte value) {
         validateAccess();
-        getDataByteBuffer().put(getDataOffset(index), value);
+        writeBuffer.put(getDataOffset(index), value);
         return this;
     }
 
     @Override
     public OakWriteBuffer putChar(int index, char value) {
         validateAccess();
-        getDataByteBuffer().putChar(getDataOffset(index), value);
+        writeBuffer.putChar(getDataOffset(index), value);
         return this;
     }
 
     @Override
     public OakWriteBuffer putShort(int index, short value) {
         validateAccess();
-        getDataByteBuffer().putShort(getDataOffset(index), value);
+        writeBuffer.putShort(getDataOffset(index), value);
         return this;
     }
 
     @Override
     public OakWriteBuffer putInt(int index, int value) {
         validateAccess();
-        getDataByteBuffer().putInt(getDataOffset(index), value);
+        writeBuffer.putInt(getDataOffset(index), value);
         return this;
     }
 
     @Override
     public OakWriteBuffer putLong(int index, long value) {
         validateAccess();
-        getDataByteBuffer().putLong(getDataOffset(index), value);
+        writeBuffer.putLong(getDataOffset(index), value);
         return this;
     }
 
     @Override
     public OakWriteBuffer putFloat(int index, float value) {
         validateAccess();
-        getDataByteBuffer().putFloat(getDataOffset(index), value);
+        writeBuffer.putFloat(getDataOffset(index), value);
         return this;
     }
 
     @Override
     public OakWriteBuffer putDouble(int index, double value) {
         validateAccess();
-        getDataByteBuffer().putDouble(getDataOffset(index), value);
+        writeBuffer.putDouble(getDataOffset(index), value);
         return this;
     }
 
@@ -84,6 +116,7 @@ class OakAttachedWriteBuffer extends OakAttachedReadBuffer implements OakWriteBu
 
     @Override
     public ByteBuffer getByteBuffer() {
-        return getDuplicatedWriteByteBuffer();
+        validateAccess();
+        return writeBuffer;
     }
 }

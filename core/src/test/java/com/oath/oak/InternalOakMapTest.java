@@ -28,7 +28,7 @@ public class InternalOakMapTest {
     }
 
 
-    private static Integer slowDeserialize(ByteBuffer bb) {
+    private static Integer slowDeserialize(OakReadBuffer bb) {
         try {
             Thread.sleep(longTransformationDelay);
         } catch (InterruptedException e) {

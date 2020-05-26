@@ -6,18 +6,16 @@
 
 package com.oath.oak;
 
-import java.nio.ByteBuffer;
-
 /**
  * An interface to be supported by keys and values provided for Oak's mapping
  */
 public interface OakSerializer<T> {
 
   // serializes the object
-  void serialize(T object, ByteBuffer targetBuffer);
+  void serialize(T object, OakWriteBuffer targetBuffer);
 
-  // deserializes the given byte buffer
-  T deserialize(ByteBuffer byteBuffer);
+  // deserializes the given Oak buffer
+  T deserialize(OakReadBuffer byteBuffer);
 
   // returns the number of bytes needed for serializing the given object
   int calculateSize(T object);

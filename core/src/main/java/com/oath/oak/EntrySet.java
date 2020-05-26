@@ -8,6 +8,7 @@ package com.oath.oak;
 
 import sun.misc.Unsafe;
 
+import java.nio.ByteBuffer;
 import java.util.concurrent.atomic.AtomicInteger;
 
 
@@ -120,7 +121,7 @@ class EntrySet<K, V> {
     static final ReferenceCodec VALUE = new ReferenceCodec(32, 23, 9);
 
     private static final Unsafe unsafe = UnsafeUtils.unsafe;
-    private final MemoryManager memoryManager;
+    final MemoryManager memoryManager;
 
     private final int[] entries;    // array is initialized to 0 - this is important!
     private final int entriesCapacity; // number of entries (not ints) to be maximally held
@@ -131,10 +132,10 @@ class EntrySet<K, V> {
     // and participating in holding the "real" KV-mappings, the "real" are counted in Chunk
     private final AtomicInteger numOfEntries;
     // for writing the keys into the off-heap bytebuffers (Blocks)
-    private final OakSerializer<K> keySerializer;
-    private final OakSerializer<V> valueSerializer;
+    final OakSerializer<K> keySerializer;
+    final OakSerializer<V> valueSerializer;
 
-    private final ValueUtils valOffHeapOperator; // is used for any value off-heap metadata access
+    final ValueUtils valOffHeapOperator; // is used for any value off-heap metadata access
 
     /*----------------- Constructor -------------------*/
     /**
@@ -590,6 +591,31 @@ class EntrySet<K, V> {
     }
 
     /**
+     * Allocate and serialize a key object to off-heap KeyBuffer.
+     * @param key       the key to write
+     * @param keyBuffer the off-heap KeyBuffer to update with the new allocation
+     */
+    void allocateKey(K key, KeyBuffer keyBuffer) {
+        int keySize = keySerializer.calculateSize(key);
+
+        memoryManager.allocate(keyBuffer, keySize, MemoryManager.Allocate.KEY);
+        OakAttachedWriteBuffer.serialize(keyBuffer, key, keySerializer);
+    }
+
+    /**
+     * Allocate a new KeyBuffer and duplicate an existing key to the new one.
+     * @param src the off-heap KeyBuffer to copy from
+     * @param dst the off-heap KeyBuffer to update with the new allocation
+     */
+    void duplicateKey(KeyBuffer src, KeyBuffer dst) {
+        final int keySize = src.capacity();
+        memoryManager.allocate(dst, keySize, MemoryManager.Allocate.KEY);
+
+        // We duplicate the buffer without instantiating a OakAttachedWriteBuffer because the user is not involved.
+        UnsafeUtils.unsafe.copyMemory(src.getAddress(), dst.getAddress(), keySize);
+    }
+
+    /**
      * Writes given key object "key" (to off-heap) as a serialized key, referenced by entry
      * that was set in this context ({@code ctx}).
      *
@@ -597,14 +623,7 @@ class EntrySet<K, V> {
      * @param key the key to write
      **/
     private void writeKey(ThreadContext ctx, K key) {
-        int keySize = keySerializer.calculateSize(key);
-
-        int intIdx = entryIdx2intIdx(ctx.entryIndex);
-
-        memoryManager.allocate(ctx.key, keySize, MemoryManager.Allocate.KEY);
-        // byteBuffer.slice() is set so it protects us from the overwrites of the serializer
-        // TODO: better serializer need to be given OakWBuffer and not ByteBuffer
-        keySerializer.serialize(key, ctx.key.getDataByteBuffer().slice());
+        allocateKey(key, ctx.key);
 
         /*
         The current entry key reference should be updated.
@@ -613,7 +632,7 @@ class EntrySet<K, V> {
         Either because they are initialized that way (see specs),
         or because we invalidated them when we deleted an older value.
          */
-        setEntryFieldLong(intIdx, OFFSET.KEY_REFERENCE, KEY.encode(ctx.key));
+        setEntryFieldLong(entryIdx2intIdx(ctx.entryIndex), OFFSET.KEY_REFERENCE, KEY.encode(ctx.key));
     }
 
     /**
@@ -645,10 +664,7 @@ class EntrySet<K, V> {
             valOffHeapOperator.initHeader(ctx.newValue);
         }
 
-        // since this is a private environment, we can only use ByteBuffer::slice, instead of ByteBuffer::duplicate
-        // and then ByteBuffer::slice
-        // To be safe we create a new ByteBuffer object (for the serializer).
-        valueSerializer.serialize(value, valOffHeapOperator.getValueByteBufferNoHeaderPrivate(ctx.newValue));
+        OakAttachedWriteBuffer.serialize(ctx.newValue, value, valueSerializer);
     }
 
     /**

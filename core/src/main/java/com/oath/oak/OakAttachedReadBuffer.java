@@ -6,8 +6,8 @@
 
 package com.oath.oak;
 
-import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.util.function.Consumer;
 
 /**
  * An instance of this buffer is only used when the read lock of the key/value referenced by it is already acquired.
@@ -37,48 +37,41 @@ class OakAttachedReadBuffer extends Slice implements OakReadBuffer, OakUnsafeDir
 
     @Override
     public ByteOrder order() {
-        return buffer.order();
+        return readBuffer.order();
     }
 
     @Override
     public byte get(int index) {
-        return getDataByteBuffer().get(getDataOffset(index));
+        return readBuffer.get(getDataOffset(index));
     }
 
     @Override
     public char getChar(int index) {
-        return getDataByteBuffer().getChar(getDataOffset(index));
+        return readBuffer.getChar(getDataOffset(index));
     }
 
     @Override
     public short getShort(int index) {
-        return getDataByteBuffer().getShort(getDataOffset(index));
+        return readBuffer.getShort(getDataOffset(index));
     }
 
     @Override
     public int getInt(int index) {
-        return getDataByteBuffer().getInt(getDataOffset(index));
+        return readBuffer.getInt(getDataOffset(index));
     }
 
     @Override
     public long getLong(int index) {
-        return getDataByteBuffer().getLong(getDataOffset(index));
+        return readBuffer.getLong(getDataOffset(index));
     }
 
     @Override
     public float getFloat(int index) {
-        return getDataByteBuffer().getFloat(getDataOffset(index));
+        return readBuffer.getFloat(getDataOffset(index));
     }
 
     @Override
     public double getDouble(int index) {
-        return getDataByteBuffer().getDouble(getDataOffset(index));
-    }
-
-    /*-------------- OakUnsafeDirectBuffer --------------*/
-
-    @Override
-    public ByteBuffer getByteBuffer() {
-        return getDuplicatedReadByteBuffer();
+        return readBuffer.getDouble(getDataOffset(index));
     }
 }
