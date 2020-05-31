@@ -55,10 +55,11 @@ public class WorkloadMemoryTest {
                 Integer key = r.nextInt(NUM_OF_ENTRIES);
                 int op = r.nextInt(100);
 
-                if (op < getPercents)
+                if (op < getPercents) {
                     oak.zc().get(key);
-                else
+                } else {
                     oak.zc().put(key, 8);
+                }
             }
         }
     }

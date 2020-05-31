@@ -1,0 +1,186 @@
+<?xml version="1.0" ?>
+
+<!DOCTYPE module PUBLIC
+        "-//Puppy Crawl//DTD Check Configuration 1.2//EN"
+        "http://www.puppycrawl.com/dtds/configuration_1_2.dtd">
+
+<module name="Checker">
+    <!-- Checks whether files end with a line separator. -->
+    <!-- https://checkstyle.sourceforge.io/config_misc.html#NewlineAtEndOfFile -->
+    <module name="NewlineAtEndOfFile"/>
+    <!-- Checks that there are no tab characters ('\t') in the source code. -->
+    <!-- https://checkstyle.sourceforge.io/config_whitespace.html#FileTabCharacter -->
+    <module name="FileTabCharacter"/>
+
+    <module name="TreeWalker">
+        <!-- ################################################################################
+             Size Violations: https://checkstyle.sourceforge.io/config_sizes.html
+             ################################################################################ -->
+
+        <!-- Checks for long lines -->
+        <module name="LineLength">
+            <property name="max" value="120"/>
+        </module>
+
+        <!-- Checks the number of parameters of a method or constructor. -->
+        <module name="ParameterNumber">
+            <property name="max" value="8"/>
+            <property name="tokens" value="METHOD_DEF"/>
+        </module>
+
+        <!-- ################################################################################
+             Class Design: https://checkstyle.sourceforge.io/config_design.html
+             ################################################################################ -->
+
+        <!-- Checks that a class which has only private constructors is declared as final. -->
+        <module name="FinalClass"/>
+
+        <!-- ################################################################################
+             Modifiers: https://checkstyle.sourceforge.io/config_modifier.html
+             ################################################################################ -->
+
+        <!-- Checks for redundant modifiers. -->
+        <module name="RedundantModifier"/>
+        <!--  Checks that the order of modifiers conforms to the suggestions in the Java Language specification -->
+        <module name="ModifierOrder"/>
+
+        <!-- Checks visibility of class members. Only static final, immutable or annotated by specified annotation
+             members may be public; other class members must be private unless the property protectedAllowed or
+             packageAllowed is set. -->
+        <module name="VisibilityModifier">
+            <!-- Control whether package visible members are allowed. -->
+            <property name="packageAllowed" value="true"/>
+            <!-- Control whether protected members are allowed. -->
+            <property name="protectedAllowed" value="true"/>
+            <!-- Allow final fields to be declared as public. -->
+            <property name="allowPublicFinalFields" value="true"/>
+        </module>
+
+        <!-- ################################################################################
+             Imports: https://checkstyle.sourceforge.io/config_imports.html
+             ################################################################################ -->
+
+        <!-- Checks that there are no import statements that use the * notation. -->
+        <module name="AvoidStarImport"/>
+        <!-- Checks that there are no static import statements. -->
+        <module name="AvoidStaticImport"/>
+        <!-- Checks for redundant import statements. -->
+        <module name="RedundantImport"/>
+        <!-- Checks for unused import statements. -->
+        <module name="UnusedImports"/>
+
+        <!-- Checks the ordering/grouping of imports. -->
+        <module name="ImportOrder">
+            <property name="groups" value="*,javax,java"/>
+            <property name="ordered" value="true"/>
+            <property name="separated" value="true"/>
+            <property name="option" value="bottom"/>
+            <property name="sortStaticImportsAlphabetically" value="true"/>
+        </module>
+
+        <!-- ################################################################################
+             Annotations: https://checkstyle.sourceforge.io/config_annotation.html
+             ################################################################################ -->
+
+        <!-- Verifies that the @Override annotation is present when the @inheritDoc javadoc tag is present. -->
+        <module name="MissingOverride"/>
+        <!-- Checks location of annotation on language elements. -->
+        <module name="AnnotationLocation"/>
+
+        <!-- ################################################################################
+             Block Checks: https://checkstyle.sourceforge.io/config_blocks.html
+             ################################################################################ -->
+
+        <!-- Checks for empty blocks. This check does not validate sequential blocks. -->
+        <module name="EmptyBlock"/>
+        <!-- Checks for braces around code blocks. -->
+        <module name="NeedBraces"/>
+
+        <!-- Checks for the placement of left curly braces ('{') for code blocks. -->
+        <module name="LeftCurly">
+            <property name="option" value="eol"/>
+        </module>
+
+        <!-- Checks the placement of right curly braces ('}') for code blocks. -->
+        <module name="RightCurly">
+            <property name="option" value="same"/>
+        </module>
+
+        <!-- ################################################################################
+             Miscellaneous: https://checkstyle.sourceforge.io/config_misc.html
+             ################################################################################ -->
+
+        <!-- Checks correct indentation of Java code. -->
+        <module name="Indentation">
+            <property name="arrayInitIndent" value="8"/>
+        </module>
+
+        <!-- ################################################################################
+             Naming Conventions: https://checkstyle.sourceforge.io/config_naming.html
+             ################################################################################ -->
+
+        <!-- Checks that package names conform to a specified pattern. -->
+        <module name="PackageName">
+            <property name="format" value="^com.oath.oak.*$"/>
+        </module>
+
+        <!-- Checks that method names conform to a specified pattern. -->
+        <module name="MethodName"/>
+        <!-- Checks that local, non-final variable names conform to a specified pattern. -->
+        <module name="LocalVariableName"/>
+        <!-- Checks that local final variable names conform to a specified pattern. -->
+        <module name="LocalFinalVariableName"/>
+        <!-- Checks that instance variable names conform to a specified pattern. -->
+        <module name="MemberName"/>
+        <!-- Checks that constant names conform to a specified pattern. -->
+        <module name="ConstantName"/>
+        <!-- Checks that class type parameter names conform to a specified pattern. -->
+        <module name="ClassTypeParameterName"/>
+        <!-- Checks that interface type parameter names conform to a specified pattern. -->
+        <module name="InterfaceTypeParameterName"/>
+        <!-- Checks that method parameter names conform to a specified pattern. -->
+        <module name="ParameterName"/>
+        <!-- Checks lambda parameter names. -->
+        <module name="LambdaParameterName"/>
+        <!-- Checks that method type parameter names conform to a specified pattern. -->
+        <module name="MethodTypeParameterName"/>
+        <!-- Checks that type names conform to a specified pattern. -->
+        <module name="TypeName"/>
+
+        <!-- ################################################################################
+             Whitespace: https://checkstyle.sourceforge.io/config_whitespace.html
+             ################################################################################ -->
+
+        <!-- Checks that a token is followed by whitespace, with the exception that it does not check for whitespace
+             after the semicolon of an empty for iterator. -->
+        <module name="WhitespaceAfter"/>
+
+        <!-- ################################################################################
+             Coding: https://checkstyle.sourceforge.io/config_coding.html
+             ################################################################################ -->
+
+        <!-- Ensures that a class has a package declaration, and (optionally) whether the package name matches the
+             directory name for the source file. -->
+        <module name="PackageDeclaration"/>
+        <!-- Checks that string literals are not used with == or !=. Since == will compare the object references, not
+             the actual value of the strings, String.equals() should be used. -->
+        <module name="StringLiteralEquality"/>
+        <!-- Checks that there is only one statement per line. -->
+        <module name="OneStatementPerLine"/>
+        <!-- Checks for over-complicated boolean return statements. -->
+        <module name="SimplifyBooleanReturn"/>
+        <!-- Checks for over-complicated boolean expressions. -->
+        <module name="SimplifyBooleanExpression"/>
+        <!-- Restricts nested for blocks to a specified depth. -->
+        <module name="NestedForDepth"/>
+        <!-- Checks that each variable declaration is in its own statement and on its own line. -->
+        <module name="MultipleVariableDeclarations"/>
+        <!-- Checks for assignments in subexpressions, such as in String s = Integer.toString(i = 2);. -->
+        <module name="InnerAssignment"/>
+        <!-- Detects empty statements (standalone ";" semicolon). -->
+        <module name="EmptyStatement"/>
+        <!-- Disallows assignment of parameters. -->
+        <module name="ParameterAssignment"/>
+
+    </module>
+</module>

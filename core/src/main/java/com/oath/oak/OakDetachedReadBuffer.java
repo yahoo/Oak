@@ -17,9 +17,9 @@ import java.nio.ByteOrder;
  *  - KeyStreamIterator
  *  - ValueStreamIterator
  *  - EntryStreamIterator (for both keys and values)
- *
+ * <p>
  * It should only be used without other concurrent writes in the background to this buffer.
- *
+ * <p>
  * A child class that require synchronization, needs to override the following method that is used
  * internally by this class.
  *  - <T> T safeAccessToAttachedBuffer(Function<OakAttachedReadBuffer, T> transformer)

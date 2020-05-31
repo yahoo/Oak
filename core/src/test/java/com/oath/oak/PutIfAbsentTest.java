@@ -2,6 +2,7 @@ package com.oath.oak;
 
 import com.oath.oak.common.OakCommonBuildersFactory;
 import org.junit.After;
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -16,16 +17,13 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.fail;
-
 
 public class PutIfAbsentTest {
     private OakMap<Integer, Integer> oak;
     private CountDownLatch startSignal;
     private List<Future<Integer>> threads;
-    private final int NUM_THREADS = 31;
-    public static final int NUM_KEYS = 100000;
+    private static final int NUM_THREADS = 31;
+    private static final int NUM_KEYS = 100000;
 
     @Before
     public void init() {
@@ -77,7 +75,7 @@ public class PutIfAbsentTest {
                 returnValues[0] += t.get();
             } catch (InterruptedException | ExecutionException e) {
                 e.printStackTrace();
-                fail();
+                Assert.fail();
             }
         });
 
@@ -85,12 +83,12 @@ public class PutIfAbsentTest {
         int count2 = 0;
         while (iterator.hasNext()) {
             Integer value = iterator.next();
-            assertEquals((Integer) NUM_THREADS, value);
+            Assert.assertEquals((Integer) NUM_THREADS, value);
             count2++;
         }
-        assertEquals(count2, NUM_KEYS);
-        assertEquals(NUM_KEYS, oak.size());
-        assertEquals(NUM_KEYS, returnValues[0]);
+        Assert.assertEquals(count2, NUM_KEYS);
+        Assert.assertEquals(NUM_KEYS, oak.size());
+        Assert.assertEquals(NUM_KEYS, returnValues[0]);
     }
 
 
@@ -127,7 +125,7 @@ public class PutIfAbsentTest {
                 returnValues[0] += t.get();
             } catch (InterruptedException | ExecutionException e) {
                 e.printStackTrace();
-                fail();
+                Assert.fail();
             }
         });
 
@@ -135,11 +133,11 @@ public class PutIfAbsentTest {
         int count2 = 0;
         while (iterator.hasNext()) {
             Map.Entry<Integer, Integer> entry = iterator.next();
-            assertEquals(entry.getKey(), entry.getValue());
+            Assert.assertEquals(entry.getKey(), entry.getValue());
             count2++;
         }
-        assertEquals(count2, NUM_KEYS);
-        assertEquals(NUM_KEYS, returnValues[0]);
-        assertEquals(NUM_KEYS, oak.size());
+        Assert.assertEquals(count2, NUM_KEYS);
+        Assert.assertEquals(NUM_KEYS, returnValues[0]);
+        Assert.assertEquals(NUM_KEYS, oak.size());
     }
 }

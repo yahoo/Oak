@@ -2,7 +2,7 @@ package com.oath.oak;
 
 /**
  * As opposed to attached buffers, detached buffer can be returned to the user and may be stored for future use.
- *
+ * <p>
  * The zero-copy methods returns this buffer to avoid copying the data and instead the user can access to the
  * underlying memory buffer directly (lazy evaluation).
  * While the attached buffers' data accesses are synchronized, when using OakDetachedBuffer, the same memory might be
@@ -15,7 +15,7 @@ package com.oath.oak;
  * To allow complex, multi-value atomic operations on the data, OakDetachedBuffer provides a transform() method that
  * allow the user to apply a transformation function atomically on a read-only, attached version of the buffer
  * (OakReadBuffer).
- *
+ * <p>
  * It is used in zero-copy API for:
  *   (1) get operations
  *   (2) iterations

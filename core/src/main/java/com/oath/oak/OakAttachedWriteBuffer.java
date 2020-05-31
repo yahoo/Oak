@@ -13,13 +13,14 @@ import java.util.function.Consumer;
  * An instance of this buffer is only used when the write lock of the key/value referenced by it is already acquired.
  * This is the reason no lock is acquired in each access.
  */
-class OakAttachedWriteBuffer extends OakAttachedReadBuffer implements OakWriteBuffer, OakUnsafeDirectBuffer {
+final class OakAttachedWriteBuffer extends OakAttachedReadBuffer implements OakWriteBuffer, OakUnsafeDirectBuffer {
 
     private boolean enabled = true;
 
     /**
      * This class is instantiated only internally to ensure that the buffer is disabled for writes once the scope
      * is finished.
+     *
      * @param s the buffer to use.
      */
     private OakAttachedWriteBuffer(Slice s) {
@@ -32,6 +33,7 @@ class OakAttachedWriteBuffer extends OakAttachedReadBuffer implements OakWriteBu
      * (2) serialize the input object to this buffer
      * (3) disable the OakAttachedWriteBuffer
      * This procedure ensures no out of scope writes will be possible
+     *
      * @param s          the buffer to write to
      * @param obj        the object to write
      * @param serializer the serialization method
@@ -48,6 +50,7 @@ class OakAttachedWriteBuffer extends OakAttachedReadBuffer implements OakWriteBu
      * (2) perform the update on this buffer
      * (3) disable the OakAttachedWriteBuffer
      * This procedure ensures no out of scope writes will be possible
+     *
      * @param s        the buffer to write to
      * @param computer the update method
      */

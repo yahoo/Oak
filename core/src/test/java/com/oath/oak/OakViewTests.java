@@ -2,6 +2,7 @@ package com.oath.oak;
 
 import com.oath.oak.common.OakCommonBuildersFactory;
 import org.junit.After;
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -11,9 +12,6 @@ import java.util.ConcurrentModificationException;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.function.Function;
-
-import static junit.framework.TestCase.assertEquals;
-import static org.junit.Assert.assertNotNull;
 
 public class OakViewTests {
 
@@ -49,20 +47,20 @@ public class OakViewTests {
         }
 
         OakDetachedBuffer valBuffer = oak.zc().get(testVal);
-        String transformed = valBuffer.transform(OakCommonBuildersFactory.defaultStringSerializer::deserialize);
-        assertEquals(testVal, transformed);
+        String transformed = valBuffer.transform(OakCommonBuildersFactory.DEFAULT_STRING_SERIALIZER::deserialize);
+        Assert.assertEquals(testVal, transformed);
 
-        assertEquals(testValBB.capacity(), valBuffer.capacity());
+        Assert.assertEquals(testValBB.capacity(), valBuffer.capacity());
 
-        assertEquals(testValBB.getInt(0), valBuffer.getInt(0));
+        Assert.assertEquals(testValBB.getInt(0), valBuffer.getInt(0));
         for (int i = 0; i < testVal.length(); i++) {
             int pos = Integer.BYTES + i * Character.BYTES;
-            assertEquals(testValBB.getChar(pos), valBuffer.getChar(pos));
+            Assert.assertEquals(testValBB.getChar(pos), valBuffer.getChar(pos));
         }
 
         for (int i = 0; i < testVal.length(); ++i) {
             int pos = Integer.BYTES + i * Character.BYTES;
-            assertEquals(testVal.charAt(i), valBuffer.getChar(pos));
+            Assert.assertEquals(testVal.charAt(i), valBuffer.getChar(pos));
         }
     }
 
@@ -85,22 +83,23 @@ public class OakViewTests {
         Iterator<OakDetachedBuffer> keyIterator = oak.zc().keySet().iterator();
         for (int i = 0; i < ELEMENTS; i++) {
             OakDetachedBuffer keyBB = keyIterator.next();
-            String key = keyBB.transform(OakCommonBuildersFactory.defaultStringSerializer::deserialize);
-            assertEquals(values[i], key);
+            String key = keyBB.transform(OakCommonBuildersFactory.DEFAULT_STRING_SERIALIZER::deserialize);
+            Assert.assertEquals(values[i], key);
         }
 
         Iterator<OakDetachedBuffer> valueIterator = oak.zc().values().iterator();
         for (int i = 0; i < ELEMENTS; i++) {
             OakDetachedBuffer valueBB = valueIterator.next();
-            String value = valueBB.transform(OakCommonBuildersFactory.defaultStringSerializer::deserialize);
-            assertEquals(values[i], value);
+            String value = valueBB.transform(OakCommonBuildersFactory.DEFAULT_STRING_SERIALIZER::deserialize);
+            Assert.assertEquals(values[i], value);
         }
 
         Iterator<Map.Entry<OakDetachedBuffer, OakDetachedBuffer>> entryIterator = oak.zc().entrySet().iterator();
         for (int i = 0; i < ELEMENTS; i++) {
             Map.Entry<OakDetachedBuffer, OakDetachedBuffer> entryBB = entryIterator.next();
-            String value = entryBB.getValue().transform(OakCommonBuildersFactory.defaultStringSerializer::deserialize);
-            assertEquals(values[i], value);
+            String value = entryBB.getValue().transform(
+                    OakCommonBuildersFactory.DEFAULT_STRING_SERIALIZER::deserialize);
+            Assert.assertEquals(values[i], value);
         }
     }
 
@@ -115,31 +114,32 @@ public class OakViewTests {
         Iterator<OakDetachedBuffer> keyStreamIterator = oak.zc().keyStreamSet().iterator();
         for (int i = 0; i < ELEMENTS; i++) {
             OakDetachedBuffer keyBB = keyStreamIterator.next();
-            String key = keyBB.transform(OakCommonBuildersFactory.defaultStringSerializer::deserialize);
-            assertEquals(values[i], key);
+            String key = keyBB.transform(OakCommonBuildersFactory.DEFAULT_STRING_SERIALIZER::deserialize);
+            Assert.assertEquals(values[i], key);
         }
 
         Iterator<OakDetachedBuffer> valueStreamIterator = oak.zc().valuesStream().iterator();
         for (int i = 0; i < ELEMENTS; i++) {
             OakDetachedBuffer valueBB = valueStreamIterator.next();
-            String value = valueBB.transform(OakCommonBuildersFactory.defaultStringSerializer::deserialize);
-            assertEquals(values[i], value);
+            String value = valueBB.transform(OakCommonBuildersFactory.DEFAULT_STRING_SERIALIZER::deserialize);
+            Assert.assertEquals(values[i], value);
         }
 
         Iterator<Map.Entry<OakDetachedBuffer, OakDetachedBuffer>> entryStreamIterator
                 = oak.zc().entryStreamSet().iterator();
         for (int i = 0; i < ELEMENTS; i++) {
             Map.Entry<OakDetachedBuffer, OakDetachedBuffer> entryBB = entryStreamIterator.next();
-            String value = entryBB.getValue().transform(OakCommonBuildersFactory.defaultStringSerializer::deserialize);
-            assertEquals(values[i], value);
+            String value = entryBB.getValue().transform(
+                    OakCommonBuildersFactory.DEFAULT_STRING_SERIALIZER::deserialize);
+            Assert.assertEquals(values[i], value);
         }
     }
 
     @Test
     public void testTransformViewAPIs() {
         Function<Map.Entry<OakDetachedBuffer, OakDetachedBuffer>, Integer> transformer = (entry) -> {
-            assertNotNull(entry.getKey());
-            assertNotNull(entry.getValue());
+            Assert.assertNotNull(entry.getKey());
+            Assert.assertNotNull(entry.getValue());
             int size = entry.getValue().getInt(0);
             StringBuilder object = new StringBuilder(size);
             for (int i = 0; i < size; i++) {
@@ -159,7 +159,7 @@ public class OakViewTests {
         Iterator<Integer> entryIterator = oak.zc().entrySet().stream().map(transformer).iterator();
         for (int i = 0; i < ELEMENTS; i++) {
             Integer entryT = entryIterator.next();
-            assertEquals(Integer.valueOf(values[i]), entryT);
+            Assert.assertEquals(Integer.valueOf(values[i]), entryT);
         }
     }
 }

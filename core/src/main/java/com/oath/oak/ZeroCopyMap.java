@@ -41,9 +41,9 @@ public interface ZeroCopyMap<K, V> {
      * Removes the mapping for a key from this map if it is present.
      *
      * @param key key whose mapping is to be removed from the map
+     * @return {@code true} if there was a mapping for the key
      * @throws NullPointerException     if the specified key is null
      * @throws IllegalArgumentException if the specified key is out of bounds
-     * @return {@code true} if there was a mapping for the key
      */
     boolean remove(K key);
 

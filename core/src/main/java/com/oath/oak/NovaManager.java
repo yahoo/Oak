@@ -7,10 +7,10 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 class NovaManager implements MemoryManager {
     static final int RELEASE_LIST_LIMIT = 1024;
-    private ThreadIndexCalculator threadIndexCalculator;
-    private List<List<Slice>> releaseLists;
-    private AtomicInteger globalNovaNumber;
-    private OakBlockMemoryAllocator allocator;
+    private final ThreadIndexCalculator threadIndexCalculator;
+    private final List<List<Slice>> releaseLists;
+    private final AtomicInteger globalNovaNumber;
+    private final OakBlockMemoryAllocator allocator;
 
     NovaManager(OakBlockMemoryAllocator allocator) {
         this.threadIndexCalculator = ThreadIndexCalculator.newInstance();

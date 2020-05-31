@@ -3,9 +3,6 @@ package com.oath.oak.common.integer;
 import com.oath.oak.OakComparator;
 import com.oath.oak.OakReadBuffer;
 
-import java.nio.ByteBuffer;
-import java.util.Comparator;
-
 public class OakIntComparator implements OakComparator<Integer> {
     @Override
     public int compareKeys(Integer key1, Integer key2) {

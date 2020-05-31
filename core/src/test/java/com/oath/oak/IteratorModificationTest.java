@@ -2,6 +2,7 @@ package com.oath.oak;
 
 import com.oath.oak.common.OakCommonBuildersFactory;
 import org.junit.After;
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Ignore;
 import org.junit.Test;
@@ -13,10 +14,6 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
-
-import static junit.framework.TestCase.assertEquals;
-import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertTrue;
 
 
 public class IteratorModificationTest {
@@ -34,7 +31,7 @@ public class IteratorModificationTest {
     @Before
     public void init() {
         OakMapBuilder<String, String> builder = OakCommonBuildersFactory.getDefaultStringBuilder()
-            .setChunkMaxItems(100);
+                .setChunkMaxItems(100);
 
         oak = builder.build();
 
@@ -134,8 +131,8 @@ public class IteratorModificationTest {
                     String expectedKey = generateString(currentKey.get(), KEY_SIZE);
                     String expectedVal = generateString(currentKey.get(), VALUE_SIZE);
                     Map.Entry<String, String> entry = iterator.next();
-                    assertEquals(expectedKey, entry.getKey());
-                    assertEquals(expectedVal, entry.getValue());
+                    Assert.assertEquals(expectedKey, entry.getKey());
+                    Assert.assertEquals(expectedVal, entry.getValue());
                     writeLock.release();
                     if (!isDescending) {
                         currentKey.getAndIncrement();
@@ -153,7 +150,7 @@ public class IteratorModificationTest {
                     expectedIterations--;
                 }
 
-                assertEquals(expectedIterations, i);
+                Assert.assertEquals(expectedIterations, i);
                 passed.set(true);
             }
             writeLock.release();
@@ -190,7 +187,7 @@ public class IteratorModificationTest {
         putThread.start();
         scanThread.join();
         putThread.join();
-        assertTrue(passed.get());
+        Assert.assertTrue(passed.get());
     }
 
     @Test
@@ -202,7 +199,7 @@ public class IteratorModificationTest {
 
         Thread scanThread = new Thread(() -> {
             Iterator<Map.Entry<String, String>> iterator = oak.entrySet().iterator();
-            assertTrue(iterator.hasNext());
+            Assert.assertTrue(iterator.hasNext());
             deleteLatch.countDown();
             try {
                 scanLatch.await();
@@ -236,7 +233,7 @@ public class IteratorModificationTest {
 
         scanThread.join();
         deleteThread.join();
-        assertTrue(passed.get());
+        Assert.assertTrue(passed.get());
     }
 
     @Test
@@ -248,7 +245,7 @@ public class IteratorModificationTest {
 
         Thread scanThread = new Thread(() -> {
             Iterator<Map.Entry<OakDetachedBuffer, OakDetachedBuffer>> iterator = oak.zc().entryStreamSet().iterator();
-            assertTrue(iterator.hasNext());
+            Assert.assertTrue(iterator.hasNext());
             deleteLatch.countDown();
             try {
                 scanLatch.await();
@@ -282,34 +279,35 @@ public class IteratorModificationTest {
 
         scanThread.join();
         deleteThread.join();
-        assertTrue(passed.get());
+        Assert.assertTrue(passed.get());
     }
 
     @Ignore
     @Test
     public void valueDeleteTest() {
         Iterator<Map.Entry<String, String>> entryIterator = oak.entrySet().iterator();
-        assertTrue(entryIterator.hasNext());
+        Assert.assertTrue(entryIterator.hasNext());
         oak.zc().remove(generateString(0, KEY_SIZE));
-        assertTrue(entryIterator.hasNext());
-        assertNull(entryIterator.next());
+        Assert.assertTrue(entryIterator.hasNext());
+        Assert.assertNull(entryIterator.next());
 
         Iterator<String> valueIterator = oak.values().iterator();
-        assertTrue(valueIterator.hasNext());
+        Assert.assertTrue(valueIterator.hasNext());
         oak.zc().remove(generateString(1, KEY_SIZE));
-        assertTrue(valueIterator.hasNext());
-        assertNull(valueIterator.next());
+        Assert.assertTrue(valueIterator.hasNext());
+        Assert.assertNull(valueIterator.next());
 
         Iterator<OakDetachedBuffer> bufferValuesIterator = oak.zc().values().iterator();
-        assertTrue(bufferValuesIterator.hasNext());
+        Assert.assertTrue(bufferValuesIterator.hasNext());
         oak.zc().remove(generateString(2, KEY_SIZE));
-        assertTrue(bufferValuesIterator.hasNext());
-        assertNull(bufferValuesIterator.next());
+        Assert.assertTrue(bufferValuesIterator.hasNext());
+        Assert.assertNull(bufferValuesIterator.next());
 
-        Iterator<Map.Entry<OakDetachedBuffer, OakDetachedBuffer>> bufferEntriesIterator = oak.zc().entrySet().iterator();
-        assertTrue(bufferEntriesIterator.hasNext());
+        Iterator<Map.Entry<OakDetachedBuffer, OakDetachedBuffer>> bufferEntriesIterator =
+                oak.zc().entrySet().iterator();
+        Assert.assertTrue(bufferEntriesIterator.hasNext());
         oak.zc().remove(generateString(3, KEY_SIZE));
-        assertTrue(bufferEntriesIterator.hasNext());
-        assertNull(bufferEntriesIterator.next());
+        Assert.assertTrue(bufferEntriesIterator.hasNext());
+        Assert.assertNull(bufferEntriesIterator.next());
     }
 }

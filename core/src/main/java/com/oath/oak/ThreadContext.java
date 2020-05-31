@@ -77,6 +77,7 @@ class ThreadContext {
      * Initialize the entry context index to be used by methods that manages the key/value of this context.
      * The entry index is stored in the context so it can be used later by other methods without passing the
      * entry index explicitly as a parameter.
+     *
      * @param entryIndex the entry index to update
      */
     void initEntryContext(int entryIndex) {
@@ -85,6 +86,7 @@ class ThreadContext {
 
     /**
      * We consider a key to be valid if the entry referred to a valid allocation.
+     *
      * @return does the entry have a valid key
      */
     boolean isKeyValid() {
@@ -93,6 +95,7 @@ class ThreadContext {
 
     /**
      * See {@code ValueState.isValid()} for more details.
+     *
      * @return does the entry have a valid value
      */
     boolean isValueValid() {

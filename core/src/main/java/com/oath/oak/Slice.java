@@ -35,13 +35,13 @@ class Slice implements OakUnsafeDirectBuffer, Comparable<Slice> {
     // This instance of the buffer is writable and is used by OakAttachedWriteBuffer
     protected ByteBuffer writeBuffer;
 
-    public Slice(int headerSize) {
+    Slice(int headerSize) {
         this.headerSize = headerSize;
         invalidate();
     }
 
     // Should be used only for testing
-    public Slice() {
+    Slice() {
         this(0);
     }
 

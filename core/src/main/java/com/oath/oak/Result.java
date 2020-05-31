@@ -1,8 +1,5 @@
 package com.oath.oak;
 
-import static com.oath.oak.ValueUtils.ValueResult.FALSE;
-import static com.oath.oak.ValueUtils.ValueResult.TRUE;
-
 /**
  * A sum type for holding either a generic type value or a boolean flag.
  */
@@ -17,18 +14,24 @@ class Result {
     }
 
     void invalidate() {
-        this.operationResult = FALSE;
+        this.operationResult = ValueUtils.ValueResult.FALSE;
         this.value = null;
     }
 
     Result withValue(Object value) {
-        this.operationResult = TRUE;
+        this.operationResult = ValueUtils.ValueResult.TRUE;
         this.value = value;
         return this;
     }
 
     Result withFlag(ValueUtils.ValueResult flag) {
         this.operationResult = flag;
+        this.value = null;
+        return this;
+    }
+
+    Result withFlag(boolean flag) {
+        this.operationResult = flag ? ValueUtils.ValueResult.TRUE : ValueUtils.ValueResult.FALSE;
         this.value = null;
         return this;
     }

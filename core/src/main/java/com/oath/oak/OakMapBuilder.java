@@ -15,7 +15,7 @@ package com.oath.oak;
  */
 public class OakMapBuilder<K, V> {
 
-    private final long MAX_MEM_CAPACITY = ((long) Integer.MAX_VALUE) * 8; // 16GB per Oak by default
+    private static final long MAX_MEM_CAPACITY = ((long) Integer.MAX_VALUE) * 8; // 16GB per Oak by default
 
     private OakSerializer<K> keySerializer;
     private OakSerializer<V> valueSerializer;
@@ -31,7 +31,7 @@ public class OakMapBuilder<K, V> {
     private OakBlockMemoryAllocator memoryAllocator;
 
     public OakMapBuilder(OakComparator<K> comparator,
-        OakSerializer<K> keySerializer, OakSerializer<V> valueSerializer, K minKey) {
+                         OakSerializer<K> keySerializer, OakSerializer<V> valueSerializer, K minKey) {
         this.keySerializer = keySerializer;
         this.valueSerializer = valueSerializer;
         this.minKey = minKey;

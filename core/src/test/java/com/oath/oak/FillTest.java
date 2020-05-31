@@ -8,14 +8,12 @@ package com.oath.oak;
 
 import com.oath.oak.common.OakCommonBuildersFactory;
 import com.oath.oak.common.integer.OakIntSerializer;
+import org.junit.Assert;
 import org.junit.Test;
 
 import java.util.ArrayList;
 import java.util.Random;
 import java.util.concurrent.CountDownLatch;
-
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotEquals;
 
 public class FillTest {
 
@@ -28,8 +26,8 @@ public class FillTest {
     private static final int VALUE_SIZE = Math.round(5 * K);
     private static final int NUM_OF_ENTRIES = 100;
 
-    static private ArrayList<Thread> threads = new ArrayList<>(NUM_THREADS);
-    static private CountDownLatch latch = new CountDownLatch(1);
+    private static ArrayList<Thread> threads = new ArrayList<>(NUM_THREADS);
+    private static CountDownLatch latch = new CountDownLatch(1);
 
     static class RunThreads implements Runnable {
         CountDownLatch latch;
@@ -74,7 +72,7 @@ public class FillTest {
             }
 
             for (int i = end - 1; i >= start; i--) {
-                assertNotEquals(oak.get(i), null);
+                Assert.assertNotEquals(oak.get(i), null);
             }
 
         }
@@ -115,7 +113,7 @@ public class FillTest {
 
         for (Integer i = 0; i < NUM_OF_ENTRIES / 2; i++) {
             Integer val = oak.get(i);
-            assertEquals(i, val);
+            Assert.assertEquals(i, val);
         }
 
         long elapsedTime = stopTime - startTime;

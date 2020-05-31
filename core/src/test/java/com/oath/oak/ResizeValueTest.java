@@ -1,14 +1,13 @@
 package com.oath.oak;
 
 import com.oath.oak.common.OakCommonBuildersFactory;
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
 import java.util.Iterator;
 import java.util.Map;
 import java.util.concurrent.Semaphore;
-
-import static org.junit.Assert.assertEquals;
 
 public class ResizeValueTest {
     private OakMap<String, String> oak;
@@ -31,12 +30,12 @@ public class ResizeValueTest {
             stringBuilder.append(i);
         }
         OakDetachedBuffer valBuffer = oak.zc().get(key);
-        String transformed = valBuffer.transform(OakCommonBuildersFactory.defaultStringSerializer::deserialize);
-        assertEquals(value, transformed);
+        String transformed = valBuffer.transform(OakCommonBuildersFactory.DEFAULT_STRING_SERIALIZER::deserialize);
+        Assert.assertEquals(value, transformed);
         oak.zc().put(key, stringBuilder.toString());
         valBuffer = oak.zc().get(key);
-        transformed = valBuffer.transform(OakCommonBuildersFactory.defaultStringSerializer::deserialize);
-        assertEquals(stringBuilder.toString(), transformed);
+        transformed = valBuffer.transform(OakCommonBuildersFactory.DEFAULT_STRING_SERIALIZER::deserialize);
+        Assert.assertEquals(stringBuilder.toString(), transformed);
     }
 
     @Test
@@ -58,8 +57,8 @@ public class ResizeValueTest {
 
             Map.Entry<String, String> entry = iterator.next();
             String currentValue = valueIterator.next();
-            assertEquals("AAAAAAA", entry.getKey());
-            assertEquals("h", currentValue);
+            Assert.assertEquals("AAAAAAA", entry.getKey());
+            Assert.assertEquals("h", currentValue);
             semaphore1.release();
             try {
                 semaphore2.acquire();
@@ -68,9 +67,9 @@ public class ResizeValueTest {
             }
             entry = iterator.next();
             currentValue = valueIterator.next();
-            assertEquals("ZZZZZZZ", entry.getKey());
-            assertEquals(longValue, entry.getValue());
-            assertEquals(longValue, currentValue);
+            Assert.assertEquals("ZZZZZZZ", entry.getKey());
+            Assert.assertEquals(longValue, entry.getValue());
+            Assert.assertEquals(longValue, currentValue);
         });
 
         Thread modifyThread = new Thread(() -> {
@@ -97,14 +96,14 @@ public class ResizeValueTest {
     public void testResizeWithZCGet() {
         oak.zc().put("A", "");
         OakDetachedBuffer buffer = oak.zc().get("A");
-        assertEquals(0, buffer.getInt(0));
+        Assert.assertEquals(0, buffer.getInt(0));
         StringBuilder stringBuilder = new StringBuilder();
         for (int i = 0; i < 100; i++) {
             stringBuilder.append(i);
         }
         String longValue = stringBuilder.toString();
         oak.zc().put("A", longValue);
-        assertEquals(longValue.length(), buffer.getInt(0));
+        Assert.assertEquals(longValue.length(), buffer.getInt(0));
     }
 
     @Test
@@ -119,9 +118,9 @@ public class ResizeValueTest {
         oak.zc().put("A", smallValue);
         oak.zc().put("B", longValue);
         OakDetachedBuffer buffer = oak.zc().get("A");
-        assertEquals(0, buffer.getInt(0));
+        Assert.assertEquals(0, buffer.getInt(0));
 
         oak.zc().put("A", longValue);
-        assertEquals(longValue.length(), buffer.getInt(0));
+        Assert.assertEquals(longValue.length(), buffer.getInt(0));
     }
 }

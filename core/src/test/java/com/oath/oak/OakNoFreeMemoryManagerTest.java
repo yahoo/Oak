@@ -6,12 +6,11 @@
 
 package com.oath.oak;
 
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
 import java.nio.ByteBuffer;
-
-import static org.junit.Assert.assertEquals;
 
 public class OakNoFreeMemoryManagerTest {
 
@@ -29,11 +28,11 @@ public class OakNoFreeMemoryManagerTest {
         ByteBuffer bb;
 
         noFreeMemoryManager.allocate(s, 4, MemoryManager.Allocate.KEY);
-        assertEquals(4, s.getAllocatedLength());
-        assertEquals(4, noFreeMemoryManager.allocated());
+        Assert.assertEquals(4, s.getAllocatedLength());
+        Assert.assertEquals(4, noFreeMemoryManager.allocated());
 
         noFreeMemoryManager.allocate(s, 4, MemoryManager.Allocate.KEY);
-        assertEquals(4, s.getAllocatedLength());
-        assertEquals(8, noFreeMemoryManager.allocated());
+        Assert.assertEquals(4, s.getAllocatedLength());
+        Assert.assertEquals(8, noFreeMemoryManager.allocated());
     }
 }

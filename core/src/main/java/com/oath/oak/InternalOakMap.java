@@ -21,9 +21,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
-import static com.oath.oak.Chunk.*;
-import static com.oath.oak.ValueUtils.ValueResult.*;
-
 class InternalOakMap<K, V> {
 
     /*-------------- Members --------------*/
@@ -40,7 +37,7 @@ class InternalOakMap<K, V> {
     // his map can be closed and memory released.
     private final AtomicInteger referenceCount = new AtomicInteger(1);
     private final ValueUtils valueOperator;
-    final static int MAX_RETRIES = 1024;
+    static final int MAX_RETRIES = 1024;
 
     /*-------------- Constructors --------------*/
 
@@ -139,6 +136,7 @@ class InternalOakMap<K, V> {
 
     /**
      * Should only be called from API methods at the beginning of the method and be reused in internal calls.
+     *
      * @return a context instance.
      */
     ThreadContext getThreadContext() {
@@ -150,18 +148,19 @@ class InternalOakMap<K, V> {
     /**
      * finds and returns the chunk where key should be located, starting from given chunk
      */
-    private Chunk<K, V> iterateChunks(Chunk<K, V> c, K key) {
+    private Chunk<K, V> iterateChunks(final Chunk<K, V> inputChunk, K key) {
         // find chunk following given chunk (next)
-        Chunk<K, V> next = c.next.getReference();
+        Chunk<K, V> curr = inputChunk;
+        Chunk<K, V> next = curr.next.getReference();
 
         // since skiplist isn't updated atomically in split/compaction, our key might belong in the next chunk
         // we need to iterate the chunks until we find the correct one
         while ((next != null) && (comparator.compareKeyAndSerializedKey(key, next.minKey) >= 0)) {
-            c = next;
-            next = c.next.getReference();
+            curr = next;
+            next = curr.next.getReference();
         }
 
-        return c;
+        return curr;
     }
 
     boolean overwriteExistingValueForMove(ThreadContext ctx, V newVal, Chunk<K, V> c) {
@@ -178,7 +177,7 @@ class InternalOakMap<K, V> {
         }
 
         // updating the old entry index
-        if (c.linkValue(ctx) != TRUE) {
+        if (c.linkValue(ctx) != ValueUtils.ValueResult.TRUE) {
             c.releaseNewValue(ctx);
             c.unpublish();
             return false;
@@ -317,8 +316,8 @@ class InternalOakMap<K, V> {
         // for simplicity -  naive lock implementation
         // can be implemented without locks using versions on next pointer in skiplist
         while (iterChildren.hasNext()) {
-            Chunk<K, V> childToAdd;
-            synchronized (childToAdd = iterChildren.next()) {
+            Chunk<K, V> childToAdd = iterChildren.next();
+            synchronized (childToAdd) {
                 if (childToAdd.state() == Chunk.State.INFANT) { // make sure it wasn't add before
                     skiplist.putIfAbsent(childToAdd.minKey, childToAdd);
                     childToAdd.normalize();
@@ -329,13 +328,13 @@ class InternalOakMap<K, V> {
     }
 
     private boolean inTheMiddleOfRebalance(Chunk<K, V> c) {
-        State state = c.state();
-        if (state == State.INFANT) {
+        Chunk.State state = c.state();
+        if (state == Chunk.State.INFANT) {
             // the infant is already connected so rebalancer won't add this put
             rebalance(c.creator());
             return true;
         }
-        if (state == State.FROZEN || state == State.RELEASED) {
+        if (state == Chunk.State.FROZEN || state == Chunk.State.RELEASED) {
             rebalance(c);
             return true;
         }
@@ -358,7 +357,7 @@ class InternalOakMap<K, V> {
      * In case, the linking cannot be done (i.e., a concurrent rebalance), than
      * rebalance is called.
      *
-     * @param c      - the chuck pointed by {@code ctx}
+     * @param c   - the chuck pointed by {@code ctx}
      * @param ctx - holds the value reference, old version, and relevant entry to update
      * @return whether the caller method should restart (if a rebalance was executed).
      */
@@ -393,8 +392,8 @@ class InternalOakMap<K, V> {
                     continue;
                 }
                 Result res = valueOperator.exchange(c, ctx, value, transformer, valueSerializer, memoryManager,
-                    this);
-                if (res.operationResult == TRUE) {
+                        this);
+                if (res.operationResult == ValueUtils.ValueResult.TRUE) {
                     return (V) res.value;
                 }
                 // Exchange failed because the value was deleted/moved between lookup and exchange. Continue with
@@ -452,7 +451,7 @@ class InternalOakMap<K, V> {
                 continue;
             }
 
-            if (c.linkValue(ctx) != TRUE) {
+            if (c.linkValue(ctx) != ValueUtils.ValueResult.TRUE) {
                 c.releaseNewValue(ctx);
                 c.unpublish();
             } else {
@@ -481,10 +480,10 @@ class InternalOakMap<K, V> {
                     continue;
                 }
                 if (transformer == null) {
-                    return ctx.result.withFlag(FALSE);
+                    return ctx.result.withFlag(ValueUtils.ValueResult.FALSE);
                 }
                 Result res = valueOperator.transform(ctx.result, ctx.value, transformer);
-                if (res.operationResult == TRUE) {
+                if (res.operationResult == ValueUtils.ValueResult.TRUE) {
                     return res;
                 }
                 continue;
@@ -532,10 +531,10 @@ class InternalOakMap<K, V> {
                     boolean isAllocated = c.readValueFromEntryIndex(ctx.tempValue, prevEi);
                     if (isAllocated) {
                         if (transformer == null) {
-                            return ctx.result.withFlag(FALSE);
+                            return ctx.result.withFlag(ValueUtils.ValueResult.FALSE);
                         }
                         Result res = valueOperator.transform(ctx.result, ctx.tempValue, transformer);
-                        if (res.operationResult == TRUE) {
+                        if (res.operationResult == ValueUtils.ValueResult.TRUE) {
                             return res;
                         }
                         continue;
@@ -554,13 +553,13 @@ class InternalOakMap<K, V> {
                 continue;
             }
 
-            if (c.linkValue(ctx) != TRUE) {
+            if (c.linkValue(ctx) != ValueUtils.ValueResult.TRUE) {
                 c.releaseNewValue(ctx);
                 c.unpublish();
             } else {
                 c.unpublish();
                 checkRebalance(c);
-                return ctx.result.withFlag(TRUE);
+                return ctx.result.withFlag(ValueUtils.ValueResult.TRUE);
             }
         }
 
@@ -582,11 +581,11 @@ class InternalOakMap<K, V> {
                     continue;
                 }
                 ValueUtils.ValueResult res = valueOperator.compute(ctx.value, computer);
-                if (res == TRUE) {
+                if (res == ValueUtils.ValueResult.TRUE) {
                     // compute was successful and the value wasn't found deleted; in case
                     // this value was already found as deleted, continue to allocate a new value slice
                     return false;
-                } else if (res == RETRY) {
+                } else if (res == ValueUtils.ValueResult.RETRY) {
                     continue;
                 }
             }
@@ -644,7 +643,7 @@ class InternalOakMap<K, V> {
                 continue;
             }
 
-            if (c.linkValue(ctx) != TRUE) {
+            if (c.linkValue(ctx) != ValueUtils.ValueResult.TRUE) {
                 c.releaseNewValue(ctx);
                 c.unpublish();
             } else {
@@ -676,10 +675,10 @@ class InternalOakMap<K, V> {
             if (!ctx.isKeyValid()) {
                 // There is no such key. If we did logical deletion and someone else did the physical deletion,
                 // then the old value is saved in v. Otherwise v is (correctly) null
-                return transformer == null ? ctx.result.withFlag(logicallyDeleted ? TRUE : FALSE) : ctx.result.withValue(v);
+                return transformer == null ? ctx.result.withFlag(logicallyDeleted) : ctx.result.withValue(v);
             } else if (!ctx.isValueValid()) {
                 if (!c.finalizeDeletion(ctx)) {
-                    return transformer == null ? ctx.result.withFlag(logicallyDeleted ? TRUE : FALSE) : ctx.result.withValue(v);
+                    return transformer == null ? ctx.result.withFlag(logicallyDeleted) : ctx.result.withValue(v);
                 }
                 rebalance(c);
                 continue;
@@ -692,15 +691,15 @@ class InternalOakMap<K, V> {
             if (logicallyDeleted) {
                 // This is the case where we logically deleted this entry (marked the value as deleted), but someone
                 // reused the entry before we unlinked it. We have the previous value saved in v.
-                return transformer == null ? ctx.result.withFlag(TRUE) : ctx.result.withValue(v);
+                return transformer == null ? ctx.result.withFlag(ValueUtils.ValueResult.TRUE) : ctx.result.withValue(v);
             } else {
                 Result removeResult = valueOperator.remove(ctx, memoryManager,
                         oldValue, transformer);
-                if (removeResult.operationResult == FALSE) {
+                if (removeResult.operationResult == ValueUtils.ValueResult.FALSE) {
                     // we didn't succeed to remove the value: it didn't contain oldValue, or was already marked
                     // as deleted by someone else)
-                    return ctx.result.withFlag(FALSE);
-                } else if (removeResult.operationResult == RETRY) {
+                    return ctx.result.withFlag(ValueUtils.ValueResult.FALSE);
+                } else if (removeResult.operationResult == ValueUtils.ValueResult.RETRY) {
                     continue;
                 }
                 // we have marked this value as deleted (successful remove)
@@ -760,11 +759,11 @@ class InternalOakMap<K, V> {
                     continue;
                 }
                 ValueUtils.ValueResult res = valueOperator.compute(ctx.value, computer);
-                if (res == TRUE) {
+                if (res == ValueUtils.ValueResult.TRUE) {
                     // compute was successful and the value wasn't found deleted; in case
                     // this value was already marked as deleted, continue to construct another slice
                     return true;
-                } else if (res == RETRY) {
+                } else if (res == ValueUtils.ValueResult.RETRY) {
                     continue;
                 }
             }
@@ -780,7 +779,7 @@ class InternalOakMap<K, V> {
      *
      * @param ctx The context key should be initialized with the key to refresh, and the context value
      *            will be updated with the refreshed value.
-     * @reutrn    true if the refresh was successful.
+     * @reutrn true if the refresh was successful.
      */
     boolean refreshValuePosition(ThreadContext ctx) {
         K deserializedKey = keySerializer.deserialize(ctx.key);
@@ -807,7 +806,7 @@ class InternalOakMap<K, V> {
      *
      * @param keySlice   the key to refresh
      * @param valueSlice the output value to update
-     * @return           true if the refresh was successful.
+     * @return true if the refresh was successful.
      */
     boolean refreshValuePosition(Slice keySlice, Slice valueSlice) {
         ThreadContext ctx = getThreadContext();
@@ -845,7 +844,7 @@ class InternalOakMap<K, V> {
                 continue;
             }
             Result res = valueOperator.transform(ctx.result, ctx.value, transformer);
-            if (res.operationResult == RETRY) {
+            if (res.operationResult == ValueUtils.ValueResult.RETRY) {
                 continue;
             }
             return (T) res.value;
@@ -939,7 +938,7 @@ class InternalOakMap<K, V> {
             // will return null if the value is deleted
             Result result = valueOperator.exchange(c, ctx, value, valueDeserializeTransformer, valueSerializer,
                     memoryManager, this);
-            if (result.operationResult != RETRY) {
+            if (result.operationResult != ValueUtils.ValueResult.RETRY) {
                 return (V) result.value;
             }
         }
@@ -959,10 +958,10 @@ class InternalOakMap<K, V> {
 
             ValueUtils.ValueResult res = valueOperator.compareExchange(c, ctx, oldValue, newValue,
                     valueDeserializeTransformer, valueSerializer, memoryManager, this);
-            if (res == RETRY) {
+            if (res == ValueUtils.ValueResult.RETRY) {
                 continue;
             }
-            return res == TRUE;
+            return res == ValueUtils.ValueResult.TRUE;
         }
 
         throw new RuntimeException("replace failed: reached retry limit (1024).");
@@ -1000,12 +999,12 @@ class InternalOakMap<K, V> {
 
         // get value associated with this (prev) key
         boolean isAllocated = c.readValueFromEntryIndex(ctx.value, prevIndex);
-        if (!isAllocated){ // value reference was invalid, try again
+        if (!isAllocated) { // value reference was invalid, try again
             return lowerEntry(key);
         }
         Result valueDeserialized = valueOperator.transform(ctx.result, ctx.value,
                 valueSerializer::deserialize);
-        if (valueDeserialized.operationResult != TRUE) {
+        if (valueDeserialized.operationResult != ValueUtils.ValueResult.TRUE) {
             return lowerEntry(key);
         }
         return new AbstractMap.SimpleImmutableEntry<>(keyDeserialized, (V) valueDeserialized.value);
@@ -1021,7 +1020,7 @@ class InternalOakMap<K, V> {
         return new OakDetachedReadValueBufferSynced(ctx.key, ctx.value, valueOperator, InternalOakMap.this);
     }
 
-    private static class IteratorState<K, V> {
+    private static final class IteratorState<K, V> {
 
         private Chunk<K, V> chunk;
         private Chunk.ChunkIter chunkIter;
@@ -1052,7 +1051,7 @@ class InternalOakMap<K, V> {
         }
 
         static <K, V> IteratorState<K, V> newInstance(Chunk<K, V> nextChunk, Chunk.ChunkIter nextChunkIter) {
-            return new IteratorState<>(nextChunk, nextChunkIter, NONE_NEXT);
+            return new IteratorState<>(nextChunk, nextChunkIter, Chunk.NONE_NEXT);
         }
 
     }
@@ -1110,15 +1109,19 @@ class InternalOakMap<K, V> {
         }
 
         boolean tooLow(OakReadBuffer key) {
-            int c;
-            return (lo != null && ((c = comparator.compareKeyAndSerializedKey(lo, key)) > 0 ||
-                    (c == 0 && !loInclusive)));
+            if (lo == null) {
+                return false;
+            }
+            int c = comparator.compareKeyAndSerializedKey(lo, key);
+            return c > 0 || (c == 0 && !loInclusive);
         }
 
         boolean tooHigh(OakReadBuffer key) {
-            int c;
-            return (hi != null && ((c = comparator.compareKeyAndSerializedKey(hi, key)) < 0 ||
-                    (c == 0 && !hiInclusive)));
+            if (hi == null) {
+                return false;
+            }
+            int c = comparator.compareKeyAndSerializedKey(hi, key);
+            return c < 0 || (c == 0 && !hiInclusive);
         }
 
 
@@ -1153,7 +1156,7 @@ class InternalOakMap<K, V> {
 
 
         // the actual next()
-        abstract public T next();
+        public abstract T next();
 
         /**
          * Advances next to higher entry.
@@ -1359,7 +1362,8 @@ class InternalOakMap<K, V> {
 
     class ValueStreamIterator extends Iter<OakDetachedBuffer> {
 
-        private final OakDetachedReadBuffer<ValueBuffer> value = new OakDetachedReadBuffer<>(new ValueBuffer(valueOperator));
+        private final OakDetachedReadBuffer<ValueBuffer> value =
+                new OakDetachedReadBuffer<>(new ValueBuffer(valueOperator));
 
         ValueStreamIterator(K lo, boolean loInclusive, K hi, boolean hiInclusive, boolean isDescending) {
             super(lo, loInclusive, hi, hiInclusive, isDescending);
@@ -1386,11 +1390,10 @@ class InternalOakMap<K, V> {
             advance(true);
             Result res = valueOperator.transform(ctx.result, ctx.value, transformer);
             // If this value is deleted, try the next one
-            if (res.operationResult == FALSE) {
+            if (res.operationResult == ValueUtils.ValueResult.FALSE) {
                 return next();
-            }
-            // if the value was moved, fetch it from the
-            else if (res.operationResult == RETRY) {
+            } else if (res.operationResult == ValueUtils.ValueResult.RETRY) {
+                // if the value was moved, fetch it from the
                 T result = getValueTransformation(ctx.key, transformer);
                 if (result == null) {
                     // the value was deleted, try the next one
@@ -1418,10 +1421,12 @@ class InternalOakMap<K, V> {
         }
     }
 
-    class EntryStreamIterator extends Iter<Map.Entry<OakDetachedBuffer, OakDetachedBuffer>> implements Map.Entry<OakDetachedBuffer, OakDetachedBuffer> {
+    class EntryStreamIterator extends Iter<Map.Entry<OakDetachedBuffer, OakDetachedBuffer>>
+            implements Map.Entry<OakDetachedBuffer, OakDetachedBuffer> {
 
         private final OakDetachedReadBuffer<KeyBuffer> key = new OakDetachedReadBuffer<>(new KeyBuffer());
-        private final OakDetachedReadBuffer<ValueBuffer> value = new OakDetachedReadBuffer<>(new ValueBuffer(valueOperator));
+        private final OakDetachedReadBuffer<ValueBuffer> value =
+                new OakDetachedReadBuffer<>(new ValueBuffer(valueOperator));
 
         EntryStreamIterator(K lo, boolean loInclusive, K hi, boolean hiInclusive, boolean isDescending) {
             super(lo, loInclusive, hi, hiInclusive, isDescending);
@@ -1462,16 +1467,16 @@ class InternalOakMap<K, V> {
         public T next() {
             advance(true);
             ValueUtils.ValueResult res = valueOperator.lockRead(ctx.value);
-            if (res == FALSE) {
+            if (res == ValueUtils.ValueResult.FALSE) {
                 return next();
-            } else if (res == RETRY) {
+            } else if (res == ValueUtils.ValueResult.RETRY) {
                 do {
                     boolean isSuccessful = refreshValuePosition(ctx);
                     if (!isSuccessful) {
                         return next();
                     }
                     res = valueOperator.lockRead(ctx.value);
-                } while (res != TRUE);
+                } while (res != ValueUtils.ValueResult.TRUE);
             }
             Map.Entry<OakReadBuffer, OakReadBuffer> entry = new AbstractMap.SimpleEntry<>(ctx.key, ctx.value);
 
@@ -1534,8 +1539,9 @@ class InternalOakMap<K, V> {
         return new ValueIterator(lo, loInclusive, hi, hiInclusive, isDescending, this);
     }
 
-    Iterator<Map.Entry<OakDetachedBuffer, OakDetachedBuffer>> entriesBufferViewIterator(K lo, boolean loInclusive, K hi,
-                                                                                        boolean hiInclusive, boolean isDescending) {
+    Iterator<Map.Entry<OakDetachedBuffer, OakDetachedBuffer>> entriesBufferViewIterator(K lo, boolean loInclusive,
+                                                                                        K hi, boolean hiInclusive,
+                                                                                        boolean isDescending) {
         return new EntryIterator(lo, loInclusive, hi, hiInclusive, isDescending, this);
     }
 
@@ -1549,8 +1555,9 @@ class InternalOakMap<K, V> {
         return new ValueStreamIterator(lo, loInclusive, hi, hiInclusive, isDescending);
     }
 
-    Iterator<Map.Entry<OakDetachedBuffer, OakDetachedBuffer>> entriesStreamIterator(K lo, boolean loInclusive, K hi,
-                                                                                    boolean hiInclusive, boolean isDescending) {
+    Iterator<Map.Entry<OakDetachedBuffer, OakDetachedBuffer>> entriesStreamIterator(K lo, boolean loInclusive,
+                                                                                    K hi, boolean hiInclusive,
+                                                                                    boolean isDescending) {
         return new EntryStreamIterator(lo, loInclusive, hi, hiInclusive, isDescending);
     }
 

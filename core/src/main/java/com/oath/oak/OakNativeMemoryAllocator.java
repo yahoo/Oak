@@ -49,7 +49,7 @@ class OakNativeMemoryAllocator implements OakBlockMemoryAllocator {
 
     // constructor
     // input param: memory capacity given to this Oak. Uses default BlocksPool
-    public OakNativeMemoryAllocator(long capacity) {
+    OakNativeMemoryAllocator(long capacity) {
         this(capacity, BlocksPool.getInstance());
     }
 
@@ -231,11 +231,11 @@ class OakNativeMemoryAllocator implements OakBlockMemoryAllocator {
         return stats;
     }
 
-    public static class Stats {
-        public int reclaimedBuffers;
-        public int releasedBuffers;
-        public long releasedBytes;
-        public long reclaimedBytes;
+    static class Stats {
+        int reclaimedBuffers;
+        int releasedBuffers;
+        long releasedBytes;
+        long reclaimedBytes;
 
         public void release(int size) {
             synchronized (this) {

@@ -6,7 +6,10 @@
 
 package com.oath.oak;
 
-import java.util.*;
+import java.util.Iterator;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.ListIterator;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -177,15 +180,17 @@ class Rebalancer<K, V> {
         return counter < maxCount;
     }
 
-    private void completeCopy(ValueBuffer tempValue, Chunk<K, V> dest, int ei, List<Chunk<K, V>> srcChunks) {
+    private void completeCopy(ValueBuffer tempValue, Chunk<K, V> dest, final int ei, List<Chunk<K, V>> srcChunks) {
+        final int maxItems = dest.getMaxItems();
         Iterator<Chunk<K, V>> iter = srcChunks.iterator();
+
         Chunk<K, V> src = iter.next();
-        int maxItems = src.getMaxItems();
         dest.copyPartNoKeys(tempValue, src, ei, maxItems);
+
         while (iter.hasNext()) {
-            src = iter.next();
-            ei = src.getFirstItemEntryIndex();
-            dest.copyPartNoKeys(tempValue, src, ei, maxItems);
+            Chunk<K, V> curSrc = iter.next();
+            int curEntryIndex = src.getFirstItemEntryIndex();
+            dest.copyPartNoKeys(tempValue, curSrc, curEntryIndex, maxItems);
         }
     }
 
@@ -240,7 +245,8 @@ class Rebalancer<K, V> {
      */
     private boolean isCandidate(Chunk<K, V> chunk) {
         // do not take chunks that are engaged with another rebalancer or infant
-        return chunk != null && chunk.isEngaged(null) && (chunk.state() != Chunk.State.INFANT) && (chunk.state() != Chunk.State.RELEASED);
+        return chunk != null && chunk.isEngaged(null) && (chunk.state() != Chunk.State.INFANT) &&
+                (chunk.state() != Chunk.State.RELEASED);
     }
 
     private List<Chunk<K, V>> createEngagedList() {
