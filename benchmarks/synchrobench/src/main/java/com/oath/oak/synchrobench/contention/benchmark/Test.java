@@ -95,25 +95,26 @@ public class Test {
     };
 
     public long fill(final int range, final long size) {
+        if (benchType != Type.OAKMAP) {
+            System.err.println("Wrong benchmark type");
+            System.exit(0);
+        }
+
         long operations = 0;
+        final Random localRand = s_random.get();
+
         for (long i = size; i > 0; ) {
-            Integer v = s_random.get().nextInt(range);
-            switch (benchType) {
-                case OAKMAP:
-                    MyBuffer key = new MyBuffer(Parameters.keySize);
-                    key.buffer.putInt(0, v);
-                    MyBuffer val = new MyBuffer(Parameters.valSize);
-                    val.buffer.putInt(0, v);
-                    if (oakBench.putIfAbsentOak(key, val)) {
-                        i--;
-                    }
-                    // counts all the putIfAbsent operations, not only the successful ones
-                    operations++;
-                    break;
-                default:
-                    System.err.println("Wrong benchmark type");
-                    System.exit(0);
+            int v = localRand.nextInt(range);
+
+            MyBuffer key = new MyBuffer(Parameters.keySize);
+            key.buffer.putInt(0, v);
+            MyBuffer val = new MyBuffer(Parameters.valSize);
+            val.buffer.putInt(0, v);
+            if (oakBench.putIfAbsentOak(key, val)) {
+                i--;
             }
+            // counts all the putIfAbsent operations, not only the successful ones
+            operations++;
         }
         return operations;
     }
@@ -183,16 +184,22 @@ public class Test {
 
     private void printHeapStats(String message) {
         System.gc();
-        long heapSize = Runtime.getRuntime().totalMemory(); // Get current size of heap in bytes
-        long heapFreeSize = Runtime.getRuntime().freeMemory();
+        float heapSize = Runtime.getRuntime().totalMemory(); // Get current size of heap in bytes
+        float heapFreeSize = Runtime.getRuntime().freeMemory();
+        final float gb = (float) (1L << 30);
 
-        System.out.println("\n" + message);
-        System.out.println((float) (heapSize - heapFreeSize) / (1024 * 1024));
+        float allocated = Float.NaN;
         try {
-            System.out.println((float) (((OakMyBufferMap) oakBench).allocated()) / (1024 * 1024));
+            allocated = ((OakMyBufferMap) oakBench).allocated();
         } catch (ClassCastException ignored) {
-            System.out.println("Cannot Print Off-Heap Stats for non-Oak Maps.");
+            System.out.println("Cannot fetch off-heap stats for non-Oak maps.");
         }
+
+        System.out.println(); // Extra line space
+        System.out.println(message);
+        System.out.format("      Heap Total: %.4f GB\n",  heapSize / gb);
+        System.out.format("      Heap Usage: %.4f GB\n", (heapSize - heapFreeSize) / gb);
+        System.out.format("  Off-Heap Usage: %.4f GB\n", allocated / gb);
     }
 
     /**
@@ -202,12 +209,12 @@ public class Test {
      */
     private void execute(int milliseconds, boolean maint)
             throws InterruptedException {
-        printHeapStats("Before");
+        printHeapStats("Before initial fill");
         long startTime = System.currentTimeMillis();
         long count = fill(Parameters.range, Parameters.size);
         double initTime = ((double) (System.currentTimeMillis() - startTime)) / 1000.0;
         System.out.println("Initialization complete in (s) " + initTime + " operations " + count);
-        printHeapStats("After");
+        printHeapStats("After initial fill, before benchmark");
 
 //        Thread.sleep(5000);
         startTime = System.currentTimeMillis();
@@ -228,6 +235,7 @@ public class Test {
 
         long endTime = System.currentTimeMillis();
         elapsedTime = ((double) (endTime - startTime)) / 1000.0;
+        printHeapStats("After benchmark");
     }
 
     public void clear() {
