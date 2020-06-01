@@ -1,26 +1,28 @@
 <?xml version="1.0" ?>
 
 <!DOCTYPE module PUBLIC
-        "-//Puppy Crawl//DTD Check Configuration 1.2//EN"
-        "http://www.puppycrawl.com/dtds/configuration_1_2.dtd">
+        "-//Checkstyle//DTD Checkstyle Configuration 1.2//EN"
+        "https://checkstyle.org/dtds/configuration_1_2.dtd">
 
 <module name="Checker">
     <!-- Checks whether files end with a line separator. -->
     <!-- https://checkstyle.sourceforge.io/config_misc.html#NewlineAtEndOfFile -->
     <module name="NewlineAtEndOfFile"/>
+
     <!-- Checks that there are no tab characters ('\t') in the source code. -->
     <!-- https://checkstyle.sourceforge.io/config_whitespace.html#FileTabCharacter -->
     <module name="FileTabCharacter"/>
+
+    <!-- Checks for long lines -->
+    <!-- https://checkstyle.sourceforge.io/config_sizes.html#LineLength -->
+    <module name="LineLength">
+        <property name="max" value="120"/>
+    </module>
 
     <module name="TreeWalker">
         <!-- ################################################################################
              Size Violations: https://checkstyle.sourceforge.io/config_sizes.html
              ################################################################################ -->
-
-        <!-- Checks for long lines -->
-        <module name="LineLength">
-            <property name="max" value="120"/>
-        </module>
 
         <!-- Checks the number of parameters of a method or constructor. -->
         <module name="ParameterNumber">
