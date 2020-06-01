@@ -7,14 +7,13 @@
 package com.oath.oak;
 
 import java.util.ConcurrentModificationException;
-import java.util.function.Function;
 
 /**
  * This class is used for when a detached access to the value is needed with synchronization:
  *  - zero-copy get operation
  *  - ValueIterator
  *  - EntryIterator (for values)
- *
+ * <p>
  * It extends the non-synchronized version, and overrides the safeAccessToAttachedBuffer() method to perform
  * synchronization before any access to the data.
  */

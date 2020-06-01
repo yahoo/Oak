@@ -12,7 +12,7 @@ import java.nio.ByteOrder;
  * This buffer may represent either a key or a value for read access.
  * It mimic the standard interface of Java's ByteBuffer, for example, int getInt(int index), char getChar(int index),
  * capacity(), etc.
- *
+ * <p>
  * It is attached to the scope of the callback method it were first introduced to the user.
  * The behaviour of this buffer outside their attached scope is undefined.
  * Such callback method might be the application's serializer and comparator, or a lambda function that can

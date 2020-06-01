@@ -2,16 +2,7 @@ package com.oath.oak;
 
 import sun.misc.Unsafe;
 
-import java.nio.ByteBuffer;
 import java.util.function.Consumer;
-
-import static com.oath.oak.ValueUtilsImpl.LockStates.DELETED;
-import static com.oath.oak.ValueUtilsImpl.LockStates.FREE;
-import static com.oath.oak.ValueUtilsImpl.LockStates.LOCKED;
-import static com.oath.oak.ValueUtilsImpl.LockStates.MOVED;
-import static com.oath.oak.ValueUtils.ValueResult.FALSE;
-import static com.oath.oak.ValueUtils.ValueResult.RETRY;
-import static com.oath.oak.ValueUtils.ValueResult.TRUE;
 
 class ValueUtilsImpl implements ValueUtils {
     enum LockStates {
@@ -30,7 +21,7 @@ class ValueUtilsImpl implements ValueUtils {
 
     private static Unsafe unsafe = UnsafeUtils.unsafe;
 
-    private static boolean CAS(Slice s, int expectedLock, int newLock, int version) {
+    private static boolean cas(Slice s, int expectedLock, int newLock, int version) {
         long address = s.getMetadataAddress();
 
         // Since the writing is done directly to the memory, the endianness of the memory is important here.
@@ -43,7 +34,7 @@ class ValueUtilsImpl implements ValueUtils {
     @Override
     public <T> Result transform(Result result, ValueBuffer value, OakTransformer<T> transformer) {
         ValueResult ret = lockRead(value);
-        if (ret != TRUE) {
+        if (ret != ValueResult.TRUE) {
             return result.withFlag(ret);
         }
 
@@ -59,7 +50,7 @@ class ValueUtilsImpl implements ValueUtils {
     public <V> ValueResult put(Chunk<?, V> chunk, ThreadContext ctx, V newVal, OakSerializer<V> serializer,
                                MemoryManager memoryManager, InternalOakMap internalOakMap) {
         ValueResult result = lockWrite(ctx.value);
-        if (result != TRUE) {
+        if (result != ValueResult.TRUE) {
             return result;
         }
         result = innerPut(chunk, ctx, newVal, serializer, memoryManager, internalOakMap);
@@ -77,7 +68,7 @@ class ValueUtilsImpl implements ValueUtils {
             return moveValue(chunk, ctx, memoryManager, internalOakMap, newVal);
         }
         OakAttachedWriteBuffer.serialize(ctx.value, newVal, serializer);
-        return TRUE;
+        return ValueResult.TRUE;
     }
 
     private <V> ValueResult moveValue(
@@ -87,21 +78,21 @@ class ValueUtilsImpl implements ValueUtils {
         boolean moved = internalOakMap.overwriteExistingValueForMove(ctx, newVal, chunk);
         if (!moved) {
             // rebalance was needed or the entry was updated by someone else, need to retry
-            return RETRY;
+            return ValueResult.RETRY;
         }
         // can not release the old slice or mark it moved, before the new one is updated!
-        setLockState(ctx.value, MOVED);
+        setLockState(ctx.value, LockStates.MOVED);
         // currently the slices which value was moved aren't going to be released, to keep the MOVED mark
         // TODO: deal with the reallocation of the moved memory
 
         ctx.value.copyFrom(ctx.newValue);
-        return TRUE;
+        return ValueResult.TRUE;
     }
 
     @Override
     public ValueResult compute(ValueBuffer value, Consumer<OakWriteBuffer> computer) {
         ValueResult result = lockWrite(value);
-        if (result != TRUE) {
+        if (result != ValueResult.TRUE) {
             return result;
         }
 
@@ -111,7 +102,7 @@ class ValueUtilsImpl implements ValueUtils {
             unlockWrite(value);
         }
 
-        return TRUE;
+        return ValueResult.TRUE;
     }
 
     @Override
@@ -121,7 +112,7 @@ class ValueUtilsImpl implements ValueUtils {
         if (oldValue == null) {
             // try to delete
             ValueResult result = deleteValue(ctx.value);
-            if (result != TRUE) {
+            if (result != ValueResult.TRUE) {
                 return ctx.result.withFlag(result);
             }
             // Now the value is deleted, and all other threads will treat it as deleted, but it is not yet freed, so
@@ -135,17 +126,17 @@ class ValueUtilsImpl implements ValueUtils {
             // one.
             // We start by acquiring a write lock for reading since we do not want concurrent reads.
             ValueResult result = lockWrite(ctx.value);
-            if (result != TRUE) {
+            if (result != ValueResult.TRUE) {
                 return ctx.result.withFlag(result);
             }
             V v = transformer.apply(ctx.value);
             // This is where we check the equality between the expected value and the actual value
             if (!oldValue.equals(v)) {
                 unlockWrite(ctx.value);
-                return ctx.result.withFlag(FALSE);
+                return ctx.result.withFlag(ValueResult.FALSE);
             }
             // both values match so the value is marked as deleted. No need for a CAS since a write lock is exclusive
-            setLockState(ctx.value, DELETED);
+            setLockState(ctx.value, LockStates.DELETED);
             // delete the value in the entry happens next and the slice will be released as part of it
             // slice can be released only after the entry is marked appropriately
             return ctx.result.withValue(v);
@@ -157,7 +148,7 @@ class ValueUtilsImpl implements ValueUtils {
                                OakTransformer<V> valueDeserializeTransformer, OakSerializer<V> serializer,
                                MemoryManager memoryManager, InternalOakMap internalOakMap) {
         ValueResult result = lockWrite(ctx.value);
-        if (result != TRUE) {
+        if (result != ValueResult.TRUE) {
             return ctx.result.withFlag(result);
         }
         V oldValue = null;
@@ -169,7 +160,7 @@ class ValueUtilsImpl implements ValueUtils {
         // Alternatively, if returned result is RETRY, a rebalance might be needed
         // or the entry might be updated by someone else, need to retry
         unlockWrite(ctx.value);
-        return result == TRUE ? ctx.result.withValue(oldValue) : ctx.result.withFlag(RETRY);
+        return result == ValueResult.TRUE ? ctx.result.withValue(oldValue) : ctx.result.withFlag(ValueResult.RETRY);
     }
 
     @Override
@@ -177,13 +168,13 @@ class ValueUtilsImpl implements ValueUtils {
                                            OakTransformer<V> valueDeserializeTransformer, OakSerializer<V> serializer,
                                            MemoryManager memoryManager, InternalOakMap internalOakMap) {
         ValueResult result = lockWrite(ctx.value);
-        if (result != TRUE) {
+        if (result != ValueResult.TRUE) {
             return result;
         }
         V oldValue = valueDeserializeTransformer.apply(ctx.value);
         if (!oldValue.equals(expected)) {
             unlockWrite(ctx.value);
-            return FALSE;
+            return ValueResult.FALSE;
         }
         result = innerPut(chunk, ctx, value, serializer, memoryManager, internalOakMap);
         // in case move happened: ctx.value might be set to a new allocation.
@@ -222,15 +213,15 @@ class ValueUtilsImpl implements ValueUtils {
             if (oldVersion != getOffHeapVersion(s)) {
                 return ValueResult.RETRY;
             }
-            if (lockState == DELETED.value) {
+            if (lockState == LockStates.DELETED.value) {
                 return ValueResult.FALSE;
             }
-            if (lockState == MOVED.value) {
-                return RETRY;
+            if (lockState == LockStates.MOVED.value) {
+                return ValueResult.RETRY;
             }
             lockState &= ~LOCK_MASK;
-        } while (!CAS(s, lockState, lockState + (1 << LOCK_SHIFT), version));
-        return TRUE;
+        } while (!cas(s, lockState, lockState + (1 << LOCK_SHIFT), version));
+        return ValueResult.TRUE;
     }
 
     @Override
@@ -240,10 +231,10 @@ class ValueUtilsImpl implements ValueUtils {
         assert version > EntrySet.INVALID_VERSION;
         do {
             lockState = getLockState(s);
-            assert lockState > MOVED.value;
+            assert lockState > LockStates.MOVED.value;
             lockState &= ~LOCK_MASK;
-        } while (!CAS(s, lockState, lockState - (1 << LOCK_SHIFT), version));
-        return TRUE;
+        } while (!cas(s, lockState, lockState - (1 << LOCK_SHIFT), version));
+        return ValueResult.TRUE;
     }
 
     @Override
@@ -259,20 +250,20 @@ class ValueUtilsImpl implements ValueUtils {
             if (oldVersion != getOffHeapVersion(s)) {
                 return ValueResult.RETRY;
             }
-            if (lockState == DELETED.value) {
+            if (lockState == LockStates.DELETED.value) {
                 return ValueResult.FALSE;
             }
-            if (lockState == MOVED.value) {
-                return RETRY;
+            if (lockState == LockStates.MOVED.value) {
+                return ValueResult.RETRY;
             }
-        } while (!CAS(s, FREE.value, LOCKED.value, version));
-        return TRUE;
+        } while (!cas(s, LockStates.FREE.value, LockStates.LOCKED.value, version));
+        return ValueResult.TRUE;
     }
 
     @Override
     public ValueResult unlockWrite(Slice s) {
-        setLockState(s, FREE);
-        return TRUE;
+        setLockState(s, LockStates.FREE);
+        return ValueResult.TRUE;
     }
 
     @Override
@@ -288,14 +279,14 @@ class ValueUtilsImpl implements ValueUtils {
             if (oldVersion != getOffHeapVersion(s)) {
                 return ValueResult.RETRY;
             }
-            if (lockState == DELETED.value) {
+            if (lockState == LockStates.DELETED.value) {
                 return ValueResult.FALSE;
             }
-            if (lockState == MOVED.value) {
-                return RETRY;
+            if (lockState == LockStates.MOVED.value) {
+                return ValueResult.RETRY;
             }
-        } while (!CAS(s, FREE.value, DELETED.value, version));
-        return TRUE;
+        } while (!cas(s, LockStates.FREE.value, LockStates.DELETED.value, version));
+        return ValueResult.TRUE;
     }
 
     @Override
@@ -309,11 +300,11 @@ class ValueUtilsImpl implements ValueUtils {
         if (oldVersion != getOffHeapVersion(s)) {
             return ValueResult.RETRY;
         }
-        if (lockState == MOVED.value) {
+        if (lockState == LockStates.MOVED.value) {
             return ValueResult.RETRY;
         }
-        if (lockState == DELETED.value) {
-            return TRUE;
+        if (lockState == LockStates.DELETED.value) {
+            return ValueResult.TRUE;
         }
         return ValueResult.FALSE;
     }
@@ -337,12 +328,12 @@ class ValueUtilsImpl implements ValueUtils {
 
     @Override
     public void initHeader(Slice s) {
-        initHeader(s, FREE);
+        initHeader(s, LockStates.FREE);
     }
 
     @Override
     public void initLockedHeader(Slice s) {
-        initHeader(s, LOCKED);
+        initHeader(s, LockStates.LOCKED);
     }
 
     private void initHeader(Slice s, ValueUtilsImpl.LockStates state) {

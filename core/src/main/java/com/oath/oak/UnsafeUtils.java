@@ -1,10 +1,8 @@
 package com.oath.oak;
 
 import sun.misc.Unsafe;
-import sun.nio.ch.DirectBuffer;
 
 import java.lang.reflect.Constructor;
-import java.nio.ByteBuffer;
 
 final class UnsafeUtils {
 

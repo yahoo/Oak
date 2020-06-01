@@ -1,15 +1,12 @@
 package com.oath.oak;
 
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
-import java.nio.ByteBuffer;
 import java.util.Random;
 import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CyclicBarrier;
-
-import static com.oath.oak.ValueUtils.ValueResult.*;
-import static org.junit.Assert.*;
 
 public class ValueUtilsTest {
     private NovaManager novaManager;
@@ -40,10 +37,10 @@ public class ValueUtilsTest {
         putInt(4, 20);
         putInt(8, 30);
 
-        Result result = valueOperator.transform(new Result(), s,
-                byteBuffer -> byteBuffer.getInt(0) + byteBuffer.getInt(4) + byteBuffer.getInt(8));
-        assertEquals(TRUE, result.operationResult);
-        assertEquals(60, ((Integer) result.value).intValue());
+        Result result = valueOperator.transform(new Result(), s, byteBuffer -> byteBuffer.getInt(0)
+                + byteBuffer.getInt(4) + byteBuffer.getInt(8));
+        Assert.assertEquals(ValueUtils.ValueResult.TRUE, result.operationResult);
+        Assert.assertEquals(60, ((Integer) result.value).intValue());
     }
 
     @Test(expected = IndexOutOfBoundsException.class)
@@ -68,10 +65,10 @@ public class ValueUtilsTest {
                 e.printStackTrace();
             }
             Result result = valueOperator.transform(new Result(), s, byteBuffer -> byteBuffer.getInt(4));
-            assertEquals(TRUE, result.operationResult);
-            assertEquals(randomValue, ((Integer) result.value).intValue());
+            Assert.assertEquals(ValueUtils.ValueResult.TRUE, result.operationResult);
+            Assert.assertEquals(randomValue, ((Integer) result.value).intValue());
         });
-        assertEquals(TRUE, valueOperator.lockWrite(s));
+        Assert.assertEquals(ValueUtils.ValueResult.TRUE, valueOperator.lockWrite(s));
         transformer.start();
         try {
             barrier.await();
@@ -101,8 +98,8 @@ public class ValueUtilsTest {
                 }
                 int index = new Random().nextInt(3) * 4;
                 Result result = valueOperator.transform(new Result(), s, byteBuffer -> byteBuffer.getInt(index));
-                assertEquals(TRUE, result.operationResult);
-                assertEquals(10 + index, ((Integer) result.value).intValue());
+                Assert.assertEquals(ValueUtils.ValueResult.TRUE, result.operationResult);
+                Assert.assertEquals(10 + index, ((Integer) result.value).intValue());
             });
             threads[i].start();
         }
@@ -119,14 +116,14 @@ public class ValueUtilsTest {
     public void cannotTransformDeletedTest() {
         valueOperator.deleteValue(s);
         Result result = valueOperator.transform(new Result(), s, byteBuffer -> byteBuffer.getInt(0));
-        assertEquals(FALSE, result.operationResult);
+        Assert.assertEquals(ValueUtils.ValueResult.FALSE, result.operationResult);
     }
 
     @Test
     public void cannotTransformedDifferentVersionTest() {
         s.setVersion(2);
         Result result = valueOperator.transform(new Result(), s, byteBuffer -> byteBuffer.getInt(0));
-        assertEquals(RETRY, result.operationResult);
+        Assert.assertEquals(ValueUtils.ValueResult.RETRY, result.operationResult);
     }
 
     @Test
@@ -136,7 +133,7 @@ public class ValueUtilsTest {
         for (int i = 0; i < randomValues.length; i++) {
             randomValues[i] = random.nextInt();
         }
-        assertEquals(TRUE, valueOperator.put(null, ctx, 10, new OakSerializer<Integer>() {
+        Assert.assertEquals(ValueUtils.ValueResult.TRUE, valueOperator.put(null, ctx, 10, new OakSerializer<Integer>() {
             @Override
             public void serialize(Integer object, OakWriteBuffer targetBuffer) {
                 for (int i = 0; i < randomValues.length; i++) {
@@ -154,9 +151,9 @@ public class ValueUtilsTest {
                 return 0;
             }
         }, novaManager, null));
-        assertEquals(randomValues[0], getInt(0));
-        assertEquals(randomValues[1], getInt(4));
-        assertEquals(randomValues[2], getInt(8));
+        Assert.assertEquals(randomValues[0], getInt(0));
+        Assert.assertEquals(randomValues[1], getInt(4));
+        Assert.assertEquals(randomValues[2], getInt(8));
     }
 
     @Test(expected = IndexOutOfBoundsException.class)
@@ -240,12 +237,14 @@ public class ValueUtilsTest {
             e.printStackTrace();
         }
         Thread.sleep(2000);
-        int a = getInt(0), b = getInt(4), c = getInt(8);
+        int a = getInt(0);
+        int b = getInt(4);
+        int c = getInt(8);
         valueOperator.unlockRead(s);
         putter.join();
-        assertNotEquals(randomValues[0], a);
-        assertNotEquals(randomValues[1], b);
-        assertNotEquals(randomValues[2], c);
+        Assert.assertNotEquals(randomValues[0], a);
+        Assert.assertNotEquals(randomValues[1], b);
+        Assert.assertNotEquals(randomValues[2], c);
     }
 
     @Test
@@ -269,7 +268,7 @@ public class ValueUtilsTest {
                 @Override
                 public void serialize(Integer object, OakWriteBuffer targetBuffer) {
                     for (int i = 0; i < targetBuffer.capacity(); i += 4) {
-                        assertEquals(randomValues[i / 4], targetBuffer.getInt(i));
+                        Assert.assertEquals(randomValues[i / 4], targetBuffer.getInt(i));
                     }
                 }
 
@@ -302,13 +301,13 @@ public class ValueUtilsTest {
     @Test
     public void cannotPutInDeletedValueTest() {
         valueOperator.deleteValue(s);
-        assertEquals(FALSE, valueOperator.put(null, ctx, null, null, novaManager, null));
+        Assert.assertEquals(ValueUtils.ValueResult.FALSE, valueOperator.put(null, ctx, null, null, novaManager, null));
     }
 
     @Test
     public void cannotPutToValueOfDifferentVersionTest() {
         s.setVersion(2);
-        assertEquals(RETRY, valueOperator.put(null, ctx, null, null, novaManager, null));
+        Assert.assertEquals(ValueUtils.ValueResult.RETRY, valueOperator.put(null, ctx, null, null, novaManager, null));
     }
 
     @Test
@@ -318,7 +317,7 @@ public class ValueUtilsTest {
         valueOperator.compute(s, oakWBuffer -> {
             oakWBuffer.putInt(0, oakWBuffer.getInt(0) * 2);
         });
-        assertEquals(value * 2, getInt(0));
+        Assert.assertEquals(value * 2, getInt(0));
     }
 
     @Test(expected = IndexOutOfBoundsException.class)
@@ -372,7 +371,7 @@ public class ValueUtilsTest {
         }
         valueOperator.unlockRead(s);
         computer.join();
-        assertArrayEquals(randomValues, results);
+        Assert.assertArrayEquals(randomValues, results);
     }
 
     @Test
@@ -411,22 +410,22 @@ public class ValueUtilsTest {
         }
         valueOperator.unlockWrite(s);
         computer.join();
-        assertNotEquals(randomValues[0], getInt(0));
-        assertNotEquals(randomValues[1], getInt(4));
-        assertNotEquals(randomValues[2], getInt(8));
+        Assert.assertNotEquals(randomValues[0], getInt(0));
+        Assert.assertNotEquals(randomValues[1], getInt(4));
+        Assert.assertNotEquals(randomValues[2], getInt(8));
     }
 
     @Test
     public void cannotComputeDeletedValueTest() {
         valueOperator.deleteValue(s);
-        assertEquals(FALSE, valueOperator.compute(s, oakWBuffer -> {
+        Assert.assertEquals(ValueUtils.ValueResult.FALSE, valueOperator.compute(s, oakWBuffer -> {
         }));
     }
 
     @Test
     public void cannotComputeValueOfDifferentVersionTest() {
         s.setVersion(2);
-        assertEquals(RETRY, valueOperator.compute(s, oakWBuffer -> {
+        Assert.assertEquals(ValueUtils.ValueResult.RETRY, valueOperator.compute(s, oakWBuffer -> {
         }));
     }
 }

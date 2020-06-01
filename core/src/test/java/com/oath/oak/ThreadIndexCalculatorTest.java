@@ -1,13 +1,12 @@
 package com.oath.oak;
 
+import org.junit.Assert;
 import org.junit.Test;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.CountDownLatch;
-
-import static org.junit.Assert.assertEquals;
 
 public class ThreadIndexCalculatorTest {
 
@@ -44,7 +43,7 @@ public class ThreadIndexCalculatorTest {
                 } catch (InterruptedException e) {
                     e.printStackTrace();
                 }
-                assertEquals(index, indexCalculator.getIndex());
+                Assert.assertEquals(index, indexCalculator.getIndex());
                 indexCalculator.releaseIndex();
 
                 index = indexCalculator.getIndex();
@@ -67,12 +66,12 @@ public class ThreadIndexCalculatorTest {
 
         firstRoundLatch.countDown();
         doneFirstRoundLatch.await();
-        assertEquals(ThreadIndexCalculator.MAX_THREADS, uniqueIndices.size());
+        Assert.assertEquals(ThreadIndexCalculator.MAX_THREADS, uniqueIndices.size());
         uniqueIndices.clear();
 
         secondRoundLatch.countDown();
         doneSecondRoundLatch.await();
-        assertEquals(ThreadIndexCalculator.MAX_THREADS, uniqueIndices.size());
+        Assert.assertEquals(ThreadIndexCalculator.MAX_THREADS, uniqueIndices.size());
         uniqueIndices.clear();
         firstBatchRelease.countDown();
 
@@ -97,7 +96,7 @@ public class ThreadIndexCalculatorTest {
 
         secondBatchStart.countDown();
         doneSecondBatch.await();
-        assertEquals(ThreadIndexCalculator.MAX_THREADS, uniqueIndices.size());
+        Assert.assertEquals(ThreadIndexCalculator.MAX_THREADS, uniqueIndices.size());
 
 
         firstBatchWait.countDown();
@@ -138,7 +137,7 @@ public class ThreadIndexCalculatorTest {
 
         threadsStart.countDown();
         threadsFinished.await();
-        assertEquals(ThreadIndexCalculator.MAX_THREADS, uniqueIndices.size());
+        Assert.assertEquals(ThreadIndexCalculator.MAX_THREADS, uniqueIndices.size());
     }
 
 }

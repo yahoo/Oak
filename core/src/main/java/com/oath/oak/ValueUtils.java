@@ -92,6 +92,7 @@ interface ValueUtils {
     /**
      * Initializing the header version.
      * May also set other members in the header to their default values.
+     *
      * @param s the value's off-heap Slice object
      */
     void initHeader(Slice s);
@@ -99,9 +100,10 @@ interface ValueUtils {
     /**
      * Initializing the header version and lock to be locked.
      * May also set other members in the header to their default values.
+     *
      * @param s the value's off-heap Slice object
      */
-    void initLockedHeader(Slice s) ;
+    void initLockedHeader(Slice s);
 
     /* ==================== More complex methods on off-heap values ==================== */
 
@@ -172,11 +174,11 @@ interface ValueUtils {
      * Along side the flag of the result, in case the exchange succeeded, it also returns the value that
      * was written before the exchange.
      */
-    <V> Result exchange(Chunk<?, V> chunk, ThreadContext ctx, V value, OakTransformer<V> valueDeserializeTransformer, OakSerializer<V> serializer,
-                        MemoryManager memoryManager, InternalOakMap internalOakMap);
+    <V> Result exchange(Chunk<?, V> chunk, ThreadContext ctx, V value, OakTransformer<V> valueDeserializeTransformer,
+                        OakSerializer<V> serializer, MemoryManager memoryManager, InternalOakMap internalOakMap);
 
     /**
-     * @param expected the old value to which we compare the current value
+     * @param expected       the old value to which we compare the current value
      * @param internalOakMap
      * @return {@code TRUE} if the exchange went successfully
      * {@code FAILURE} if the value is deleted or if the actual value referenced in {@code ctx} does not equal to

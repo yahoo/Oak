@@ -7,6 +7,7 @@
 package com.oath.oak;
 
 import com.oath.oak.common.OakCommonBuildersFactory;
+import org.junit.Assert;
 import org.junit.Test;
 
 import java.nio.ByteBuffer;
@@ -14,9 +15,6 @@ import java.util.ArrayList;
 import java.util.Random;
 import java.util.concurrent.CountDownLatch;
 import java.util.function.Consumer;
-
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
 
 public class ComputeTest {
 
@@ -30,8 +28,8 @@ public class ComputeTest {
     private static int numOfEntries;
 
 
-    static private ArrayList<Thread> threads = new ArrayList<>(NUM_THREADS);
-    static private CountDownLatch latch = new CountDownLatch(1);
+    private static ArrayList<Thread> threads = new ArrayList<>(NUM_THREADS);
+    private static CountDownLatch latch = new CountDownLatch(1);
 
     private static Consumer<OakWriteBuffer> computer = oakWBuffer -> {
         if (oakWBuffer.getInt(0) == oakWBuffer.getInt(Integer.BYTES * keySize)) {
@@ -96,8 +94,9 @@ public class ComputeTest {
         }
         minKey.position(0);
 
-        OakMapBuilder<ByteBuffer, ByteBuffer> builder = OakCommonBuildersFactory.getDefaultIntBufferBuilder(keySize, valSize)
-            .setChunkMaxItems(2048);
+        OakMapBuilder<ByteBuffer, ByteBuffer> builder =
+                OakCommonBuildersFactory.getDefaultIntBufferBuilder(keySize, valSize)
+                        .setChunkMaxItems(2048);
 
         oak = builder.build();
 
@@ -134,9 +133,9 @@ public class ComputeTest {
             if (val == null) {
                 continue;
             }
-            assertEquals(i, val.getInt(0));
+            Assert.assertEquals(i, val.getInt(0));
             int forty = val.getInt((keySize - 1) * Integer.BYTES);
-            assertTrue(forty == i || forty == 0);
+            Assert.assertTrue(forty == i || forty == 0);
         }
 
         oak.close();

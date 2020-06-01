@@ -9,13 +9,13 @@ package com.oath.oak;
 import java.io.Closeable;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
-/*
+/**
  * The singleton Pool to pre-allocate and reuse blocks of off-heap memory. The singleton has lazy
  * initialization so the big memory is allocated only on demand when first Oak is used.
  * However it makes creation of the first Oak slower. This initialization is thread safe, thus
  * multiple concurrent Oak creations will result only in the one Pool.
- * */
-class BlocksPool implements BlocksProvider, Closeable {
+ */
+final class BlocksPool implements BlocksProvider, Closeable {
 
     private static BlocksPool instance = null;
     private final ConcurrentLinkedQueue<Block> blocks = new ConcurrentLinkedQueue<>();
@@ -26,16 +26,16 @@ class BlocksPool implements BlocksProvider, Closeable {
     static final int BLOCK_SIZE = 256 * 1024 * 1024;
 
     // Number of memory blocks to be pre-allocated
-    private final static int PRE_ALLOC_BLOCKS = 0;
+    private static final int PRE_ALLOC_BLOCKS = 0;
 
     // Number of memory blocks to be allocated at once when not enough blocks available
-    private final static int NEW_ALLOC_BLOCKS = 1;
+    private static final int NEW_ALLOC_BLOCKS = 1;
 
     // Upper/lower thresholds to the number of unused memory blocks to reserve in the pool for future use.
     // When the number of unused blocks reaches HIGH_RESERVED_BLOCKS, a group of blocks will be freed
     // such that the number of blocks will be LOW_RESERVED_BLOCKS.
-    private final static int HIGH_RESERVED_BLOCKS = 32;
-    private final static int LOW_RESERVED_BLOCKS = 24;
+    private static final int HIGH_RESERVED_BLOCKS = 32;
+    private static final int LOW_RESERVED_BLOCKS = 24;
 
     private final int blockSize;
 

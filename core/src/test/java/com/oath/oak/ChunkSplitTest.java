@@ -2,25 +2,22 @@ package com.oath.oak;
 
 
 import com.oath.oak.common.OakCommonBuildersFactory;
+import org.junit.Assert;
 import org.junit.Test;
 
 import java.lang.reflect.Field;
 import java.util.concurrent.ConcurrentSkipListMap;
 
-import static junit.framework.TestCase.assertNull;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
-
 public class ChunkSplitTest {
-    private static final int maxItemsPerChunk = 10;
+    private static final int MAX_ITEMS_PER_CHUNK = 10;
 
     @Test
     public void testSplitByCount() throws NoSuchFieldException, IllegalAccessException {
         OakMapBuilder<String, String> builder = OakCommonBuildersFactory.getDefaultStringBuilder()
-            .setChunkMaxItems(maxItemsPerChunk);
+            .setChunkMaxItems(MAX_ITEMS_PER_CHUNK);
         OakMap<String, String> oak = builder.build();
 
-        for (int i = 0; i < maxItemsPerChunk + 1; i++) {
+        for (int i = 0; i < MAX_ITEMS_PER_CHUNK + 1; i++) {
             String key = String.format("-%01d", i);
             oak.zc().put(key, key);
         }
@@ -33,61 +30,61 @@ public class ChunkSplitTest {
         skipListField.setAccessible(true);
         ConcurrentSkipListMap<Object, Chunk<String, String>> skipList = (ConcurrentSkipListMap<Object, Chunk<String,
                 String>>) skipListField.get(internalOakMap);
-        assertTrue(skipList.size() > 1);
+        Assert.assertTrue(skipList.size() > 1);
         oak.close();
     }
 
     @Test
     public void testSplitByGet() {
         OakMapBuilder<Integer, Integer> builder = OakCommonBuildersFactory.getDefaultIntBuilder()
-                .setChunkMaxItems(maxItemsPerChunk);
+                .setChunkMaxItems(MAX_ITEMS_PER_CHUNK);
         OakMap<Integer, Integer> oak = builder.build();
         Integer value;
-        for (Integer i = 0; i < 2 * maxItemsPerChunk; i++) {
+        for (Integer i = 0; i < 2 * MAX_ITEMS_PER_CHUNK; i++) {
             oak.zc().put(i, i);
         }
-        for (Integer i = 0; i < 2 * maxItemsPerChunk; i++) {
+        for (Integer i = 0; i < 2 * MAX_ITEMS_PER_CHUNK; i++) {
             value = oak.get(i);
-            assertEquals(i, value);
+            Assert.assertEquals(i, value);
         }
 
-        for (Integer i = 0; i < maxItemsPerChunk; i++) {
+        for (Integer i = 0; i < MAX_ITEMS_PER_CHUNK; i++) {
             oak.zc().remove(i);
         }
-        for (Integer i = 0; i < maxItemsPerChunk; i++) {
+        for (Integer i = 0; i < MAX_ITEMS_PER_CHUNK; i++) {
             value = oak.get(i);
-            assertNull(value);
+            Assert.assertNull(value);
         }
-        for (Integer i = maxItemsPerChunk; i < 2 * maxItemsPerChunk; i++) {
+        for (Integer i = MAX_ITEMS_PER_CHUNK; i < 2 * MAX_ITEMS_PER_CHUNK; i++) {
             value = oak.get(i);
-            assertEquals(i, value);
+            Assert.assertEquals(i, value);
         }
 
-        for (Integer i = maxItemsPerChunk; i < 2 * maxItemsPerChunk; i++) {
+        for (Integer i = MAX_ITEMS_PER_CHUNK; i < 2 * MAX_ITEMS_PER_CHUNK; i++) {
             oak.zc().remove(i);
         }
-        for (Integer i = maxItemsPerChunk; i < 2 * maxItemsPerChunk; i++) {
+        for (Integer i = MAX_ITEMS_PER_CHUNK; i < 2 * MAX_ITEMS_PER_CHUNK; i++) {
             value = oak.get(i);
-            assertNull(value);
+            Assert.assertNull(value);
         }
-        for (int i = 0; i < 2 * maxItemsPerChunk; i++) {
+        for (int i = 0; i < 2 * MAX_ITEMS_PER_CHUNK; i++) {
             oak.zc().put(i, i);
         }
-        for (int i = 0; i < 2 * maxItemsPerChunk; i++) {
+        for (int i = 0; i < 2 * MAX_ITEMS_PER_CHUNK; i++) {
             value = oak.get(i);
-            assertEquals(i, value.intValue());
+            Assert.assertEquals(i, value.intValue());
         }
 
 
-        for (Integer i = 1; i < (2 * maxItemsPerChunk - 1); i++) {
+        for (Integer i = 1; i < (2 * MAX_ITEMS_PER_CHUNK - 1); i++) {
             oak.zc().remove(i);
         }
 
         value = oak.get(0);
-        assertEquals(0, value.intValue());
+        Assert.assertEquals(0, value.intValue());
 
-        value = oak.get(2 * maxItemsPerChunk - 1);
-        assertEquals(2 * maxItemsPerChunk - 1, value.intValue());
+        value = oak.get(2 * MAX_ITEMS_PER_CHUNK - 1);
+        Assert.assertEquals(2 * MAX_ITEMS_PER_CHUNK - 1, value.intValue());
     }
 
     // the size of the keys is no longer the requirement for the split

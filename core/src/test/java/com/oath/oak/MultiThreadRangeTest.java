@@ -8,6 +8,7 @@ package com.oath.oak;
 
 import com.oath.oak.common.OakCommonBuildersFactory;
 import org.junit.After;
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -16,20 +17,18 @@ import java.util.Iterator;
 import java.util.Random;
 import java.util.concurrent.CountDownLatch;
 
-import static org.junit.Assert.assertEquals;
-
 public class MultiThreadRangeTest {
 
     private OakMap<Integer, Integer> oak;
-    private final int NUM_THREADS = 31;
+    private static final int NUM_THREADS = 31;
     private ArrayList<Thread> threads;
     private CountDownLatch latch;
-    private int maxItemsPerChunk = 2048;
+    private static final int MAX_ITEMS_PER_CHUNK = 2048;
 
     @Before
     public void init() {
         OakMapBuilder<Integer, Integer>builder = OakCommonBuildersFactory.getDefaultIntBuilder()
-                .setChunkMaxItems(maxItemsPerChunk);
+                .setChunkMaxItems(MAX_ITEMS_PER_CHUNK);
         oak = builder.build();
         latch = new CountDownLatch(1);
         threads = new ArrayList<>(NUM_THREADS);
@@ -55,7 +54,7 @@ public class MultiThreadRangeTest {
                 e.printStackTrace();
             }
 
-            Integer from = 10 * maxItemsPerChunk;
+            Integer from = 10 * MAX_ITEMS_PER_CHUNK;
             try (OakMap<Integer, Integer> tailMap = oak.tailMap(from, true)) {
                 Iterator valIter = tailMap.values().iterator();
                 int i = 0;
@@ -75,8 +74,8 @@ public class MultiThreadRangeTest {
 
         // fill
         Random r = new Random();
-        for (int i = 5 * maxItemsPerChunk; i > 0; ) {
-            Integer j = r.nextInt(10 * maxItemsPerChunk);
+        for (int i = 5 * MAX_ITEMS_PER_CHUNK; i > 0; ) {
+            Integer j = r.nextInt(10 * MAX_ITEMS_PER_CHUNK);
             if (oak.zc().putIfAbsent(j, j)) {
                 i--;
             }
@@ -91,12 +90,12 @@ public class MultiThreadRangeTest {
         }
 
         int size = 0;
-        for (Integer i = 0; i < 10 * maxItemsPerChunk; i++) {
+        for (Integer i = 0; i < 10 * MAX_ITEMS_PER_CHUNK; i++) {
             if (oak.get(i) != null) {
                 size++;
             }
         }
-        assertEquals(5 * maxItemsPerChunk, size);
+        Assert.assertEquals(5 * MAX_ITEMS_PER_CHUNK, size);
     }
 
 }

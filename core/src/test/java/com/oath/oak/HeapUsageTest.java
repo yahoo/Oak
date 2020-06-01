@@ -8,14 +8,13 @@ package com.oath.oak;
 
 import com.oath.oak.common.OakCommonBuildersFactory;
 import com.oath.oak.common.integer.OakIntSerializer;
+import org.junit.Assert;
 import org.junit.Ignore;
 import org.junit.Test;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-
-import static org.junit.Assert.assertEquals;
 
 public class HeapUsageTest {
 
@@ -77,7 +76,7 @@ public class HeapUsageTest {
 
             for (Integer i = 0; i < numOfEntries; i++) {
                 Integer value = oak.get(i);
-                assertEquals(i, value);
+                Assert.assertEquals(i, value);
             }
 //            System.out.println("\nCheck again");
 //            System.out.println("off heap used: " + oak.getMemoryManager().allocated() / M + "MB");

@@ -6,7 +6,7 @@ package com.oath.oak;
  * Using different number of bits for each parameter may incur different limitations on their sizes.
  */
 class ReferenceCodec {
-    final public static long INVALID_REFERENCE = 0;
+    public static final long INVALID_REFERENCE = 0;
 
     final int offsetBitSize;
     final int lengthBitSize;
@@ -19,7 +19,7 @@ class ReferenceCodec {
     final long lengthMask;
     final long blockMask;
 
-    public ReferenceCodec(int offsetBitSize, int lengthBitSize, int blockBitSize) {
+    ReferenceCodec(int offsetBitSize, int lengthBitSize, int blockBitSize) {
         this.offsetBitSize = offsetBitSize;
         this.lengthBitSize = lengthBitSize;
         this.blockBitSize = blockBitSize;
@@ -51,7 +51,7 @@ class ReferenceCodec {
 
     /**
      * @param s the object to encode
-     * @return  the encoded reference
+     * @return the encoded reference
      */
     public long encode(final Slice s) {
         long offsetPart = ((long) s.getAllocatedOffset()) & offsetMask;
@@ -63,7 +63,7 @@ class ReferenceCodec {
     /**
      * @param s         the object to update
      * @param reference the reference to decode
-     * @return          true if the allocation reference is valid
+     * @return true if the allocation reference is valid
      */
     public boolean decode(final Slice s, final long reference) {
         if (!isValidReference(reference)) {

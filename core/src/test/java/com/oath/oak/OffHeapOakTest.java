@@ -8,6 +8,7 @@ package com.oath.oak;
 
 import com.oath.oak.common.OakCommonBuildersFactory;
 import org.junit.After;
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -16,13 +17,9 @@ import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.concurrent.CountDownLatch;
 
-import static junit.framework.TestCase.assertNotNull;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNull;
-
 public class OffHeapOakTest {
     private OakMap<Integer, Integer> oak;
-    private final int NUM_THREADS = 31;
+    private static final int NUM_THREADS = 31;
     private ArrayList<Thread> threads;
     private CountDownLatch latch;
     private int maxItemsPerChunk = 248;
@@ -57,15 +54,15 @@ public class OffHeapOakTest {
         for (int i = 0; i < NUM_THREADS; i++) {
             threads.get(i).join();
         }
-        assertNull(threadException);
+        Assert.assertNull(threadException);
 
         for (Integer i = 0; i < 6 * maxItemsPerChunk; i++) {
             Integer value = oak.get(i);
-            assertNotNull("\n Value NULL for key " + i + "\n", value);
+            Assert.assertNotNull("\n Value NULL for key " + i + "\n", value);
             if (!i.equals(value)) {
-                assertEquals(i, value);
+                Assert.assertEquals(i, value);
             }
-            assertEquals(i, value);
+            Assert.assertEquals(i, value);
         }
     }
 
@@ -98,7 +95,7 @@ public class OffHeapOakTest {
                     if (entry == null) {
                         continue;
                     }
-                    assertEquals(
+                    Assert.assertEquals(
                             "\nOn should be empty: Key " + entry.getKey()
                                     + ", Value " + entry.getValue(),
                             0, entry.getValue() - entry.getKey());
@@ -120,10 +117,10 @@ public class OffHeapOakTest {
                     if (entry == null) {
                         continue;
                     }
-                    assertNotNull("\nAfter initial pass of put and remove got entry NULL", entry);
-                    assertNotNull("\nAfter initial pass of put and remove got value NULL for key " + entry.getKey(),
-                            entry.getValue());
-                    assertEquals(
+                    Assert.assertNotNull("\nAfter initial pass of put and remove got entry NULL", entry);
+                    Assert.assertNotNull("\nAfter initial pass of put and remove got value NULL for key "
+                            + entry.getKey(), entry.getValue());
+                    Assert.assertEquals(
                             "\nAfter initial pass of put and remove (range 0-"
                                     + (6 * maxItemsPerChunk) + "): Key " + entry.getKey()
                                     + ", Value " + entry.getValue(),
@@ -145,8 +142,8 @@ public class OffHeapOakTest {
                     if (entry == null) {
                         continue;
                     }
-                    assertNotNull(entry.getValue());
-                    assertEquals(
+                    Assert.assertNotNull(entry.getValue());
+                    Assert.assertEquals(
                             "\nAfter second pass of put and remove: Key " + entry.getKey()
                                     + ", Value " + entry.getValue(),
                             0, entry.getValue() - entry.getKey());

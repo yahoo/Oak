@@ -1,6 +1,7 @@
 package com.oath.oak;
 
 import com.oath.oak.common.OakCommonBuildersFactory;
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Ignore;
 import org.junit.Test;
@@ -11,9 +12,6 @@ import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
-
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertNull;
 
 public class ConcurrentPutRemoveTest {
     private static final long DURATION = 1000;
@@ -90,9 +88,9 @@ public class ConcurrentPutRemoveTest {
             int old = status[i].get();
             assert old == 0 || old == 1;
             if (old == 0) {
-                assertNull(oak.get(i));
+                Assert.assertNull(oak.get(i));
             } else {
-                assertNotNull(oak.get(i));
+                Assert.assertNotNull(oak.get(i));
             }
         }
 
@@ -118,11 +116,13 @@ public class ConcurrentPutRemoveTest {
             int old = status[i].get();
             assert old == 0 || old == 1;
             if (old == 0) {
-                if (oak.get(i) != null)
-                    assertNull(oak.get(i));
+                if (oak.get(i) != null) {
+                    Assert.assertNull(oak.get(i));
+                }
             } else {
-                if (oak.get(i) == null)
-                    assertNotNull(oak.get(i));
+                if (oak.get(i) == null) {
+                    Assert.assertNotNull(oak.get(i));
+                }
             }
         }
     }

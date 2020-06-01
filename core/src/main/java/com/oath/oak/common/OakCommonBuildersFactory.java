@@ -18,12 +18,12 @@ public class OakCommonBuildersFactory {
     // Integers factories
     // #####################################################################################
 
-    public static final OakComparator<Integer> defaultIntComparator = new OakIntComparator();
-    public static final OakSerializer<Integer> defaultIntSerializer = new OakIntSerializer();
+    public static final OakComparator<Integer> DEFAULT_INT_COMPARATOR = new OakIntComparator();
+    public static final OakSerializer<Integer> DEFAULT_INT_SERIALIZER = new OakIntSerializer();
 
     public static OakMapBuilder<Integer, Integer> getDefaultIntBuilder() {
         return new OakMapBuilder<>(
-            defaultIntComparator, defaultIntSerializer, defaultIntSerializer, Integer.MIN_VALUE);
+                DEFAULT_INT_COMPARATOR, DEFAULT_INT_SERIALIZER, DEFAULT_INT_SERIALIZER, Integer.MIN_VALUE);
     }
 
 
@@ -31,12 +31,12 @@ public class OakCommonBuildersFactory {
     // String factories
     // #####################################################################################
 
-    public static final OakComparator<String> defaultStringComparator = new OakStringComparator();
-    public static final OakSerializer<String> defaultStringSerializer = new OakStringSerializer();
+    public static final OakComparator<String> DEFAULT_STRING_COMPARATOR = new OakStringComparator();
+    public static final OakSerializer<String> DEFAULT_STRING_SERIALIZER = new OakStringSerializer();
 
     public static OakMapBuilder<String, String> getDefaultStringBuilder() {
         return new OakMapBuilder<>(
-            defaultStringComparator, defaultStringSerializer, defaultStringSerializer, "");
+                DEFAULT_STRING_COMPARATOR, DEFAULT_STRING_SERIALIZER, DEFAULT_STRING_SERIALIZER, "");
     }
 
 
@@ -52,6 +52,6 @@ public class OakCommonBuildersFactory {
         minKey.position(0);
 
         return new OakMapBuilder<>(new OakIntBufferComparator(keySize),
-            new OakIntBufferSerializer(keySize), new OakIntBufferSerializer(valueSize), minKey);
+                new OakIntBufferSerializer(keySize), new OakIntBufferSerializer(valueSize), minKey);
     }
 }

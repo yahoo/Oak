@@ -8,50 +8,46 @@ package com.oath.oak;
 
 import sun.misc.Unsafe;
 
-import java.nio.ByteBuffer;
 import java.util.concurrent.atomic.AtomicInteger;
 
-
-import static com.oath.oak.ValueUtils.ValueResult.FALSE;
-import static com.oath.oak.ValueUtils.ValueResult.TRUE;
-
 /* EntrySet keeps a set of entries. Entry is reference to key and value, both located off-heap.
-** EntrySet provides access, updates and manipulation on each entry, provided its index.
-**
-** IMPORTANT: Due to limitation in amount of bits we use to represent Block ID the amount of memory
-** supported by ALL OAKs in one system is 128GB only!
-**
-** Entry is a set of 6 (FIELDS) consecutive integers, part of "entries" int array. The definition
-** of each integer is explained below. Also bits of each integer are represented in a very special
-** way (also explained below). This makes any changes made to this class very delicate. Please
-** update with care.
-**
-** Entries Array:
-** --------------------------------------------------------------------------------------
-** 0 | headNextIndex keeps entry index of the first ordered entry
-** --------------------------------------------------------------------------------------
-** 1 | NEXT  - entry index of the entry following the entry with entry index 1  |
-** -----------------------------------------------------------------------------|
-** 2 | KEY_REFERENCE          | these 2 integers together, represented as long  | entry with
-** --|                        | provide KEY_REFERENCE. Pay attention that       | entry index
-** 3 |                        | KEY_REFERENCE is different than VALUE_REFERENCE | 1
-** -----------------------------------------------------------------------------|
-** 4 | VALUE_REFERENCE        | these 2 integers together, represented as long  | entry that
-** --|                        | provide VALUE_REFERENCE. Pay attention that     | was allocated
-** 5 |                        | VALUE_REFERENCE is different than KEY_REFERENCE | first
- ** ----------------------------------------------------------------------------|
-** 6 | VALUE_VERSION - the version of the value required for memory management  |
-** --------------------------------------------------------------------------------------
-** 7 | NEXT  - entry index of the entry following the entry with entry index 2  |
-** -----------------------------------------------------------------------------|
-** 8 | KEY_REFERENCE          | these 2 integers together, represented as long  | entry with
-** --|                        | provide KEY_REFERENCE. Pay attention that       | entry index
-** 9 |                        | KEY_REFERENCE is different than VALUE_REFERENCE | 2
-** -----------------------------------------------------------------------------|
-** ...
-**
-**
-** Internal class, package visibility */
+ * EntrySet provides access, updates and manipulation on each entry, provided its index.
+ *
+ * IMPORTANT: Due to limitation in amount of bits we use to represent Block ID the amount of memory
+ * supported by ALL OAKs in one system is 128GB only!
+ *
+ * Entry is a set of 6 (FIELDS) consecutive integers, part of "entries" int array. The definition
+ * of each integer is explained below. Also bits of each integer are represented in a very special
+ * way (also explained below). This makes any changes made to this class very delicate. Please
+ * update with care.
+ *
+ * Entries Array:
+ * --------------------------------------------------------------------------------------
+ * 0 | headNextIndex keeps entry index of the first ordered entry
+ * --------------------------------------------------------------------------------------
+ * 1 | NEXT  - entry index of the entry following the entry with entry index 1  |
+ * -----------------------------------------------------------------------------|
+ * 2 | KEY_REFERENCE          | these 2 integers together, represented as long  | entry with
+ * --|                        | provide KEY_REFERENCE. Pay attention that       | entry index
+ * 3 |                        | KEY_REFERENCE is different than VALUE_REFERENCE | 1
+ * -----------------------------------------------------------------------------|
+ * 4 | VALUE_REFERENCE        | these 2 integers together, represented as long  | entry that
+ * --|                        | provide VALUE_REFERENCE. Pay attention that     | was allocated
+ * 5 |                        | VALUE_REFERENCE is different than KEY_REFERENCE | first
+ * ----------------------------------------------------------------------------|
+ * 6 | VALUE_VERSION - the version of the value required for memory management  |
+ * --------------------------------------------------------------------------------------
+ * 7 | NEXT  - entry index of the entry following the entry with entry index 2  |
+ * -----------------------------------------------------------------------------|
+ * 8 | KEY_REFERENCE          | these 2 integers together, represented as long  | entry with
+ * --|                        | provide KEY_REFERENCE. Pay attention that       | entry index
+ * 9 |                        | KEY_REFERENCE is different than VALUE_REFERENCE | 2
+ * -----------------------------------------------------------------------------|
+ * ...
+ *
+ *
+ * Internal class, package visibility
+ */
 class EntrySet<K, V> {
 
     /*-------------- Constants --------------*/
@@ -120,7 +116,7 @@ class EntrySet<K, V> {
      */
     static final ReferenceCodec VALUE = new ReferenceCodec(32, 23, 9);
 
-    private static final Unsafe unsafe = UnsafeUtils.unsafe;
+    private static final Unsafe UNSAFE = UnsafeUtils.unsafe;
     final MemoryManager memoryManager;
 
     private final int[] entries;    // array is initialized to 0 - this is important!
@@ -138,20 +134,22 @@ class EntrySet<K, V> {
     final ValueUtils valOffHeapOperator; // is used for any value off-heap metadata access
 
     /*----------------- Constructor -------------------*/
+
     /**
      * Create a new EntrySet
+     *
      * @param memoryManager   for off-heap accesses and updates
      * @param entriesCapacity how many entries should this EntrySet keep at maximum
      * @param keySerializer   used to serialize the key when written to off-heap
      */
     EntrySet(MemoryManager memoryManager, int entriesCapacity, OakSerializer<K> keySerializer,
-        OakSerializer<V> valueSerializer, ValueUtils valOffHeapOperator) {
-        this.memoryManager   = memoryManager;
-        this.entries         = new int[entriesCapacity * FIELDS + HEAD_NEXT_INDEX_SIZE];
+             OakSerializer<V> valueSerializer, ValueUtils valOffHeapOperator) {
+        this.memoryManager = memoryManager;
+        this.entries = new int[entriesCapacity * FIELDS + HEAD_NEXT_INDEX_SIZE];
         this.nextFreeIndex = new AtomicInteger(HEAD_NEXT_INDEX_SIZE);
         this.numOfEntries = new AtomicInteger(0);
         this.entriesCapacity = entriesCapacity;
-        this.keySerializer   = keySerializer;
+        this.keySerializer = keySerializer;
         this.valueSerializer = valueSerializer;
         this.valOffHeapOperator = valOffHeapOperator;
     }
@@ -192,6 +190,7 @@ class EntrySet<K, V> {
 
         /**
          * We consider a value to be valid if it was inserted (or in the process of being inserted).
+         *
          * @return is the value valid
          */
         boolean isValid() {
@@ -215,14 +214,22 @@ class EntrySet<K, V> {
 
     /********************************************************************************************/
     /*---------------- Methods for setting and getting specific entry's field ------------------*/
-    // we use term intIdx for the integer's index inside the entries array (referred as a set of integers),
-    // we use term entryIdx for the index of entry array (referred as a set of entries)
 
+    /**
+     * Converts external entry-index to internal array index.
+     * <p>
+     * We use the following terminology:
+     *  - intIdx for the integer's index inside the entries array (referred as a set of integers)
+     *  - entryIdx for the index of entry array (referred as a set of entries)
+     *
+     * @param entryIdx external entry-index
+     * @return the internal array index
+     */
     private static int entryIdx2intIdx(int entryIdx) {
         if (entryIdx == 0) { // assumed it is a head pointer access
             return 0;
         }
-        return ((entryIdx-1) * FIELDS) + HEAD_NEXT_INDEX_SIZE;
+        return ((entryIdx - 1) * FIELDS) + HEAD_NEXT_INDEX_SIZE;
     }
 
     /**
@@ -242,9 +249,9 @@ class EntrySet<K, V> {
     private long getEntryArrayFieldLong(int intStartFieldIdx, OFFSET offset) {
         assert offset == OFFSET.VALUE_REFERENCE || offset == OFFSET.KEY_REFERENCE;
         long arrayOffset =
-            Unsafe.ARRAY_INT_BASE_OFFSET + (intStartFieldIdx + offset.value) * Unsafe.ARRAY_INT_INDEX_SCALE;
+                Unsafe.ARRAY_INT_BASE_OFFSET + (intStartFieldIdx + offset.value) * Unsafe.ARRAY_INT_INDEX_SCALE;
         assert arrayOffset % 8 == 0;
-        return unsafe.getLong(entries, arrayOffset);
+        return UNSAFE.getLong(entries, arrayOffset);
     }
 
     /**
@@ -257,7 +264,7 @@ class EntrySet<K, V> {
         long arrayOffset =
                 Unsafe.ARRAY_INT_BASE_OFFSET + (intStartFieldIdx + offset.value) * Unsafe.ARRAY_INT_INDEX_SCALE;
         assert arrayOffset % 8 == 0;
-        return unsafe.getLongVolatile(entries, arrayOffset);
+        return UNSAFE.getLongVolatile(entries, arrayOffset);
     }
 
     /**
@@ -272,7 +279,7 @@ class EntrySet<K, V> {
     private void setEntryFieldLong(int item, OFFSET offset, long value) {
         long arrayOffset = Unsafe.ARRAY_INT_BASE_OFFSET + (item + offset.value) * Unsafe.ARRAY_INT_INDEX_SCALE;
         assert arrayOffset % 8 == 0;
-        unsafe.putLong(entries, arrayOffset, value);
+        UNSAFE.putLong(entries, arrayOffset, value);
     }
 
     /**
@@ -281,9 +288,8 @@ class EntrySet<K, V> {
      * CAS from 'expectedIntValue' to 'newIntValue' for field at specified offset
      * of given int-field in the entries array
      */
-    private boolean casEntriesArrayInt(
-        int intFieldIdx, OFFSET offset, int expectedIntValue, int newIntValue) {
-        return unsafe.compareAndSwapInt(entries,
+    private boolean casEntriesArrayInt(int intFieldIdx, OFFSET offset, int expectedIntValue, int newIntValue) {
+        return UNSAFE.compareAndSwapInt(entries,
                 Unsafe.ARRAY_INT_BASE_OFFSET + (intFieldIdx + offset.value) * Unsafe.ARRAY_INT_INDEX_SCALE,
                 expectedIntValue, newIntValue);
     }
@@ -294,9 +300,9 @@ class EntrySet<K, V> {
      * CAS from 'expectedLongValue' to 'newLongValue' for field at specified offset
      * of given int-field in the entries array
      */
-    private boolean casEntriesArrayLong(
-        int intStartFieldIdx, OFFSET offset, long expectedLongValue, long newLongValue) {
-        return unsafe.compareAndSwapLong(entries,
+    private boolean casEntriesArrayLong(int intStartFieldIdx, OFFSET offset, long expectedLongValue,
+                                        long newLongValue) {
+        return UNSAFE.compareAndSwapLong(entries,
                 Unsafe.ARRAY_INT_BASE_OFFSET + (intStartFieldIdx + offset.value) * Unsafe.ARRAY_INT_INDEX_SCALE,
                 expectedLongValue, newLongValue);
     }
@@ -317,7 +323,7 @@ class EntrySet<K, V> {
     /**
      * Atomically reads the value reference from the entry (given by entry index "ei")
      * synchronisation with reading the value version is not ensured in this method
-     * */
+     */
     private long getValueReference(int ei) {
         return getEntryArrayFieldLong(entryIdx2intIdx(ei), OFFSET.VALUE_REFERENCE);
     }
@@ -329,7 +335,7 @@ class EntrySet<K, V> {
     /**
      * Atomically reads the value version from the entry (given by entry index "ei")
      * synchronisation with reading the value reference is not ensured in this method
-     * */
+     */
     private int getValueVersion(int ei) {
         return getEntryArrayFieldInt(entryIdx2intIdx(ei), OFFSET.VALUE_VERSION);
     }
@@ -355,7 +361,7 @@ class EntrySet<K, V> {
      *
      * @param value The value will be returned in this object
      * @param ei    The entry of which the reference and version are read from
-     * @return      true if the value allocation reference is valid
+     * @return true if the value allocation reference is valid
      */
     private boolean getValueReferenceAndVersion(ValueBuffer value, int ei) {
         int version;
@@ -430,7 +436,7 @@ class EntrySet<K, V> {
      *
      * @param key the buffer that will contain the key
      * @param ei  the entry index to read
-     * @return    true if the entry index has a valid key allocation reference
+     * @return true if the entry index has a valid key allocation reference
      */
     boolean readKey(KeyBuffer key, int ei) {
         if (ei == INVALID_ENTRY_INDEX) {
@@ -456,7 +462,7 @@ class EntrySet<K, V> {
      *
      * @param value the buffer that will contain the value
      * @param ei    the entry index to read
-     * @return      true if the entry index has a valid value allocation reference
+     * @return true if the entry index has a valid value allocation reference
      */
     boolean readValue(ValueBuffer value, int ei) {
         if (ei == INVALID_ENTRY_INDEX) {
@@ -559,7 +565,7 @@ class EntrySet<K, V> {
 
         // If result == TRUE, there is a deleted value associated with the given key
         // If result == RETRY, we ignore it, since it will be discovered later down the line as well
-        return (result == TRUE) ? ValueState.DELETED_NOT_FINALIZED : ValueState.VALID;
+        return (result == ValueUtils.ValueResult.TRUE) ? ValueState.DELETED_NOT_FINALIZED : ValueState.VALID;
     }
 
 
@@ -573,8 +579,8 @@ class EntrySet<K, V> {
      *
      * @param ctx the context that will follow the operation following this key allocation
      * @param key the key to write
-     * @return    true only if the allocation was successful.
-     *            Otherwise, it means that the EntrySet is full (may require a re-balance).
+     * @return true only if the allocation was successful.
+     *         Otherwise, it means that the EntrySet is full (may require a re-balance).
      **/
     boolean allocateEntry(ThreadContext ctx, K key) {
         ctx.invalidate();
@@ -592,6 +598,7 @@ class EntrySet<K, V> {
 
     /**
      * Allocate and serialize a key object to off-heap KeyBuffer.
+     *
      * @param key       the key to write
      * @param keyBuffer the off-heap KeyBuffer to update with the new allocation
      */
@@ -604,6 +611,7 @@ class EntrySet<K, V> {
 
     /**
      * Allocate a new KeyBuffer and duplicate an existing key to the new one.
+     *
      * @param src the off-heap KeyBuffer to copy from
      * @param dst the off-heap KeyBuffer to update with the new allocation
      */
@@ -675,7 +683,7 @@ class EntrySet<K, V> {
      * @param ctx The context that follows the operation since the key was found/created.
      *            Holds the entry to which the value reference is linked, the old and new value
      *            references and the old and new value versions.
-     * @return    TRUE if the value reference was CASed successfully.
+     * @return TRUE if the value reference was CASed successfully.
      */
     ValueUtils.ValueResult writeValueCommit(ThreadContext ctx) {
         long oldValueReference;
@@ -696,11 +704,11 @@ class EntrySet<K, V> {
 
         int intIdx = entryIdx2intIdx(ctx.entryIndex);
         if (!casEntriesArrayLong(intIdx, OFFSET.VALUE_REFERENCE,
-            oldValueReference, newValueReference)) {
-            return FALSE;
+                oldValueReference, newValueReference)) {
+            return ValueUtils.ValueResult.FALSE;
         }
         casEntriesArrayInt(intIdx, OFFSET.VALUE_VERSION, oldValueVersion, newValueVersion);
-        return TRUE;
+        return ValueUtils.ValueResult.TRUE;
     }
 
     /**
@@ -708,15 +716,15 @@ class EntrySet<K, V> {
      * reference is CASed inside the entry and only then the version is CASed. Thus, there can be a
      * time in which the entry's value version is INVALID_VERSION or a negative one. In this method,
      * the version is CASed to complete the insertion.
-     *
+     * <p>
      * writeValueFinish is used in cases when in an entry the value reference and its off-heap and
      * on-heap versions do not match. In this case it is assumed that we are
      * in the middle of committing a value write and need to write the off-heap value on-heap.
-     *
+     * <p>
      * The version written to entry is the version written in the off-heap memory. There is no worry
      * of concurrent removals since these removals will have to first call this function as well,
      * and they eventually change the version as well.
-     *
+     * <p>
      * This method expects the value buffer to be valid, the valueState to be VALID_INSERT_NOT_FINALIZED, and the
      * version to be positive.
      * If the context that not match these requirements, its behavior is undefined.
@@ -724,12 +732,12 @@ class EntrySet<K, V> {
      * @param ctx The context that follows the operation since the key was found/created.
      *            It holds the entry to CAS, the previously written version of this entry
      *            and the value reference from which the correct version is read.
-     *
+     * <p>
      * Note 1: the value's version and state in {@code ctx} are updated in this method to be the
-     * updated positive version and a valid state.
-     *
+     *         updated positive version and a valid state.
+     * <p>
      * Note 2: updating of the entries MUST be under published operation. The invoker of this method
-     * is responsible to call it inside the publish/unpublish scope.
+     *         is responsible to call it inside the publish/unpublish scope.
      */
     void writeValueFinish(ThreadContext ctx) {
         final int entryVersion = ctx.value.getVersion();
@@ -744,7 +752,7 @@ class EntrySet<K, V> {
 
         int offHeapVersion = valOffHeapOperator.getOffHeapVersion(ctx.value);
         casEntriesArrayInt(entryIdx2intIdx(ctx.entryIndex), OFFSET.VALUE_VERSION,
-            entryVersion, offHeapVersion);
+                entryVersion, offHeapVersion);
         // If the CAS failed, maybe some other thread updated the version.
         ctx.value.setVersion(offHeapVersion);
         ctx.valueState = ValueState.VALID;
@@ -753,22 +761,22 @@ class EntrySet<K, V> {
     /**
      * deleteValueFinish completes the deletion of a value in Oak, by marking the value reference in
      * entry, after the on-heap value was already marked as deleted.
-     *
+     * <p>
      * As written in {@code writeValueFinish(ctx)}, when updating an entry, the value reference
      * is CASed first and later the value version, and the same applies when removing a value.
      * However, there is another step before deleting an entry (remove a value), it is marking
      * the value off-heap (the LP).
-     *
+     * <p>
      * deleteValueFinish is used to first CAS the value reference to {@code INVALID_VALUE_REFERENCE}
      * and then CAS the version to be a negative one. Other threads seeing a value marked as deleted
      * call this function before they proceed (e.g., before performing a successful {@code putIfAbsent()}).
      *
      * @param ctx The context that follows the operation since the key was found/created.
      *            Holds the entry to change, the old value reference to CAS out, and the current value version.
-     * @return    true if the deletion indeed updated the entry to be deleted as a unique operation
-     *
+     * @return true if the deletion indeed updated the entry to be deleted as a unique operation
+     * <p>
      * Note 1: the value in {@code ctx} is updated in this method to be the DELETED.
-     *
+     * <p>
      * Note 2: updating of the entries MUST be under published operation. The invoker of this method
      * is responsible to call it inside the publish/unpublish scope.
      */
@@ -822,16 +830,17 @@ class EntrySet<K, V> {
 
     /**
      * Checks if an entry is deleted (checks on-heap and off-heap).
+     *
      * @param tempValue a reusable buffer object for internal temporary usage
      * @param ei        the entry index to check
-     * @return          true if the entry is deleted
+     * @return true if the entry is deleted
      */
     boolean isEntryDeleted(ValueBuffer tempValue, int ei) {
         boolean isAllocated = readValue(tempValue, ei);
-        if(!isAllocated) {
+        if (!isAllocated) {
             return true;
         }
-        return valOffHeapOperator.isValueDeleted(tempValue) != FALSE;
+        return valOffHeapOperator.isValueDeleted(tempValue) != ValueUtils.ValueResult.FALSE;
     }
 
 
@@ -846,17 +855,17 @@ class EntrySet<K, V> {
      * copyEntry copies one entry from source EntrySet (at source entry index "srcEntryIdx") to this EntrySet.
      * The destination entry index is chosen according to this nextFreeIndex which is increased with
      * each copy. Deleted entry (marked on-heap or off-heap) is not copied (disregarded).
-     *
+     * <p>
      * The next pointers of the entries are requested to be set by the user if needed.
      *
      * @param tempValue   a reusable buffer object for internal temporary usage
      * @param srcEntrySet another EntrySet to copy from
      * @param srcEntryIdx the entry index to copy from {@code srcEntrySet}
-     * @return            false when this EntrySet is full
-     *
-     * NOT THREAD SAFE
-     * */
-    boolean copyEntry(ValueBuffer tempValue, EntrySet<K,V> srcEntrySet, int srcEntryIdx) {
+     * @return false when this EntrySet is full
+     * <p>
+     * Note: NOT THREAD SAFE
+     */
+    boolean copyEntry(ValueBuffer tempValue, EntrySet<K, V> srcEntrySet, int srcEntryIdx) {
         if (srcEntryIdx == headNextIndex) {
             return false;
         }
@@ -864,9 +873,13 @@ class EntrySet<K, V> {
         // don't increase the nextFreeIndex yet, as the source entry might not be copies
         int destEntryIndex = nextFreeIndex.get();
 
-        if (destEntryIndex > entriesCapacity) {return false;}
+        if (destEntryIndex > entriesCapacity) {
+            return false;
+        }
 
-        if (srcEntrySet.isEntryDeleted(tempValue, srcEntryIdx)) {return true;}
+        if (srcEntrySet.isEntryDeleted(tempValue, srcEntryIdx)) {
+            return true;
+        }
 
         // ARRAY COPY: using next as the base of the entry
         // copy both the key and the value references the value's version => 5 integers via array copy
@@ -874,9 +887,9 @@ class EntrySet<K, V> {
         // therefore, to copy the rest of the entry we use the offset of next (which we assume is 0) and
         // add 1 to start the copying from the subsequent field of the entry.
         System.arraycopy(srcEntrySet.entries,  // source entries array
-            entryIdx2intIdx(srcEntryIdx) + OFFSET.NEXT.value + 1,
-            entries,                        // this entries array
-            entryIdx2intIdx(destEntryIndex) + OFFSET.NEXT.value + 1, (FIELDS - 1));
+                entryIdx2intIdx(srcEntryIdx) + OFFSET.NEXT.value + 1,
+                entries,                        // this entries array
+                entryIdx2intIdx(destEntryIndex) + OFFSET.NEXT.value + 1, (FIELDS - 1));
 
         // now it is the time to increase nextFreeIndex
         nextFreeIndex.getAndIncrement();
