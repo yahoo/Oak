@@ -15,11 +15,11 @@ import java.nio.ByteBuffer;
  *    Thus, the developer should use getOffset() and getLength() to obtain the data boundaries and carefully access
  *    the data. Writing data out of these boundaries might result in corrupted data, a crash or a deadlock.
  * <p>
- * To use this interface, the developer should cast Oak's buffer (OakRBuffer or OakWBuffer) to this interface,
- * similarly to how Java's internal DirectBuffer is used. For example:
+ * To use this interface, the developer should cast Oak's buffer (OakScopedReadBuffer or OakScopedWriteBuffer) to this
+ * interface, similarly to how Java's internal DirectBuffer is used. For example:
  * <pre>
  * {@code
- * int foo(OakRBuffer b) {
+ * int foo(OakScopedReadBuffer b) {
  *     OakUnsafeDirectBuffer ub = (OakUnsafeDirectBuffer) b;
  *     ByteBuffer bb = ub.getByteBuffer();
  *     return bb.getInt(ub.getOffset());
@@ -37,7 +37,8 @@ public interface OakUnsafeDirectBuffer {
      * This buffer might contain data that is unrelated to the context in which this object was introduced.
      * For example, it might contain internal Oak data and other user data.
      * Thus, the developer should use getOffset() and getLength() to validate the data boundaries.
-     * Note 1: depending on the context (casting from OakRBuffer or OakWBuffer), the buffer mode might be ready only.
+     * Note 1: depending on the context (casting from OakScopedReadBuffer or OakScopedWriteBuffer), the buffer mode
+     *         might be ready only.
      * Note 2: the buffer internal state (e.g., byte order, position, limit and so on) should not be modified as this
      *         object might be shared and used elsewhere.
      *
@@ -61,7 +62,7 @@ public interface OakUnsafeDirectBuffer {
      * Thus, the developer should use getLength() and access data only in this boundary.
      * This is equivalent to ((DirectBuffer) b.getByteBuffer()).address() + b.getOffset()
      *
-     * @return the exact address of the underlying buffer in the position of the data.
+     * @return the exact memory address of the underlying buffer in the position of the data.
      */
     long getAddress();
 

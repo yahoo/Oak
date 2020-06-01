@@ -29,7 +29,7 @@ public class ResizeValueTest {
         for (int i = 0; i < 100; i++) {
             stringBuilder.append(i);
         }
-        OakDetachedBuffer valBuffer = oak.zc().get(key);
+        OakUnscopedBuffer valBuffer = oak.zc().get(key);
         String transformed = valBuffer.transform(OakCommonBuildersFactory.DEFAULT_STRING_SERIALIZER::deserialize);
         Assert.assertEquals(value, transformed);
         oak.zc().put(key, stringBuilder.toString());
@@ -95,7 +95,7 @@ public class ResizeValueTest {
     @Test
     public void testResizeWithZCGet() {
         oak.zc().put("A", "");
-        OakDetachedBuffer buffer = oak.zc().get("A");
+        OakUnscopedBuffer buffer = oak.zc().get("A");
         Assert.assertEquals(0, buffer.getInt(0));
         StringBuilder stringBuilder = new StringBuilder();
         for (int i = 0; i < 100; i++) {
@@ -117,7 +117,7 @@ public class ResizeValueTest {
 
         oak.zc().put("A", smallValue);
         oak.zc().put("B", longValue);
-        OakDetachedBuffer buffer = oak.zc().get("A");
+        OakUnscopedBuffer buffer = oak.zc().get("A");
         Assert.assertEquals(0, buffer.getInt(0));
 
         oak.zc().put("A", longValue);

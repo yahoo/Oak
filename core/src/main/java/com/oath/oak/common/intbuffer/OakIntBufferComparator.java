@@ -1,7 +1,7 @@
 package com.oath.oak.common.intbuffer;
 
 import com.oath.oak.OakComparator;
-import com.oath.oak.OakReadBuffer;
+import com.oath.oak.OakScopedReadBuffer;
 import com.oath.oak.OakUnsafeDirectBuffer;
 
 import java.nio.ByteBuffer;
@@ -20,7 +20,7 @@ public class OakIntBufferComparator implements OakComparator<ByteBuffer> {
     }
 
     @Override
-    public int compareSerializedKeys(OakReadBuffer serializedKey1, OakReadBuffer serializedKey2) {
+    public int compareSerializedKeys(OakScopedReadBuffer serializedKey1, OakScopedReadBuffer serializedKey2) {
         OakUnsafeDirectBuffer unsafeKey1 = (OakUnsafeDirectBuffer) serializedKey1;
         OakUnsafeDirectBuffer unsafeKey2 = (OakUnsafeDirectBuffer) serializedKey2;
         return compare(unsafeKey1.getByteBuffer(), unsafeKey1.getOffset(), size,
@@ -28,7 +28,7 @@ public class OakIntBufferComparator implements OakComparator<ByteBuffer> {
     }
 
     @Override
-    public int compareKeyAndSerializedKey(ByteBuffer key, OakReadBuffer serializedKey) {
+    public int compareKeyAndSerializedKey(ByteBuffer key, OakScopedReadBuffer serializedKey) {
         OakUnsafeDirectBuffer unsafeKey = (OakUnsafeDirectBuffer) serializedKey;
         return compare(key, 0, size, unsafeKey.getByteBuffer(), unsafeKey.getOffset(), size);
     }

@@ -31,7 +31,7 @@ class Block {
         assert capacity > 0;
         assert capacity <= Integer.MAX_VALUE; // This is exactly 2GB
         this.capacity = (int) capacity;
-        this.id = OakNativeMemoryAllocator.INVALID_BLOCK_ID;
+        this.id = NativeMemoryAllocator.INVALID_BLOCK_ID;
         // Pay attention in allocateDirect the data is *zero'd out*
         // which has an overhead in clearing and you end up touching every page
         this.writeBuffer = ByteBuffer.allocateDirect(this.capacity);

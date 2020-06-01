@@ -12,13 +12,13 @@ import org.junit.Test;
 
 import java.nio.ByteBuffer;
 
-public class OakNoFreeMemoryManagerTest {
+public class NoFreeMemoryManagerTest {
 
     private NoFreeMemoryManager noFreeMemoryManager;
 
     @Before
     public void setUp() {
-        OakBlockMemoryAllocator keysMemoryAllocator = new OakNativeMemoryAllocator(128);
+        BlockMemoryAllocator keysMemoryAllocator = new NativeMemoryAllocator(128);
         noFreeMemoryManager = new NoFreeMemoryManager(keysMemoryAllocator);
     }
 

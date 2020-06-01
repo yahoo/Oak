@@ -2,10 +2,10 @@ package com.oath.oak.synchrobench;
 
 
 import com.oath.oak.OakComparator;
-import com.oath.oak.OakReadBuffer;
+import com.oath.oak.OakScopedReadBuffer;
 import com.oath.oak.OakSerializer;
 import com.oath.oak.OakUnsafeDirectBuffer;
-import com.oath.oak.OakWriteBuffer;
+import com.oath.oak.OakScopedWriteBuffer;
 import com.oath.oak.common.intbuffer.OakIntBufferComparator;
 import com.oath.oak.common.intbuffer.OakIntBufferSerializer;
 
@@ -105,12 +105,12 @@ public class MyBuffer implements Comparable<MyBuffer> {
     public static OakSerializer<MyBuffer> defaultSerializer = new OakSerializer<MyBuffer>() {
 
         @Override
-        public void serialize(MyBuffer key, OakWriteBuffer targetBuffer) {
+        public void serialize(MyBuffer key, OakScopedWriteBuffer targetBuffer) {
             MyBuffer.serialize(key, (OakUnsafeDirectBuffer) targetBuffer);
         }
 
         @Override
-        public MyBuffer deserialize(OakReadBuffer serializedKey) {
+        public MyBuffer deserialize(OakScopedReadBuffer serializedKey) {
             return MyBuffer.deserialize((OakUnsafeDirectBuffer) serializedKey);
         }
 
@@ -127,12 +127,12 @@ public class MyBuffer implements Comparable<MyBuffer> {
         }
 
         @Override
-        public int compareSerializedKeys(OakReadBuffer serializedKey1, OakReadBuffer serializedKey2) {
+        public int compareSerializedKeys(OakScopedReadBuffer serializedKey1, OakScopedReadBuffer serializedKey2) {
             return compareBuffers((OakUnsafeDirectBuffer) serializedKey1, (OakUnsafeDirectBuffer) serializedKey2);
         }
 
         @Override
-        public int compareKeyAndSerializedKey(MyBuffer key, OakReadBuffer serializedKey) {
+        public int compareKeyAndSerializedKey(MyBuffer key, OakScopedReadBuffer serializedKey) {
             return compareBuffers(key, (OakUnsafeDirectBuffer) serializedKey);
         }
     };

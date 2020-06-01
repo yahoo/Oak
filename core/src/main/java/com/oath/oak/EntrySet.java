@@ -606,7 +606,7 @@ class EntrySet<K, V> {
         int keySize = keySerializer.calculateSize(key);
 
         memoryManager.allocate(keyBuffer, keySize, MemoryManager.Allocate.KEY);
-        OakAttachedWriteBuffer.serialize(keyBuffer, key, keySerializer);
+        ScopedWriteBuffer.serialize(keyBuffer, key, keySerializer);
     }
 
     /**
@@ -619,7 +619,7 @@ class EntrySet<K, V> {
         final int keySize = src.capacity();
         memoryManager.allocate(dst, keySize, MemoryManager.Allocate.KEY);
 
-        // We duplicate the buffer without instantiating a OakAttachedWriteBuffer because the user is not involved.
+        // We duplicate the buffer without instantiating a write buffer because the user is not involved.
         UnsafeUtils.unsafe.copyMemory(src.getAddress(), dst.getAddress(), keySize);
     }
 
@@ -672,7 +672,7 @@ class EntrySet<K, V> {
             valOffHeapOperator.initHeader(ctx.newValue);
         }
 
-        OakAttachedWriteBuffer.serialize(ctx.newValue, value, valueSerializer);
+        ScopedWriteBuffer.serialize(ctx.newValue, value, valueSerializer);
     }
 
     /**

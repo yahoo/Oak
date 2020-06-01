@@ -13,7 +13,7 @@ package com.oath.oak;
  * any thread.
  * Note that two allocations cannot be merged into a single allocation, and an allocation currently is not split.
  */
-interface OakBlockMemoryAllocator {
+interface BlockMemoryAllocator {
 
     // Allocates a portion of a block of the given size, thread safe.
     boolean allocate(Slice s, int size, MemoryManager.Allocate allocate);

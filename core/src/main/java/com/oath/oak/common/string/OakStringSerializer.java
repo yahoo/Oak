@@ -1,13 +1,13 @@
 package com.oath.oak.common.string;
 
-import com.oath.oak.OakReadBuffer;
+import com.oath.oak.OakScopedReadBuffer;
+import com.oath.oak.OakScopedWriteBuffer;
 import com.oath.oak.OakSerializer;
-import com.oath.oak.OakWriteBuffer;
 
 public class OakStringSerializer implements OakSerializer<String> {
 
     @Override
-    public void serialize(String object, OakWriteBuffer targetBuffer) {
+    public void serialize(String object, OakScopedWriteBuffer targetBuffer) {
         final int size = object.length();
 
         targetBuffer.putInt(0, size);
@@ -18,7 +18,7 @@ public class OakStringSerializer implements OakSerializer<String> {
     }
 
     @Override
-    public String deserialize(OakReadBuffer byteBuffer) {
+    public String deserialize(OakScopedReadBuffer byteBuffer) {
         final int size = byteBuffer.getInt(0);
 
         StringBuilder object = new StringBuilder(size);

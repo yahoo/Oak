@@ -12,10 +12,10 @@ package com.oath.oak;
 public interface OakSerializer<T> {
 
     // serializes the object
-    void serialize(T object, OakWriteBuffer targetBuffer);
+    void serialize(T object, OakScopedWriteBuffer targetBuffer);
 
     // deserializes the given Oak buffer
-    T deserialize(OakReadBuffer byteBuffer);
+    T deserialize(OakScopedReadBuffer byteBuffer);
 
     // returns the number of bytes needed for serializing the given object
     int calculateSize(T object);

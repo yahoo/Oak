@@ -1,6 +1,6 @@
 package com.oath.oak;
 
-public class ValueBuffer extends OakAttachedReadBuffer {
+public class ValueBuffer extends ScopedReadBuffer {
     protected long reference;
 
     public ValueBuffer(int headerSize) {

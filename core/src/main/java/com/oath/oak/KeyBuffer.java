@@ -1,6 +1,6 @@
 package com.oath.oak;
 
-public class KeyBuffer extends OakAttachedReadBuffer {
+public class KeyBuffer extends ScopedReadBuffer {
     public KeyBuffer() {
         super(0);
     }

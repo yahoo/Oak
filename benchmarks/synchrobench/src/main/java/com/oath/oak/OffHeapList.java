@@ -15,7 +15,7 @@ import java.util.function.Consumer;
 
 public class OffHeapList<K extends MyBuffer, V extends MyBuffer> implements CompositionalOakMap<K, V> {
     private ConcurrentSkipListMap<Object, Cell> skipListMap;
-    private OakBlockMemoryAllocator allocator;
+    private BlockMemoryAllocator allocator;
     private Comparator<Object> comparator;
     private static final long KB = 1024L;
     private static final long GB = KB * KB * KB;
@@ -66,7 +66,7 @@ public class OffHeapList<K extends MyBuffer, V extends MyBuffer> implements Comp
         };
 
         skipListMap = new ConcurrentSkipListMap<>(comparator);
-        allocator = new OakNativeMemoryAllocator(OAK_MAX_OFF_MEMORY);
+        allocator = new NativeMemoryAllocator(OAK_MAX_OFF_MEMORY);
     }
 
     @Override
@@ -213,7 +213,7 @@ public class OffHeapList<K extends MyBuffer, V extends MyBuffer> implements Comp
         });
         skipListMap = new ConcurrentSkipListMap<>(comparator);
         allocator.close();
-        allocator = new OakNativeMemoryAllocator((long) Integer.MAX_VALUE * 16);
+        allocator = new NativeMemoryAllocator((long) Integer.MAX_VALUE * 16);
         System.gc();
     }
 

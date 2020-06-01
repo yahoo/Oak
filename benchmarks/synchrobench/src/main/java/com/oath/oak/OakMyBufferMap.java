@@ -11,13 +11,13 @@ public class OakMyBufferMap<K extends MyBuffer, V extends MyBuffer> implements C
     private com.oath.oak.OakMap<MyBuffer, MyBuffer> oak;
     private OakMapBuilder<MyBuffer, MyBuffer> builder;
     private MyBuffer minKey;
-    private OakNativeMemoryAllocator ma;
+    private NativeMemoryAllocator ma;
     private static final long KB = 1024L;
     private static final long GB = KB * KB * KB;
     private static final long OAK_MAX_OFF_MEMORY = 256 * GB;
 
     public OakMyBufferMap() {
-        ma = new OakNativeMemoryAllocator(OAK_MAX_OFF_MEMORY);
+        ma = new NativeMemoryAllocator(OAK_MAX_OFF_MEMORY);
         if (Parameters.detailedStats) {
             ma.collectStats();
         }
@@ -124,7 +124,7 @@ public class OakMyBufferMap<K extends MyBuffer, V extends MyBuffer> implements C
     public void clear() {
         oak.close();
 
-        ma = new OakNativeMemoryAllocator((long) Integer.MAX_VALUE * 32);
+        ma = new NativeMemoryAllocator((long) Integer.MAX_VALUE * 32);
         if (Parameters.detailedStats) {
             ma.collectStats();
         }
@@ -149,7 +149,7 @@ public class OakMyBufferMap<K extends MyBuffer, V extends MyBuffer> implements C
     }
 
     public void printMemStats() {
-        OakNativeMemoryAllocator.Stats stats = ma.getStats();
+        NativeMemoryAllocator.Stats stats = ma.getStats();
         System.out.printf("\tReleased buffers: \t\t%d\n", stats.releasedBuffers);
         System.out.printf("\tReleased bytes: \t\t%d\n", stats.releasedBytes);
         System.out.printf("\tReclaimed buffers: \t\t%d\n", stats.reclaimedBuffers);

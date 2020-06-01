@@ -1,8 +1,8 @@
 package com.oath.oak.common.integer;
 
-import com.oath.oak.OakReadBuffer;
+import com.oath.oak.OakScopedReadBuffer;
+import com.oath.oak.OakScopedWriteBuffer;
 import com.oath.oak.OakSerializer;
-import com.oath.oak.OakWriteBuffer;
 
 public class OakIntSerializer implements OakSerializer<Integer> {
 
@@ -17,12 +17,12 @@ public class OakIntSerializer implements OakSerializer<Integer> {
     }
 
     @Override
-    public void serialize(Integer value, OakWriteBuffer targetBuffer) {
+    public void serialize(Integer value, OakScopedWriteBuffer targetBuffer) {
         targetBuffer.putInt(0, value);
     }
 
     @Override
-    public Integer deserialize(OakReadBuffer serializedValue) {
+    public Integer deserialize(OakScopedReadBuffer serializedValue) {
         return serializedValue.getInt(0);
     }
 

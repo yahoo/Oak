@@ -9,15 +9,15 @@ package com.oath.oak;
 import java.util.ConcurrentModificationException;
 
 /**
- * This class is used for when a detached access to the value is needed with synchronization:
+ * This class is used for when an un-scoped access to the value is needed with synchronization:
  *  - zero-copy get operation
  *  - ValueIterator
  *  - EntryIterator (for values)
  * <p>
- * It extends the non-synchronized version, and overrides the safeAccessToAttachedBuffer() method to perform
- * synchronization before any access to the data.
+ * It extends the non-synchronized version, and overrides the transform() and safeAccessToScopedBuffer() methods to
+ * perform synchronization before any access to the data.
  */
-class OakDetachedReadValueBufferSynced extends OakDetachedReadBuffer<ValueBuffer> {
+class UnscopedValueBufferSynced extends UnscopedBuffer<ValueBuffer> {
 
     private static final int MAX_RETRIES = 1024;
 
@@ -30,8 +30,8 @@ class OakDetachedReadValueBufferSynced extends OakDetachedReadBuffer<ValueBuffer
      */
     private final InternalOakMap<?, ?> internalOakMap;
 
-    OakDetachedReadValueBufferSynced(KeyBuffer key, ValueBuffer value,
-                                     ValueUtils valueOperator, InternalOakMap<?, ?> internalOakMap) {
+    UnscopedValueBufferSynced(KeyBuffer key, ValueBuffer value,
+                              ValueUtils valueOperator, InternalOakMap<?, ?> internalOakMap) {
         super(new ValueBuffer(value));
         this.key = new KeyBuffer(key);
         this.valueOperator = valueOperator;
@@ -53,7 +53,7 @@ class OakDetachedReadValueBufferSynced extends OakDetachedReadBuffer<ValueBuffer
     }
 
     @Override
-    protected <R> R safeAccessToAttachedBuffer(Getter<R> getter, int index) {
+    protected <R> R safeAccessToScopedBuffer(Getter<R> getter, int index) {
         // Internal call. No input validation.
 
         start();

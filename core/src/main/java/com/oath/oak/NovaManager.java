@@ -10,9 +10,9 @@ class NovaManager implements MemoryManager {
     private final ThreadIndexCalculator threadIndexCalculator;
     private final List<List<Slice>> releaseLists;
     private final AtomicInteger globalNovaNumber;
-    private final OakBlockMemoryAllocator allocator;
+    private final BlockMemoryAllocator allocator;
 
-    NovaManager(OakBlockMemoryAllocator allocator) {
+    NovaManager(BlockMemoryAllocator allocator) {
         this.threadIndexCalculator = ThreadIndexCalculator.newInstance();
         this.releaseLists = new CopyOnWriteArrayList<>();
         for (int i = 0; i < ThreadIndexCalculator.MAX_THREADS; i++) {

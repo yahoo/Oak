@@ -67,7 +67,7 @@ class ValueUtilsImpl implements ValueUtils {
         if (capacity > ctx.value.getLength()) {
             return moveValue(chunk, ctx, memoryManager, internalOakMap, newVal);
         }
-        OakAttachedWriteBuffer.serialize(ctx.value, newVal, serializer);
+        ScopedWriteBuffer.serialize(ctx.value, newVal, serializer);
         return ValueResult.TRUE;
     }
 
@@ -90,14 +90,14 @@ class ValueUtilsImpl implements ValueUtils {
     }
 
     @Override
-    public ValueResult compute(ValueBuffer value, Consumer<OakWriteBuffer> computer) {
+    public ValueResult compute(ValueBuffer value, Consumer<OakScopedWriteBuffer> computer) {
         ValueResult result = lockWrite(value);
         if (result != ValueResult.TRUE) {
             return result;
         }
 
         try {
-            OakAttachedWriteBuffer.compute(value, computer);
+            ScopedWriteBuffer.compute(value, computer);
         } finally {
             unlockWrite(value);
         }

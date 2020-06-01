@@ -28,7 +28,7 @@ public class OakMapBuilder<K, V> {
     // Off-heap fields
     private int chunkMaxItems;
     private long memoryCapacity;
-    private OakBlockMemoryAllocator memoryAllocator;
+    private BlockMemoryAllocator memoryAllocator;
 
     public OakMapBuilder(OakComparator<K> comparator,
                          OakSerializer<K> keySerializer, OakSerializer<V> valueSerializer, K minKey) {
@@ -73,7 +73,7 @@ public class OakMapBuilder<K, V> {
         return this;
     }
 
-    public OakMapBuilder<K, V> setMemoryAllocator(OakBlockMemoryAllocator ma) {
+    public OakMapBuilder<K, V> setMemoryAllocator(BlockMemoryAllocator ma) {
         this.memoryAllocator = ma;
         return this;
     }
@@ -81,7 +81,7 @@ public class OakMapBuilder<K, V> {
     public OakMap<K, V> build() {
 
         if (memoryAllocator == null) {
-            this.memoryAllocator = new OakNativeMemoryAllocator(memoryCapacity);
+            this.memoryAllocator = new NativeMemoryAllocator(memoryCapacity);
         }
 
         MemoryManager memoryManager = new NovaManager(memoryAllocator);
