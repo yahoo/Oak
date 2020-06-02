@@ -15,7 +15,7 @@ import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 
-public class OakMapApiTest {
+public class MapApiTest {
 
     private OakMap<Integer, Integer> oak;
     private Random r = new Random();
@@ -98,8 +98,8 @@ public class OakMapApiTest {
         int expectedValue = r.nextInt();
         oak.put(key, expectedValue);
 
-        OakDetachedBuffer result = oak.zc().get(key);
-        Assert.assertNotNull("Looking up an existing key should return non-null OakDetachedBuffer", result);
+        OakUnscopedBuffer result = oak.zc().get(key);
+        Assert.assertNotNull("Looking up an existing key should return non-null buffer", result);
         int actualValue = result.getInt(0);
         Assert.assertEquals("Looking up an existing key should return the mapped value", expectedValue, actualValue);
         Assert.assertNull("Looking up a non-existing key should return null", oak.zc().get(key + 1));
@@ -280,7 +280,7 @@ public class OakMapApiTest {
 
     @Test
     public void computeIfPresentZC() {
-        Consumer<OakWriteBuffer> func = oakWBuffer -> oakWBuffer.putInt(0, oakWBuffer.getInt(0) * 2);
+        Consumer<OakScopedWriteBuffer> func = oakWBuffer -> oakWBuffer.putInt(0, oakWBuffer.getInt(0) * 2);
 
         Assert.assertFalse("computeIfPresentZC should return false if mapping doesn't exist",
                 oak.zc().computeIfPresent(0, func));
@@ -335,7 +335,7 @@ public class OakMapApiTest {
     public void immutableKeyBuffers() {
         oak.put(0, 0);
 
-        OakDetachedBuffer buffer = oak.zc().keySet().iterator().next();
+        OakUnscopedBuffer buffer = oak.zc().keySet().iterator().next();
 
         buffer.transform(b -> ((OakUnsafeDirectBuffer) b).getByteBuffer().putInt(0, 1));
 
@@ -346,7 +346,7 @@ public class OakMapApiTest {
     public void immutableValueBuffers() {
         oak.put(0, 0);
 
-        OakDetachedBuffer buffer = oak.zc().values().iterator().next();
+        OakUnscopedBuffer buffer = oak.zc().values().iterator().next();
 
         buffer.transform(b -> ((OakUnsafeDirectBuffer) b).getByteBuffer().putInt(0, 1));
 

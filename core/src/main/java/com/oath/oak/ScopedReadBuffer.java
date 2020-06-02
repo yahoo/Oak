@@ -12,13 +12,13 @@ import java.nio.ByteOrder;
  * An instance of this buffer is only used when the read lock of the key/value referenced by it is already acquired.
  * This is the reason no lock is acquired in each access.
  */
-class OakAttachedReadBuffer extends Slice implements OakReadBuffer, OakUnsafeDirectBuffer {
+class ScopedReadBuffer extends Slice implements OakScopedReadBuffer, OakUnsafeDirectBuffer {
 
-    OakAttachedReadBuffer(int headerSize) {
+    ScopedReadBuffer(int headerSize) {
         super(headerSize);
     }
 
-    OakAttachedReadBuffer(Slice other) {
+    ScopedReadBuffer(Slice other) {
         super(other);
     }
 

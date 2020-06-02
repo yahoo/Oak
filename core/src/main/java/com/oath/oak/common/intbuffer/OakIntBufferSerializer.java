@@ -1,9 +1,9 @@
 package com.oath.oak.common.intbuffer;
 
-import com.oath.oak.OakReadBuffer;
+import com.oath.oak.OakScopedReadBuffer;
+import com.oath.oak.OakScopedWriteBuffer;
 import com.oath.oak.OakSerializer;
 import com.oath.oak.OakUnsafeDirectBuffer;
-import com.oath.oak.OakWriteBuffer;
 
 import java.nio.ByteBuffer;
 
@@ -16,13 +16,13 @@ public class OakIntBufferSerializer implements OakSerializer<ByteBuffer> {
     }
 
     @Override
-    public void serialize(ByteBuffer obj, OakWriteBuffer targetBuffer) {
+    public void serialize(ByteBuffer obj, OakScopedWriteBuffer targetBuffer) {
         OakUnsafeDirectBuffer unsafeTarget = (OakUnsafeDirectBuffer) targetBuffer;
         copyBuffer(obj, 0, size, unsafeTarget.getByteBuffer(), unsafeTarget.getOffset());
     }
 
     @Override
-    public ByteBuffer deserialize(OakReadBuffer byteBuffer) {
+    public ByteBuffer deserialize(OakScopedReadBuffer byteBuffer) {
         OakUnsafeDirectBuffer unsafeBuffer = (OakUnsafeDirectBuffer) byteBuffer;
 
         ByteBuffer ret = ByteBuffer.allocate(getSizeBytes());

@@ -7,7 +7,7 @@ public class NovaManagerTest {
 
     @Test
     public void reuseTest() {
-        final OakNativeMemoryAllocator allocator = new OakNativeMemoryAllocator(128);
+        final NativeMemoryAllocator allocator = new NativeMemoryAllocator(128);
         NovaManager novaManager = new NovaManager(allocator);
         long oldVersion = novaManager.getCurrentVersion();
         Slice[] allocatedSlices = new Slice[NovaManager.RELEASE_LIST_LIMIT];

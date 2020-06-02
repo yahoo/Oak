@@ -20,7 +20,7 @@ package com.oath.oak;
  * Using these buffers outside their intended context may yield unpredicted results, e.g., reading non-consistent data
  * and/or irrelevant data.
  */
-public interface OakWriteBuffer extends OakReadBuffer {
+public interface OakScopedWriteBuffer extends OakBuffer {
 
     /**
      * Absolute <i>put</i> method&nbsp;&nbsp;<i>(optional operation)</i>.
@@ -33,7 +33,7 @@ public interface OakWriteBuffer extends OakReadBuffer {
      * @throws IndexOutOfBoundsException If <tt>index</tt> is negative
      *                                   or not smaller than the buffer's limit
      */
-    OakWriteBuffer put(int index, byte b);
+    OakScopedWriteBuffer put(int index, byte b);
 
     /**
      * Absolute <i>put</i> method for writing a char
@@ -48,7 +48,7 @@ public interface OakWriteBuffer extends OakReadBuffer {
      *                                   or not smaller than the buffer's limit,
      *                                   minus one
      */
-    OakWriteBuffer putChar(int index, char value);
+    OakScopedWriteBuffer putChar(int index, char value);
 
     /**
      * Absolute <i>put</i> method for writing a short
@@ -63,7 +63,7 @@ public interface OakWriteBuffer extends OakReadBuffer {
      *                                   or not smaller than the buffer's limit,
      *                                   minus one
      */
-    OakWriteBuffer putShort(int index, short value);
+    OakScopedWriteBuffer putShort(int index, short value);
 
     /**
      * Absolute <i>put</i> method for writing an int
@@ -78,7 +78,7 @@ public interface OakWriteBuffer extends OakReadBuffer {
      *                                   or not smaller than the buffer's limit,
      *                                   minus three
      */
-    OakWriteBuffer putInt(int index, int value);
+    OakScopedWriteBuffer putInt(int index, int value);
 
     /**
      * Absolute <i>put</i> method for writing a long
@@ -93,7 +93,7 @@ public interface OakWriteBuffer extends OakReadBuffer {
      *                                   or not smaller than the buffer's limit,
      *                                   minus seven
      */
-    OakWriteBuffer putLong(int index, long value);
+    OakScopedWriteBuffer putLong(int index, long value);
 
     /**
      * Absolute <i>put</i> method for writing a float
@@ -108,7 +108,7 @@ public interface OakWriteBuffer extends OakReadBuffer {
      *                                   or not smaller than the buffer's limit,
      *                                   minus three
      */
-    OakWriteBuffer putFloat(int index, float value);
+    OakScopedWriteBuffer putFloat(int index, float value);
 
 
     /**
@@ -124,6 +124,6 @@ public interface OakWriteBuffer extends OakReadBuffer {
      *                                   or not smaller than the buffer's limit,
      *                                   minus seven
      */
-    OakWriteBuffer putDouble(int index, double value);
+    OakScopedWriteBuffer putDouble(int index, double value);
 
 }

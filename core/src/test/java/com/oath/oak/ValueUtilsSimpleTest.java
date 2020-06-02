@@ -15,7 +15,7 @@ public class ValueUtilsSimpleTest {
 
     @Before
     public void init() {
-        NovaManager novaManager = new NovaManager(new OakNativeMemoryAllocator(128));
+        NovaManager novaManager = new NovaManager(new NativeMemoryAllocator(128));
         s = new Slice();
         novaManager.allocate(s, 16, MemoryManager.Allocate.VALUE);
         s.writeBuffer.putInt(s.getOffset(), 1);

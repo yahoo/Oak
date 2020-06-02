@@ -16,7 +16,7 @@ public interface OakComparator<K> extends Comparator<K> {
 
     int compareKeys(K key1, K key2);
 
-    int compareSerializedKeys(OakReadBuffer serializedKey1, OakReadBuffer serializedKey2);
+    int compareSerializedKeys(OakScopedReadBuffer serializedKey1, OakScopedReadBuffer serializedKey2);
 
-    int compareKeyAndSerializedKey(K key, OakReadBuffer serializedKey);
+    int compareKeyAndSerializedKey(K key, OakScopedReadBuffer serializedKey);
 }

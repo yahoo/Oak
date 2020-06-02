@@ -29,10 +29,10 @@ class Slice implements OakUnsafeDirectBuffer, Comparable<Slice> {
     // Allocation time version
     protected int version;
 
-    // This instance of the buffer is read-only and is used by OakAttachedReadBuffer
+    // This instance of the buffer is read-only and is used by ScopedReadBuffer
     protected ByteBuffer readBuffer;
 
-    // This instance of the buffer is writable and is used by OakAttachedWriteBuffer
+    // This instance of the buffer is writable and is used by ScopedWriteBuffer
     protected ByteBuffer writeBuffer;
 
     Slice(int headerSize) {
@@ -63,7 +63,7 @@ class Slice implements OakUnsafeDirectBuffer, Comparable<Slice> {
 
     // Reset to invalid state
     void invalidate() {
-        blockID = OakNativeMemoryAllocator.INVALID_BLOCK_ID;
+        blockID = NativeMemoryAllocator.INVALID_BLOCK_ID;
         offset = -1;
         length = -1;
         version = EntrySet.INVALID_VERSION;
@@ -119,7 +119,7 @@ class Slice implements OakUnsafeDirectBuffer, Comparable<Slice> {
      * ------------------------------------------------------------------------------------*/
 
     boolean isAllocated() {
-        return blockID != OakNativeMemoryAllocator.INVALID_BLOCK_ID;
+        return blockID != NativeMemoryAllocator.INVALID_BLOCK_ID;
     }
 
     int getAllocatedBlockID() {

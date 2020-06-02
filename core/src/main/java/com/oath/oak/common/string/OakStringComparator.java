@@ -1,7 +1,7 @@
 package com.oath.oak.common.string;
 
 import com.oath.oak.OakComparator;
-import com.oath.oak.OakReadBuffer;
+import com.oath.oak.OakScopedReadBuffer;
 
 public class OakStringComparator implements OakComparator<String> {
 
@@ -11,7 +11,7 @@ public class OakStringComparator implements OakComparator<String> {
     }
 
     @Override
-    public int compareSerializedKeys(OakReadBuffer serializedKey1, OakReadBuffer serializedKey2) {
+    public int compareSerializedKeys(OakScopedReadBuffer serializedKey1, OakScopedReadBuffer serializedKey2) {
         final int size1 = serializedKey1.getInt(0);
         final int size2 = serializedKey2.getInt(0);
         final int minSize = Math.min(size1, size2);
@@ -29,7 +29,7 @@ public class OakStringComparator implements OakComparator<String> {
     }
 
     @Override
-    public int compareKeyAndSerializedKey(String key, OakReadBuffer serializedKey) {
+    public int compareKeyAndSerializedKey(String key, OakScopedReadBuffer serializedKey) {
         final int size1 = key.length();
         final int size2 = serializedKey.getInt(0);
         final int minSize = Math.min(size1, size2);

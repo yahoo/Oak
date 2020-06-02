@@ -8,10 +8,10 @@ package com.oath.oak;
 
 
 class NoFreeMemoryManager implements MemoryManager {
-    private final OakBlockMemoryAllocator keysMemoryAllocator;
-    private final OakBlockMemoryAllocator valuesMemoryAllocator;
+    private final BlockMemoryAllocator keysMemoryAllocator;
+    private final BlockMemoryAllocator valuesMemoryAllocator;
 
-    NoFreeMemoryManager(OakBlockMemoryAllocator memoryAllocator) {
+    NoFreeMemoryManager(BlockMemoryAllocator memoryAllocator) {
         assert memoryAllocator != null;
 
         this.valuesMemoryAllocator = memoryAllocator;

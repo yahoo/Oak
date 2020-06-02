@@ -16,7 +16,7 @@ import java.util.Random;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-public class OakNativeMemoryAllocatorTest {
+public class NativeMemoryAllocatorTest {
     static final int VALUE_SIZE_AFTER_SERIALIZATION = 4 * 1024 * 1024;
     static final int KEYS_SIZE_AFTER_SERIALIZATION = Integer.BYTES;
 
@@ -27,7 +27,7 @@ public class OakNativeMemoryAllocatorTest {
 
     private static final ValueUtilsImpl VALUE_OPERATOR = new ValueUtilsImpl();
 
-    Slice allocate(OakNativeMemoryAllocator allocator, int size) {
+    Slice allocate(NativeMemoryAllocator allocator, int size) {
         Slice s = new Slice();
         allocator.allocate(s, size, MemoryManager.Allocate.KEY);
         return s;
@@ -50,7 +50,7 @@ public class OakNativeMemoryAllocatorTest {
             blocks.add(newBlock);
             return newBlock;
         });
-        OakNativeMemoryAllocator allocator = new OakNativeMemoryAllocator(capacity, mockProvider);
+        NativeMemoryAllocator allocator = new NativeMemoryAllocator(capacity, mockProvider);
 
         int numAllocators = 10;
         ArrayList<Thread> threads = new ArrayList<>();
@@ -76,7 +76,7 @@ public class OakNativeMemoryAllocatorTest {
 
         int blockSize = BlocksPool.getInstance().blockSize();
         int capacity = blockSize * 3;
-        OakNativeMemoryAllocator ma = new OakNativeMemoryAllocator(capacity);
+        NativeMemoryAllocator ma = new NativeMemoryAllocator(capacity);
 
         /* simple allocation */
         Slice bb = allocate(ma, 4);
@@ -129,7 +129,7 @@ public class OakNativeMemoryAllocatorTest {
         int initBlocks = BlocksPool.getInstance().numOfRemainingBlocks();
         int blockSize = BlocksPool.getInstance().blockSize();
         int capacity = blockSize * 3;
-        OakNativeMemoryAllocator ma = new OakNativeMemoryAllocator(capacity);
+        NativeMemoryAllocator ma = new NativeMemoryAllocator(capacity);
         int maxItemsPerChunk = 1024;
 
         // These will be updated on the fly
@@ -276,7 +276,7 @@ public class OakNativeMemoryAllocatorTest {
     @Test
     public void checkFreelistOrdering() {
         long capacity = 100;
-        OakNativeMemoryAllocator allocator = new OakNativeMemoryAllocator(capacity);
+        NativeMemoryAllocator allocator = new NativeMemoryAllocator(capacity);
         allocator.collectStats();
 
         // Order is important here!
@@ -291,7 +291,7 @@ public class OakNativeMemoryAllocatorTest {
 
         allocated.forEach(allocator::free);
 
-        OakNativeMemoryAllocator.Stats stats = allocator.getStats();
+        NativeMemoryAllocator.Stats stats = allocator.getStats();
         Assert.assertEquals(sizes.length, stats.releasedBuffers);
         Assert.assertEquals(bytesAllocated, stats.releasedBytes);
 

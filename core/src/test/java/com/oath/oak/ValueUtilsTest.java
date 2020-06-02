@@ -16,7 +16,7 @@ public class ValueUtilsTest {
 
     @Before
     public void init() {
-        novaManager = new NovaManager(new OakNativeMemoryAllocator(128));
+        novaManager = new NovaManager(new NativeMemoryAllocator(128));
         ctx = new ThreadContext(valueOperator);
         s = ctx.value;
         novaManager.allocate(s, 20, MemoryManager.Allocate.VALUE);
@@ -135,14 +135,14 @@ public class ValueUtilsTest {
         }
         Assert.assertEquals(ValueUtils.ValueResult.TRUE, valueOperator.put(null, ctx, 10, new OakSerializer<Integer>() {
             @Override
-            public void serialize(Integer object, OakWriteBuffer targetBuffer) {
+            public void serialize(Integer object, OakScopedWriteBuffer targetBuffer) {
                 for (int i = 0; i < randomValues.length; i++) {
                     targetBuffer.putInt(i * Integer.BYTES, randomValues[i]);
                 }
             }
 
             @Override
-            public Integer deserialize(OakReadBuffer byteBuffer) {
+            public Integer deserialize(OakScopedReadBuffer byteBuffer) {
                 return null;
             }
 
@@ -160,12 +160,12 @@ public class ValueUtilsTest {
     public void putUpperBoundTest() {
         valueOperator.put(null, ctx, 5, new OakSerializer<Integer>() {
             @Override
-            public void serialize(Integer object, OakWriteBuffer targetBuffer) {
+            public void serialize(Integer object, OakScopedWriteBuffer targetBuffer) {
                 targetBuffer.putInt(12, 30);
             }
 
             @Override
-            public Integer deserialize(OakReadBuffer byteBuffer) {
+            public Integer deserialize(OakScopedReadBuffer byteBuffer) {
                 return null;
             }
 
@@ -180,12 +180,12 @@ public class ValueUtilsTest {
     public void putLowerBoundTest() {
         valueOperator.put(null, ctx, 5, new OakSerializer<Integer>() {
             @Override
-            public void serialize(Integer object, OakWriteBuffer targetBuffer) {
+            public void serialize(Integer object, OakScopedWriteBuffer targetBuffer) {
                 targetBuffer.putInt(-4, 30);
             }
 
             @Override
-            public Integer deserialize(OakReadBuffer byteBuffer) {
+            public Integer deserialize(OakScopedReadBuffer byteBuffer) {
                 return null;
             }
 
@@ -212,14 +212,14 @@ public class ValueUtilsTest {
             }
             valueOperator.put(null, ctx, 10, new OakSerializer<Integer>() {
                 @Override
-                public void serialize(Integer object, OakWriteBuffer targetBuffer) {
+                public void serialize(Integer object, OakScopedWriteBuffer targetBuffer) {
                     for (int i = 0; i < randomValues.length; i++) {
                         targetBuffer.putInt(i * Integer.BYTES, randomValues[i]);
                     }
                 }
 
                 @Override
-                public Integer deserialize(OakReadBuffer byteBuffer) {
+                public Integer deserialize(OakScopedReadBuffer byteBuffer) {
                     return null;
                 }
 
@@ -266,14 +266,14 @@ public class ValueUtilsTest {
             }
             valueOperator.put(null, ctx, 10, new OakSerializer<Integer>() {
                 @Override
-                public void serialize(Integer object, OakWriteBuffer targetBuffer) {
+                public void serialize(Integer object, OakScopedWriteBuffer targetBuffer) {
                     for (int i = 0; i < targetBuffer.capacity(); i += 4) {
                         Assert.assertEquals(randomValues[i / 4], targetBuffer.getInt(i));
                     }
                 }
 
                 @Override
-                public Integer deserialize(OakReadBuffer byteBuffer) {
+                public Integer deserialize(OakScopedReadBuffer byteBuffer) {
                     return null;
                 }
 
