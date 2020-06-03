@@ -1,19 +1,14 @@
 ======================================================
 
-#OAK 0.2 Release Notes (June 01, 2020)
+## OAK 0.2 Release Notes (June 01, 2020)
 >Compared to Oak 0.1.5 that was published on May 14, 2019 
 
 
-### 01. Keys Disaggregation
-       Make chunks only reference the keys, thus keys are not copied during the rebalance. Improving the rebalance and ingestion performance. 
-### 02. Stream Scans
-       Gives a "stream" view on the elements, meaning only one element can be observed at a time. It greatly improves the scan performance due to objects’ re-usage.
-### 03. Removing Handles
-       Make chunks reference to the off-heap buffers directly, with synchronization and memory managing data moved to the buffer header. Memory usage decreased by one third.
-### 04. Memory Management
-       Following removing handles, the memory management is not based on the handle lock, and headers can be fully reusable (no internal fragmentation). Better memory utilization.
-### 05. Descending Scan Stack Refill Optimization
-       Fix the bug of refilling the scan stack with the same element more than once. Keys got compared by their indexes and not values. This improves the descending scan performance.
+#### 01. Keys Disaggregation: Make chunks only reference the keys, thus keys are not copied during the rebalance. Improving the rebalance and ingestion performance. 
+#### 02. Stream Scans: Gives a "stream" view on the elements, meaning only one element can be observed at a time. It greatly improves the scan performance due to objects’ re-usage.
+#### 03. Removing Handles: Make chunks reference to the off-heap buffers directly, with synchronization and memory managing data moved to the buffer header. Memory usage decreased by one third.
+#### 04. Memory Management: Following removing handles, the memory management is not based on the handle lock, and headers can be fully reusable (no internal fragmentation). Better memory utilization.
+#### 05. Descending Scan Stack Refill Optimization: Fix the bug of refilling the scan stack with the same element more than once. Keys got compared by their indexes and not values. This improves the descending scan performance.
 ### 06. Refactoring for future OakHash
        EntrySet class is introduced to encapsulate (1) the entries to integers mapping and (2) managing (allocate/read/write/delete/release) individual key-value entries. Helps in future OakHash coding.
 ### 07. No internal objects creation
