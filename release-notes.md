@@ -1,3 +1,8 @@
+<hr>
+
+## OAK 0.2.1 Release Notes (June 04, 2020)
+
+ 01. Update the copyright statement
 
 <hr>
 
