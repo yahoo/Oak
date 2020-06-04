@@ -1,8 +1,6 @@
-======================================================
 
+<hr>
 ## OAK 0.2 Release Notes (June 01, 2020)
->Compared to Oak 0.1.5 that was published on May 14, 2019 
-
 
  01. Keys Disaggregation: Make chunks only reference the keys, thus keys are not copied during the rebalance. Improving the rebalance and ingestion performance. 
  02. Stream Scans: Gives a "stream" view on the elements, meaning only one element can be observed at a time. It greatly improves the scan performance due to objects’ re-usage.
@@ -15,4 +13,9 @@
  09. Improving benchmarks code: Reducing the time it takes to run all benchmarks. Improving the results readability. Improving the benchmark scripts user experience.
  10. Correctness bug fixes: Various bugs fixes: in non-zero-copy API, internal memory access, rebalance process, etc.
  11. Small performance enhancements: Byte order, stack anchor movement, thread local elimination, thread index calculator improvement, etc.
+
+<hr>
+## OAK 0.1.5 Release Notes (May 14, 2019)
+
+ 01. Accomplish all ConcurrentNavigableMap API
 
