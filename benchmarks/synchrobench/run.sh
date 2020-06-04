@@ -82,7 +82,7 @@ declare -A scenarios=(
                      )
 
 
-benchClassPrefix="com.oath.oak"
+benchClassPrefix="com.yahoo.oak"
 
 summary="${output}/summary.csv"
 

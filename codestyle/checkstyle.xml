@@ -19,6 +19,10 @@
         <property name="max" value="120"/>
     </module>
 
+    <module name="Header">
+        <property name="headerFile" value="codestyle/header.java"/>
+    </module>
+
     <module name="TreeWalker">
         <!-- ################################################################################
              Size Violations: https://checkstyle.sourceforge.io/config_sizes.html
@@ -123,7 +127,7 @@
 
         <!-- Checks that package names conform to a specified pattern. -->
         <module name="PackageName">
-            <property name="format" value="^com.oath.oak.*$"/>
+            <property name="format" value="^com.yahoo.oak.*$"/>
         </module>
 
         <!-- Checks that method names conform to a specified pattern. -->
