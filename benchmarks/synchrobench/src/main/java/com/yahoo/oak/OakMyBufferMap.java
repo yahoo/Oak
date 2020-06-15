@@ -30,7 +30,7 @@ public class OakMyBufferMap<K extends MyBuffer, V extends MyBuffer> implements C
         minKey.buffer.putInt(0, Integer.MIN_VALUE);
         builder =
             new OakMapBuilder<MyBuffer, MyBuffer>(
-                MyBuffer.defaultComparator, MyBuffer.defaultSerializer, MyBuffer.defaultSerializer, minKey)
+                MyBuffer.DEFAULT_COMPARATOR, MyBuffer.DEFAULT_SERIALIZER, MyBuffer.DEFAULT_SERIALIZER, minKey)
                 .setChunkMaxItems(Chunk.MAX_ITEMS_DEFAULT)
                 .setMemoryAllocator(ma);
         oak = builder.build();
@@ -137,7 +137,7 @@ public class OakMyBufferMap<K extends MyBuffer, V extends MyBuffer> implements C
         minKey.buffer.putInt(0, Integer.MIN_VALUE);
         builder =
             new OakMapBuilder<MyBuffer, MyBuffer>(
-                MyBuffer.defaultComparator, MyBuffer.defaultSerializer, MyBuffer.defaultSerializer, minKey)
+                MyBuffer.DEFAULT_COMPARATOR, MyBuffer.DEFAULT_SERIALIZER, MyBuffer.DEFAULT_SERIALIZER, minKey)
                 .setChunkMaxItems(Chunk.MAX_ITEMS_DEFAULT)
                 .setMemoryAllocator(ma);
         oak = builder.build();
