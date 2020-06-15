@@ -107,7 +107,7 @@ public class MyBuffer implements Comparable<MyBuffer> {
         return compareBuffers(key1.buffer, DATA_POS, key1.capacity, key2.buffer, DATA_POS, key2.capacity);
     }
 
-    public static OakSerializer<MyBuffer> defaultSerializer = new OakSerializer<MyBuffer>() {
+    public static final OakSerializer<MyBuffer> DEFAULT_SERIALIZER = new OakSerializer<MyBuffer>() {
 
         @Override
         public void serialize(MyBuffer key, OakScopedWriteBuffer targetBuffer) {
@@ -125,7 +125,7 @@ public class MyBuffer implements Comparable<MyBuffer> {
         }
     };
 
-    public static OakComparator<MyBuffer> defaultComparator = new OakComparator<MyBuffer>() {
+    public static final OakComparator<MyBuffer> DEFAULT_COMPARATOR = new OakComparator<MyBuffer>() {
         @Override
         public int compareKeys(MyBuffer key1, MyBuffer key2) {
             return MyBuffer.compareBuffers(key1, key2);
