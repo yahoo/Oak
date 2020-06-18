@@ -142,6 +142,44 @@ public class ViewTests {
     }
 
     @Test
+    public void testStreamRangeAPIs() {
+        String[] values = new String[ELEMENTS];
+        for (int i = 0; i < ELEMENTS; i++) {
+            values[i] = String.valueOf(i);
+        }
+        Arrays.sort(values);
+
+        final int start = 2;
+        final int end = ELEMENTS - 1;
+
+        try (OakMap<String, String> sub = oak.subMap(values[start], true, values[end], false)) {
+
+            Iterator<OakUnscopedBuffer> keyStreamIterator = sub.zc().keyStreamSet().iterator();
+            for (int i = start; i < end; i++) {
+                OakUnscopedBuffer keyBB = keyStreamIterator.next();
+                String key = keyBB.transform(OakCommonBuildersFactory.DEFAULT_STRING_SERIALIZER::deserialize);
+                Assert.assertEquals(values[i], key);
+            }
+
+            Iterator<OakUnscopedBuffer> valueStreamIterator = sub.zc().valuesStream().iterator();
+            for (int i = start; i < end; i++) {
+                OakUnscopedBuffer valueBB = valueStreamIterator.next();
+                String value = valueBB.transform(OakCommonBuildersFactory.DEFAULT_STRING_SERIALIZER::deserialize);
+                Assert.assertEquals(values[i], value);
+            }
+
+            Iterator<Map.Entry<OakUnscopedBuffer, OakUnscopedBuffer>> entryStreamIterator
+                    = sub.zc().entryStreamSet().iterator();
+            for (int i = start; i < end; i++) {
+                Map.Entry<OakUnscopedBuffer, OakUnscopedBuffer> entryBB = entryStreamIterator.next();
+                String value = entryBB.getValue().transform(
+                        OakCommonBuildersFactory.DEFAULT_STRING_SERIALIZER::deserialize);
+                Assert.assertEquals(values[i], value);
+            }
+        }
+    }
+
+    @Test
     public void testTransformViewAPIs() {
         Function<Map.Entry<OakUnscopedBuffer, OakUnscopedBuffer>, Integer> transformer = (entry) -> {
             Assert.assertNotNull(entry.getKey());

@@ -1243,7 +1243,7 @@ class InternalOakMap<K, V> {
                         assert validState;
                     } else {
                         // If we checked the boundary, than we already read the current key into ctx.tempKey
-                        ctx.key.copyFrom(ctx.tempKey);
+                        key.buffer.copyFrom(ctx.tempKey);
                         validState = true;
                     }
                 }
