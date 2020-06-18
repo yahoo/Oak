@@ -1,5 +1,11 @@
 <hr>
 
+## OAK 0.2.2 Release Notes (June 18, 2020)
+
+ 01. Fixed bad key initialization in the stream iterators with boundaries.
+
+<hr>
+
 ## OAK 0.2.1 Release Notes (June 04, 2020)
 
  01. Update the copyright statement
