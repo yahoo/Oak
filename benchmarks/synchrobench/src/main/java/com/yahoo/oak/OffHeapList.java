@@ -233,7 +233,8 @@ public class OffHeapList<K extends MyBuffer, V extends MyBuffer> implements Comp
     public void putIfAbsentComputeIfPresentOak(K key, V value) {
 
 
-        Consumer<OakUnsafeDirectBuffer> computeFunction = buffer -> {
+        Consumer<OakScopedWriteBuffer> computeFunction = writeBuffer -> {
+            OakUnsafeDirectBuffer buffer = (OakUnsafeDirectBuffer) writeBuffer;
             ByteBuffer buf = buffer.getByteBuffer();
             int pos = buffer.getOffset();
             buf.putLong(pos + 1, ~buf.getLong(pos + 1));
@@ -251,12 +252,12 @@ public class OffHeapList<K extends MyBuffer, V extends MyBuffer> implements Comp
                 if (!prevValue.value.compareAndSet(null, valuebb)) {
                     allocator.free(valuebb);
                     synchronized (prevValue.value) {
-                        computeFunction.accept(prevValue.value.get());
+                        ScopedWriteBuffer.compute(prevValue.value.get(), computeFunction);
                     }
                 }
             } else {
                 synchronized (prevValue.value) {
-                    computeFunction.accept(prevValue.value.get());
+                    ScopedWriteBuffer.compute(prevValue.value.get(), computeFunction);
                 }
             }
             return prevValue;
@@ -286,7 +287,7 @@ public class OffHeapList<K extends MyBuffer, V extends MyBuffer> implements Comp
             if (!retval.value.compareAndSet(null, valuebb)) {
                 allocator.free(valuebb);
                 synchronized (retval.value) {
-                    computeFunction.accept(retval.value.get());
+                    ScopedWriteBuffer.compute(retval.value.get(), computeFunction);
                 }
             }
         }
