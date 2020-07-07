@@ -163,6 +163,11 @@ class Slice implements OakUnsafeDirectBuffer, Comparable<Slice> {
         return ((DirectBuffer) buffer).address() + getOffset();
     }
 
+    @Override
+    public String toString() {
+        return String.format("Slice(blockID=%d, offset=%,d, length=%,d, version=%d)", blockID, offset, length, version);
+    }
+
     /*-------------- Comparable<Slice> --------------*/
 
     /**

@@ -25,17 +25,35 @@ class ReferenceCodec {
     final long lengthMask;
     final long blockMask;
 
-    ReferenceCodec(int offsetBitSize, int lengthBitSize, int blockBitSize) {
-        this.offsetBitSize = offsetBitSize;
-        this.lengthBitSize = lengthBitSize;
-        this.blockBitSize = blockBitSize;
+    /**
+     * Initialize the codec with size block-size and value length limits.
+     * These limits will inflict a limit on the maximal number of blocks (the remaining bits).
+     *
+     * @param blockSizeLimit an upper limit on the size of a block (exclusive)
+     * @param lengthLimit    an upper limit on the data length (exclusive)
+     */
+    ReferenceCodec(long blockSizeLimit, long lengthLimit) {
+        this.offsetBitSize = requiredBits(blockSizeLimit);
+        this.lengthBitSize = requiredBits(lengthLimit);
+        this.blockBitSize = Long.SIZE - offsetBitSize - lengthBitSize;
+        assert this.blockBitSize > 0 : String.format(
+                "Not enough bits to encode a reference: blockSizeLimit=%,d, lengthLimit=%,d.",
+                blockSizeLimit, lengthLimit);
 
-        lengthShift = offsetBitSize;
-        blockShift = lengthShift + lengthBitSize;
+        this.lengthShift = this.offsetBitSize;
+        this.blockShift = this.lengthShift + this.lengthBitSize;
 
-        offsetMask = mask(offsetBitSize);
-        lengthMask = mask(lengthBitSize);
-        blockMask = mask(blockBitSize);
+        this.offsetMask = mask(this.offsetBitSize);
+        this.lengthMask = mask(this.lengthBitSize);
+        this.blockMask = mask(this.blockBitSize);
+    }
+
+    /**
+     * @param size the value to encode
+     * @return the required bits to encode the value (exclusive)
+     */
+    static int requiredBits(long size) {
+        return (int) Math.ceil(Math.log(size) / Math.log(2));
     }
 
     static long mask(int size) {
@@ -44,6 +62,12 @@ class ReferenceCodec {
 
     static boolean isValidReference(long reference) {
         return reference != INVALID_REFERENCE;
+    }
+
+    @Override
+    public String toString() {
+        return String.format("ReferenceCodec(offset=%d bit, length=%d bit, block=%d bit)",
+                this.offsetBitSize, this.lengthBitSize, this.blockBitSize);
     }
 
     /*
@@ -60,6 +84,13 @@ class ReferenceCodec {
      * @return the encoded reference
      */
     public long encode(final Slice s) {
+        // These checks validates that the chosen encoding is sufficient for the current use-case.
+        if ((((long) s.getAllocatedOffset()) & ~offsetMask) != 0 ||
+                (((long) s.getAllocatedLength()) & ~lengthMask) != 0 ||
+                (((long) s.getAllocatedBlockID()) & ~blockMask) != 0) {
+            throw new IllegalArgumentException(String.format("%s has insufficient capacity to encode %s", this, s));
+        }
+
         long offsetPart = ((long) s.getAllocatedOffset()) & offsetMask;
         long lengthPart = (((long) s.getAllocatedLength()) & lengthMask) << lengthShift;
         long blockPart = (((long) s.getAllocatedBlockID()) & blockMask) << blockShift;

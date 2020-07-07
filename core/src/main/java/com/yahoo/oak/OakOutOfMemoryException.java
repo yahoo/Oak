@@ -7,5 +7,11 @@
 package com.yahoo.oak;
 
 public class OakOutOfMemoryException extends RuntimeException {
+    public OakOutOfMemoryException() {
+        super();
+    }
 
+    public OakOutOfMemoryException(String message) {
+        super(message);
+    }
 }
