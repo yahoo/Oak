@@ -112,11 +112,14 @@ class NativeMemoryAllocator implements BlockMemoryAllocator {
                 // there is no space in current block
                 // may be a buffer bigger than any block is requested?
                 if (size > blocksProvider.blockSize()) {
-                    throw new OakOutOfMemoryException();
+                    throw new IllegalArgumentException(
+                            String.format("Cannot allocate larger items than the block size (block size: %s).",
+                                    blocksProvider.blockSize()));
                 }
                 // does allocation of new block brings us out of capacity?
                 if ((numberOfBlocks() + 1) * blocksProvider.blockSize() > capacity) {
-                    throw new OakOutOfMemoryException();
+                    throw new OakOutOfMemoryException(
+                            String.format("This allocator capacity was exceeded (capacity: %s).", capacity));
                 } else {
                     // going to allocate additional block (big chunk of memory)
                     // need to be thread-safe, so not many blocks are allocated
@@ -194,6 +197,10 @@ class NativeMemoryAllocator implements BlockMemoryAllocator {
     // When some buffer need to be read from a random block
     @Override
     public void readByteBuffer(Slice s) {
+        // Validates that the input block id is valid.
+        // This check should be automatically eliminated by the compiler in production.
+        assert s.getAllocatedBlockID() > NativeMemoryAllocator.INVALID_BLOCK_ID :
+                String.format("Invalid block-id: %s", s);
         Block b = blocksArray[s.getAllocatedBlockID()];
         b.readByteBuffer(s);
     }

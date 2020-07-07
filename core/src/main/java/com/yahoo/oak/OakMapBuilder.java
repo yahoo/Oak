@@ -29,6 +29,7 @@ public class OakMapBuilder<K, V> {
     private int chunkMaxItems;
     private long memoryCapacity;
     private BlockMemoryAllocator memoryAllocator;
+    private Integer preferredBlockSizeBytes;
 
     public OakMapBuilder(OakComparator<K> comparator,
                          OakSerializer<K> keySerializer, OakSerializer<V> valueSerializer, K minKey) {
@@ -41,6 +42,7 @@ public class OakMapBuilder<K, V> {
         this.chunkMaxItems = Chunk.MAX_ITEMS_DEFAULT;
         this.memoryCapacity = MAX_MEM_CAPACITY;
         this.memoryAllocator = null;
+        this.preferredBlockSizeBytes = null;
     }
 
     public OakMapBuilder<K, V> setKeySerializer(OakSerializer<K> keySerializer) {
@@ -78,7 +80,19 @@ public class OakMapBuilder<K, V> {
         return this;
     }
 
+    /**
+     * Sets the preferred block size. This only has an effect if OakMap was never instantiated before.
+     * @param preferredBlockSizeBytes the preferred block size
+     */
+    public OakMapBuilder<K, V> setPreferredBlockSize(int preferredBlockSizeBytes) {
+        this.preferredBlockSizeBytes = preferredBlockSizeBytes;
+        return this;
+    }
+
     public OakMap<K, V> build() {
+        if (preferredBlockSizeBytes != null) {
+            BlocksPool.preferBlockSize(preferredBlockSizeBytes);
+        }
 
         if (memoryAllocator == null) {
             this.memoryAllocator = new NativeMemoryAllocator(memoryCapacity);

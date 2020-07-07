@@ -92,30 +92,6 @@ class EntrySet<K, V> {
 
     private static final int FIELDS = 6;  // # of fields in each item of entries array
 
-    /**
-     * Key reference structure:
-     *     LSB |     offset      | length | block  | MSB
-     *         |     32 bit      | 16 bit | 16 bit |
-     * Key limits:
-     *   - max buffer size: 4GB
-     *   - max allocation length: 64KB
-     *   - max number of blocks: 64K
-     *   => with the current block size of 256MB, the total memory is up to 128GB
-     */
-    static final ReferenceCodec KEY = new ReferenceCodec(32, 16, 16);
-
-    /**
-     * Value reference structure:
-     *     LSB |     offset      |  length   |block| MSB
-     *         |     32 bit      |  23 bit   |9 bit|
-     * Value limits:
-     *   - max buffer size: 4GB
-     *   - max allocation length: 8MB
-     *   - max number of blocks: 512
-     *   => with the current block size of 256MB, the total memory is up to 128GB
-     */
-    static final ReferenceCodec VALUE = new ReferenceCodec(32, 23, 9);
-
     private static final Unsafe UNSAFE = UnsafeUtils.unsafe;
     final MemoryManager memoryManager;
 
@@ -132,6 +108,8 @@ class EntrySet<K, V> {
     final OakSerializer<V> valueSerializer;
 
     final ValueUtils valOffHeapOperator; // is used for any value off-heap metadata access
+
+    private final ReferenceCodec referenceCodec;
 
     /*----------------- Constructor -------------------*/
 
@@ -152,6 +130,24 @@ class EntrySet<K, V> {
         this.keySerializer = keySerializer;
         this.valueSerializer = valueSerializer;
         this.valOffHeapOperator = valOffHeapOperator;
+
+        /*
+         * The reference codec encodes the reference of the keys/values into a single long primitive (64 bit).
+         * For the default block size (256MB), we need 28 bits to encode the offset
+         * and additional 28 bits to encode the length.
+         * So, the remaining 8 bits can encode the block id, which will limit the maximal number of blocks to 256.
+         * Thus, the key/value reference encoding when using the default block size (256MB) will be as follows:
+         *
+         *    LSB                                       MSB
+         *     |     offset     |     length     | block |
+         *     |     28 bit     |     28 bit     | 8 bit |
+         *      0             27 28            55 56   63
+         *
+         * From that, we can derive that the maximal number of 1K items that can be allocated is ~128 million (2^26).
+         * Note: these limitations will change for different block sizes.
+         */
+        final long blockSize = BlocksPool.getInstance().blockSize();
+        this.referenceCodec = new ReferenceCodec(blockSize, blockSize);
     }
 
     enum ValueState {
@@ -373,7 +369,7 @@ class EntrySet<K, V> {
             reference = getValueReferenceVolatile(ei);
         } while (version != getValueVersion(ei));
 
-        boolean isAllocated = VALUE.decode(value, reference);
+        boolean isAllocated = referenceCodec.decode(value, reference);
         value.setReference(reference);
         value.setVersion(version);
         return isAllocated;
@@ -445,7 +441,7 @@ class EntrySet<K, V> {
         }
 
         long reference = getKeyReference(ei);
-        boolean isAllocated = KEY.decode(key, reference);
+        boolean isAllocated = referenceCodec.decode(key, reference);
         if (isAllocated) {
             memoryManager.readByteBuffer(key);
         }
@@ -484,7 +480,7 @@ class EntrySet<K, V> {
         }
 
         long reference = getValueReference(ei);
-        boolean isAllocated = VALUE.decode(value, reference);
+        boolean isAllocated = referenceCodec.decode(value, reference);
         if (isAllocated) {
             memoryManager.readByteBuffer(value);
         }
@@ -640,7 +636,7 @@ class EntrySet<K, V> {
         Either because they are initialized that way (see specs),
         or because we invalidated them when we deleted an older value.
          */
-        setEntryFieldLong(entryIdx2intIdx(ctx.entryIndex), OFFSET.KEY_REFERENCE, KEY.encode(ctx.key));
+        setEntryFieldLong(entryIdx2intIdx(ctx.entryIndex), OFFSET.KEY_REFERENCE, referenceCodec.encode(ctx.key));
     }
 
     /**
@@ -660,7 +656,7 @@ class EntrySet<K, V> {
         // The allocated slice is actually the thread's ByteBuffer moved to point to the newly
         // allocated slice. Version in time of allocation is set as part of the slice data.
         memoryManager.allocate(ctx.newValue, valueLength, MemoryManager.Allocate.VALUE);
-        ctx.newValue.setReference(VALUE.encode(ctx.newValue));
+        ctx.newValue.setReference(referenceCodec.encode(ctx.newValue));
         ctx.isNewValueForMove = writeForMove;
 
         // for value written for the first time:

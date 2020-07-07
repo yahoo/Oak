@@ -24,7 +24,8 @@ class ScopedReadBuffer extends Slice implements OakScopedReadBuffer, OakUnsafeDi
 
     protected int getDataOffset(int index) {
         if (index < 0 || index >= getLength()) {
-            throw new IndexOutOfBoundsException();
+            throw new IndexOutOfBoundsException(String.format("Index %s is out of bound (length: %s)",
+                    index, getLength()));
         }
         return getOffset() + index;
     }

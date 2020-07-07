@@ -127,7 +127,7 @@ public class NativeMemoryAllocatorTest {
 
     @After
     public void tearDown() {
-        BlocksPool.setBlockSize(BlocksPool.BLOCK_SIZE);
+        BlocksPool.setBlockSize(BlocksPool.DEFAULT_BLOCK_SIZE_BYTES);
     }
 
     @Test

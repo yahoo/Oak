@@ -22,33 +22,52 @@ final class BlocksPool implements BlocksProvider, Closeable {
 
     // TODO change the following constants to be configurable
 
-    // Size of a single memory block - currently 256MB
-    static final int BLOCK_SIZE = 256 * 1024 * 1024;
+    static final long MB = 1L << 20;
+    static final long GB = 1L << 30;
 
-    // Number of memory blocks to be pre-allocated
-    private static final int PRE_ALLOC_BLOCKS = 0;
+    // The memory size to pre-allocate on initialization.
+    private static final long PRE_ALLOC_SIZE_BYTES = 0;
 
-    // Number of memory blocks to be allocated at once when not enough blocks available
-    private static final int NEW_ALLOC_BLOCKS = 1;
+    // The minimal memory size to be allocated at once when not enough memory is available.
+    // If the used block size is larger than this number, exactly one block will be allocated.
+    // Otherwise, more than one block might be allocated at once.
+    private static final long NEW_ALLOC_MIN_SIZE_BYTES = 8L * MB;
 
-    // Upper/lower thresholds to the number of unused memory blocks to reserve in the pool for future use.
-    // When the number of unused blocks reaches HIGH_RESERVED_BLOCKS, a group of blocks will be freed
-    // such that the number of blocks will be LOW_RESERVED_BLOCKS.
-    private static final int HIGH_RESERVED_BLOCKS = 32;
-    private static final int LOW_RESERVED_BLOCKS = 24;
+    // Upper/lower thresholds to the quantity of the unused memory to reserve in the pool for future use.
+    // When the unused memory quantity reaches HIGH_RESERVED_SIZE_BYTES, some memory is freed
+    // such that the remaining unused memory will be LOW_RESERVED_SIZE_BYTES.
+    private static final long LOW_RESERVED_SIZE_BYTES = 2L * GB;
+    private static final long HIGH_RESERVED_SIZE_BYTES = 4L * GB;
 
-    private final int blockSize;
+    // The default size of a single memory block to be allocated at once.
+    static final int DEFAULT_BLOCK_SIZE_BYTES = 256 * (int) MB;
+
+    /**
+     * The block size in bytes that is used by this pool.
+     * It is limited to an integer duo to similar limitation of {@code ByteBuffer::allocateDirect(int capacity)}.
+     */
+    private final int blockSizeBytes;
+
+    private final int newAllocBlocks;
+    private final int lowReservedBlocks;
+    private final int highReservedBlocks;
 
     // not thread safe, private constructor; should be called only once
     private BlocksPool() {
-        this.blockSize = BLOCK_SIZE;
-        prealloc(PRE_ALLOC_BLOCKS);
+        this(DEFAULT_BLOCK_SIZE_BYTES);
     }
 
-    // used in tests only!!
-    private BlocksPool(int blockSize) {
-        this.blockSize = blockSize;
-        prealloc(PRE_ALLOC_BLOCKS);
+    // Used internally and for tests.
+    private BlocksPool(int blockSizeBytes) {
+        this.blockSizeBytes = blockSizeBytes;
+        this.newAllocBlocks = convertSizeToBlocks(NEW_ALLOC_MIN_SIZE_BYTES, 1);
+        this.lowReservedBlocks = convertSizeToBlocks(LOW_RESERVED_SIZE_BYTES, 0);
+        this.highReservedBlocks = convertSizeToBlocks(HIGH_RESERVED_SIZE_BYTES, this.lowReservedBlocks + 1);
+        alloc(convertSizeToBlocks(PRE_ALLOC_SIZE_BYTES, 0));
+    }
+
+    private int convertSizeToBlocks(long sizeBytes, int minBlocks) {
+        return Math.max(minBlocks, (int) Math.ceil((float) sizeBytes / (float) blockSizeBytes));
     }
 
     /**
@@ -76,9 +95,26 @@ final class BlocksPool implements BlocksProvider, Closeable {
         }
     }
 
+    /**
+     * Sets the preferred block size. This only has an effect if the block pool was never used before.
+     * @param preferredBlockSizeBytes the preferred block size
+     * @return true if the preferred block size matches the current instance
+     */
+    static boolean preferBlockSize(int preferredBlockSizeBytes) {
+        if (instance == null) {
+            synchronized (BlocksPool.class) { // can be easily changed to lock-free
+                if (instance == null) {
+                    instance = new BlocksPool(preferredBlockSizeBytes);
+                }
+            }
+        }
+
+        return instance.blockSizeBytes == preferredBlockSizeBytes;
+    }
+
     @Override
     public int blockSize() {
-        return blockSize;
+        return blockSizeBytes;
     }
 
     /**
@@ -97,7 +133,7 @@ final class BlocksPool implements BlocksProvider, Closeable {
             if (noMoreBlocks || b == null) {
                 synchronized (BlocksPool.class) { // can be easily changed to lock-free
                     if (blocks.isEmpty()) {
-                        prealloc(NEW_ALLOC_BLOCKS);
+                        alloc(newAllocBlocks);
                     }
                 }
             }
@@ -113,9 +149,9 @@ final class BlocksPool implements BlocksProvider, Closeable {
     public void returnBlock(Block b) {
         b.reset();
         blocks.add(b);
-        if (blocks.size() > HIGH_RESERVED_BLOCKS) { // too many unused blocks
+        if (blocks.size() > highReservedBlocks) { // too many unused blocks
             synchronized (BlocksPool.class) { // can be easily changed to lock-free
-                while (blocks.size() > LOW_RESERVED_BLOCKS) {
+                while (blocks.size() > lowReservedBlocks) {
                     this.blocks.poll().clean();
                 }
             }
@@ -135,12 +171,12 @@ final class BlocksPool implements BlocksProvider, Closeable {
         }
     }
 
-    private void prealloc(int numOfBlocks) {
+    private void alloc(int numOfBlocks) {
         // pre-allocation loop
         for (int i = 0; i < numOfBlocks; i++) {
             // The blocks are allocated without ids.
             // They are given an id when they are given to an OakNativeMemoryAllocator.
-            this.blocks.add(new Block(blockSize));
+            this.blocks.add(new Block(blockSizeBytes));
         }
     }
 
