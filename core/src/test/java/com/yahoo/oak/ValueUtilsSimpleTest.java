@@ -24,7 +24,7 @@ public class ValueUtilsSimpleTest {
         NovaManager novaManager = new NovaManager(new NativeMemoryAllocator(128));
         s = new Slice();
         novaManager.allocate(s, 16, MemoryManager.Allocate.VALUE);
-        s.writeBuffer.putInt(s.getOffset(), 1);
+        s.buffer.putInt(s.getOffset(), 1);
         valueOperator.initHeader(s);
     }
 

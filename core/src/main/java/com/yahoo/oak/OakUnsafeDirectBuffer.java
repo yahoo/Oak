@@ -32,9 +32,6 @@ import java.nio.ByteBuffer;
  * }
  * }
  * </pre>
- * <p>
- * Note: in the above example, the following will throw a ReadOnlyBufferException because the buffer mode is read-only:
- *       {@code bb.putInt(ub.getOffset(), someInteger); }
  */
 public interface OakUnsafeDirectBuffer {
 

@@ -14,14 +14,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 class Block {
 
-    /*
-    For performance reasons, we keep two ByteBuffer objects that refers to the same buffer.
-    writeBuffer is the original allocated buffer, and readBuffer is a duplicated version of writeBuffer
-    but with read-only access permissions.
-    This allow the user to supply the a read-only ByteBuffer (when needed) without instantiating a new object.
-     */
-    private final ByteBuffer readBuffer;
-    private final ByteBuffer writeBuffer;
+    private final ByteBuffer buffer;
 
     private final int capacity;
     private final AtomicInteger allocated = new AtomicInteger(0);
@@ -34,8 +27,7 @@ class Block {
         this.id = NativeMemoryAllocator.INVALID_BLOCK_ID;
         // Pay attention in allocateDirect the data is *zero'd out*
         // which has an overhead in clearing and you end up touching every page
-        this.writeBuffer = ByteBuffer.allocateDirect(this.capacity);
-        this.readBuffer = this.writeBuffer.asReadOnlyBuffer();
+        this.buffer = ByteBuffer.allocateDirect(this.capacity);
     }
 
     void setID(int id) {
@@ -70,7 +62,7 @@ class Block {
     void clean() {
         Field cleanerField = null;
         try {
-            cleanerField = writeBuffer.getClass().getDeclaredField("cleaner");
+            cleanerField = buffer.getClass().getDeclaredField("cleaner");
         } catch (NoSuchFieldException e) {
             e.printStackTrace();
         }
@@ -78,7 +70,7 @@ class Block {
         cleanerField.setAccessible(true);
         Cleaner cleaner = null;
         try {
-            cleaner = (Cleaner) cleanerField.get(writeBuffer);
+            cleaner = (Cleaner) cleanerField.get(buffer);
         } catch (IllegalAccessException e) {
             e.printStackTrace();
         }
@@ -87,7 +79,7 @@ class Block {
     }
 
     void readByteBuffer(Slice s) {
-        s.setBuffer(readBuffer, writeBuffer);
+        s.setBuffer(buffer);
     }
 
     // how many bytes a block may include, regardless allocated/free

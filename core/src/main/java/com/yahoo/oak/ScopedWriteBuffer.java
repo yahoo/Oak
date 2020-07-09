@@ -6,7 +6,6 @@
 
 package com.yahoo.oak;
 
-import java.nio.ByteBuffer;
 import java.util.function.Consumer;
 
 /**
@@ -69,57 +68,49 @@ final class ScopedWriteBuffer extends ScopedReadBuffer implements OakScopedWrite
     @Override
     public OakScopedWriteBuffer put(int index, byte value) {
         validateAccess();
-        writeBuffer.put(getDataOffset(index), value);
+        buffer.put(getDataOffset(index), value);
         return this;
     }
 
     @Override
     public OakScopedWriteBuffer putChar(int index, char value) {
         validateAccess();
-        writeBuffer.putChar(getDataOffset(index), value);
+        buffer.putChar(getDataOffset(index), value);
         return this;
     }
 
     @Override
     public OakScopedWriteBuffer putShort(int index, short value) {
         validateAccess();
-        writeBuffer.putShort(getDataOffset(index), value);
+        buffer.putShort(getDataOffset(index), value);
         return this;
     }
 
     @Override
     public OakScopedWriteBuffer putInt(int index, int value) {
         validateAccess();
-        writeBuffer.putInt(getDataOffset(index), value);
+        buffer.putInt(getDataOffset(index), value);
         return this;
     }
 
     @Override
     public OakScopedWriteBuffer putLong(int index, long value) {
         validateAccess();
-        writeBuffer.putLong(getDataOffset(index), value);
+        buffer.putLong(getDataOffset(index), value);
         return this;
     }
 
     @Override
     public OakScopedWriteBuffer putFloat(int index, float value) {
         validateAccess();
-        writeBuffer.putFloat(getDataOffset(index), value);
+        buffer.putFloat(getDataOffset(index), value);
         return this;
     }
 
     @Override
     public OakScopedWriteBuffer putDouble(int index, double value) {
         validateAccess();
-        writeBuffer.putDouble(getDataOffset(index), value);
+        buffer.putDouble(getDataOffset(index), value);
         return this;
-    }
-
-    /*-------------- OakUnsafeDirectBuffer --------------*/
-
-    @Override
-    public ByteBuffer getByteBuffer() {
-        validateAccess();
-        return writeBuffer;
     }
 }
