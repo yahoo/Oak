@@ -12,7 +12,6 @@ import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
-import java.nio.ReadOnlyBufferException;
 import java.util.AbstractMap;
 import java.util.Map;
 import java.util.NavigableSet;
@@ -335,27 +334,5 @@ public class MapApiTest {
                 expected--;
             }
         }
-    }
-
-    @Test(expected = ReadOnlyBufferException.class)
-    public void immutableKeyBuffers() {
-        oak.put(0, 0);
-
-        OakUnscopedBuffer buffer = oak.zc().keySet().iterator().next();
-
-        buffer.transform(b -> ((OakUnsafeDirectBuffer) b).getByteBuffer().putInt(0, 1));
-
-        Assert.fail("Key Buffer should be read only");
-    }
-
-    @Test(expected = ReadOnlyBufferException.class)
-    public void immutableValueBuffers() {
-        oak.put(0, 0);
-
-        OakUnscopedBuffer buffer = oak.zc().values().iterator().next();
-
-        buffer.transform(b -> ((OakUnsafeDirectBuffer) b).getByteBuffer().putInt(0, 1));
-
-        Assert.fail("Value Buffer should be read only");
     }
 }

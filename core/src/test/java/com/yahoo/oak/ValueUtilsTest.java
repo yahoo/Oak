@@ -30,11 +30,11 @@ public class ValueUtilsTest {
     }
 
     private void putInt(int index, int value) {
-        s.writeBuffer.putInt(s.getOffset() + index, value);
+        s.buffer.putInt(s.getOffset() + index, value);
     }
 
     private int getInt(int index) {
-        return s.readBuffer.getInt(s.getOffset() + index);
+        return s.buffer.getInt(s.getOffset() + index);
     }
 
     @Test

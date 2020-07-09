@@ -392,11 +392,6 @@ while (iter.hasNext()) {
 }
 ```
 
-Note: in the above example, the following will throw a `ReadOnlyBufferException` because the buffer mode is read-only:
-```java
-bb.putInt(ub.getOffset(), someInteger);
-```
-
 ##### Unsafe direct buffer access (address)
 
 ```java

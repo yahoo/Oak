@@ -36,41 +36,41 @@ class ScopedReadBuffer extends Slice implements OakScopedReadBuffer, OakUnsafeDi
 
     @Override
     public ByteOrder order() {
-        return readBuffer.order();
+        return buffer.order();
     }
 
     @Override
     public byte get(int index) {
-        return readBuffer.get(getDataOffset(index));
+        return buffer.get(getDataOffset(index));
     }
 
     @Override
     public char getChar(int index) {
-        return readBuffer.getChar(getDataOffset(index));
+        return buffer.getChar(getDataOffset(index));
     }
 
     @Override
     public short getShort(int index) {
-        return readBuffer.getShort(getDataOffset(index));
+        return buffer.getShort(getDataOffset(index));
     }
 
     @Override
     public int getInt(int index) {
-        return readBuffer.getInt(getDataOffset(index));
+        return buffer.getInt(getDataOffset(index));
     }
 
     @Override
     public long getLong(int index) {
-        return readBuffer.getLong(getDataOffset(index));
+        return buffer.getLong(getDataOffset(index));
     }
 
     @Override
     public float getFloat(int index) {
-        return readBuffer.getFloat(getDataOffset(index));
+        return buffer.getFloat(getDataOffset(index));
     }
 
     @Override
     public double getDouble(int index) {
-        return readBuffer.getDouble(getDataOffset(index));
+        return buffer.getDouble(getDataOffset(index));
     }
 }

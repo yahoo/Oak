@@ -29,11 +29,7 @@ class Slice implements OakUnsafeDirectBuffer, Comparable<Slice> {
     // Allocation time version
     protected int version;
 
-    // This instance of the buffer is read-only and is used by ScopedReadBuffer
-    protected ByteBuffer readBuffer;
-
-    // This instance of the buffer is writable and is used by ScopedWriteBuffer
-    protected ByteBuffer writeBuffer;
+    protected ByteBuffer buffer;
 
     Slice(int headerSize) {
         this.headerSize = headerSize;
@@ -53,8 +49,7 @@ class Slice implements OakUnsafeDirectBuffer, Comparable<Slice> {
 
     // Used by OffHeapList in "synchrobench" module, and for testings.
     void duplicateBuffer() {
-        readBuffer = readBuffer.duplicate();
-        writeBuffer = writeBuffer.duplicate();
+        buffer = buffer.duplicate();
     }
 
     /* ------------------------------------------------------------------------------------
@@ -67,8 +62,7 @@ class Slice implements OakUnsafeDirectBuffer, Comparable<Slice> {
         offset = -1;
         length = -1;
         version = EntrySet.INVALID_VERSION;
-        readBuffer = null;
-        writeBuffer = null;
+        buffer = null;
     }
 
     /*
@@ -84,8 +78,7 @@ class Slice implements OakUnsafeDirectBuffer, Comparable<Slice> {
 
         // Invalidate the buffer and version. Will be assigned by the allocator.
         this.version = EntrySet.INVALID_VERSION;
-        this.readBuffer = null;
-        this.writeBuffer = null;
+        this.buffer = null;
     }
 
     // Copy the block allocation information from another block allocation.
@@ -98,15 +91,13 @@ class Slice implements OakUnsafeDirectBuffer, Comparable<Slice> {
         this.offset = other.offset;
         this.length = other.length;
         this.version = other.version;
-        this.readBuffer = other.readBuffer;
-        this.writeBuffer = other.writeBuffer;
+        this.buffer = other.buffer;
     }
 
     // Set the internal buffer.
     // This method should be used only by the block memory allocator.
-    void setBuffer(ByteBuffer readBuffer, ByteBuffer writeBuffer) {
-        this.readBuffer = readBuffer;
-        this.writeBuffer = writeBuffer;
+    void setBuffer(ByteBuffer buffer) {
+        this.buffer = buffer;
     }
 
     // Set the version. Should be used by the memory allocator.
@@ -147,14 +138,14 @@ class Slice implements OakUnsafeDirectBuffer, Comparable<Slice> {
     }
 
     long getMetadataAddress() {
-        return ((DirectBuffer) writeBuffer).address() + offset;
+        return ((DirectBuffer) buffer).address() + offset;
     }
 
     /*-------------- OakUnsafeDirectBuffer --------------*/
 
     @Override
     public ByteBuffer getByteBuffer() {
-        return readBuffer;
+        return buffer;
     }
 
     @Override
@@ -169,7 +160,7 @@ class Slice implements OakUnsafeDirectBuffer, Comparable<Slice> {
 
     @Override
     public long getAddress() {
-        return ((DirectBuffer) writeBuffer).address() + getOffset();
+        return ((DirectBuffer) buffer).address() + getOffset();
     }
 
     /*-------------- Comparable<Slice> --------------*/
