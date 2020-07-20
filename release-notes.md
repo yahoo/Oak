@@ -1,5 +1,13 @@
 <hr>
 
+## OAK 0.2.3 Release Notes (July 20, 2020)
+
+ 01. Unsafe API: A key/value Oak buffer will always return the exact same buffer instance in both read and write modes.
+ 02. Builder: Allow the user to suggest a preferred block size to be used by Oak's allocator.
+ 03. Validation: Increase robustness by validating that the block is sufficient for the required size of the value.
+ 
+<hr>
+
 ## OAK 0.2.2 Release Notes (June 18, 2020)
 
  01. Fixed bad key initialization in the stream iterators with boundaries.
