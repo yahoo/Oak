@@ -47,7 +47,7 @@ public class OverheadTest {
         long heapFreeSize = Runtime.getRuntime().freeMemory();
 
         double usedHeapMemoryMB = (double) (heapSize - heapFreeSize) / M;
-        double usedOffHeapMemoryMB = (double) (oak.getMemoryManager().allocated()) / M;
+        double usedOffHeapMemoryMB = (double) (oak.getValuesMemoryManager().allocated()) / M;
 
         double heapOverhead = usedHeapMemoryMB / (usedHeapMemoryMB + usedOffHeapMemoryMB);
         System.out.println("Observed On Heap Overhead: " + heapOverhead);

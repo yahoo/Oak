@@ -98,7 +98,8 @@ public class OakMapBuilder<K, V> {
             this.memoryAllocator = new NativeMemoryAllocator(memoryCapacity);
         }
 
-        MemoryManager memoryManager = new NovaManager(memoryAllocator);
+        MemoryManager valuesMemoryManager = new NativeMemoryManager(memoryAllocator);
+        MemoryManager keysMemoryManager = new NoFreeMemoryManager(memoryAllocator);
         if (comparator == null) {
             throw new IllegalStateException("Must provide a non-null comparator to build the OakMap");
         }
@@ -116,7 +117,7 @@ public class OakMapBuilder<K, V> {
                 keySerializer,
                 valueSerializer,
                 comparator, chunkMaxItems,
-                memoryManager);
+                valuesMemoryManager, keysMemoryManager);
     }
 
 }

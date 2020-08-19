@@ -11,7 +11,18 @@ import sun.misc.Unsafe;
 import java.util.function.Consumer;
 
 class ValueUtilsImpl implements ValueUtils {
-    enum LockStates {
+
+    /*
+    * Long Header: int version + int lock
+    * 0...  ...31 | 32...                  ...61| 62 63
+    *  version    |   lock: current_readers#    | lock state
+    *
+    * lock state: 0x00 - FREE, 0x01 - LOCKED, 0x10 - DELETED, 0x11 - MOVED
+    *
+    * The length (in integer size) of the data is also held just following the header (in long size)
+    * The length is set once upon header allocation and later can only be read. */
+
+    private enum LockStates {
         FREE(0), LOCKED(1), DELETED(2), MOVED(3);
 
         public final int value;
@@ -21,21 +32,78 @@ class ValueUtilsImpl implements ValueUtils {
         }
     }
 
-    private static final int LOCK_MASK = 0x3;
-    private static final int LOCK_SHIFT = 2;
-    private static final int VALUE_HEADER_SIZE = 4;
+    private static final int VERSION_SIZE = 4;
+    private static final int VERSION_OFFSET = 0;
+
+    private static final int LOCK_STATE_MASK = 0x3;
+    private static final int LOCK_STATE_SHIFT = 2;
+    private static final int LOCK_SIZE = 4;
+    private static final int LOCK_OFFSET = VERSION_SIZE;
+
+    private static final int LENGTH_SIZE = 4;
+    private static final int LENGTH_OFFSET = LOCK_OFFSET+LOCK_SIZE;
 
     private static Unsafe unsafe = UnsafeUtils.unsafe;
 
     private static boolean cas(Slice s, int expectedLock, int newLock, int version) {
-        long address = s.getMetadataAddress();
+        long headerBeginningAddress = s.getMetadataAddress();
 
         // Since the writing is done directly to the memory, the endianness of the memory is important here.
         // Therefore, we make sure that the values are read and written correctly.
         long expected = UnsafeUtils.intsToLong(version, expectedLock);
         long value = UnsafeUtils.intsToLong(version, newLock);
-        return unsafe.compareAndSwapLong(null, address, expected, value);
+        return unsafe.compareAndSwapLong(null, headerBeginningAddress, expected, value);
     }
+
+    private static int getInt(Slice s, int headerOffsetInBytes) {
+        return unsafe.getInt(s.getMetadataAddress() + headerOffsetInBytes);
+    }
+
+    private static void putInt(Slice s, int headerOffsetInBytes, int value) {
+        unsafe.putInt(s.getMetadataAddress() + headerOffsetInBytes, value);
+    }
+
+    private void setVersion(Slice s) {
+        putInt(s, VERSION_OFFSET, s.getVersion());
+    }
+
+    public static int getOffHeapVersion(Slice s) {
+        return getInt(s, VERSION_OFFSET);
+    }
+
+    private int getLockState(Slice s) {
+        return getInt(s, LOCK_OFFSET);
+    }
+
+    private void setLockState(Slice s, LockStates state) {
+        putInt(s, LOCK_OFFSET, state.value);
+    }
+
+    public static void setLengthFromOffHeap(Slice s){
+        s.setDataLength(getInt(s, LENGTH_OFFSET));
+    }
+
+    private void setLength(Slice s, int length) {
+        putInt(s, LENGTH_OFFSET, length);
+    }
+
+    private void initHeader(Slice s, LockStates state, int dataLength) {
+        setVersion(s);
+        setLockState(s, state);
+        setLength(s, dataLength);
+    }
+
+    @Override
+    public void initHeader(Slice s, int dataLength) {
+        initHeader(s, LockStates.FREE, dataLength);
+    }
+
+    @Override
+    public void initLockedHeader(Slice s, int dataLength) {
+        initHeader(s, LockStates.LOCKED, dataLength);
+    }
+
+    /*-----------------------------------------------------------------------*/
 
     @Override
     public <T> Result transform(Result result, ValueBuffer value, OakTransformer<T> transformer) {
@@ -192,24 +260,17 @@ class ValueUtilsImpl implements ValueUtils {
 
     @Override
     public int getHeaderSize() {
-        return getLockSize() + getLockLocation();
-    }
-
-    @Override
-    public int getLockLocation() {
-        return VERSION_SIZE;
-    }
-
-    @Override
-    public int getLockSize() {
-        return VALUE_HEADER_SIZE;
+        return VERSION_SIZE + LOCK_SIZE + LENGTH_SIZE;
     }
 
     @Override
     public ValueResult lockRead(Slice s) {
         int lockState;
         final int version = s.getVersion();
-        assert version > EntrySet.INVALID_VERSION;
+        if (version <= ReferenceCodecMM.INVALID_VERSION) {
+            System.out.println("In locking for read the version was: " + version);
+            assert false;
+        }
         do {
             int oldVersion = getOffHeapVersion(s);
             if (oldVersion != version) {
@@ -225,8 +286,8 @@ class ValueUtilsImpl implements ValueUtils {
             if (lockState == LockStates.MOVED.value) {
                 return ValueResult.RETRY;
             }
-            lockState &= ~LOCK_MASK;
-        } while (!cas(s, lockState, lockState + (1 << LOCK_SHIFT), version));
+            lockState &= ~LOCK_STATE_MASK;
+        } while (!cas(s, lockState, lockState + (1 << LOCK_STATE_SHIFT), version));
         return ValueResult.TRUE;
     }
 
@@ -234,19 +295,19 @@ class ValueUtilsImpl implements ValueUtils {
     public ValueResult unlockRead(Slice s) {
         int lockState;
         final int version = s.getVersion();
-        assert version > EntrySet.INVALID_VERSION;
+        assert version > ReferenceCodecMM.INVALID_VERSION;
         do {
             lockState = getLockState(s);
             assert lockState > LockStates.MOVED.value;
-            lockState &= ~LOCK_MASK;
-        } while (!cas(s, lockState, lockState - (1 << LOCK_SHIFT), version));
+            lockState &= ~LOCK_STATE_MASK;
+        } while (!cas(s, lockState, lockState - (1 << LOCK_STATE_SHIFT), version));
         return ValueResult.TRUE;
     }
 
     @Override
     public ValueResult lockWrite(Slice s) {
         final int version = s.getVersion();
-        assert version > EntrySet.INVALID_VERSION;
+        assert version > ReferenceCodecMM.INVALID_VERSION;
         do {
             int oldVersion = getOffHeapVersion(s);
             if (oldVersion != version) {
@@ -275,7 +336,7 @@ class ValueUtilsImpl implements ValueUtils {
     @Override
     public ValueResult deleteValue(Slice s) {
         final int version = s.getVersion();
-        assert version > EntrySet.INVALID_VERSION;
+        assert version > ReferenceCodecMM.INVALID_VERSION;
         do {
             int oldVersion = getOffHeapVersion(s);
             if (oldVersion != version) {
@@ -315,43 +376,4 @@ class ValueUtilsImpl implements ValueUtils {
         return ValueResult.FALSE;
     }
 
-    @Override
-    public int getOffHeapVersion(Slice s) {
-        return getInt(s, 0);
-    }
-
-    private void setVersion(Slice s) {
-        putInt(s, 0, s.getVersion());
-    }
-
-    private int getLockState(Slice s) {
-        return getInt(s, getLockLocation());
-    }
-
-    private void setLockState(Slice s, LockStates state) {
-        putInt(s, getLockLocation(), state.value);
-    }
-
-    @Override
-    public void initHeader(Slice s) {
-        initHeader(s, LockStates.FREE);
-    }
-
-    @Override
-    public void initLockedHeader(Slice s) {
-        initHeader(s, LockStates.LOCKED);
-    }
-
-    private void initHeader(Slice s, ValueUtilsImpl.LockStates state) {
-        setVersion(s);
-        setLockState(s, state);
-    }
-
-    private int getInt(Slice s, int index) {
-        return unsafe.getInt(s.getMetadataAddress() + index);
-    }
-
-    private void putInt(Slice s, int index, int value) {
-        unsafe.putInt(s.getMetadataAddress() + index, value);
-    }
 }

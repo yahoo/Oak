@@ -15,18 +15,19 @@ import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CyclicBarrier;
 
 public class ValueUtilsTest {
-    private NovaManager novaManager;
+    private NativeMemoryManager novaManager;
     private final ValueUtils valueOperator = new ValueUtilsImpl();
     private ThreadContext ctx;
     private ValueBuffer s;
 
     @Before
     public void init() {
-        novaManager = new NovaManager(new NativeMemoryAllocator(128));
+        novaManager = new NativeMemoryManager(new NativeMemoryAllocator(128));
         ctx = new ThreadContext(valueOperator);
         s = ctx.value;
-        novaManager.allocate(s, 20, MemoryManager.Allocate.VALUE);
-        valueOperator.initHeader(s);
+        novaManager.allocate(
+            s, (valueOperator.getHeaderSize() + Integer.BYTES*3), MemoryManager.Allocate.VALUE);
+        valueOperator.initHeader(s, Integer.BYTES*3);
     }
 
     private void putInt(int index, int value) {

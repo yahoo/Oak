@@ -21,11 +21,11 @@ public class ValueUtilsSimpleTest {
 
     @Before
     public void init() {
-        NovaManager novaManager = new NovaManager(new NativeMemoryAllocator(128));
+        NativeMemoryManager novaManager = new NativeMemoryManager(new NativeMemoryAllocator(128));
         s = new Slice();
         novaManager.allocate(s, 16, MemoryManager.Allocate.VALUE);
         s.buffer.putInt(s.getOffset(), 1);
-        valueOperator.initHeader(s);
+        valueOperator.initHeader(s, -1);
     }
 
     @Test

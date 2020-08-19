@@ -13,6 +13,7 @@ import java.nio.ByteBuffer;
 // Represents a portion of a bigger block which is part of the underlying managed memory.
 // It is allocated via block memory allocator, and can be de-allocated later
 class Slice implements OakUnsafeDirectBuffer, Comparable<Slice> {
+    static final int UNDEFINED_LENGTH_OR_OFFSET = 0;
 
     /**
      * An allocated slice might have reserved space for meta-data, i.e., a header.
@@ -22,14 +23,18 @@ class Slice implements OakUnsafeDirectBuffer, Comparable<Slice> {
      */
     protected final int headerSize;
 
-    protected int blockID;
-    protected int offset;
-    protected int length;
+    protected int blockID = NativeMemoryAllocator.INVALID_BLOCK_ID;
+    protected int offset = UNDEFINED_LENGTH_OR_OFFSET;
+
+    // The entire length of slice including header!
+    protected int length = UNDEFINED_LENGTH_OR_OFFSET;
 
     // Allocation time version
     protected int version;
 
     protected ByteBuffer buffer;
+
+    private boolean valid = false;
 
     Slice(int headerSize) {
         this.headerSize = headerSize;
@@ -58,11 +63,12 @@ class Slice implements OakUnsafeDirectBuffer, Comparable<Slice> {
 
     // Reset to invalid state
     void invalidate() {
-        blockID = NativeMemoryAllocator.INVALID_BLOCK_ID;
-        offset = -1;
-        length = -1;
-        version = EntrySet.INVALID_VERSION;
-        buffer = null;
+        valid = false;
+//        blockID = NativeMemoryAllocator.INVALID_BLOCK_ID;
+//        offset = UNDEFINED_LENGTH_OR_OFFSET;
+//        length = UNDEFINED_LENGTH_OR_OFFSET;
+//        version = ReferenceCodecMM.INVALID_VERSION;
+//        buffer = null;
     }
 
     /*
@@ -70,15 +76,29 @@ class Slice implements OakUnsafeDirectBuffer, Comparable<Slice> {
      * The buffer should be set later by the block allocator.
      */
     void update(int blockID, int offset, int length) {
-        assert headerSize <= length;
+        if (length != UNDEFINED_LENGTH_OR_OFFSET) {
+            // length can remain undefined until requested
+            // given length should include the header
+            assert headerSize <= length;
+        }
 
-        this.blockID = blockID;
+        //this.blockID = blockID;
         this.offset = offset;
         this.length = length;
 
         // Invalidate the buffer and version. Will be assigned by the allocator.
-        this.version = EntrySet.INVALID_VERSION;
-        this.buffer = null;
+        this.version = ReferenceCodecMM.INVALID_VERSION;
+        //this.buffer = null;
+        valid = true;
+    }
+
+    /*
+     * Updates the allocation object, including version.
+     * The buffer should be set later by the block allocator.
+     */
+    void update(int blockID, int offset, int length, int version) {
+        update(blockID, offset, length);
+        this.version = version;
     }
 
     // Copy the block allocation information from another block allocation.
@@ -92,12 +112,15 @@ class Slice implements OakUnsafeDirectBuffer, Comparable<Slice> {
         this.length = other.length;
         this.version = other.version;
         this.buffer = other.buffer;
+        this.valid = other.valid;
     }
 
     // Set the internal buffer.
     // This method should be used only by the block memory allocator.
-    void setBuffer(ByteBuffer buffer) {
+    void setBuffer(ByteBuffer buffer, int blockID) {
+        this.blockID = blockID;
         this.buffer = buffer;
+        updateLengthFromOffHeapIfNeeded();
     }
 
     // Set the version. Should be used by the memory allocator.
@@ -105,12 +128,22 @@ class Slice implements OakUnsafeDirectBuffer, Comparable<Slice> {
         this.version = version;
     }
 
+    private void updateLengthFromOffHeapIfNeeded() {
+        if (length == UNDEFINED_LENGTH_OR_OFFSET) {
+            // get it from off-heap header
+
+            ValueUtilsImpl.setLengthFromOffHeap(this);
+
+        }
+    }
+
     /* ------------------------------------------------------------------------------------
      * Allocation info getters
      * ------------------------------------------------------------------------------------*/
 
-    boolean isAllocated() {
-        return blockID != NativeMemoryAllocator.INVALID_BLOCK_ID;
+    boolean isValid() {
+        return valid;
+       // return blockID != NativeMemoryAllocator.INVALID_BLOCK_ID;
     }
 
     int getAllocatedBlockID() {
@@ -122,22 +155,21 @@ class Slice implements OakUnsafeDirectBuffer, Comparable<Slice> {
     }
 
     int getAllocatedLength() {
+        assert valid;
+        updateLengthFromOffHeapIfNeeded();
         return length;
     }
 
     /* ------------------------------------------------------------------------------------
      * Metadata getters
      * ------------------------------------------------------------------------------------*/
-
-    boolean isValidVersion() {
-        return version != EntrySet.INVALID_VERSION;
-    }
-
     int getVersion() {
         return version;
     }
 
     long getMetadataAddress() {
+        assert buffer != null;
+        assert valid;
         return ((DirectBuffer) buffer).address() + offset;
     }
 
@@ -145,17 +177,26 @@ class Slice implements OakUnsafeDirectBuffer, Comparable<Slice> {
 
     @Override
     public ByteBuffer getByteBuffer() {
+        assert valid;
         return buffer;
     }
 
     @Override
     public int getOffset() {
+        assert valid;
         return offset + headerSize;
     }
 
     @Override
     public int getLength() {
+        updateLengthFromOffHeapIfNeeded();
         return length - headerSize;
+    }
+
+    void setDataLength(int length) {
+        // the length kept in header is the length of the data only!
+        // add header size
+        this.length = length + headerSize;
     }
 
     @Override
@@ -173,9 +214,13 @@ class Slice implements OakUnsafeDirectBuffer, Comparable<Slice> {
     /**
      * The slices are ordered by their length, then by their block id, then by their offset.
      * Slices with the same length, block id and offset are considered identical.
+     *
+     * Used for comparision of the slices in the freeList of memory manager,
+     * the slices are deleted but not yet re-allocated.
      */
     @Override
     public int compareTo(Slice o) {
+        updateLengthFromOffHeapIfNeeded(); // without reallocation old length is still valid
         int cmp = Integer.compare(this.length, o.length);
         if (cmp != 0) {
             return cmp;

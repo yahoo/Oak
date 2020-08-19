@@ -97,7 +97,7 @@ class NativeMemoryAllocator implements BlockMemoryAllocator {
 
                 // We read again the buffer so to get the per-thread buffer.
                 // TODO: This will be redundant once we eliminate the per-thread buffers.
-                readByteBuffer(s);
+                //setSliceBuffer(s);
                 return true;
             }
         }
@@ -196,13 +196,21 @@ class NativeMemoryAllocator implements BlockMemoryAllocator {
 
     // When some buffer need to be read from a random block
     @Override
-    public void readByteBuffer(Slice s) {
+    public void readByteBuffer(Slice s, int blockID) {
+
+        int sliceBlockID = s.getAllocatedBlockID();
+
+        // do we need to update the buffer?
+        if (sliceBlockID == blockID) {
+            return;
+        }
+
         // Validates that the input block id is valid.
         // This check should be automatically eliminated by the compiler in production.
-        assert s.getAllocatedBlockID() > NativeMemoryAllocator.INVALID_BLOCK_ID :
+        assert blockID > NativeMemoryAllocator.INVALID_BLOCK_ID :
                 String.format("Invalid block-id: %s", s);
-        Block b = blocksArray[s.getAllocatedBlockID()];
-        b.readByteBuffer(s);
+        Block b = blocksArray[blockID];
+        b.setSliceBuffer(s);
     }
 
     // used only for testing

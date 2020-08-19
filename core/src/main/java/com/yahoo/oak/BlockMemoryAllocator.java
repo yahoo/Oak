@@ -29,7 +29,7 @@ interface BlockMemoryAllocator {
     long allocated();
 
     // Read the buffer from an allocation object that its parameters are set: blockID, offset and length
-    void readByteBuffer(Slice s);
+    void readByteBuffer(Slice s, int blockID);
 
     // Check if this Allocator was already closed
     boolean isClosed();

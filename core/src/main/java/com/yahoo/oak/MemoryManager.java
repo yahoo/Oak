@@ -46,12 +46,20 @@ interface MemoryManager extends Closeable {
     /**
      * Fetch the buffer for an allocation that is already set with its parameters: blockID, offset and length.
      */
-    void readByteBuffer(Slice s);
+    void readByteBuffer(Slice s, int blockID);
 
     /**
-     * TODO Liran: This should be documented. Why is the version handled in the memory allocator?
-     *
+     * Version is responsibility of the Memory Manager, but version shouldn't be exposed outside.
+     * This is only for testing!!
      * @return the current version
      */
     int getCurrentVersion();
+
+    /**
+     * Get ReferenceCodec to manage the (long) references,
+     * in which all the info for the memory access is incorporated
+     *
+     */
+    ReferenceCodec getReferenceCodec();
+
 }

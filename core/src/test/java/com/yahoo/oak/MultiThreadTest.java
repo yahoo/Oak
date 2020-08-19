@@ -15,6 +15,7 @@ import org.junit.Test;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Iterator;
+import java.util.NoSuchElementException;
 import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
@@ -262,7 +263,16 @@ public class MultiThreadTest {
             iter = oak.values().iterator();
             i = 0;
             while (iter.hasNext()) {
-                i = iter.next();
+
+                try {
+                    i = iter.next();
+                } catch (NoSuchElementException e) {
+                    // it is OK to sometimes get NoSuchElement exception here
+                    // due to concurrent deletions
+                    System.out.println("There was an expected NoSuchElement exception:" + e);
+                }
+
+
             }
 
             try (OakMap<Integer, Integer> oakDesc = oak.descendingMap()) {

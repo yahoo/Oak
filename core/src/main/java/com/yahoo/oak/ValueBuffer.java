@@ -24,7 +24,7 @@ public class ValueBuffer extends ScopedReadBuffer {
     @Override
     void invalidate() {
         super.invalidate();
-        setReference(ReferenceCodec.INVALID_REFERENCE);
+        setReference(ReferenceCodecMM.getInvalidReference());
     }
 
     void copyFrom(ValueBuffer alloc) {

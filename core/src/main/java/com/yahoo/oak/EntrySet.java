@@ -15,11 +15,12 @@ import java.util.concurrent.atomic.AtomicInteger;
  *
  * IMPORTANT: Due to limitation in amount of bits we use to represent Block ID the amount of memory
  * supported by ALL OAKs in one system is 128GB only!
+ * TODO: this limitation will be removed once void memory manager fully is presented for keys
  *
  * Entry is a set of 6 (FIELDS) consecutive integers, part of "entries" int array. The definition
  * of each integer is explained below. Also bits of each integer are represented in a very special
- * way (also explained below). This makes any changes made to this class very delicate. Please
- * update with care.
+ * way (also explained below). The bits manipulations are ReferenceCodec responsibility.
+ * Please update with care.
  *
  * Entries Array:
  * --------------------------------------------------------------------------------------
@@ -34,8 +35,8 @@ import java.util.concurrent.atomic.AtomicInteger;
  * 4 | VALUE_REFERENCE        | these 2 integers together, represented as long  | entry that
  * --|                        | provide VALUE_REFERENCE. Pay attention that     | was allocated
  * 5 |                        | VALUE_REFERENCE is different than KEY_REFERENCE | first
- * ----------------------------------------------------------------------------|
- * 6 | VALUE_VERSION - the version of the value required for memory management  |
+ * -----------------------------------------------------------------------------|
+ * 6 | NOT IN USE:             saved for alignment and future usage             |
  * --------------------------------------------------------------------------------------
  * 7 | NEXT  - entry index of the entry following the entry with entry index 2  |
  * -----------------------------------------------------------------------------|
@@ -61,18 +62,13 @@ class EntrySet<K, V> {
          * NEXT - the next index of this entry (one integer). Must be with offset 0, otherwise, copying an entire
          * entry should be fixed (In function {@code copyPartNoKeys}, search for "LABEL").
          *
-         * KEY_REFERENCE - the blockID, length and position of the value pointed from this entry (size of two
+         * KEY_REFERENCE - the blockID, length and offset of the value pointed from this entry (size of two
          * integers, one long).
          *
-         * VALUE_REFERENCE - the blockID, length and position of the value pointed from this entry (size of two
+         * VALUE_REFERENCE - the blockID, offset and version of the value pointed from this entry (size of two
          * integers, one long). Equals to INVALID_REFERENCE if no value is point.
-         *
-         * VALUE_VERSION - as the name suggests this is the version of the value reference by VALUE_REFERENCE.
-         * It initially equals to INVALID_VERSION.
-         * If an entry with version v is removed, then this field is CASed to be -v after the value is marked
-         * off-heap and the value reference becomes INVALID_VALUE.
          */
-        NEXT(0), KEY_REFERENCE(1), VALUE_REFERENCE(3), VALUE_VERSION(5);
+        NEXT(0), KEY_REFERENCE(1), VALUE_REFERENCE(3);
 
         final int value;
 
@@ -81,7 +77,6 @@ class EntrySet<K, V> {
         }
     }
 
-    public static final int INVALID_VERSION = 0;
     static final int INVALID_ENTRY_INDEX = 0;
 
     // location of the first (head) node - just a next pointer (always same value 0)
@@ -92,9 +87,35 @@ class EntrySet<K, V> {
 
     private static final int FIELDS = 6;  // # of fields in each item of entries array
 
-    private static final Unsafe UNSAFE = UnsafeUtils.unsafe;
-    final MemoryManager memoryManager;
+    /*
+     * The keyRC reference codec encodes the reference of the keys into a single long primitive (64 bit).
+     * For the default block size (256MB), we need 28 bits to encode the offset
+     * and additional 28 bits to encode the length.
+     * So, the remaining 8 bits can encode the block id, which will limit the maximal number of blocks to 256.
+     * Thus, the key/value reference encoding when using the default block size (256MB) will be as follows:
+     *
+     *    LSB                                       MSB
+     *     |     offset     |     length     | block |
+     *     |     28 bit     |     28 bit     | 8 bit |
+     *      0             27 28            55 56   63
+     *
+     * From that, we can derive that the maximal number of 1K items that can be allocated is ~128 million (2^26).
+     * Note: these limitations will change for different block sizes.
+     *
+     */
+    private final ReferenceCodec keyRC;
 
+    /*
+     * The valueRC reference codec encodes the reference (with memory manager abilities) of the values
+     * into a single long primitive (64 bit).
+     * For encoding details please take a look on ReferenceCodecMM
+     *
+     */
+    private final ReferenceCodec valueRC;
+
+    private static final Unsafe UNSAFE = UnsafeUtils.unsafe;
+    final MemoryManager valuesMemoryManager;
+    final MemoryManager keysMemoryManager;
     private final int[] entries;    // array is initialized to 0 - this is important!
     private final int entriesCapacity; // number of entries (not ints) to be maximally held
 
@@ -109,20 +130,19 @@ class EntrySet<K, V> {
 
     final ValueUtils valOffHeapOperator; // is used for any value off-heap metadata access
 
-    private final ReferenceCodec referenceCodec;
-
     /*----------------- Constructor -------------------*/
 
     /**
      * Create a new EntrySet
-     *
-     * @param memoryManager   for off-heap accesses and updates
+     *  @param vMM   for values off-heap allocations and releases
+     * @param kMM off-heap allocations and releases for keys
      * @param entriesCapacity how many entries should this EntrySet keep at maximum
      * @param keySerializer   used to serialize the key when written to off-heap
      */
-    EntrySet(MemoryManager memoryManager, int entriesCapacity, OakSerializer<K> keySerializer,
-             OakSerializer<V> valueSerializer, ValueUtils valOffHeapOperator) {
-        this.memoryManager = memoryManager;
+    EntrySet(MemoryManager vMM, MemoryManager kMM, int entriesCapacity, OakSerializer<K> keySerializer,
+        OakSerializer<V> valueSerializer, ValueUtils valOffHeapOperator) {
+        this.valuesMemoryManager = vMM;
+        this.keysMemoryManager = kMM;
         this.entries = new int[entriesCapacity * FIELDS + HEAD_NEXT_INDEX_SIZE];
         this.nextFreeIndex = new AtomicInteger(HEAD_NEXT_INDEX_SIZE);
         this.numOfEntries = new AtomicInteger(0);
@@ -130,24 +150,8 @@ class EntrySet<K, V> {
         this.keySerializer = keySerializer;
         this.valueSerializer = valueSerializer;
         this.valOffHeapOperator = valOffHeapOperator;
-
-        /*
-         * The reference codec encodes the reference of the keys/values into a single long primitive (64 bit).
-         * For the default block size (256MB), we need 28 bits to encode the offset
-         * and additional 28 bits to encode the length.
-         * So, the remaining 8 bits can encode the block id, which will limit the maximal number of blocks to 256.
-         * Thus, the key/value reference encoding when using the default block size (256MB) will be as follows:
-         *
-         *    LSB                                       MSB
-         *     |     offset     |     length     | block |
-         *     |     28 bit     |     28 bit     | 8 bit |
-         *      0             27 28            55 56   63
-         *
-         * From that, we can derive that the maximal number of 1K items that can be allocated is ~128 million (2^26).
-         * Note: these limitations will change for different block sizes.
-         */
-        final long blockSize = BlocksPool.getInstance().blockSize();
-        this.referenceCodec = new ReferenceCodec(blockSize, blockSize);
+        this.keyRC = kMM.getReferenceCodec();
+        this.valueRC = vMM.getReferenceCodec();
     }
 
     enum ValueState {
@@ -162,10 +166,10 @@ class EntrySet<K, V> {
         DELETED,
 
         /*
-         * When entry is marked deleted, but not yet suitable to be reused.
-         * Deletion consists of 3 steps: (1) mark off-heap deleted (LP),
-         * (2) CAS value reference to invalid, (3) CAS value version to negative.
-         * If not all three steps are done entry can not be reused for new insertion.
+         * When off-heap value is marked deleted, but not the value reference in the entry.
+         * Deletion consists of 2 steps: (1) mark off-heap deleted (LP),
+         * (2) CAS value reference to deleted
+         * If not all two steps are done entry can not be reused for new insertion.
          */
         DELETED_NOT_FINALIZED,
 
@@ -173,16 +177,7 @@ class EntrySet<K, V> {
          * There is any entry with the given key and its value is valid.
          * valueSlice is pointing to the location that is referenced by valueReference.
          */
-        VALID,
-
-        /*
-         * When value is connected to entry, first the value reference is CASed to the new one and after
-         * the value version is set to the new one (written off-heap). Inside entry, when value reference
-         * is invalid its version can only be invalid (0) or negative. When value reference is valid and
-         * its version is either invalid (0) or negative, the insertion or deletion of the entry wasn't
-         * accomplished, and needs to be accomplished.
-         */
-        VALID_INSERT_NOT_FINALIZED;
+        VALID;
 
         /**
          * We consider a value to be valid if it was inserted (or in the process of being inserted).
@@ -235,7 +230,7 @@ class EntrySet<K, V> {
      * mostly updated value is not ensured as no memory fence is issued.
      */
     private int getEntryArrayFieldInt(int intFieldIdx, OFFSET offset) {
-        return entries[intFieldIdx + offset.value]; // used for NEXT and VALUE_VERSION
+        return entries[intFieldIdx + offset.value]; // used for NEXT
     }
 
     /**
@@ -251,25 +246,12 @@ class EntrySet<K, V> {
     }
 
     /**
-     * getEntryArrayFieldLongVolatile atomically reads two integers field of the entries array.
-     * Should be used with OFFSET.VALUE_REFERENCE and OFFSET.KEY_REFERENCE
-     * The concurrency is ensured due to memory fence as part of "volatile"
-     */
-    private long getEntryArrayFieldLongVolatile(int intStartFieldIdx, OFFSET offset) {
-        assert offset == OFFSET.VALUE_REFERENCE || offset == OFFSET.KEY_REFERENCE;
-        long arrayOffset =
-                Unsafe.ARRAY_INT_BASE_OFFSET + (intStartFieldIdx + offset.value) * Unsafe.ARRAY_INT_INDEX_SCALE;
-        assert arrayOffset % 8 == 0;
-        return UNSAFE.getLongVolatile(entries, arrayOffset);
-    }
-
-    /**
      * setEntryFieldInt sets the integer field of specified offset to 'value'
      * for given integer index in the entry array
      */
     private void setEntryFieldInt(int intFieldIdx, OFFSET offset, int value) {
         assert intFieldIdx + offset.value >= 0;
-        entries[intFieldIdx + offset.value] = value; // used for NEXT and VALUE_VERSION
+        entries[intFieldIdx + offset.value] = value; // used for NEXT
     }
 
     private void setEntryFieldLong(int item, OFFSET offset, long value) {
@@ -306,8 +288,6 @@ class EntrySet<K, V> {
 
     /********************************************************************************************/
     /*--------------- Methods for setting and getting specific key and/or value ----------------*/
-    // key or value references are the triple <blockID, position, length> encapsulated in long
-    // whenever version is needed it is an additional integer
 
     /**
      * Atomically reads the key reference from the entry (given by entry index "ei")
@@ -318,63 +298,23 @@ class EntrySet<K, V> {
 
     /**
      * Atomically reads the value reference from the entry (given by entry index "ei")
-     * synchronisation with reading the value version is not ensured in this method
      */
     private long getValueReference(int ei) {
         return getEntryArrayFieldLong(entryIdx2intIdx(ei), OFFSET.VALUE_REFERENCE);
     }
 
-    private long getValueReferenceVolatile(int ei) {
-        return getEntryArrayFieldLongVolatile(entryIdx2intIdx(ei), OFFSET.VALUE_REFERENCE);
-    }
-
-    /**
-     * Atomically reads the value version from the entry (given by entry index "ei")
-     * synchronisation with reading the value reference is not ensured in this method
-     */
-    private int getValueVersion(int ei) {
-        return getEntryArrayFieldInt(entryIdx2intIdx(ei), OFFSET.VALUE_VERSION);
-    }
-
     /*
      * isValueRefValid is used only to check whether the value reference, which is part of the
-     * entry on entry index "ei" is valid. No version check and no off-heap value deletion mark check.
-     * Negative version is not checked, because negative version assignment will follow the
-     * invalid reference assignment.ass
-     * Pay attention that value may be deleted (value reference marked invalid) asynchronously
-     * by other thread just after this check. For the thread safety use a copy of value reference (next method.)
+     * entry on entry index "ei" is valid and not deleted. No off-heap value deletion mark check.
+     * Reference being marked as deleted is checked.
+     *
+     * Pay attention that (given entry's) value may be deleted asynchronously by other thread just
+     * after this check. For the thread safety use a copy of value reference.
      * */
     boolean isValueRefValid(int ei) {
-        return ReferenceCodec.isValidReference(getValueReference(ei));
+        long valRef = getValueReference(ei);
+        return valueRC.isReferenceValid(valRef) || valueRC.isReferenceDeleted(valRef);
     }
-
-    /**
-     * Atomically reads both the value reference and its value (comparing the version).
-     * It does that by using the atomic snapshot technique (reading the version, then the reference,
-     * and finally the version again, checking that it matches the version read previously).
-     * Since a snapshot is used, the LP is when reading the value reference, if the versions match,
-     * otherwise, the operation restarts.
-     *
-     * @param value The value will be returned in this object
-     * @param ei    The entry of which the reference and version are read from
-     * @return true if the value allocation reference is valid
-     */
-    private boolean getValueReferenceAndVersion(ValueBuffer value, int ei) {
-        int version;
-        long reference;
-
-        do {
-            version = getValueVersion(ei);
-            // getValueReference() assumes the reference is volatile, so we have a memory fence here
-            reference = getValueReferenceVolatile(ei);
-        } while (version != getValueVersion(ei));
-
-        boolean isAllocated = referenceCodec.decode(value, reference);
-        value.setReference(reference);
-        value.setVersion(version);
-        return isAllocated;
-    }
-
 
     /********************************************************************************************/
     /*------------- Methods for managing next entry indexes (package visibility) ---------------*/
@@ -427,8 +367,6 @@ class EntrySet<K, V> {
      * Returns false if:
      *   (1) there is no such entry or
      *   (2) entry has no key set
-     * The thread-local ByteBuffer can be reused by different threads, however as long as
-     * a thread is invoked the ByteBuffer is related solely to this thread.
      *
      * @param key the buffer that will contain the key
      * @param ei  the entry index to read
@@ -441,11 +379,7 @@ class EntrySet<K, V> {
         }
 
         long reference = getKeyReference(ei);
-        boolean isAllocated = referenceCodec.decode(key, reference);
-        if (isAllocated) {
-            memoryManager.readByteBuffer(key);
-        }
-        return isAllocated;
+        return keyRC.decode(key, reference);
     }
 
     /**
@@ -453,12 +387,11 @@ class EntrySet<K, V> {
      * Returns false if:
      *   (1) there is no such entry or
      *   (2) entry has no value set
-     * The thread-local ByteBuffer can be reused by different threads, however as long as
-     * a thread is invoked the ByteBuffer is related solely to this thread.
      *
      * @param value the buffer that will contain the value
      * @param ei    the entry index to read
-     * @return true if the entry index has a valid value allocation reference
+     * @return  true if the entry index has a valid value reference
+     *          (No check for off-heap deleted bit!)
      */
     boolean readValue(ValueBuffer value, int ei) {
         if (ei == INVALID_ENTRY_INDEX) {
@@ -466,25 +399,12 @@ class EntrySet<K, V> {
             return false;
         }
 
-        boolean isAllocated = getValueReferenceAndVersion(value, ei);
-        if (isAllocated) {
-            memoryManager.readByteBuffer(value);
-        }
-        return isAllocated;
-    }
-
-    boolean readValueNoVersion(ValueBuffer value, int ei) {
-        if (ei == INVALID_ENTRY_INDEX) {
-            value.invalidate();
-            return false;
-        }
-
         long reference = getValueReference(ei);
-        boolean isAllocated = referenceCodec.decode(value, reference);
-        if (isAllocated) {
-            memoryManager.readByteBuffer(value);
+        value.setReference(reference);
+        if (valueRC.decode(value, reference)) {
+            return !valueRC.isReferenceDeleted(reference);
         }
-        return isAllocated;
+        return false;
     }
 
 
@@ -511,6 +431,7 @@ class EntrySet<K, V> {
     void readValue(ThreadContext ctx) {
         readValue(ctx.value, ctx.entryIndex);
         ctx.valueState = getValueState(ctx.value);
+        assert ((ReferenceCodecMM) valueRC).isConsistent(ctx.value);
     }
 
     /**
@@ -520,43 +441,22 @@ class EntrySet<K, V> {
      * @param value a buffer object that contains the value buffer
      */
     private ValueState getValueState(ValueBuffer value) {
-        /*
-         The value's allocation version indicate the status of the value referenced by {@code value.reference}.
-         If {@code value.reference == INVALID_REFERENCE}, then:
-         {@code version <= INVALID_VERSION} if the removal was completed.
-         {@code version > INVALID_VERSION} if the removal was not completed.
-         otherwise:
-         {@code version <= INVALID_VERSION} if the insertion was not completed.
-         {@code version > INVALID_VERSION} if the insertion was completed.
-         */
+        // value can be deleted or in the middle of being deleted
+        //   remove: (1)off-heap delete bit, (2)reference deleted
+        //   middle state: off-heap header marked deleted, but valid reference
 
-        if (!value.isAllocated()) {
-            /*
-             There is no value associated with the given key
-             we can be in the middle of insertion or in the middle of removal
-             insert: (1)reference+version=invalid, (2)reference set, (3)version set
-                      middle state valid reference, but invalid version
-             remove: (1)off-heap delete bit, (2)reference invalid, (3)version negative
-                      middle state invalid reference, valid version
-            */
-
-            // if version is negative no need to finalize delete
-            return (value.getVersion() < INVALID_VERSION) ?
-                    ValueState.DELETED :
-                    ValueState.DELETED_NOT_FINALIZED;
+        if (!valueRC.isReferenceValid(value.reference)) {
+            // if there is no value associated with given key,
+            // thebvalue of this entry was never yet allocated
+            return ValueState.UNKNOWN;
         }
 
-        if (value.getVersion() <= INVALID_VERSION) {
-            /*
-             * When value is connected to entry, first the value reference is CASed to the new one and after
-             * the value version is set to the new one (written off-heap). Inside entry, when value reference
-             * is invalid its version can only be invalid (0) or negative. When value reference is valid and
-             * its version is either invalid (0) or negative, the insertion or deletion of the entry wasn't
-             * accomplished, and needs to be accomplished.
-             */
-            return ValueState.VALID_INSERT_NOT_FINALIZED;
+        if (valueRC.isReferenceDeleted(value.reference)) {
+            // if value is valid the reference can still be deleted
+            return  ValueState.DELETED;
         }
 
+        // value reference is valid, just need to check if off-heap is marked deleted
         ValueUtils.ValueResult result = valOffHeapOperator.isValueDeleted(value);
 
         // If result == TRUE, there is a deleted value associated with the given key
@@ -571,7 +471,7 @@ class EntrySet<K, V> {
     /**
      * Creates/allocates an entry for the key. An entry is always associated with a key,
      * therefore the key is written to off-heap and associated with the entry simultaneously.
-     * The value of the new entry is set to NULL: (INVALID_VALUE_REFERENCE, INVALID_VERSION)
+     * The value of the new entry is set to NULL: (INVALID_VALUE_REFERENCE)
      *
      * @param ctx the context that will follow the operation following this key allocation
      * @param key the key to write
@@ -600,8 +500,7 @@ class EntrySet<K, V> {
      */
     void allocateKey(K key, KeyBuffer keyBuffer) {
         int keySize = keySerializer.calculateSize(key);
-
-        memoryManager.allocate(keyBuffer, keySize, MemoryManager.Allocate.KEY);
+        keysMemoryManager.allocate(keyBuffer, keySize, MemoryManager.Allocate.KEY);
         ScopedWriteBuffer.serialize(keyBuffer, key, keySerializer);
     }
 
@@ -613,7 +512,7 @@ class EntrySet<K, V> {
      */
     void duplicateKey(KeyBuffer src, KeyBuffer dst) {
         final int keySize = src.capacity();
-        memoryManager.allocate(dst, keySize, MemoryManager.Allocate.KEY);
+        keysMemoryManager.allocate(dst, keySize, MemoryManager.Allocate.KEY);
 
         // We duplicate the buffer without instantiating a write buffer because the user is not involved.
         UnsafeUtils.unsafe.copyMemory(src.getAddress(), dst.getAddress(), keySize);
@@ -630,13 +529,11 @@ class EntrySet<K, V> {
         allocateKey(key, ctx.key);
 
         /*
-        The current entry key reference should be updated.
-        The value reference and version should be invalid.
-        In reality, the value's entries are already set to zero.
-        Either because they are initialized that way (see specs),
-        or because we invalidated them when we deleted an older value.
+        The current entry key reference should be updated. The value reference should be invalid.
+        In reality, the value reference is already set to zero,
+        because the entries array is initialized that way (see specs).
          */
-        setEntryFieldLong(entryIdx2intIdx(ctx.entryIndex), OFFSET.KEY_REFERENCE, referenceCodec.encode(ctx.key));
+        setEntryFieldLong(entryIdx2intIdx(ctx.entryIndex), OFFSET.KEY_REFERENCE, keyRC.encode(ctx.key));
     }
 
     /**
@@ -651,21 +548,21 @@ class EntrySet<K, V> {
      **/
     void writeValueStart(ThreadContext ctx, V value, boolean writeForMove) {
         // the length of the given value plus its header
-        int valueLength = valueSerializer.calculateSize(value) + valOffHeapOperator.getHeaderSize();
+        int valueDataSize   = valueSerializer.calculateSize(value);
+        int valueLength     = valueDataSize + valOffHeapOperator.getHeaderSize();
 
-        // The allocated slice is actually the thread's ByteBuffer moved to point to the newly
-        // allocated slice. Version in time of allocation is set as part of the slice data.
-        memoryManager.allocate(ctx.newValue, valueLength, MemoryManager.Allocate.VALUE);
-        ctx.newValue.setReference(referenceCodec.encode(ctx.newValue));
+        // The allocated slice includes all the needed information for further access
+        valuesMemoryManager.allocate(ctx.newValue, valueLength, MemoryManager.Allocate.VALUE);
+        ctx.newValue.setReference(valueRC.encode(ctx.newValue));
         ctx.isNewValueForMove = writeForMove;
 
         // for value written for the first time:
-        // initializing the off-heap header (version and the lock to be free)
+        // initializing the off-heap header's lock to be free
         // for value being moved, initialize the lock to be locked
         if (writeForMove) {
-            valOffHeapOperator.initLockedHeader(ctx.newValue);
+            valOffHeapOperator.initLockedHeader(ctx.newValue, valueDataSize);
         } else {
-            valOffHeapOperator.initHeader(ctx.newValue);
+            valOffHeapOperator.initHeader(ctx.newValue, valueDataSize);
         }
 
         ScopedWriteBuffer.serialize(ctx.newValue, value, valueSerializer);
@@ -673,102 +570,37 @@ class EntrySet<K, V> {
 
     /**
      * writeValueCommit does the physical CAS of the value reference, which is the Linearization
-     * Point of the insertion. It then tries to complete the insertion by CASing the value's version
-     * if was not yet assigned (@see #writeValueFinish(ThreadContext)).
+     * Point of the insertion.
      *
      * @param ctx The context that follows the operation since the key was found/created.
-     *            Holds the entry to which the value reference is linked, the old and new value
-     *            references and the old and new value versions.
+     *            Holds the entry index to which the value reference is linked, the old and new
+     *            value references.
+     *
      * @return TRUE if the value reference was CASed successfully.
      */
     ValueUtils.ValueResult writeValueCommit(ThreadContext ctx) {
-        long oldValueReference;
-        int oldValueVersion;
+        // If the commit is for a writing the new value, the old values should be invalid.
+        // Otherwise (commit is for moving the value) old value reference is saved in the context.
 
-        if (ctx.isNewValueForMove) {
-            oldValueReference = ctx.value.getReference();
-            oldValueVersion = ctx.value.getVersion();
-        } else {
-            // If the commit is for a new value, the old values should be invalid.
-            oldValueReference = ReferenceCodec.INVALID_REFERENCE;
-            oldValueVersion = INVALID_VERSION;
-        }
-
+        long oldValueReference = ctx.value.getReference();
         long newValueReference = ctx.newValue.getReference();
-        int newValueVersion = ctx.newValue.getVersion();
-        assert newValueReference != ReferenceCodec.INVALID_REFERENCE;
+        assert valueRC.isReferenceValid(newValueReference);
 
         int intIdx = entryIdx2intIdx(ctx.entryIndex);
-        if (!casEntriesArrayLong(intIdx, OFFSET.VALUE_REFERENCE,
-                oldValueReference, newValueReference)) {
+        if (!casEntriesArrayLong(intIdx, OFFSET.VALUE_REFERENCE, oldValueReference, newValueReference)) {
             return ValueUtils.ValueResult.FALSE;
         }
-        casEntriesArrayInt(intIdx, OFFSET.VALUE_VERSION, oldValueVersion, newValueVersion);
         return ValueUtils.ValueResult.TRUE;
-    }
-
-    /**
-     * writeValueFinish completes the insertion of a value to Oak. When inserting a value, the value
-     * reference is CASed inside the entry and only then the version is CASed. Thus, there can be a
-     * time in which the entry's value version is INVALID_VERSION or a negative one. In this method,
-     * the version is CASed to complete the insertion.
-     * <p>
-     * writeValueFinish is used in cases when in an entry the value reference and its off-heap and
-     * on-heap versions do not match. In this case it is assumed that we are
-     * in the middle of committing a value write and need to write the off-heap value on-heap.
-     * <p>
-     * The version written to entry is the version written in the off-heap memory. There is no worry
-     * of concurrent removals since these removals will have to first call this function as well,
-     * and they eventually change the version as well.
-     * <p>
-     * This method expects the value buffer to be valid, the valueState to be VALID_INSERT_NOT_FINALIZED, and the
-     * version to be positive.
-     * If the context that not match these requirements, its behavior is undefined.
-     *
-     * @param ctx The context that follows the operation since the key was found/created.
-     *            It holds the entry to CAS, the previously written version of this entry
-     *            and the value reference from which the correct version is read.
-     * <p>
-     * Note 1: the value's version and state in {@code ctx} are updated in this method to be the
-     *         updated positive version and a valid state.
-     * <p>
-     * Note 2: updating of the entries MUST be under published operation. The invoker of this method
-     *         is responsible to call it inside the publish/unpublish scope.
-     */
-    void writeValueFinish(ThreadContext ctx) {
-        final int entryVersion = ctx.value.getVersion();
-
-        // This method should not be called when the value is not written yet, or deleted,
-        // or in process of being deleted.
-        assert ctx.value.isAllocated();
-        assert ctx.valueState == ValueState.VALID_INSERT_NOT_FINALIZED;
-
-        // This method should not be called if the value is already linked
-        assert entryVersion <= INVALID_VERSION;
-
-        int offHeapVersion = valOffHeapOperator.getOffHeapVersion(ctx.value);
-        casEntriesArrayInt(entryIdx2intIdx(ctx.entryIndex), OFFSET.VALUE_VERSION,
-                entryVersion, offHeapVersion);
-        // If the CAS failed, maybe some other thread updated the version.
-        ctx.value.setVersion(offHeapVersion);
-        ctx.valueState = ValueState.VALID;
     }
 
     /**
      * deleteValueFinish completes the deletion of a value in Oak, by marking the value reference in
      * entry, after the on-heap value was already marked as deleted.
-     * <p>
-     * As written in {@code writeValueFinish(ctx)}, when updating an entry, the value reference
-     * is CASed first and later the value version, and the same applies when removing a value.
-     * However, there is another step before deleting an entry (remove a value), it is marking
-     * the value off-heap (the LP).
-     * <p>
-     * deleteValueFinish is used to first CAS the value reference to {@code INVALID_VALUE_REFERENCE}
-     * and then CAS the version to be a negative one. Other threads seeing a value marked as deleted
-     * call this function before they proceed (e.g., before performing a successful {@code putIfAbsent()}).
+     *
+     * deleteValueFinish is used to CAS the value reference to it's deleted mode
      *
      * @param ctx The context that follows the operation since the key was found/created.
-     *            Holds the entry to change, the old value reference to CAS out, and the current value version.
+     *            Holds the entry to change, the old value reference to CAS out, and the current value reference.
      * @return true if the deletion indeed updated the entry to be deleted as a unique operation
      * <p>
      * Note 1: the value in {@code ctx} is updated in this method to be the DELETED.
@@ -777,28 +609,40 @@ class EntrySet<K, V> {
      * is responsible to call it inside the publish/unpublish scope.
      */
     boolean deleteValueFinish(ThreadContext ctx) {
-        final int version = ctx.value.getVersion();
-        if (version <= INVALID_VERSION) { // version is marked deleted
-            return false;
+        if (valueRC.isReferenceDeleted(ctx.value)) {
+            return false; // value reference in the slice is marked deleted
         }
 
         assert ctx.valueState == ValueState.DELETED_NOT_FINALIZED;
 
         int indIdx = entryIdx2intIdx(ctx.entryIndex);
-        // Scenario: this value space is allocated once again and assigned into the same entry,
-        // while this thread is sleeping. So later a valid value reference is CASed to invalid.
-        // In order to not allow this scenario happen we must release the
-        // value's off-heap slice to memory manager only after deleteValueFinish is done.
-        casEntriesArrayLong(indIdx, OFFSET.VALUE_REFERENCE,
-                ctx.value.getReference(), ReferenceCodec.INVALID_REFERENCE);
-        if (casEntriesArrayInt(indIdx, OFFSET.VALUE_VERSION, version, -version)) {
+
+        // Value's reference codec prepares the reference to be used after value is deleted
+        long expectedReference = ctx.value.getReference();
+        if (casEntriesArrayLong(indIdx, OFFSET.VALUE_REFERENCE, expectedReference,
+            valueRC.alterForDelete(expectedReference))) {
+            assert ((ReferenceCodecMM) valueRC).isReferenceConsistent(getValueReference(ctx.entryIndex));
             numOfEntries.getAndDecrement();
-            memoryManager.release(ctx.value);
+            valuesMemoryManager.release(ctx.value);
             ctx.value.invalidate();
             ctx.valueState = ValueState.DELETED;
+
             return true;
         }
+        // CAS wasn't successful, someone else set the value reference as deleted and
+        // maybe value was allocated again. Let the context's value to be updated
+        readValue(ctx);
         return false;
+
+        // Scenario:
+        // 1. The value's slice is marked as deleted off-heap and the thread that started
+        //    deleteValueFinish falls asleep.
+        // 2. This value's slice space is allocated once again and assigned into the same entry.
+        // 3. A valid value reference is CASed to invalid.
+        //
+        // This is ABA problem and resolved via always changing deleted variation of the reference
+        // Also value's off-heap slice is released to memory manager only after deleteValueFinish
+        // is done.
     }
 
     /**
@@ -808,7 +652,8 @@ class EntrySet<K, V> {
      * @param ctx the context that follows the operation since the key was found/created
      **/
     void releaseKey(ThreadContext ctx) {
-        memoryManager.release(ctx.key);
+        // currently using values memory manager as keys are not a subject to be released
+        valuesMemoryManager.release(ctx.key);
     }
 
     /**
@@ -821,7 +666,7 @@ class EntrySet<K, V> {
      * @param ctx the context that follows the operation since the key was found/created
      **/
     void releaseNewValue(ThreadContext ctx) {
-        memoryManager.release(ctx.newValue);
+        valuesMemoryManager.release(ctx.newValue);
     }
 
     /**
@@ -832,8 +677,8 @@ class EntrySet<K, V> {
      * @return true if the entry is deleted
      */
     boolean isEntryDeleted(ValueBuffer tempValue, int ei) {
-        boolean isAllocated = readValue(tempValue, ei);
-        if (!isAllocated) {
+        boolean isAllocatedAndNotDeleted = readValue(tempValue, ei);
+        if (!isAllocatedAndNotDeleted) {
             return true;
         }
         return valOffHeapOperator.isValueDeleted(tempValue) != ValueUtils.ValueResult.FALSE;
@@ -877,8 +722,10 @@ class EntrySet<K, V> {
             return true;
         }
 
+        assert ((ReferenceCodecMM) valueRC).isConsistent(tempValue);
+
         // ARRAY COPY: using next as the base of the entry
-        // copy both the key and the value references the value's version => 5 integers via array copy
+        // copy both the key and the value references and integer for future use => 5 integers via array copy
         // the first field in an entry is next, and it is not copied since it should be assigned elsewhere
         // therefore, to copy the rest of the entry we use the offset of next (which we assume is 0) and
         // add 1 to start the copying from the subsequent field of the entry.
@@ -887,9 +734,31 @@ class EntrySet<K, V> {
                 entries,                        // this entries array
                 entryIdx2intIdx(destEntryIndex) + OFFSET.NEXT.value + 1, (FIELDS - 1));
 
+        assert ((ReferenceCodecMM) valueRC).isReferenceConsistent(getValueReference(destEntryIndex));
+
         // now it is the time to increase nextFreeIndex
         nextFreeIndex.getAndIncrement();
         numOfEntries.getAndIncrement();
+        return true;
+    }
+
+    boolean isEntrySetValidAfterRebalance() {
+        int currIndex = getHeadNextIndex();
+        int prevIndex = -1;
+        while (currIndex > getLastEntryIndex()) {
+            if (!isValueRefValid(currIndex)) {
+                return false;
+            }
+            if (!((ReferenceCodecMM) valueRC).isReferenceConsistent(getValueReference(currIndex))) {
+                return false;
+            }
+            if ( prevIndex>0 && currIndex - prevIndex != FIELDS) {
+                return false;
+            }
+            prevIndex = currIndex;
+            currIndex = getNextEntryIndex(currIndex);
+        }
+
         return true;
     }
 }

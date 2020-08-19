@@ -38,7 +38,7 @@ class ThreadContext {
 
     /**
      * Flags if the new allocated value was originated from a move operation.
-     * If false, then it is a new allocation and value.isAllocated() should be false.
+     * If false, then it is a new allocation and value.isValid() should be false.
      */
     boolean isNewValueForMove;
 
@@ -96,7 +96,7 @@ class ThreadContext {
      * @return does the entry have a valid key
      */
     boolean isKeyValid() {
-        return key.isAllocated();
+        return key.isValid();
     }
 
     /**

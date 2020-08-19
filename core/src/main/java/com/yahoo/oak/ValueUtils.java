@@ -10,8 +10,6 @@ import java.util.function.Consumer;
 
 interface ValueUtils {
 
-    int VERSION_SIZE = 4;
-
     enum ValueResult {
         TRUE, FALSE, RETRY
     }
@@ -22,12 +20,12 @@ interface ValueUtils {
      */
     int getHeaderSize();
 
-    /**
-     * Some implementations of values which reside may have a lock in their header.
-     */
-    int getLockLocation();
+//    /**
+//     * Some implementations of values which reside may have a lock in their header.
+//     */
+//    int getLockLocation();
 
-    int getLockSize();
+   // int getLockSize();
 
     /**
      * Acquires a read lock
@@ -89,27 +87,35 @@ interface ValueUtils {
      */
     ValueResult isValueDeleted(Slice s);
 
-    /**
-     * @param s the value's off-heap Slice object
-     * @return the version of the value pointed by {@code s}
-     */
-    int getOffHeapVersion(Slice s);
+//    /**
+//     * @param s the value's off-heap Slice object
+//     * @return the version of the value pointed by {@code s}
+//     */
+//    int getOffHeapVersion(Slice s);
+
+//    /**
+//     * @param s the value's off-heap Slice object
+//     * @return the length of the value pointed by {@code s}
+//     */
+//    int setLengthFromOffHeap(Slice s);
 
     /**
      * Initializing the header version.
      * May also set other members in the header to their default values.
      *
      * @param s the value's off-heap Slice object
+     * @param dataLength
      */
-    void initHeader(Slice s);
+    void initHeader(Slice s, int dataLength);
 
     /**
      * Initializing the header version and lock to be locked.
      * May also set other members in the header to their default values.
      *
      * @param s the value's off-heap Slice object
+     * @param dataLength
      */
-    void initLockedHeader(Slice s);
+    void initLockedHeader(Slice s, int dataLength);
 
     /* ==================== More complex methods on off-heap values ==================== */
 
