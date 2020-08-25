@@ -198,10 +198,10 @@ class NativeMemoryAllocator implements BlockMemoryAllocator {
     @Override
     public void readByteBuffer(Slice s, int blockID) {
 
-        int sliceBlockID = s.getAllocatedBlockID();
+        int sliceBlockID = s.getAllocatedBlockID(); // old block ID
 
         // do we need to update the buffer?
-        if (sliceBlockID == blockID) {
+        if (sliceBlockID != INVALID_BLOCK_ID && sliceBlockID == blockID) {
             return;
         }
 

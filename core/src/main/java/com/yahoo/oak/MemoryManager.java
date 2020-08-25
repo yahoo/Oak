@@ -62,4 +62,42 @@ interface MemoryManager extends Closeable {
      */
     ReferenceCodec getReferenceCodec();
 
+    /* ------------- Interfaces to deal with references! ------------- */
+    /* Reference is a long (64 bits) that should encapsulate all the information required
+    ** to access a memory for read and for write. It is up to memory manager what to put inside.
+    ** Memory Manager should efficiently provide:
+    ** (1) Memory allocation services
+    ** (2) Memory reclamation services
+    ** (3) Safe access, in a way that a reused memory allocated to a new usage can be never accessed
+    ** via old references to the same location. */
+
+    /**
+     * @param s         the memory slice to update with the info decoded from the reference
+     * @param reference the reference to decode
+     * @return true if the given allocation reference is valid, otherwise the slice is invalidated
+     */
+    boolean decodeReference(Slice s, long reference);
+
+    /**
+     * @param s the memory slice, encoding of which should be returned as a an output long reference
+     * @return the encoded reference
+     */
+    long encodeReference(Slice s);
+
+    /** Present the reference as it needs to be when the target is deleted
+     * @param reference to alter
+     * @return the encoded reference
+     */
+    long alterReferenceForDelete(long reference);
+
+    // check if reference is valid, according to the reference coding implementation
+    boolean isReferenceValid(long reference);
+
+    // check if reference is deleted, according to the reference coding implementation
+    boolean isReferenceDeleted(long reference);
+
+    // invoked (only within assert statement) to check
+    // the consistency and correctness of the reference encoding
+    boolean isReferenceConsistent(long reference);
+
 }

@@ -29,15 +29,14 @@ class ReferenceCodecDirect extends ReferenceCodec {
      * Initialize the codec with size block-size and value length limits.
      * These limits will inflict a limit on the maximal number of blocks (the remaining bits).
      * offset and length can only be as long as a size of the block.
-     *
      * @param blockSizeLimit an upper limit on the size of a block (exclusive)
      * @param lengthLimit    an upper limit on the data length (exclusive)
-     * @param mm
+     * @param allocator
      */
-    ReferenceCodecDirect(long blockSizeLimit, long lengthLimit, MemoryManager mm) {
+    ReferenceCodecDirect(long blockSizeLimit, long lengthLimit, BlockMemoryAllocator allocator) {
         super(INVALID_BIT_SIZE, requiredBits(blockSizeLimit),
             requiredBits(BlocksPool.getInstance().blockSize()), // bits# to represent length
-            mm);
+            allocator);
     }
 
     @Override protected long getFirst(Slice s) {
@@ -65,10 +64,9 @@ class ReferenceCodecDirect extends ReferenceCodec {
     }
 
     @Override protected void setAll(Slice s, long first, long second, long third) {
-        s.update((int) first, (int) second, (int) third);
-        if (!isReferenceDeleted(s)) {
-            mm.readByteBuffer(s, (int) first);
-        }
+        s.update((int) first, // blockID is not going to be allocated unless needed later in readByteBuffer
+            (int) second, (int) third);
+        allocator.readByteBuffer(s, (int) first);
     }
 
     @Override boolean isReferenceDeleted(final Slice s) {
@@ -77,6 +75,10 @@ class ReferenceCodecDirect extends ReferenceCodec {
 
     @Override boolean isReferenceDeleted(long reference) {
         return false;
+    }
+
+    @Override boolean isReferenceConsistent(long reference) {
+        return true;
     }
 
     static long getInvalidReference() {

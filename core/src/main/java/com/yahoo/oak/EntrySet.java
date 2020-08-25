@@ -87,32 +87,6 @@ class EntrySet<K, V> {
 
     private static final int FIELDS = 6;  // # of fields in each item of entries array
 
-    /*
-     * The keyRC reference codec encodes the reference of the keys into a single long primitive (64 bit).
-     * For the default block size (256MB), we need 28 bits to encode the offset
-     * and additional 28 bits to encode the length.
-     * So, the remaining 8 bits can encode the block id, which will limit the maximal number of blocks to 256.
-     * Thus, the key/value reference encoding when using the default block size (256MB) will be as follows:
-     *
-     *    LSB                                       MSB
-     *     |     offset     |     length     | block |
-     *     |     28 bit     |     28 bit     | 8 bit |
-     *      0             27 28            55 56   63
-     *
-     * From that, we can derive that the maximal number of 1K items that can be allocated is ~128 million (2^26).
-     * Note: these limitations will change for different block sizes.
-     *
-     */
-    private final ReferenceCodec keyRC;
-
-    /*
-     * The valueRC reference codec encodes the reference (with memory manager abilities) of the values
-     * into a single long primitive (64 bit).
-     * For encoding details please take a look on ReferenceCodecMM
-     *
-     */
-    private final ReferenceCodec valueRC;
-
     private static final Unsafe UNSAFE = UnsafeUtils.unsafe;
     final MemoryManager valuesMemoryManager;
     final MemoryManager keysMemoryManager;
@@ -150,8 +124,6 @@ class EntrySet<K, V> {
         this.keySerializer = keySerializer;
         this.valueSerializer = valueSerializer;
         this.valOffHeapOperator = valOffHeapOperator;
-        this.keyRC = kMM.getReferenceCodec();
-        this.valueRC = vMM.getReferenceCodec();
     }
 
     enum ValueState {
@@ -313,7 +285,8 @@ class EntrySet<K, V> {
      * */
     boolean isValueRefValid(int ei) {
         long valRef = getValueReference(ei);
-        return valueRC.isReferenceValid(valRef) || valueRC.isReferenceDeleted(valRef);
+        return valuesMemoryManager.isReferenceValid(valRef)
+            || valuesMemoryManager.isReferenceDeleted(valRef);
     }
 
     /********************************************************************************************/
@@ -379,7 +352,7 @@ class EntrySet<K, V> {
         }
 
         long reference = getKeyReference(ei);
-        return keyRC.decode(key, reference);
+        return keysMemoryManager.decodeReference(key, reference);
     }
 
     /**
@@ -401,8 +374,8 @@ class EntrySet<K, V> {
 
         long reference = getValueReference(ei);
         value.setReference(reference);
-        if (valueRC.decode(value, reference)) {
-            return !valueRC.isReferenceDeleted(reference);
+        if (valuesMemoryManager.decodeReference(value, reference)) {
+            return !valuesMemoryManager.isReferenceDeleted(reference);
         }
         return false;
     }
@@ -431,7 +404,7 @@ class EntrySet<K, V> {
     void readValue(ThreadContext ctx) {
         readValue(ctx.value, ctx.entryIndex);
         ctx.valueState = getValueState(ctx.value);
-        assert ((ReferenceCodecMM) valueRC).isConsistent(ctx.value);
+        assert valuesMemoryManager.isReferenceConsistent(ctx.value.reference);
     }
 
     /**
@@ -445,13 +418,13 @@ class EntrySet<K, V> {
         //   remove: (1)off-heap delete bit, (2)reference deleted
         //   middle state: off-heap header marked deleted, but valid reference
 
-        if (!valueRC.isReferenceValid(value.reference)) {
+        if (!valuesMemoryManager.isReferenceValid(value.reference)) {
             // if there is no value associated with given key,
             // thebvalue of this entry was never yet allocated
             return ValueState.UNKNOWN;
         }
 
-        if (valueRC.isReferenceDeleted(value.reference)) {
+        if (valuesMemoryManager.isReferenceDeleted(value.reference)) {
             // if value is valid the reference can still be deleted
             return  ValueState.DELETED;
         }
@@ -533,7 +506,8 @@ class EntrySet<K, V> {
         In reality, the value reference is already set to zero,
         because the entries array is initialized that way (see specs).
          */
-        setEntryFieldLong(entryIdx2intIdx(ctx.entryIndex), OFFSET.KEY_REFERENCE, keyRC.encode(ctx.key));
+        setEntryFieldLong(entryIdx2intIdx(ctx.entryIndex),
+            OFFSET.KEY_REFERENCE, keysMemoryManager.encodeReference(ctx.key));
     }
 
     /**
@@ -553,7 +527,7 @@ class EntrySet<K, V> {
 
         // The allocated slice includes all the needed information for further access
         valuesMemoryManager.allocate(ctx.newValue, valueLength, MemoryManager.Allocate.VALUE);
-        ctx.newValue.setReference(valueRC.encode(ctx.newValue));
+        ctx.newValue.setReference(valuesMemoryManager.encodeReference(ctx.newValue));
         ctx.isNewValueForMove = writeForMove;
 
         // for value written for the first time:
@@ -584,7 +558,7 @@ class EntrySet<K, V> {
 
         long oldValueReference = ctx.value.getReference();
         long newValueReference = ctx.newValue.getReference();
-        assert valueRC.isReferenceValid(newValueReference);
+        assert valuesMemoryManager.isReferenceValid(newValueReference);
 
         int intIdx = entryIdx2intIdx(ctx.entryIndex);
         if (!casEntriesArrayLong(intIdx, OFFSET.VALUE_REFERENCE, oldValueReference, newValueReference)) {
@@ -609,7 +583,7 @@ class EntrySet<K, V> {
      * is responsible to call it inside the publish/unpublish scope.
      */
     boolean deleteValueFinish(ThreadContext ctx) {
-        if (valueRC.isReferenceDeleted(ctx.value)) {
+        if (valuesMemoryManager.isReferenceDeleted(ctx.value.reference)) {
             return false; // value reference in the slice is marked deleted
         }
 
@@ -620,8 +594,8 @@ class EntrySet<K, V> {
         // Value's reference codec prepares the reference to be used after value is deleted
         long expectedReference = ctx.value.getReference();
         if (casEntriesArrayLong(indIdx, OFFSET.VALUE_REFERENCE, expectedReference,
-            valueRC.alterForDelete(expectedReference))) {
-            assert ((ReferenceCodecMM) valueRC).isReferenceConsistent(getValueReference(ctx.entryIndex));
+            valuesMemoryManager.alterReferenceForDelete(expectedReference))) {
+            assert valuesMemoryManager.isReferenceConsistent(getValueReference(ctx.entryIndex));
             numOfEntries.getAndDecrement();
             valuesMemoryManager.release(ctx.value);
             ctx.value.invalidate();
@@ -722,7 +696,7 @@ class EntrySet<K, V> {
             return true;
         }
 
-        assert ((ReferenceCodecMM) valueRC).isConsistent(tempValue);
+        assert valuesMemoryManager.isReferenceConsistent(tempValue.reference);
 
         // ARRAY COPY: using next as the base of the entry
         // copy both the key and the value references and integer for future use => 5 integers via array copy
@@ -734,7 +708,7 @@ class EntrySet<K, V> {
                 entries,                        // this entries array
                 entryIdx2intIdx(destEntryIndex) + OFFSET.NEXT.value + 1, (FIELDS - 1));
 
-        assert ((ReferenceCodecMM) valueRC).isReferenceConsistent(getValueReference(destEntryIndex));
+        assert valuesMemoryManager.isReferenceConsistent(getValueReference(destEntryIndex));
 
         // now it is the time to increase nextFreeIndex
         nextFreeIndex.getAndIncrement();
@@ -749,7 +723,7 @@ class EntrySet<K, V> {
             if (!isValueRefValid(currIndex)) {
                 return false;
             }
-            if (!((ReferenceCodecMM) valueRC).isReferenceConsistent(getValueReference(currIndex))) {
+            if (!valuesMemoryManager.isReferenceConsistent(getValueReference(currIndex))) {
                 return false;
             }
             if ( prevIndex>0 && currIndex - prevIndex != FIELDS) {

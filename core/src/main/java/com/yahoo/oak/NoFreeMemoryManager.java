@@ -32,7 +32,7 @@ class NoFreeMemoryManager implements MemoryManager {
         assert memoryAllocator != null;
         this.allocator = memoryAllocator;
         rcd = new ReferenceCodecDirect(
-            BlocksPool.getInstance().blockSize(), BlocksPool.getInstance().blockSize(), this);
+            BlocksPool.getInstance().blockSize(), BlocksPool.getInstance().blockSize(), memoryAllocator);
     }
 
     public void close() {
@@ -74,6 +74,45 @@ class NoFreeMemoryManager implements MemoryManager {
      */
     @Override public ReferenceCodec getReferenceCodec() {
         return rcd;
+    }
+
+    /**
+     * @param s         the memory slice to update with the info decoded from the reference
+     * @param reference the reference to decode
+     * @return true if the given allocation reference is valid, otherwise the slice is invalidated
+     */
+    @Override public boolean decodeReference(Slice s, long reference) {
+        return rcd.decode(s, reference);
+    }
+
+    /**
+     * @param s the memory slice, encoding of which should be returned as a an output long reference
+     * @return the encoded reference
+     */
+    @Override public long encodeReference(Slice s) {
+        return rcd.encode(s);
+    }
+
+    /**
+     * Present the reference as it needs to be when the target is deleted
+     *
+     * @param reference to alter
+     * @return the encoded reference
+     */
+    @Override public long alterReferenceForDelete(long reference) {
+        return rcd.alterForDelete(reference);
+    }
+
+    @Override public boolean isReferenceValid(long reference) {
+        return rcd.isReferenceValid(reference);
+    }
+
+    @Override public boolean isReferenceDeleted(long reference) {
+        return rcd.isReferenceDeleted(reference);
+    }
+
+    @Override public boolean isReferenceConsistent(long reference) {
+        return rcd.isReferenceConsistent(reference);
     }
 }
 

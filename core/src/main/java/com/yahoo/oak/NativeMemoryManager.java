@@ -34,7 +34,7 @@ class NativeMemoryManager implements MemoryManager {
         }
         globalVersionNumber = new AtomicInteger(1);
         this.allocator = allocator;
-        rcmm = new ReferenceCodecMM(BlocksPool.getInstance().blockSize(), this);
+        rcmm = new ReferenceCodecMM(BlocksPool.getInstance().blockSize(), allocator);
     }
 
     @Override
@@ -59,6 +59,45 @@ class NativeMemoryManager implements MemoryManager {
      */
     @Override public ReferenceCodec getReferenceCodec() {
         return rcmm;
+    }
+
+    /**
+     * @param s         the memory slice to update with the info decoded from the reference
+     * @param reference the reference to decode
+     * @return true if the given allocation reference is valid, otherwise the slice is invalidated
+     */
+    @Override public boolean decodeReference(Slice s, long reference) {
+        return rcmm.decode(s, reference);
+    }
+
+    /**
+     * @param s the memory slice, encoding of which should be returned as a an output long reference
+     * @return the encoded reference
+     */
+    @Override public long encodeReference(Slice s) {
+        return rcmm.encode(s);
+    }
+
+    /**
+     * Present the reference as it needs to be when the target is deleted
+     *
+     * @param reference to alter
+     * @return the encoded reference
+     */
+    @Override public long alterReferenceForDelete(long reference) {
+        return rcmm.alterForDelete(reference);
+    }
+
+    @Override public boolean isReferenceValid(long reference) {
+        return rcmm.isReferenceValid(reference);
+    }
+
+    @Override public boolean isReferenceDeleted(long reference) {
+        return rcmm.isReferenceDeleted(reference);
+    }
+
+    @Override public boolean isReferenceConsistent(long reference) {
+        return rcmm.isReferenceConsistent(reference);
     }
 
     @Override

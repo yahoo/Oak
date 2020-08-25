@@ -33,22 +33,22 @@ abstract class ReferenceCodec {
     private final long secondMask;
     private final long thirdMask;
 
-    protected final MemoryManager mm; // common field for all concrete derived references
+    protected final BlockMemoryAllocator allocator; // common field for all concrete derived references
 
     /*------- Constructor -------*/
 
     /**
      * Construct the codec setting the number of bits to be used for each parameter
      * The bit sizes of 2 parameters can be given and the third is always the remaining bits.
-     *   @param firstBitSizeLimit an upper limit on the size of the first parameter (exclusive)
+     * @param firstBitSizeLimit an upper limit on the size of the first parameter (exclusive)
      *                          if invalid calculate according to other two limits
      * @param secondBitSizeLimit an upper limit on the size of the second parameter (exclusive)
      *                          if invalid calculate according to other two limits
      * @param thirdBitSizeLimit an upper limit on the size of the third parameter (exclusive)
-     * @param mm
+     * @param allocator
      */
     protected ReferenceCodec(int firstBitSizeLimit, int secondBitSizeLimit, int thirdBitSizeLimit,
-        MemoryManager mm) {
+        BlockMemoryAllocator allocator) {
 
         assert !((thirdBitSizeLimit == INVALID_BIT_SIZE) && (secondBitSizeLimit == INVALID_BIT_SIZE)
             && (firstBitSizeLimit == INVALID_BIT_SIZE));
@@ -79,7 +79,7 @@ abstract class ReferenceCodec {
         this.secondMask = mask(this.secondBitSize);
         this.thirdMask  = mask(this.thirdBitSize);
 
-        this.mm = mm;
+        this.allocator = allocator;
     }
 
     /*------- Static helpers -------*/
@@ -134,6 +134,10 @@ abstract class ReferenceCodec {
     // check is reference deleted should be applied according to reference type
     abstract boolean isReferenceDeleted(Slice slice);
     abstract boolean isReferenceDeleted(long reference);
+
+    // invoked (only within assert statement) to check
+    // the consistency and correctness of the reference encoding
+    abstract boolean isReferenceConsistent(long reference);
 
     /*
     In the implementation of encode/decode methods, we make two assumptions that

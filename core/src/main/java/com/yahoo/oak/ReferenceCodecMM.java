@@ -33,12 +33,12 @@ class ReferenceCodecMM extends ReferenceCodec{
      * This will inflict a limit on the maximal number of blocks - size of block ID.
      * The remaining bits out of maximum RAM (BITS_FOR_MAXIMUM_RAM)
      * @param blockSize an upper limit on the size of a block (exclusive)
-     * @param mm
+     * @param allocator
      *
      */
-    ReferenceCodecMM(long blockSize, MemoryManager mm) {
+    ReferenceCodecMM(long blockSize, BlockMemoryAllocator allocator) {
         super(BITS_FOR_MAXIMUM_RAM - ReferenceCodecDirect.requiredBits(blockSize),
-            ReferenceCodecDirect.requiredBits(blockSize), INVALID_BIT_SIZE, mm);
+            ReferenceCodecDirect.requiredBits(blockSize), INVALID_BIT_SIZE, allocator);
         // and the rest goes for version (currently 22 bits)
     }
 
@@ -73,8 +73,8 @@ class ReferenceCodecMM extends ReferenceCodec{
 
     @Override protected void setAll(Slice s, long first, long second, long third) {
         s.update( ((int) first), ((int) second), Slice.UNDEFINED_LENGTH_OR_OFFSET, ((int) third));
-        if (!isReferenceDeleted(s)) {
-            mm.readByteBuffer(s, (int) first);
+        if (!isVersionDeleted((int) third)) {
+            allocator.readByteBuffer(s, (int) first);
         }
     }
 
@@ -106,14 +106,23 @@ class ReferenceCodecMM extends ReferenceCodec{
 
     // invoked only within assert
     boolean isReferenceConsistent(long reference) {
+        if (reference == INVALID_MM_REFERENCE) {
+            return true;
+        }
+        if (isReferenceDeleted(reference)) {
+            return true;
+        }
         int v = getThird(reference);
         return (v!=INVALID_VERSION);
     }
 
     @Override boolean isReferenceDeleted(long reference) {
-        int v = getThird(reference);
-        v &= VERSION_DELETE_BIT_MASK;
-        return (v!=INVALID_VERSION);
+        return isVersionDeleted((int) getThird(reference));
+    }
+
+    private boolean isVersionDeleted(int v) {
+        int vv = (int) ((long) v & VERSION_DELETE_BIT_MASK);
+        return (vv!=INVALID_VERSION);
     }
 
     static long getInvalidReference() {
