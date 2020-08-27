@@ -27,11 +27,11 @@ public class NoFreeMemoryManagerTest {
         Slice s = new Slice();
         ByteBuffer bb;
 
-        noFreeMemoryManager.allocate(s, 4, MemoryManager.Allocate.KEY);
+        noFreeMemoryManager.allocate(s, 4);
         Assert.assertEquals(4, s.getAllocatedLength());
         Assert.assertEquals(4, noFreeMemoryManager.allocated());
 
-        noFreeMemoryManager.allocate(s, 4, MemoryManager.Allocate.KEY);
+        noFreeMemoryManager.allocate(s, 4);
         Assert.assertEquals(4, s.getAllocatedLength());
         Assert.assertEquals(8, noFreeMemoryManager.allocated());
     }

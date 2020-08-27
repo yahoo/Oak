@@ -71,10 +71,11 @@ class ReferenceCodecMM extends ReferenceCodec{
         return (INVALID_MM_REFERENCE | v);
     }
 
-    @Override protected void setAll(Slice s, long first, long second, long third) {
-        s.update( ((int) first), ((int) second), Slice.UNDEFINED_LENGTH_OR_OFFSET, ((int) third));
-        if (!isVersionDeleted((int) third)) {
-            allocator.readByteBuffer(s, (int) first);
+    @Override protected void setAll(Slice s, long blockID, long offset, long version) {
+        s.setOffsetLengthAndVersion(((int) offset), Slice.UNDEFINED_LENGTH_OR_OFFSET, ((int) version));
+        if (!isVersionDeleted((int) version)) {
+            allocator.readByteBuffer(s, (int) blockID);
+            ValueUtilsImpl.setLengthFromOffHeap(s);
         }
     }
 

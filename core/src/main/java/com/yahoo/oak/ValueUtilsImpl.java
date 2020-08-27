@@ -46,13 +46,13 @@ class ValueUtilsImpl implements ValueUtils {
     private static Unsafe unsafe = UnsafeUtils.unsafe;
 
     private static boolean cas(Slice s, int expectedLock, int newLock, int version) {
-        long headerBeginningAddress = s.getMetadataAddress();
+        long headerAddress = s.getMetadataAddress();
 
         // Since the writing is done directly to the memory, the endianness of the memory is important here.
         // Therefore, we make sure that the values are read and written correctly.
         long expected = UnsafeUtils.intsToLong(version, expectedLock);
         long value = UnsafeUtils.intsToLong(version, newLock);
-        return unsafe.compareAndSwapLong(null, headerBeginningAddress, expected, value);
+        return unsafe.compareAndSwapLong(null, headerAddress, expected, value);
     }
 
     private static int getInt(Slice s, int headerOffsetInBytes) {
@@ -267,10 +267,7 @@ class ValueUtilsImpl implements ValueUtils {
     public ValueResult lockRead(Slice s) {
         int lockState;
         final int version = s.getVersion();
-        if (version <= ReferenceCodecMM.INVALID_VERSION) {
-            System.out.println("In locking for read the version was: " + version);
-            assert false;
-        }
+        assert version > ReferenceCodecMM.INVALID_VERSION : "In locking for read the version was: " + version;
         do {
             int oldVersion = getOffHeapVersion(s);
             if (oldVersion != version) {

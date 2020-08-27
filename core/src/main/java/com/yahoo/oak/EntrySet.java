@@ -276,17 +276,17 @@ class EntrySet<K, V> {
     }
 
     /*
-     * isValueRefValid is used only to check whether the value reference, which is part of the
+     * isValueRefValidAndNotDeleted is used only to check whether the value reference, which is part of the
      * entry on entry index "ei" is valid and not deleted. No off-heap value deletion mark check.
      * Reference being marked as deleted is checked.
      *
      * Pay attention that (given entry's) value may be deleted asynchronously by other thread just
      * after this check. For the thread safety use a copy of value reference.
      * */
-    boolean isValueRefValid(int ei) {
+    boolean isValueRefValidAndNotDeleted(int ei) {
         long valRef = getValueReference(ei);
         return valuesMemoryManager.isReferenceValid(valRef)
-            || valuesMemoryManager.isReferenceDeleted(valRef);
+            && !valuesMemoryManager.isReferenceDeleted(valRef);
     }
 
     /********************************************************************************************/
@@ -473,7 +473,7 @@ class EntrySet<K, V> {
      */
     void allocateKey(K key, KeyBuffer keyBuffer) {
         int keySize = keySerializer.calculateSize(key);
-        keysMemoryManager.allocate(keyBuffer, keySize, MemoryManager.Allocate.KEY);
+        keysMemoryManager.allocate(keyBuffer, keySize);
         ScopedWriteBuffer.serialize(keyBuffer, key, keySerializer);
     }
 
@@ -485,7 +485,7 @@ class EntrySet<K, V> {
      */
     void duplicateKey(KeyBuffer src, KeyBuffer dst) {
         final int keySize = src.capacity();
-        keysMemoryManager.allocate(dst, keySize, MemoryManager.Allocate.KEY);
+        keysMemoryManager.allocate(dst, keySize);
 
         // We duplicate the buffer without instantiating a write buffer because the user is not involved.
         UnsafeUtils.unsafe.copyMemory(src.getAddress(), dst.getAddress(), keySize);
@@ -526,7 +526,7 @@ class EntrySet<K, V> {
         int valueLength     = valueDataSize + valOffHeapOperator.getHeaderSize();
 
         // The allocated slice includes all the needed information for further access
-        valuesMemoryManager.allocate(ctx.newValue, valueLength, MemoryManager.Allocate.VALUE);
+        valuesMemoryManager.allocate(ctx.newValue, valueLength);
         ctx.newValue.setReference(valuesMemoryManager.encodeReference(ctx.newValue));
         ctx.isNewValueForMove = writeForMove;
 
@@ -720,7 +720,7 @@ class EntrySet<K, V> {
         int currIndex = getHeadNextIndex();
         int prevIndex = -1;
         while (currIndex > getLastEntryIndex()) {
-            if (!isValueRefValid(currIndex)) {
+            if (!isValueRefValidAndNotDeleted(currIndex)) {
                 return false;
             }
             if (!valuesMemoryManager.isReferenceConsistent(getValueReference(currIndex))) {

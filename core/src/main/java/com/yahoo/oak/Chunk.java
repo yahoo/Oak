@@ -130,16 +130,16 @@ class Chunk<K, V> {
     /*-----------------------------  Wrappers for EntrySet methods -----------------------------*/
 
     /**
-     * See {@code EntrySet.isValueRefValid(int)} for more information
+     * See {@code EntrySet.isValueRefValidAndNotDeleted(int)} for more information
      */
     boolean isValueRefValid(int ei) {
-        return entrySet.isValueRefValid(ei);
+        return entrySet.isValueRefValidAndNotDeleted(ei);
     }
 
     /**
      * See {@code EntrySet.readKey(ThreadContext)} for more information
      */
-    void readKeyFromEntryIndex(ThreadContext ctx) {
+    void readKey(ThreadContext ctx) {
         entrySet.readKey(ctx);
     }
 
@@ -737,7 +737,7 @@ class Chunk<K, V> {
 
     private int advanceNextIndex(final int entryIndex) {
         int next = entryIndex;
-        while (next != NONE_NEXT && !entrySet.isValueRefValid(next)) {
+        while (next != NONE_NEXT && !entrySet.isValueRefValidAndNotDeleted(next)) {
             next = entrySet.getNextEntryIndex(next);
         }
         return next;
@@ -767,7 +767,7 @@ class Chunk<K, V> {
                 compare = compareKeyAndEntryIndex(tempKeyBuff, from, next);
             }
             while (next != NONE_NEXT &&
-                    (compare > 0 || (compare >= 0 && !inclusive) || !entrySet.isValueRefValid(next))) {
+                    (compare > 0 || (compare >= 0 && !inclusive) || !entrySet.isValueRefValidAndNotDeleted(next))) {
                 next = entrySet.getNextEntryIndex(next);
                 if (next != NONE_NEXT) {
                     compare = compareKeyAndEntryIndex(tempKeyBuff, from, next);
@@ -843,7 +843,7 @@ class Chunk<K, V> {
                 return;
             }
             next = stack.pop();
-            while (next != NONE_NEXT && !entrySet.isValueRefValid(next)) {
+            while (next != NONE_NEXT && !entrySet.isValueRefValidAndNotDeleted(next)) {
                 if (!stack.empty()) {
                     next = stack.pop();
                 } else {

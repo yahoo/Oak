@@ -96,7 +96,8 @@ class InternalOakMap<K, V> {
         // reference count will never grow again
         if (res == 0) {
             try {
-                // closing the same memory manager or memory allocator twice is idempotent
+                // closing the same memory manager (or memory allocator) twice,
+                // has the same effect as closing once
                 valuesMemoryManager.close();
                 keysMemoryManager.close();
             } catch (IOException e) {
@@ -379,7 +380,7 @@ class InternalOakMap<K, V> {
 
     // returns false when restart is needed
     // (if rebalance happened or another valid entry with same key was found)
-    private boolean allocateAndLinkEntry(Chunk c, ThreadContext ctx, K key) {
+    private boolean allocateAndLinkEntry(Chunk c, ThreadContext ctx, K key, boolean isPutIfAbsent) {
         // There was no such key found, going to allocate a new key.
         // EntrySet allocates the entry (holding the key) and ctx is going to be updated
         // to be used by EntrySet's subsequent requests to write value
@@ -389,16 +390,33 @@ class InternalOakMap<K, V> {
         }
         int prevEi = c.linkEntry(ctx, key);
         if (prevEi != ctx.entryIndex) {
-            // our entry wasn't inserted because other entry with same key was found.
-            // If this entry (with index prevEi) is valid we should move to continue
-            // with existing entry scenario, otherwise we can reuse this entry because
-            // its value is invalid.
-            c.releaseKey(ctx);
-            if (!c.isValueRefValid(prevEi)) {
-                return false;
+            if (!isPutIfAbsent) {
+                // our entry wasn't inserted because other entry with same key was found.
+                // If this entry (with index prevEi) is valid we should move to continue
+                // with existing entry scenario, otherwise we can reuse this entry because
+                // its value is invalid.
+                c.releaseKey(ctx);
+                if (!c.isValueRefValid(prevEi)) {
+                    return false;
+                }
+                // We use an existing entry only if its value reference is invalid
+                ctx.entryIndex = prevEi;
+            } else {
+                // our entry wasn't inserted because other entry with same key was found. If this
+                // entry (with index prevEi) is valid putIfAbsent should return ValueUtils.ValueResult.FALSE,
+                // otherwise we can reuse this entry because its value is invalid.
+                c.releaseKey(ctx);
+                // to support linearization, a deeper validity check is needed
+                // including off-heap delete bit check
+                ctx.entryIndex = prevEi;
+                c.readValue(ctx);
+                if (ctx.isValueValid()) {
+                    // If exists a matching value reference for the given key,
+                    // and it isn't marked deleted, returning here false will cause the restart
+                    // so the new value will be found and processed
+                    return false;
+                }
             }
-            // We use an existing entry only if its value reference is invalid
-            ctx.entryIndex = prevEi;
         }
         return true;
     }
@@ -440,7 +458,7 @@ class InternalOakMap<K, V> {
             // (1) Key wasn't found (key and value not valid)
             // (2) Key was found and it's value is deleted/invalid (key valid value invalid)
             if (!ctx.isKeyValid()) {
-                if (!allocateAndLinkEntry(c, ctx, key)) {
+                if (!allocateAndLinkEntry(c, ctx, key, false)) {
                     continue; // allocation wasn't successfull and resulted in rebalance - retry
                 }
             }
@@ -462,7 +480,6 @@ class InternalOakMap<K, V> {
                 return null; // null can be returned only in zero-copy case
             }
         }
-        // Also reaching here when value linkage was unsuccessful
         throw new RuntimeException("put failed: reached retry limit (1024).");
     }
 
@@ -499,37 +516,10 @@ class InternalOakMap<K, V> {
             // (1) Key wasn't found (key and value not valid)
             // (2) Key was found and it's value is deleted/invalid (key valid value invalid)
             if (!ctx.isKeyValid()) {
-                // There was no such key found, going to allocate a new key.
-                // EntrySet allocates the entry (holding the key) and ctx is going to be updated
-                // to be used by EntrySet's subsequent requests to write value
-                if (!c.allocateEntry(ctx, key)) {
-                    rebalance(c); // there was no space to allocate new entry, need to rebalance
-                    continue;     // after rebalance always restart
-                }
-                int prevEi = c.linkEntry(ctx, key);
-                if (prevEi != ctx.entryIndex) {
-                    // our entry wasn't inserted because other entry with same key was found.
-                    // If this entry (with index prevEi) is valid we should return false,
-                    // otherwise we can reuse this entry because its value is invalid.
-                    c.releaseKey(ctx);
-                    // to support linearization, a deeper validity check is needed
-                    // including off-heap delete bit check
-                    ctx.entryIndex = prevEi;
-                    c.readValue(ctx);
-                    if (ctx.isValueValid()) {
-                        // If exists a matching value reference for the given key, and it isn't marked deleted,
-                        // organize the return value: false for ZC, and old value deserialization for non-ZC
-                        if (transformer == null) {
-                            return ctx.result.withFlag(ValueUtils.ValueResult.FALSE);
-                        }
-                        // for non-zc interface putIfAbsent returns the previous value associated with
-                        // the specified key, or null if there was no mapping for the key
-                        Result res = valueOperator.transform(ctx.result, ctx.tempValue, transformer);
-                        if (res.operationResult == ValueUtils.ValueResult.TRUE) {
-                            return res;
-                        }
-                        continue;
-                    }
+                if (!allocateAndLinkEntry(c, ctx, key, true)) {
+                    // allocation wasn't successful and resulted in rebalance,
+                    // or retry is needed for other reason - retry
+                    continue;
                 }
             }
 
@@ -588,7 +578,7 @@ class InternalOakMap<K, V> {
             // (1) Key wasn't found (key and value not valid)
             // (2) Key was found and it's value is deleted/invalid (key valid value invalid)
             if (!ctx.isKeyValid()) {
-                if (!allocateAndLinkEntry(c, ctx, key)) {
+                if (!allocateAndLinkEntry(c, ctx, key, false)) {
                     continue;
                 }
             }
@@ -1124,7 +1114,7 @@ class InternalOakMap<K, V> {
                 ctx.initEntryContext(curIndex);
 
                 if (!needBoundCheck) {
-                    c.readKeyFromEntryIndex(ctx);
+                    c.readKey(ctx);
                 } else {
                     // If we checked the boundary, than we already read the current key into ctx.tempKey
                     ctx.key.copyFrom(ctx.tempKey);

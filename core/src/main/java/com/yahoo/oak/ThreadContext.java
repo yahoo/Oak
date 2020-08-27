@@ -96,7 +96,7 @@ class ThreadContext {
      * @return does the entry have a valid key
      */
     boolean isKeyValid() {
-        return key.isValid();
+        return key.isInitiated();
     }
 
     /**

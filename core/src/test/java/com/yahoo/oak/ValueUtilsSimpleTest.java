@@ -23,7 +23,7 @@ public class ValueUtilsSimpleTest {
     public void init() {
         NativeMemoryManager novaManager = new NativeMemoryManager(new NativeMemoryAllocator(128));
         s = new Slice();
-        novaManager.allocate(s, 16, MemoryManager.Allocate.VALUE);
+        novaManager.allocate(s, 16);
         s.buffer.putInt(s.getOffset(), 1);
         valueOperator.initHeader(s, -1);
     }

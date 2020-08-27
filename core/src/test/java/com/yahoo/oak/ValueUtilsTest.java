@@ -26,7 +26,7 @@ public class ValueUtilsTest {
         ctx = new ThreadContext(valueOperator);
         s = ctx.value;
         novaManager.allocate(
-            s, (valueOperator.getHeaderSize() + Integer.BYTES*3), MemoryManager.Allocate.VALUE);
+            s, (valueOperator.getHeaderSize() + Integer.BYTES*3));
         valueOperator.initHeader(s, Integer.BYTES*3);
     }
 

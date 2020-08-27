@@ -75,7 +75,7 @@ class NativeMemoryAllocator implements BlockMemoryAllocator {
         // Then, we use freeList.higher(s) which returns a free slice with greater or equal length to the length of the
         // dummy with time complexity of O(log N), where N is the number of free slices.
         while (!freeList.isEmpty()) {
-            s.update(0, 0, size);
+            s.setOffsetAndLength(0, size);
             Slice bestFit = freeList.higher(s);
             if (bestFit == null) {
                 break;
@@ -94,10 +94,6 @@ class NativeMemoryAllocator implements BlockMemoryAllocator {
                     stats.reclaim(size);
                 }
                 s.copyFrom(bestFit);
-
-                // We read again the buffer so to get the per-thread buffer.
-                // TODO: This will be redundant once we eliminate the per-thread buffers.
-                //setSliceBuffer(s);
                 return true;
             }
         }

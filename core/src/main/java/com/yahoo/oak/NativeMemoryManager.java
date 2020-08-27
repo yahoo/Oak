@@ -53,20 +53,12 @@ class NativeMemoryManager implements MemoryManager {
     }
 
     /**
-     * Get ReferenceCodec to manage the (long) references,
-     * in which all the info for the memory access is incorporated
-     *
-     */
-    @Override public ReferenceCodec getReferenceCodec() {
-        return rcmm;
-    }
-
-    /**
      * @param s         the memory slice to update with the info decoded from the reference
      * @param reference the reference to decode
      * @return true if the given allocation reference is valid, otherwise the slice is invalidated
      */
-    @Override public boolean decodeReference(Slice s, long reference) {
+    @Override
+    public boolean decodeReference(Slice s, long reference) {
         return rcmm.decode(s, reference);
     }
 
@@ -74,7 +66,8 @@ class NativeMemoryManager implements MemoryManager {
      * @param s the memory slice, encoding of which should be returned as a an output long reference
      * @return the encoded reference
      */
-    @Override public long encodeReference(Slice s) {
+    @Override
+    public long encodeReference(Slice s) {
         return rcmm.encode(s);
     }
 
@@ -84,19 +77,23 @@ class NativeMemoryManager implements MemoryManager {
      * @param reference to alter
      * @return the encoded reference
      */
-    @Override public long alterReferenceForDelete(long reference) {
+    @Override
+    public long alterReferenceForDelete(long reference) {
         return rcmm.alterForDelete(reference);
     }
 
-    @Override public boolean isReferenceValid(long reference) {
+    @Override
+    public boolean isReferenceValid(long reference) {
         return rcmm.isReferenceValid(reference);
     }
 
-    @Override public boolean isReferenceDeleted(long reference) {
+    @Override
+    public boolean isReferenceDeleted(long reference) {
         return rcmm.isReferenceDeleted(reference);
     }
 
-    @Override public boolean isReferenceConsistent(long reference) {
+    @Override
+    public boolean isReferenceConsistent(long reference) {
         return rcmm.isReferenceConsistent(reference);
     }
 
@@ -106,15 +103,14 @@ class NativeMemoryManager implements MemoryManager {
     }
 
     @Override
-    public void allocate(Slice s, int size, Allocate allocate) {
-        boolean allocated = allocator.allocate(s, size, allocate);
+    public void allocate(Slice s, int size) {
+        boolean allocated = allocator.allocate(s, size, Allocate.VALUE);
         assert allocated;
         s.setVersion(globalVersionNumber.get());
     }
 
     @Override
     public void release(Slice s) {
-        s.getLength(); // to set the off-heap length if need, implicitly
         int idx = threadIndexCalculator.getIndex();
         List<Slice> myReleaseList = this.releaseLists.get(idx);
         // ensure the length of the slice is always set

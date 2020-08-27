@@ -8,6 +8,11 @@ package com.yahoo.oak;
 
 import java.io.Closeable;
 
+/*** Memory Manager should efficiently provide:
+ ** (1) Memory allocation services
+ ** (2) Memory reclamation services
+ ** (3) Safe access, in a way that a reused memory allocated to a new usage can be never accessed
+ ** via old references to the same location.*/
 interface MemoryManager extends Closeable {
 
     /**
@@ -28,12 +33,10 @@ interface MemoryManager extends Closeable {
      * This method allocates memory out of the off-heap, i.e., the ByteBuffer inside of {@code s} is pointing to the
      * off-heap. The blockID, is an internal reference to which block the ByteBuffer points, allowing the functions
      * {@code getSliceFromBlockID} and {@code getByteBufferFromBlockID} to reconstruct the same ByteBuffer.
-     *
-     * @param s        - an allocation object to update with the new allocation
+     *  @param s        - an allocation object to update with the new allocation
      * @param size     - the size of the Slice to allocate
-     * @param allocate - whether this Slice is for a key or a value
      */
-    void allocate(Slice s, int size, Allocate allocate);
+    void allocate(Slice s, int size);
 
     /**
      * When returning an allocated Slice to the Memory Manager, depending on the implementation, there might be a
@@ -55,21 +58,10 @@ interface MemoryManager extends Closeable {
      */
     int getCurrentVersion();
 
-    /**
-     * Get ReferenceCodec to manage the (long) references,
-     * in which all the info for the memory access is incorporated
-     *
-     */
-    ReferenceCodec getReferenceCodec();
-
     /* ------------- Interfaces to deal with references! ------------- */
     /* Reference is a long (64 bits) that should encapsulate all the information required
     ** to access a memory for read and for write. It is up to memory manager what to put inside.
-    ** Memory Manager should efficiently provide:
-    ** (1) Memory allocation services
-    ** (2) Memory reclamation services
-    ** (3) Safe access, in a way that a reused memory allocated to a new usage can be never accessed
-    ** via old references to the same location. */
+     */
 
     /**
      * @param s         the memory slice to update with the info decoded from the reference

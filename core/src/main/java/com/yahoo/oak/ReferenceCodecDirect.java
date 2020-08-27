@@ -22,7 +22,21 @@ package com.yahoo.oak;
  * Then BlockID+offset have 36 bits for their representation.
  * Total memory 64GB
  *
- */
+ *
+ * The direct reference codec encodes the reference of the unmanaged slices into a single long primitive (64 bit).
+ * For the default block size (256MB), we need 28 bits to encode the offset
+ * and additional 28 bits to encode the length.
+ * So, the remaining 8 bits can encode the block id, which will limit the maximal number of blocks to 256.
+ * Thus, the key/value reference encoding when using the default block size (256MB) will be as follows:
+ *
+ *    LSB                                       MSB
+ *     |     offset     |     length     | block |
+ *     |     28 bit     |     28 bit     | 8 bit |
+ *      0             27 28            55 56   63
+ *
+ * From that, we can derive that the maximal number of 1K items that can be allocated is ~128 million (2^26).
+ * Note: these limitations will change for different block sizes. */
+
 class ReferenceCodecDirect extends ReferenceCodec {
     private static final long INVALID_DIRECT_REFERENCE = 0;
     /**
@@ -63,10 +77,10 @@ class ReferenceCodecDirect extends ReferenceCodec {
         return getThird(reference);
     }
 
-    @Override protected void setAll(Slice s, long first, long second, long third) {
-        s.update((int) first, // blockID is not going to be allocated unless needed later in readByteBuffer
-            (int) second, (int) third);
-        allocator.readByteBuffer(s, (int) first);
+    @Override protected void setAll(Slice s, long blockID, long offset, long length) {
+        // blockID is not going to be updated unless needed later in readByteBuffer
+        s.setOffsetAndLength((int) offset, (int) length);
+        allocator.readByteBuffer(s, (int) blockID);
     }
 
     @Override boolean isReferenceDeleted(final Slice s) {

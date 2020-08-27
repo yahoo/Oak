@@ -44,8 +44,8 @@ class NoFreeMemoryManager implements MemoryManager {
     }
 
     @Override
-    public void allocate(Slice s, int size, Allocate allocate) {
-        boolean allocated = allocator.allocate(s, size, allocate);
+    public void allocate(Slice s, int size) {
+        boolean allocated = allocator.allocate(s, size, Allocate.KEY);
         assert allocated;
     }
 
@@ -68,20 +68,12 @@ class NoFreeMemoryManager implements MemoryManager {
     }
 
     /**
-     * Get ReferenceCodec to manage the (long) references,
-     * in which all the info for the memory access is incorporated
-     *
-     */
-    @Override public ReferenceCodec getReferenceCodec() {
-        return rcd;
-    }
-
-    /**
      * @param s         the memory slice to update with the info decoded from the reference
      * @param reference the reference to decode
      * @return true if the given allocation reference is valid, otherwise the slice is invalidated
      */
-    @Override public boolean decodeReference(Slice s, long reference) {
+    @Override
+    public boolean decodeReference(Slice s, long reference) {
         return rcd.decode(s, reference);
     }
 
@@ -89,7 +81,8 @@ class NoFreeMemoryManager implements MemoryManager {
      * @param s the memory slice, encoding of which should be returned as a an output long reference
      * @return the encoded reference
      */
-    @Override public long encodeReference(Slice s) {
+    @Override
+    public long encodeReference(Slice s) {
         return rcd.encode(s);
     }
 
@@ -99,19 +92,23 @@ class NoFreeMemoryManager implements MemoryManager {
      * @param reference to alter
      * @return the encoded reference
      */
-    @Override public long alterReferenceForDelete(long reference) {
+    @Override
+    public long alterReferenceForDelete(long reference) {
         return rcd.alterForDelete(reference);
     }
 
-    @Override public boolean isReferenceValid(long reference) {
+    @Override
+    public boolean isReferenceValid(long reference) {
         return rcd.isReferenceValid(reference);
     }
 
-    @Override public boolean isReferenceDeleted(long reference) {
+    @Override
+    public boolean isReferenceDeleted(long reference) {
         return rcd.isReferenceDeleted(reference);
     }
 
-    @Override public boolean isReferenceConsistent(long reference) {
+    @Override
+    public boolean isReferenceConsistent(long reference) {
         return rcd.isReferenceConsistent(reference);
     }
 }
