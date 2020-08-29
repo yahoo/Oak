@@ -11,11 +11,12 @@ class NoFreeMemoryManager implements MemoryManager {
     private final BlockMemoryAllocator allocator;
 
     /*
-     * The KEY_RC reference codec encodes the reference of the keys into a single long primitive (64 bit).
+     * The direct reference codec encodes the reference of the slices (which are not subject to
+     * memory reclamation) into a single long primitive (64 bit).
      * For the default block size (256MB), we need 28 bits to encode the offset
      * and additional 28 bits to encode the length.
      * So, the remaining 8 bits can encode the block id, which will limit the maximal number of blocks to 256.
-     * Thus, the key/value reference encoding when using the default block size (256MB) will be as follows:
+     * Thus, the reference encoding when using the default block size (256MB) will be as follows:
      *
      *    LSB                                       MSB
      *     |     offset     |     length     | block |
@@ -45,17 +46,12 @@ class NoFreeMemoryManager implements MemoryManager {
 
     @Override
     public void allocate(Slice s, int size) {
-        boolean allocated = allocator.allocate(s, size, Allocate.KEY);
+        boolean allocated = allocator.allocate(s, size);
         assert allocated;
     }
 
     @Override
     public void release(Slice s) {
-    }
-
-    @Override
-    public void readByteBuffer(Slice s, int blockID) {
-        allocator.readByteBuffer(s, blockID);
     }
 
     public boolean isClosed() {

@@ -43,55 +43,74 @@ class ReferenceCodecDirect extends ReferenceCodec {
      * Initialize the codec with size block-size and value length limits.
      * These limits will inflict a limit on the maximal number of blocks (the remaining bits).
      * offset and length can only be as long as a size of the block.
-     * @param blockSizeLimit an upper limit on the size of a block (exclusive)
-     * @param lengthLimit    an upper limit on the data length (exclusive)
+     * @param offsetSizeLimit an upper limit on the size of a block (exclusive)
+     * @param lengthSizeLimit    an upper limit on the data length (exclusive)
      * @param allocator
      */
-    ReferenceCodecDirect(long blockSizeLimit, long lengthLimit, BlockMemoryAllocator allocator) {
-        super(INVALID_BIT_SIZE, requiredBits(blockSizeLimit),
-            requiredBits(BlocksPool.getInstance().blockSize()), // bits# to represent length
+    ReferenceCodecDirect(long offsetSizeLimit, long lengthSizeLimit, BlockMemoryAllocator allocator) {
+        super(INVALID_BIT_SIZE, // bits# to represent block id are calculated upon other parameters
+            requiredBits(offsetSizeLimit),   // bits# to represent offset
+            requiredBits(lengthSizeLimit),  // bits# to represent length
             allocator);
     }
 
-    @Override protected long getFirst(Slice s) {
+    @Override
+    protected long getFirst(Slice s) {
         return (long) s.getAllocatedBlockID();
     }
 
-    @Override protected long getSecond(Slice s) {
+    @Override
+    protected long getSecond(Slice s) {
         return (long) s.getAllocatedOffset();
     }
 
-    @Override protected long getThird(Slice s) {
+    @Override
+    protected long getThird(Slice s) {
         return (long) s.getAllocatedLength();
     }
 
-    @Override protected long getFirstForDelete(long reference) {
+    @Override
+    protected long getFirstForDelete(long reference) {
         return getFirst(reference);
     }
 
-    @Override protected long getSecondForDelete(long reference) {
+    @Override
+    protected long getSecondForDelete(long reference) {
         return getSecond(reference);
     }
 
-    @Override protected long getThirdForDelete(long reference) {
+    @Override
+    protected long getThirdForDelete(long reference) {
         return getThird(reference);
     }
 
-    @Override protected void setAll(Slice s, long blockID, long offset, long length) {
+    @Override
+    protected void setAll(Slice s, long blockID, long offset, long length) {
         // blockID is not going to be updated unless needed later in readByteBuffer
         s.setOffsetAndLength((int) offset, (int) length);
+
+        int oldBlockID = s.getAllocatedBlockID();
+
+        // We don't need to update the buffer if old one is good enough
+        if (oldBlockID != NativeMemoryAllocator.INVALID_BLOCK_ID && oldBlockID == blockID) {
+            return;
+        }
+
         allocator.readByteBuffer(s, (int) blockID);
     }
 
-    @Override boolean isReferenceDeleted(final Slice s) {
+    @Override
+    boolean isReferenceDeleted(final Slice s) {
         return false;
     }
 
-    @Override boolean isReferenceDeleted(long reference) {
+    @Override
+    boolean isReferenceDeleted(long reference) {
         return false;
     }
 
-    @Override boolean isReferenceConsistent(long reference) {
+    @Override
+    boolean isReferenceConsistent(long reference) {
         return true;
     }
 
@@ -99,7 +118,8 @@ class ReferenceCodecDirect extends ReferenceCodec {
         return INVALID_DIRECT_REFERENCE;
     }
 
-    @Override boolean isReferenceValid(long reference) {
+    @Override
+    boolean isReferenceValid(long reference) {
         return reference != INVALID_DIRECT_REFERENCE;
     }
 }

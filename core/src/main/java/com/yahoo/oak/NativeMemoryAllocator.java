@@ -41,8 +41,6 @@ class NativeMemoryAllocator implements BlockMemoryAllocator {
     // number of bytes allocated for this Oak among different Blocks
     // can be calculated, but kept for easy access
     private final AtomicLong allocated = new AtomicLong(0);
-    public final AtomicInteger keysAllocated = new AtomicInteger(0);
-    public final AtomicInteger valuesAllocated = new AtomicInteger(0);
 
     // flag allowing not to close the same allocator twice
     private final AtomicBoolean closed = new AtomicBoolean(false);
@@ -69,13 +67,13 @@ class NativeMemoryAllocator implements BlockMemoryAllocator {
     // within current block bounds.
     // Otherwise, new block is allocated within Oak memory bounds. Thread safe.
     @Override
-    public boolean allocate(Slice s, int size, MemoryManager.Allocate allocate) {
+    public boolean allocate(Slice s, int size) {
         // While the free list is not empty there can be a suitable free slice to reuse.
         // To search a free slice, we use the input slice as a dummy and change its length to the desired length.
         // Then, we use freeList.higher(s) which returns a free slice with greater or equal length to the length of the
         // dummy with time complexity of O(log N), where N is the number of free slices.
         while (!freeList.isEmpty()) {
-            s.setOffsetAndLength(0, size);
+            s.initializeDummy(size);
             Slice bestFit = freeList.higher(s);
             if (bestFit == null) {
                 break;
@@ -129,11 +127,6 @@ class NativeMemoryAllocator implements BlockMemoryAllocator {
             }
         }
         allocated.addAndGet(size);
-        if (allocate == MemoryManager.Allocate.KEY) {
-            keysAllocated.incrementAndGet();
-        } else {
-            valuesAllocated.incrementAndGet();
-        }
         return true;
     }
 
@@ -193,14 +186,6 @@ class NativeMemoryAllocator implements BlockMemoryAllocator {
     // When some buffer need to be read from a random block
     @Override
     public void readByteBuffer(Slice s, int blockID) {
-
-        int sliceBlockID = s.getAllocatedBlockID(); // old block ID
-
-        // do we need to update the buffer?
-        if (sliceBlockID != INVALID_BLOCK_ID && sliceBlockID == blockID) {
-            return;
-        }
-
         // Validates that the input block id is valid.
         // This check should be automatically eliminated by the compiler in production.
         assert blockID > NativeMemoryAllocator.INVALID_BLOCK_ID :

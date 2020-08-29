@@ -16,7 +16,7 @@ package com.yahoo.oak;
 interface BlockMemoryAllocator {
 
     // Allocates a portion of a block of the given size, thread safe.
-    boolean allocate(Slice s, int size, MemoryManager.Allocate allocate);
+    boolean allocate(Slice s, int size);
 
     // Releases a portion of a block (makes it available for reuse) without other GC consideration.
     // IMPORTANT: it is assumed free will get an allocation only initially allocated from this Allocator!

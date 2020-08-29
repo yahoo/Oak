@@ -23,7 +23,6 @@ public class ValueBuffer extends ScopedReadBuffer {
     @Override
     void invalidate() {
         super.invalidate();
-        setReference(ReferenceCodecMM.getInvalidReference());
     }
 
     void copyFrom(ValueBuffer alloc) {
@@ -32,6 +31,5 @@ public class ValueBuffer extends ScopedReadBuffer {
             return;
         }
         super.copyFrom(alloc);
-        this.setReference(alloc.getReference());
     }
 }

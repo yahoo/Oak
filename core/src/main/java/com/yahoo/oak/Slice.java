@@ -63,6 +63,18 @@ class Slice implements OakUnsafeDirectBuffer, Comparable<Slice> {
 
     // Reset to invalid state
     void invalidate() {
+        reference = ReferenceCodecMM.getInvalidReference();
+        length = UNDEFINED_LENGTH_OR_OFFSET;
+        offset = UNDEFINED_LENGTH_OR_OFFSET;
+        valid = false;
+    }
+
+    // initialize dummy for allocation
+    void initializeDummy(int l) {
+        blockID = NativeMemoryAllocator.INVALID_BLOCK_ID;
+        reference = ReferenceCodecMM.getInvalidReference();
+        length = l;
+        offset = UNDEFINED_LENGTH_OR_OFFSET;
         valid = false;
     }
 
@@ -102,6 +114,7 @@ class Slice implements OakUnsafeDirectBuffer, Comparable<Slice> {
         this.version = other.version;
         this.buffer = other.buffer;
         this.valid = other.valid;
+        this.reference = other.reference;
     }
 
     // Set the internal buffer.

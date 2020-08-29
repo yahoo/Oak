@@ -74,7 +74,13 @@ class ReferenceCodecMM extends ReferenceCodec{
     @Override protected void setAll(Slice s, long blockID, long offset, long version) {
         s.setOffsetLengthAndVersion(((int) offset), Slice.UNDEFINED_LENGTH_OR_OFFSET, ((int) version));
         if (!isVersionDeleted((int) version)) {
-            allocator.readByteBuffer(s, (int) blockID);
+            int oldBlockID = s.getAllocatedBlockID();
+
+            // We don't need to update the buffer if old one is good enough
+            if (oldBlockID == NativeMemoryAllocator.INVALID_BLOCK_ID || oldBlockID != blockID) {
+                allocator.readByteBuffer(s, (int) blockID);
+            }
+
             ValueUtilsImpl.setLengthFromOffHeap(s);
         }
     }
@@ -91,18 +97,6 @@ class ReferenceCodecMM extends ReferenceCodec{
         }
         v &= VERSION_DELETE_BIT_MASK;
         return (v!=0);
-    }
-
-    // invoked only within assert
-    boolean isConsistent(final Slice s) {
-        if (isReferenceDeleted(s)) {
-            return true;
-        }
-        if (encode(s) == INVALID_MM_REFERENCE) {
-            return true;
-        }
-        int v = s.getVersion();
-        return (v!=INVALID_VERSION);
     }
 
     // invoked only within assert

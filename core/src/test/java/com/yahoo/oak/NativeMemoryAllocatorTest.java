@@ -35,7 +35,7 @@ public class NativeMemoryAllocatorTest {
 
     Slice allocate(NativeMemoryAllocator allocator, int size) {
         Slice s = new Slice();
-        allocator.allocate(s, size, MemoryManager.Allocate.KEY);
+        allocator.allocate(s, size);
         return s;
     }
 
@@ -290,7 +290,7 @@ public class NativeMemoryAllocatorTest {
         List<Slice> allocated = Arrays.stream(sizes)
                 .mapToObj(curSize -> {
                     Slice s = new Slice();
-                    allocator.allocate(s, curSize, MemoryManager.Allocate.KEY);
+                    allocator.allocate(s, curSize);
                     return s;
                 }).collect(Collectors.toList());
         int bytesAllocated = IntStream.of(sizes).sum();

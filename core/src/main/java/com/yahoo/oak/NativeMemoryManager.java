@@ -104,7 +104,7 @@ class NativeMemoryManager implements MemoryManager {
 
     @Override
     public void allocate(Slice s, int size) {
-        boolean allocated = allocator.allocate(s, size, Allocate.VALUE);
+        boolean allocated = allocator.allocate(s, size);
         assert allocated;
         s.setVersion(globalVersionNumber.get());
     }
@@ -122,10 +122,5 @@ class NativeMemoryManager implements MemoryManager {
             }
             myReleaseList.clear();
         }
-    }
-
-    @Override
-    public void readByteBuffer(Slice s, int blockID) {
-        allocator.readByteBuffer(s, blockID);
     }
 }

@@ -15,13 +15,6 @@ import java.io.Closeable;
  ** via old references to the same location.*/
 interface MemoryManager extends Closeable {
 
-    /**
-     * This enum indicates whether the slice allocated will belong to a key or to a value.
-     */
-    enum Allocate {
-        KEY, VALUE;
-    }
-
     boolean isClosed();
 
     /**
@@ -45,11 +38,6 @@ interface MemoryManager extends Closeable {
      * @param s the allocation object to release
      */
     void release(Slice s);
-
-    /**
-     * Fetch the buffer for an allocation that is already set with its parameters: blockID, offset and length.
-     */
-    void readByteBuffer(Slice s, int blockID);
 
     /**
      * Version is responsibility of the Memory Manager, but version shouldn't be exposed outside.
