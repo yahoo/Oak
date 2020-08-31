@@ -50,18 +50,18 @@ abstract class ReferenceCodec {
     protected ReferenceCodec(int firstBitSizeLimit, int secondBitSizeLimit, int thirdBitSizeLimit,
         BlockMemoryAllocator allocator) {
 
-        assert !((thirdBitSizeLimit == INVALID_BIT_SIZE) && (secondBitSizeLimit == INVALID_BIT_SIZE)
-            && (firstBitSizeLimit == INVALID_BIT_SIZE));
-
         if (thirdBitSizeLimit == INVALID_BIT_SIZE) {
+            assert !((secondBitSizeLimit == INVALID_BIT_SIZE) && (firstBitSizeLimit == INVALID_BIT_SIZE));
             this.firstBitSize = firstBitSizeLimit;
             this.secondBitSize = secondBitSizeLimit;
             this.thirdBitSize = Long.SIZE - firstBitSize - secondBitSize;
         } else if (secondBitSizeLimit == INVALID_BIT_SIZE) {
+            assert !((thirdBitSizeLimit == INVALID_BIT_SIZE) && (firstBitSizeLimit == INVALID_BIT_SIZE));
             this.firstBitSize = firstBitSizeLimit;
             this.thirdBitSize = thirdBitSizeLimit;
             this.secondBitSize = Long.SIZE - firstBitSize - thirdBitSize;
         } else if (firstBitSizeLimit == INVALID_BIT_SIZE) {
+            assert !((thirdBitSizeLimit == INVALID_BIT_SIZE) && (secondBitSizeLimit == INVALID_BIT_SIZE));
             this.secondBitSize = secondBitSizeLimit;
             this.thirdBitSize = thirdBitSizeLimit;
             this.firstBitSize = Long.SIZE - secondBitSize - thirdBitSize;
@@ -132,7 +132,6 @@ abstract class ReferenceCodec {
     abstract boolean isReferenceValid(long reference);
 
     // check is reference deleted should be applied according to reference type
-    abstract boolean isReferenceDeleted(Slice slice);
     abstract boolean isReferenceDeleted(long reference);
 
     // invoked (only within assert statement) to check
@@ -157,17 +156,7 @@ abstract class ReferenceCodec {
         long second = getSecond(s);
         long third  = getThird(s);
 
-        // These checks validates that the chosen encoding is sufficient for the current use-case.
-        if ((first & ~firstMask) != 0 || (second & ~secondMask) != 0 || (third & ~thirdMask) != 0 ) {
-            throw new IllegalArgumentException(
-                String.format("%s has insufficient capacity to encode %s", this, s));
-        }
-
-        long firstPart  = first & firstMask;
-        long secondPart = (second & secondMask) << secondShift;
-        long thirdPart  = (third & thirdMask)   << thirdShift;
-
-        return firstPart | secondPart | thirdPart;
+        return  encode(first, second, third);
     }
 
     /** Present the reference as it needs to be when the target is deleted
@@ -179,17 +168,7 @@ abstract class ReferenceCodec {
         long second = getSecondForDelete(reference);
         long third  = getThirdForDelete(reference);
 
-        // These checks validates that the chosen encoding is sufficient for the current use-case.
-        if ((first & ~firstMask) != 0 || (second & ~secondMask) != 0 || (third & ~thirdMask) != 0 ) {
-            throw new IllegalArgumentException(
-                String.format("%s Reference has illegal component %s", this, reference));
-        }
-
-        long firstPart  = first & firstMask;
-        long secondPart = (second & secondMask) << secondShift;
-        long thirdPart  = (third & thirdMask)   << thirdShift;
-
-        return firstPart | secondPart | thirdPart;
+        return  encode(first, second, third);
     }
 
     /**
@@ -208,8 +187,26 @@ abstract class ReferenceCodec {
         int third  = getThird(reference);
 
         setAll(s, first, second, third);
-        return true;
+        return !isReferenceDeleted(reference);
     }
+
+
+    private long encode(long first, long second, long third) {
+        // These checks validates that the chosen encoding is sufficient for the current use-case.
+        if ((first & ~firstMask) != 0 || (second & ~secondMask) != 0 || (third & ~thirdMask) != 0 ) {
+            throw new IllegalArgumentException(
+                String.format(
+                    "%s has insufficient capacity to encode first %s, second %s, and third %s",
+                    this, first, second, third));
+        }
+
+        long firstPart  = first & firstMask;
+        long secondPart = (second & secondMask) << secondShift;
+        long thirdPart  = (third & thirdMask)   << thirdShift;
+
+        return firstPart | secondPart | thirdPart;
+    }
+
 
     /* To be used by derived classes */
     protected int getFirst(final long reference) {

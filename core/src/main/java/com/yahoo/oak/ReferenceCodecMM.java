@@ -43,60 +43,49 @@ class ReferenceCodecMM extends ReferenceCodec{
     }
 
 
-    @Override protected long getFirst(Slice s) {
+    @Override
+    protected long getFirst(Slice s) {
         return (long) s.getAllocatedBlockID();
     }
 
-    @Override protected long getSecond(Slice s) {
+    @Override
+    protected long getSecond(Slice s) {
         return (long) s.getAllocatedOffset();
     }
 
-    @Override protected long getThird(Slice s) {
+    @Override
+    protected long getThird(Slice s) {
         int ver = s.getVersion();
         return (long) ver;
     }
 
-    @Override protected long getFirstForDelete(long reference) {
+    @Override
+    protected long getFirstForDelete(long reference) {
         return INVALID_MM_REFERENCE;
     }
 
-    @Override protected long getSecondForDelete(long reference) {
+    @Override
+    protected long getSecondForDelete(long reference) {
         return INVALID_MM_REFERENCE;
     }
 
-    @Override protected long getThirdForDelete(long reference) {
+    @Override
+    protected long getThirdForDelete(long reference) {
         long v = getThird(reference);
         // The set the MSB (the left-most bit out of 22 is delete bit)
         v |= VERSION_DELETE_BIT_MASK;
         return (INVALID_MM_REFERENCE | v);
     }
 
-    @Override protected void setAll(Slice s, long blockID, long offset, long version) {
-        s.setOffsetLengthAndVersion(((int) offset), Slice.UNDEFINED_LENGTH_OR_OFFSET, ((int) version));
-        if (!isVersionDeleted((int) version)) {
-            int oldBlockID = s.getAllocatedBlockID();
-
-            // We don't need to update the buffer if old one is good enough
-            if (oldBlockID == NativeMemoryAllocator.INVALID_BLOCK_ID || oldBlockID != blockID) {
-                allocator.readByteBuffer(s, (int) blockID);
-            }
-
-            ValueUtilsImpl.setLengthFromOffHeap(s);
-        }
+    @Override
+    protected void setAll(Slice s, long blockID, long offset, long version) {
+        s.setBlockidOffsetLengthAndVersion(
+            (int) blockID, (int) offset, Slice.UNDEFINED_LENGTH_OR_OFFSET, (int) version);
     }
 
-    @Override boolean isReferenceValid(long reference) {
+    @Override
+    boolean isReferenceValid(long reference) {
         return reference != INVALID_MM_REFERENCE;
-    }
-
-    @Override boolean isReferenceDeleted(final Slice s) {
-        int v = s.getVersion();
-        // invalid version means slice is not allocated and thus not deleted
-        if (v == INVALID_VERSION) {
-            return false;
-        }
-        v &= VERSION_DELETE_BIT_MASK;
-        return (v!=0);
     }
 
     // invoked only within assert
@@ -111,7 +100,8 @@ class ReferenceCodecMM extends ReferenceCodec{
         return (v!=INVALID_VERSION);
     }
 
-    @Override boolean isReferenceDeleted(long reference) {
+    @Override
+    boolean isReferenceDeleted(long reference) {
         return isVersionDeleted((int) getThird(reference));
     }
 

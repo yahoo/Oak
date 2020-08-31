@@ -86,22 +86,7 @@ class ReferenceCodecDirect extends ReferenceCodec {
 
     @Override
     protected void setAll(Slice s, long blockID, long offset, long length) {
-        // blockID is not going to be updated unless needed later in readByteBuffer
-        s.setOffsetAndLength((int) offset, (int) length);
-
-        int oldBlockID = s.getAllocatedBlockID();
-
-        // We don't need to update the buffer if old one is good enough
-        if (oldBlockID != NativeMemoryAllocator.INVALID_BLOCK_ID && oldBlockID == blockID) {
-            return;
-        }
-
-        allocator.readByteBuffer(s, (int) blockID);
-    }
-
-    @Override
-    boolean isReferenceDeleted(final Slice s) {
-        return false;
+        s.setBlockidAndOffsetAndLength((int) blockID, (int) offset, (int) length);
     }
 
     @Override

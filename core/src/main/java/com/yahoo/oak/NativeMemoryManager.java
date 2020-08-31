@@ -47,8 +47,8 @@ class NativeMemoryManager implements MemoryManager {
         return allocator.isClosed();
     }
 
-    @Override
-    public int getCurrentVersion() {
+    // used only for testing
+    int getCurrentVersion() {
         return globalVersionNumber.get();
     }
 
@@ -59,7 +59,12 @@ class NativeMemoryManager implements MemoryManager {
      */
     @Override
     public boolean decodeReference(Slice s, long reference) {
-        return rcmm.decode(s, reference);
+        if (rcmm.decode(s, reference)) {
+            allocator.readByteBuffer(s);
+            ValueUtilsImpl.setLengthFromOffHeap(s);
+            return true;
+        }
+        return false;
     }
 
     /**

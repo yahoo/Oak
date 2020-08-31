@@ -374,10 +374,7 @@ class EntrySet<K, V> {
 
         long reference = getValueReference(ei);
         value.setReference(reference);
-        if (valuesMemoryManager.decodeReference(value, reference)) {
-            return !valuesMemoryManager.isReferenceDeleted(reference);
-        }
-        return false;
+        return valuesMemoryManager.decodeReference(value, reference);
     }
 
 
@@ -593,8 +590,17 @@ class EntrySet<K, V> {
 
         // Value's reference codec prepares the reference to be used after value is deleted
         long expectedReference = ctx.value.getReference();
-        if (casEntriesArrayLong(indIdx, OFFSET.VALUE_REFERENCE, expectedReference,
-            valuesMemoryManager.alterReferenceForDelete(expectedReference))) {
+        long newReference = valuesMemoryManager.alterReferenceForDelete(expectedReference);
+        // Scenario:
+        // 1. The value's slice is marked as deleted off-heap and the thread that started
+        //    deleteValueFinish falls asleep.
+        // 2. This value's slice space is allocated once again and assigned into the same entry.
+        // 3. A valid value reference is CASed to invalid.
+        //
+        // This is ABA problem and resolved via always changing deleted variation of the reference
+        // Also value's off-heap slice is released to memory manager only after deleteValueFinish
+        // is done.
+        if (casEntriesArrayLong(indIdx, OFFSET.VALUE_REFERENCE, expectedReference, newReference)) {
             assert valuesMemoryManager.isReferenceConsistent(getValueReference(ctx.entryIndex));
             numOfEntries.getAndDecrement();
             valuesMemoryManager.release(ctx.value);
@@ -607,16 +613,6 @@ class EntrySet<K, V> {
         // maybe value was allocated again. Let the context's value to be updated
         readValue(ctx);
         return false;
-
-        // Scenario:
-        // 1. The value's slice is marked as deleted off-heap and the thread that started
-        //    deleteValueFinish falls asleep.
-        // 2. This value's slice space is allocated once again and assigned into the same entry.
-        // 3. A valid value reference is CASed to invalid.
-        //
-        // This is ABA problem and resolved via always changing deleted variation of the reference
-        // Also value's off-heap slice is released to memory manager only after deleteValueFinish
-        // is done.
     }
 
     /**

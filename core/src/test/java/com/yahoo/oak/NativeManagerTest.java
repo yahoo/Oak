@@ -9,7 +9,7 @@ package com.yahoo.oak;
 import org.junit.Assert;
 import org.junit.Test;
 
-public class NovaManagerTest {
+public class NativeManagerTest {
 
     @Test
     public void reuseTest() {

@@ -58,11 +58,6 @@ class NoFreeMemoryManager implements MemoryManager {
         return allocator.isClosed();
     }
 
-    @Override
-    public int getCurrentVersion() {
-        return 0;
-    }
-
     /**
      * @param s         the memory slice to update with the info decoded from the reference
      * @param reference the reference to decode
@@ -70,7 +65,11 @@ class NoFreeMemoryManager implements MemoryManager {
      */
     @Override
     public boolean decodeReference(Slice s, long reference) {
-        return rcd.decode(s, reference);
+        if (rcd.decode(s, reference)) {
+            allocator.readByteBuffer(s);
+            return true;
+        }
+        return false;
     }
 
     /**

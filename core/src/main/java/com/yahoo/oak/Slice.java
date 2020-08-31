@@ -32,7 +32,7 @@ class Slice implements OakUnsafeDirectBuffer, Comparable<Slice> {
     // Allocation time version
     protected int version;
 
-    protected ByteBuffer buffer;
+    protected ByteBuffer buffer = null;
 
     private boolean valid = false;
 
@@ -63,42 +63,42 @@ class Slice implements OakUnsafeDirectBuffer, Comparable<Slice> {
 
     // Reset to invalid state
     void invalidate() {
-        reference = ReferenceCodecMM.getInvalidReference();
-        length = UNDEFINED_LENGTH_OR_OFFSET;
-        offset = UNDEFINED_LENGTH_OR_OFFSET;
-        valid = false;
+        blockID     = NativeMemoryAllocator.INVALID_BLOCK_ID;
+        reference   = ReferenceCodecMM.getInvalidReference();
+        length      = UNDEFINED_LENGTH_OR_OFFSET;
+        offset      = UNDEFINED_LENGTH_OR_OFFSET;
+        buffer      = null;
+        valid       = false;
     }
 
     // initialize dummy for allocation
     void initializeDummy(int l) {
-        blockID = NativeMemoryAllocator.INVALID_BLOCK_ID;
-        reference = ReferenceCodecMM.getInvalidReference();
+        invalidate();
         length = l;
-        offset = UNDEFINED_LENGTH_OR_OFFSET;
-        valid = false;
     }
 
     /*
      * Updates the offset and length of the slice.
      * The buffer and its blockID should be set later by the block allocator (via setBufferAndBlockID).
      */
-    void setOffsetAndLength(int offset, int length) {
+    void setBlockidAndOffsetAndLength(int blockID, int offset, int length) {
         if (length != UNDEFINED_LENGTH_OR_OFFSET) {
             // length can remain undefined until requested
             // given length should include the header
             assert headerSize <= length;
         }
+        this.blockID = blockID;
         this.offset = offset;
         this.length = length;
-        valid = true;
+        valid = false;
     }
 
     /*
      * Updates the offset, length and version of the slice
      * The buffer and its blockID should be set later by the block allocator (via setBufferAndBlockID).
      */
-    void setOffsetLengthAndVersion(int offset, int length, int version) {
-        setOffsetAndLength(offset, length);
+    void setBlockidOffsetLengthAndVersion(int blockID, int offset, int length, int version) {
+        setBlockidAndOffsetAndLength(blockID, offset, length);
         this.version = version;
     }
 
@@ -119,9 +119,9 @@ class Slice implements OakUnsafeDirectBuffer, Comparable<Slice> {
 
     // Set the internal buffer.
     // This method should be used only by the block memory allocator.
-    void setBufferAndBlockID(ByteBuffer buffer, int blockID) {
-        this.blockID = blockID;
+    void setBuffer(ByteBuffer buffer) {
         this.buffer = buffer;
+        valid = true; // buffer is the final and the most important field for the slice validity
     }
 
     // Set the version. Should be used by the memory allocator.
