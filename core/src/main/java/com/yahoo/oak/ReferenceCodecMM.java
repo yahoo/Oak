@@ -19,14 +19,17 @@ package com.yahoo.oak;
  */
 class ReferenceCodecMM extends ReferenceCodec{
 
+    public  static final int    INVALID_VERSION = 0;
+    private static final long   INVALID_MM_REFERENCE = 0;
+
     // All Oak instances on one machine are expected to reference to no more than 4TB of RAM.
     // 4TB = 2^42 bytes
     // blockIDBitSize + offsetBitSize = BITS_FOR_MAXIMUM_RAM
     // The number of bits required to represent such memory:
     private static final int    BITS_FOR_MAXIMUM_RAM = 42;
     private static final long   VERSION_DELETE_BIT_MASK = (1 << (Long.SIZE - BITS_FOR_MAXIMUM_RAM -1));
-    public  static final int    INVALID_VERSION = 0;
-    private static final long   INVALID_MM_REFERENCE = 0;
+    private static final long   REFERENCE_DELETE_BIT_MASK
+        = (INVALID_MM_REFERENCE | (VERSION_DELETE_BIT_MASK << BITS_FOR_MAXIMUM_RAM));
 
     /**
      * Initialize the codec with offset in the size of block.
@@ -102,7 +105,7 @@ class ReferenceCodecMM extends ReferenceCodec{
 
     @Override
     boolean isReferenceDeleted(long reference) {
-        return isVersionDeleted((int) getThird(reference));
+        return ((reference & REFERENCE_DELETE_BIT_MASK) != INVALID_MM_REFERENCE );
     }
 
     private boolean isVersionDeleted(int v) {

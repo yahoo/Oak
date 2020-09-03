@@ -155,6 +155,9 @@ class Slice implements OakUnsafeDirectBuffer, Comparable<Slice> {
 
     int getAllocatedLength() {
         assert valid;
+        if (length == UNDEFINED_LENGTH_OR_OFFSET) {
+            ValueUtilsImpl.setLengthFromOffHeap(this);
+        }
         return length;
     }
 
@@ -186,6 +189,9 @@ class Slice implements OakUnsafeDirectBuffer, Comparable<Slice> {
 
     @Override
     public int getLength() {
+        if (length == UNDEFINED_LENGTH_OR_OFFSET) {
+            ValueUtilsImpl.setLengthFromOffHeap(this);
+        }
         return length - headerSize;
     }
 

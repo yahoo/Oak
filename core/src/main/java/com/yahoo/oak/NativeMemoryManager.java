@@ -59,9 +59,9 @@ class NativeMemoryManager implements MemoryManager {
      */
     @Override
     public boolean decodeReference(Slice s, long reference) {
+        s.setReference(reference);
         if (rcmm.decode(s, reference)) {
             allocator.readByteBuffer(s);
-            ValueUtilsImpl.setLengthFromOffHeap(s);
             return true;
         }
         return false;
@@ -116,6 +116,9 @@ class NativeMemoryManager implements MemoryManager {
 
     @Override
     public void release(Slice s) {
+        if (s.length == Slice.UNDEFINED_LENGTH_OR_OFFSET) {
+            ValueUtilsImpl.setLengthFromOffHeap(s);
+        }
         int idx = threadIndexCalculator.getIndex();
         List<Slice> myReleaseList = this.releaseLists.get(idx);
         // ensure the length of the slice is always set

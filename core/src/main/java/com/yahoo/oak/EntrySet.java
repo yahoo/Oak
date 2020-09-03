@@ -371,9 +371,7 @@ class EntrySet<K, V> {
             value.invalidate();
             return false;
         }
-
         long reference = getValueReference(ei);
-        value.setReference(reference);
         return valuesMemoryManager.decodeReference(value, reference);
     }
 
