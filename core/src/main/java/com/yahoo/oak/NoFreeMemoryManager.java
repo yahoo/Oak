@@ -65,6 +65,14 @@ class NoFreeMemoryManager implements MemoryManager {
      */
     @Override
     public boolean decodeReference(Slice s, long reference) {
+        if (s.getAllocatedBlockID() == rcd.getFirst(reference)) {
+            // it shows performance improvement (10%) in stream scans, when only offset of the
+            // key's slice is updated upon reference decoding.
+            // Slice is not invalidated between next iterator steps and all the rest information
+            // in slice remains the same.
+            s.setOffset(rcd.getSecond(reference));
+            return true;
+        }
         if (rcd.decode(s, reference)) {
             allocator.readByteBuffer(s);
             return true;

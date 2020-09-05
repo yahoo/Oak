@@ -137,6 +137,12 @@ class Slice implements OakUnsafeDirectBuffer, Comparable<Slice> {
         this.reference = reference;
     }
 
+    // used only in case of iterations when the rest of the slice's data should remain the same
+    void setOffset(int offset) {
+        this.offset = offset;
+        this.valid = true;
+    }
+
     /* ------------------------------------------------------------------------------------
      * Allocation info getters
      * ------------------------------------------------------------------------------------*/
