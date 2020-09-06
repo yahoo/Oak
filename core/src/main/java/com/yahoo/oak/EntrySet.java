@@ -270,6 +270,8 @@ class EntrySet<K, V> {
 
     /**
      * Atomically reads the value reference from the entry (given by entry index "ei")
+     * 8-byte align is only promised in the 64-bit JVM when allocating int arrays.
+     * For long arrays, it is also promised in the 32-bit JVM.
      */
     private long getValueReference(int ei) {
         return getEntryArrayFieldLong(entryIdx2intIdx(ei), OFFSET.VALUE_REFERENCE);
@@ -719,7 +721,7 @@ class EntrySet<K, V> {
             if (!valuesMemoryManager.isReferenceConsistent(getValueReference(currIndex))) {
                 return false;
             }
-            if ( prevIndex>0 && currIndex - prevIndex != FIELDS) {
+            if ( prevIndex > 0 && currIndex - prevIndex != FIELDS) {
                 return false;
             }
             prevIndex = currIndex;
