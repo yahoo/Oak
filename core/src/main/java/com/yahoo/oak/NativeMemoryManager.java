@@ -13,6 +13,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 class NativeMemoryManager implements MemoryManager {
     static final int RELEASE_LIST_LIMIT = 1024;
+    private static final int VERS_INIT_VALUE = 1;
     private final ThreadIndexCalculator threadIndexCalculator;
     private final List<List<Slice>> releaseLists;
     private final AtomicInteger globalVersionNumber;
@@ -32,7 +33,7 @@ class NativeMemoryManager implements MemoryManager {
         for (int i = 0; i < ThreadIndexCalculator.MAX_THREADS; i++) {
             this.releaseLists.add(new ArrayList<>(RELEASE_LIST_LIMIT));
         }
-        globalVersionNumber = new AtomicInteger(1);
+        globalVersionNumber = new AtomicInteger(VERS_INIT_VALUE);
         this.allocator = allocator;
         rcmm = new ReferenceCodecMM(BlocksPool.getInstance().blockSize(), allocator);
     }
@@ -87,6 +88,14 @@ class NativeMemoryManager implements MemoryManager {
         return rcmm.alterForDelete(reference);
     }
 
+    /**
+     * Provide reference considered invalid (null) by this memory manager
+     */
+    @Override
+    public long getInvalidReference() {
+        return ReferenceCodecMM.getInvalidReference();
+    }
+
     @Override
     public boolean isReferenceValid(long reference) {
         return rcmm.isReferenceValid(reference);
@@ -124,11 +133,30 @@ class NativeMemoryManager implements MemoryManager {
         // ensure the length of the slice is always set
         myReleaseList.add(new Slice(s));
         if (myReleaseList.size() >= RELEASE_LIST_LIMIT) {
-            globalVersionNumber.incrementAndGet();
+            increaseGlobalVersion();
             for (Slice allocToRelease : myReleaseList) {
                 allocator.free(allocToRelease);
             }
             myReleaseList.clear();
         }
+    }
+
+    // The version takes specific number of bits (including delete bit)
+    // the version increasing needs to restart once the maximal number of bits is reached
+    //
+    // Increasing global version can be done concurrently by number of threads.
+    // In order not to increase and overwrite allowed number of bits, increase is done via
+    // atomic CAS.
+    //
+    private void increaseGlobalVersion() {
+        // the version takes specific number of bits (including delete bit)
+        // version increasing needs to restart once the maximal number of bits is reached
+        int curVer = globalVersionNumber.get();
+        if (curVer == ReferenceCodecMM.LAST_VALID_VERSION) {
+            globalVersionNumber.compareAndSet(curVer, VERS_INIT_VALUE);
+        } else {
+            globalVersionNumber.compareAndSet(curVer, curVer+1);
+        }
+        // if CAS fails someone else updated the version, which is good enough
     }
 }

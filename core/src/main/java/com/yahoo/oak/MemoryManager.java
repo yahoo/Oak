@@ -64,6 +64,9 @@ interface MemoryManager extends Closeable {
      */
     long alterReferenceForDelete(long reference);
 
+    /** Provide reference considered invalid (null) by this memory manager */
+    long getInvalidReference();
+
     // check if reference is valid, according to the reference coding implementation
     boolean isReferenceValid(long reference);
 

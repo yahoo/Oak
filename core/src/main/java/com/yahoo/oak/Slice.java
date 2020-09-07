@@ -13,7 +13,7 @@ import java.nio.ByteBuffer;
 // Represents a portion of a bigger block which is part of the underlying managed memory.
 // It is allocated via block memory allocator, and can be de-allocated later
 class Slice implements OakUnsafeDirectBuffer, Comparable<Slice> {
-    static final int UNDEFINED_LENGTH_OR_OFFSET = 0;
+    static final int UNDEFINED_LENGTH_OR_OFFSET = -1;
 
     /**
      * An allocated slice might have reserved space for meta-data, i.e., a header.
@@ -72,7 +72,7 @@ class Slice implements OakUnsafeDirectBuffer, Comparable<Slice> {
     }
 
     // initialize dummy for allocation
-    void initializeDummy(int l) {
+    void initializeLookupDummy(int l) {
         invalidate();
         length = l;
     }
@@ -82,11 +82,8 @@ class Slice implements OakUnsafeDirectBuffer, Comparable<Slice> {
      * The buffer and its blockID should be set later by the block allocator (via setBufferAndBlockID).
      */
     void setBlockidAndOffsetAndLength(int blockID, int offset, int length) {
-        if (length != UNDEFINED_LENGTH_OR_OFFSET) {
-            // length can remain undefined until requested
-            // given length should include the header
-            assert headerSize <= length;
-        }
+        // length can remain undefined until requested, but if given length should include the header
+        assert length == UNDEFINED_LENGTH_OR_OFFSET || headerSize <= length;
         this.blockID = blockID;
         this.offset = offset;
         this.length = length;
@@ -121,6 +118,7 @@ class Slice implements OakUnsafeDirectBuffer, Comparable<Slice> {
     // This method should be used only by the block memory allocator.
     void setBuffer(ByteBuffer buffer) {
         this.buffer = buffer;
+        assert buffer != null;
         valid = true; // buffer is the final and the most important field for the slice validity
     }
 
@@ -138,8 +136,10 @@ class Slice implements OakUnsafeDirectBuffer, Comparable<Slice> {
     }
 
     // used only in case of iterations when the rest of the slice's data should remain the same
+    // in this case once the offset is set the the slice is valid
     void setOffset(int offset) {
         this.offset = offset;
+        assert buffer != null;
         this.valid = true;
     }
 

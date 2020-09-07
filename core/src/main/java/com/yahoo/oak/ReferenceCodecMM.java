@@ -31,6 +31,9 @@ class ReferenceCodecMM extends ReferenceCodec{
     private static final long   REFERENCE_DELETE_BIT_MASK
         = (INVALID_MM_REFERENCE | (VERSION_DELETE_BIT_MASK << BITS_FOR_MAXIMUM_RAM));
 
+    // number of allowed bits for version (-1 for delete bit) set to one
+    static final int LAST_VALID_VERSION = (int) mask(Long.SIZE - BITS_FOR_MAXIMUM_RAM - 1);
+
     /**
      * Initialize the codec with offset in the size of block.
      * This will inflict a limit on the maximal number of blocks - size of block ID.
@@ -41,7 +44,7 @@ class ReferenceCodecMM extends ReferenceCodec{
      */
     ReferenceCodecMM(long blockSize, BlockMemoryAllocator allocator) {
         super(BITS_FOR_MAXIMUM_RAM - ReferenceCodecDirect.requiredBits(blockSize),
-            ReferenceCodecDirect.requiredBits(blockSize), INVALID_BIT_SIZE, allocator);
+            ReferenceCodecDirect.requiredBits(blockSize), INVALID_BIT_SIZE);
         // and the rest goes for version (currently 22 bits)
     }
 

@@ -73,7 +73,7 @@ class NativeMemoryAllocator implements BlockMemoryAllocator {
         // Then, we use freeList.higher(s) which returns a free slice with greater or equal length to the length of the
         // dummy with time complexity of O(log N), where N is the number of free slices.
         while (!freeList.isEmpty()) {
-            s.initializeDummy(size);
+            s.initializeLookupDummy(size);
             Slice bestFit = freeList.higher(s);
             if (bestFit == null) {
                 break;

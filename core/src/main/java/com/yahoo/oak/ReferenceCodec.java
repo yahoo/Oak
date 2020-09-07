@@ -20,7 +20,7 @@ package com.yahoo.oak;
  * (As negatives have prefix of ones.)
  */
 abstract class ReferenceCodec {
-    protected static final int  INVALID_BIT_SIZE = -1;
+    protected static final int INVALID_BIT_SIZE = -1;
 
     private int firstBitSize = 0;
     private int secondBitSize = 0;
@@ -33,8 +33,6 @@ abstract class ReferenceCodec {
     private final long secondMask;
     private final long thirdMask;
 
-    protected final BlockMemoryAllocator allocator; // common field for all concrete derived references
-
     /*------- Constructor -------*/
 
     /**
@@ -45,23 +43,21 @@ abstract class ReferenceCodec {
      * @param secondBitSizeLimit an upper limit on the size of the second parameter (exclusive)
      *                          if invalid calculate according to other two limits
      * @param thirdBitSizeLimit an upper limit on the size of the third parameter (exclusive)
-     * @param allocator
      */
-    protected ReferenceCodec(int firstBitSizeLimit, int secondBitSizeLimit, int thirdBitSizeLimit,
-        BlockMemoryAllocator allocator) {
+    protected ReferenceCodec(int firstBitSizeLimit, int secondBitSizeLimit, int thirdBitSizeLimit) {
 
         if (thirdBitSizeLimit == INVALID_BIT_SIZE) {
-            assert !((secondBitSizeLimit == INVALID_BIT_SIZE) && (firstBitSizeLimit == INVALID_BIT_SIZE));
+            assert (secondBitSizeLimit != INVALID_BIT_SIZE) && (firstBitSizeLimit != INVALID_BIT_SIZE);
             this.firstBitSize = firstBitSizeLimit;
             this.secondBitSize = secondBitSizeLimit;
             this.thirdBitSize = Long.SIZE - firstBitSize - secondBitSize;
         } else if (secondBitSizeLimit == INVALID_BIT_SIZE) {
-            assert !((thirdBitSizeLimit == INVALID_BIT_SIZE) && (firstBitSizeLimit == INVALID_BIT_SIZE));
+            // thirdBitSizeLimit is valid
+            assert (firstBitSizeLimit != INVALID_BIT_SIZE);
             this.firstBitSize = firstBitSizeLimit;
             this.thirdBitSize = thirdBitSizeLimit;
             this.secondBitSize = Long.SIZE - firstBitSize - thirdBitSize;
         } else if (firstBitSizeLimit == INVALID_BIT_SIZE) {
-            assert !((thirdBitSizeLimit == INVALID_BIT_SIZE) && (secondBitSizeLimit == INVALID_BIT_SIZE));
             this.secondBitSize = secondBitSizeLimit;
             this.thirdBitSize = thirdBitSizeLimit;
             this.firstBitSize = Long.SIZE - secondBitSize - thirdBitSize;
@@ -78,8 +74,6 @@ abstract class ReferenceCodec {
         this.firstMask  = mask(this.firstBitSize);
         this.secondMask = mask(this.secondBitSize);
         this.thirdMask  = mask(this.thirdBitSize);
-
-        this.allocator = allocator;
     }
 
     /*------- Static helpers -------*/
@@ -92,7 +86,7 @@ abstract class ReferenceCodec {
         return (int) Math.ceil(Math.log(size) / Math.log(2));
     }
 
-    private static long mask(int size) {
+    protected static long mask(int size) {
         return (1L << size) - 1L;
     }
 

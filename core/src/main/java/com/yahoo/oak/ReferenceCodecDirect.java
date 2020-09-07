@@ -50,8 +50,8 @@ class ReferenceCodecDirect extends ReferenceCodec {
     ReferenceCodecDirect(long offsetSizeLimit, long lengthSizeLimit, BlockMemoryAllocator allocator) {
         super(INVALID_BIT_SIZE, // bits# to represent block id are calculated upon other parameters
             requiredBits(offsetSizeLimit),   // bits# to represent offset
-            requiredBits(lengthSizeLimit),  // bits# to represent length
-            allocator);
+            requiredBits(lengthSizeLimit)  // bits# to represent length
+        );
     }
 
     @Override
@@ -99,12 +99,12 @@ class ReferenceCodecDirect extends ReferenceCodec {
         return true;
     }
 
-    static long getInvalidReference() {
-        return INVALID_DIRECT_REFERENCE;
-    }
-
     @Override
     boolean isReferenceValid(long reference) {
         return reference != INVALID_DIRECT_REFERENCE;
+    }
+
+    static long getInvalidReference() {
+        return INVALID_DIRECT_REFERENCE;
     }
 }

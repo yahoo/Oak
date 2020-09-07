@@ -100,6 +100,14 @@ class NoFreeMemoryManager implements MemoryManager {
         return rcd.alterForDelete(reference);
     }
 
+    /**
+     * Provide reference considered invalid (null) by this memory manager
+     */
+    @Override
+    public long getInvalidReference() {
+        return ReferenceCodecDirect.getInvalidReference();
+    }
+
     @Override
     public boolean isReferenceValid(long reference) {
         return rcd.isReferenceValid(reference);
