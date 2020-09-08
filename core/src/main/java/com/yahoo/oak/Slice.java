@@ -137,8 +137,9 @@ class Slice implements OakUnsafeDirectBuffer, Comparable<Slice> {
 
     // used only in case of iterations when the rest of the slice's data should remain the same
     // in this case once the offset is set the the slice is valid
-    void setOffset(int offset) {
+    void setOffsetAndLength(int offset, int length) {
         this.offset = offset;
+        this.length = length;
         assert buffer != null;
         this.valid = true;
     }

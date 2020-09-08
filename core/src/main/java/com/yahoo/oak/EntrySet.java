@@ -26,23 +26,27 @@ import java.util.concurrent.atomic.AtomicInteger;
  * --------------------------------------------------------------------------------------
  * 0 | headNextIndex keeps entry index of the first ordered entry
  * --------------------------------------------------------------------------------------
- * 1 | NEXT  - entry index of the entry following the entry with entry index 1  |
- * -----------------------------------------------------------------------------|
- * 2 | KEY_REFERENCE          | these 2 integers together, represented as long  | entry with
- * --|                        | provide KEY_REFERENCE. Pay attention that       | entry index
- * 3 |                        | KEY_REFERENCE is different than VALUE_REFERENCE | 1
- * -----------------------------------------------------------------------------|
- * 4 | VALUE_REFERENCE        | these 2 integers together, represented as long  | entry that
- * --|                        | provide VALUE_REFERENCE. Pay attention that     | was allocated
- * 5 |                        | VALUE_REFERENCE is different than KEY_REFERENCE | first
- * -----------------------------------------------------------------------------|
- * 6 | NOT IN USE:             saved for alignment and future usage             |
+ * 1 | kept for 8-byte allignment
  * --------------------------------------------------------------------------------------
- * 7 | NEXT  - entry index of the entry following the entry with entry index 2  |
+ * 2 | NEXT  - entry index of the entry following the entry with entry index 1  |
  * -----------------------------------------------------------------------------|
- * 8 | KEY_REFERENCE          | these 2 integers together, represented as long  | entry with
+ * 3 | NOT IN USE:             saved for alignment and future usage             |
+ * --------------------------------------------------------------------------------------
+ * 4 | KEY_REFERENCE          | these 2 integers together, represented as long  | entry with
  * --|                        | provide KEY_REFERENCE. Pay attention that       | entry index
- * 9 |                        | KEY_REFERENCE is different than VALUE_REFERENCE | 2
+ * 5 |                        | KEY_REFERENCE is different than VALUE_REFERENCE | 1
+ * -----------------------------------------------------------------------------|
+ * 6 | VALUE_REFERENCE        | these 2 integers together, represented as long  | entry that
+ * --|                        | provide VALUE_REFERENCE. Pay attention that     | was allocated
+ * 7 |                        | VALUE_REFERENCE is different than KEY_REFERENCE | first
+ * -----------------------------------------------------------------------------|
+ * 8 | NEXT  - entry index of the entry following the entry with entry index 2  |
+ * -----------------------------------------------------------------------------|
+ * 9 | NOT IN USE:             saved for alignment and future usage             |
+ * --------------------------------------------------------------------------------------
+ * 10| KEY_REFERENCE          | these 2 integers together, represented as long  | entry with
+ * --|                        | provide KEY_REFERENCE. Pay attention that       | entry index
+ * 11|                        | KEY_REFERENCE is different than VALUE_REFERENCE | 2
  * -----------------------------------------------------------------------------|
  * ...
  *
@@ -68,7 +72,7 @@ class EntrySet<K, V> {
          * VALUE_REFERENCE - the blockID, offset and version of the value pointed from this entry (size of two
          * integers, one long). Equals to INVALID_REFERENCE if no value is point.
          */
-        NEXT(0), KEY_REFERENCE(1), VALUE_REFERENCE(3);
+        NEXT(0), KEY_REFERENCE(2), VALUE_REFERENCE(4);
 
         final int value;
 
@@ -82,8 +86,10 @@ class EntrySet<K, V> {
     // location of the first (head) node - just a next pointer (always same value 0)
     private final int headNextIndex = 0;
 
-    // index of first item in array, after head (not necessarily first in list!)
-    private static final int HEAD_NEXT_INDEX_SIZE = 1;
+    // the size of the head in bytes
+    // how much it takes to keep the index of the first item in the list, after the head
+    // (not necessarily first in the array!)
+    private static final int HEAD_NEXT_INDEX_SIZE = 2;
 
     private static final int FIELDS = 6;  // # of fields in each item of entries array
 
@@ -93,7 +99,9 @@ class EntrySet<K, V> {
     private final int[] entries;    // array is initialized to 0 - this is important!
     private final int entriesCapacity; // number of entries (not ints) to be maximally held
 
-    private final AtomicInteger nextFreeIndex;    // points to next free index of entry array
+    // points to next free index of entry array, counted in "entries" and not in integers
+    private final AtomicInteger nextFreeIndex;
+
     // counts number of entries inserted & not deleted, pay attention that not all entries counted
     // in number of entries are finally linked into the linked list of the chunk above
     // and participating in holding the "real" KV-mappings, the "real" are counted in Chunk
@@ -118,7 +126,7 @@ class EntrySet<K, V> {
         this.valuesMemoryManager = vMM;
         this.keysMemoryManager = kMM;
         this.entries = new int[entriesCapacity * FIELDS + HEAD_NEXT_INDEX_SIZE];
-        this.nextFreeIndex = new AtomicInteger(HEAD_NEXT_INDEX_SIZE);
+        this.nextFreeIndex = new AtomicInteger( 1/*HEAD_NEXT_INDEX_SIZE*/);
         this.numOfEntries = new AtomicInteger(0);
         this.entriesCapacity = entriesCapacity;
         this.keySerializer = keySerializer;

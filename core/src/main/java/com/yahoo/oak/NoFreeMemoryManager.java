@@ -70,7 +70,7 @@ class NoFreeMemoryManager implements MemoryManager {
             // key's slice is updated upon reference decoding.
             // Slice is not invalidated between next iterator steps and all the rest information
             // in slice remains the same.
-            s.setOffset(rcd.getSecond(reference));
+            s.setOffsetAndLength(rcd.getSecond(reference), rcd.getThird(reference));
             return true;
         }
         if (rcd.decode(s, reference)) {

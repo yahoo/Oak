@@ -20,13 +20,6 @@ interface ValueUtils {
      */
     int getHeaderSize();
 
-//    /**
-//     * Some implementations of values which reside may have a lock in their header.
-//     */
-//    int getLockLocation();
-
-   // int getLockSize();
-
     /**
      * Acquires a read lock
      *
@@ -86,18 +79,6 @@ interface ValueUtils {
      * {@code RETRY} if the value was moved, or the version of the off-heap value does not match {@code version}.
      */
     ValueResult isValueDeleted(Slice s);
-
-//    /**
-//     * @param s the value's off-heap Slice object
-//     * @return the version of the value pointed by {@code s}
-//     */
-//    int getOffHeapVersion(Slice s);
-
-//    /**
-//     * @param s the value's off-heap Slice object
-//     * @return the length of the value pointed by {@code s}
-//     */
-//    int setLengthFromOffHeap(Slice s);
 
     /**
      * Initializing the header version.
