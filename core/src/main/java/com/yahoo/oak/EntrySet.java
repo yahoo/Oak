@@ -72,7 +72,7 @@ class EntrySet<K, V> {
          * VALUE_REFERENCE - the blockID, offset and version of the value pointed from this entry (size of two
          * integers, one long). Equals to INVALID_REFERENCE if no value is point.
          */
-        NEXT(0), KEY_REFERENCE(2), VALUE_REFERENCE(4);
+        NEXT(0), KEY_REFERENCE(1), VALUE_REFERENCE(2);
 
         final int value;
 
@@ -86,17 +86,17 @@ class EntrySet<K, V> {
     // location of the first (head) node - just a next pointer (always same value 0)
     private final int headNextIndex = 0;
 
-    // the size of the head in bytes
+    // the size of the head in longs
     // how much it takes to keep the index of the first item in the list, after the head
     // (not necessarily first in the array!)
-    private static final int HEAD_NEXT_INDEX_SIZE = 2;
+    private static final int HEAD_NEXT_INDEX_SIZE = 1;
 
-    private static final int FIELDS = 6;  // # of fields in each item of entries array
+    private static final int FIELDS = 3;  // # of fields in each item of entries array
 
     private static final Unsafe UNSAFE = UnsafeUtils.unsafe;
     final MemoryManager valuesMemoryManager;
     final MemoryManager keysMemoryManager;
-    private final int[] entries;    // array is initialized to 0 - this is important!
+    private final long[] entries;    // array is initialized to 0 - this is important!
     private final int entriesCapacity; // number of entries (not ints) to be maximally held
 
     // points to next free index of entry array, counted in "entries" and not in integers
@@ -125,8 +125,8 @@ class EntrySet<K, V> {
         OakSerializer<V> valueSerializer, ValueUtils valOffHeapOperator) {
         this.valuesMemoryManager = vMM;
         this.keysMemoryManager = kMM;
-        this.entries = new int[entriesCapacity * FIELDS + HEAD_NEXT_INDEX_SIZE];
-        this.nextFreeIndex = new AtomicInteger( 1/*HEAD_NEXT_INDEX_SIZE*/);
+        this.entries = new long[entriesCapacity * FIELDS + HEAD_NEXT_INDEX_SIZE];
+        this.nextFreeIndex = new AtomicInteger( 1);
         this.numOfEntries = new AtomicInteger(0);
         this.entriesCapacity = entriesCapacity;
         this.keySerializer = keySerializer;
@@ -196,7 +196,7 @@ class EntrySet<K, V> {
      * @param entryIdx external entry-index
      * @return the internal array index
      */
-    private static int entryIdx2intIdx(int entryIdx) {
+    private static int entryIdx2LongIdx(int entryIdx) {
         if (entryIdx == 0) { // assumed it is a head pointer access
             return 0;
         }
@@ -209,7 +209,7 @@ class EntrySet<K, V> {
      * The field is read atomically as it is a machine word, however the concurrency of the
      * mostly updated value is not ensured as no memory fence is issued.
      */
-    private int getEntryArrayFieldInt(int intFieldIdx, OFFSET offset) {
+    private long getEntryArrayFieldInt(int intFieldIdx, OFFSET offset) {
         return entries[intFieldIdx + offset.value]; // used for NEXT
     }
 
@@ -218,9 +218,8 @@ class EntrySet<K, V> {
      * Should be used with OFFSET.VALUE_REFERENCE and OFFSET.KEY_REFERENCE
      */
     private long getEntryArrayFieldLong(int intStartFieldIdx, OFFSET offset) {
-        assert offset == OFFSET.VALUE_REFERENCE || offset == OFFSET.KEY_REFERENCE;
         long arrayOffset =
-                Unsafe.ARRAY_INT_BASE_OFFSET + (intStartFieldIdx + offset.value) * Unsafe.ARRAY_INT_INDEX_SCALE;
+                Unsafe.ARRAY_LONG_BASE_OFFSET + (intStartFieldIdx + offset.value) * Unsafe.ARRAY_LONG_INDEX_SCALE;
         assert arrayOffset % 8 == 0;
         return UNSAFE.getLong(entries, arrayOffset);
     }
@@ -235,7 +234,7 @@ class EntrySet<K, V> {
     }
 
     private void setEntryFieldLong(int item, OFFSET offset, long value) {
-        long arrayOffset = Unsafe.ARRAY_INT_BASE_OFFSET + (item + offset.value) * Unsafe.ARRAY_INT_INDEX_SCALE;
+        long arrayOffset = Unsafe.ARRAY_LONG_BASE_OFFSET + (item + offset.value) * Unsafe.ARRAY_LONG_INDEX_SCALE;
         assert arrayOffset % 8 == 0;
         UNSAFE.putLong(entries, arrayOffset, value);
     }
@@ -261,7 +260,7 @@ class EntrySet<K, V> {
     private boolean casEntriesArrayLong(int intStartFieldIdx, OFFSET offset, long expectedLongValue,
                                         long newLongValue) {
         return UNSAFE.compareAndSwapLong(entries,
-                Unsafe.ARRAY_INT_BASE_OFFSET + (intStartFieldIdx + offset.value) * Unsafe.ARRAY_INT_INDEX_SCALE,
+                Unsafe.ARRAY_LONG_BASE_OFFSET + (intStartFieldIdx + offset.value) * Unsafe.ARRAY_LONG_INDEX_SCALE,
                 expectedLongValue, newLongValue);
     }
 
@@ -273,7 +272,7 @@ class EntrySet<K, V> {
      * Atomically reads the key reference from the entry (given by entry index "ei")
      */
     private long getKeyReference(int ei) {
-        return getEntryArrayFieldLong(entryIdx2intIdx(ei), OFFSET.KEY_REFERENCE);
+        return getEntryArrayFieldLong(entryIdx2LongIdx(ei), OFFSET.KEY_REFERENCE);
     }
 
     /**
@@ -282,7 +281,7 @@ class EntrySet<K, V> {
      * For long arrays, it is also promised in the 32-bit JVM.
      */
     private long getValueReference(int ei) {
-        return getEntryArrayFieldLong(entryIdx2intIdx(ei), OFFSET.VALUE_REFERENCE);
+        return getEntryArrayFieldLong(entryIdx2LongIdx(ei), OFFSET.VALUE_REFERENCE);
     }
 
     /*
@@ -309,7 +308,7 @@ class EntrySet<K, V> {
         if (ei == INVALID_ENTRY_INDEX) {
             return INVALID_ENTRY_INDEX;
         }
-        return getEntryArrayFieldInt(entryIdx2intIdx(ei), OFFSET.NEXT);
+        return (int) getEntryArrayFieldLong(entryIdx2LongIdx(ei), OFFSET.NEXT);
     }
 
     /**
@@ -318,7 +317,7 @@ class EntrySet<K, V> {
      * The method serves external EntrySet users.
      */
     int getHeadNextIndex() {
-        return getEntryArrayFieldInt(headNextIndex, OFFSET.NEXT);
+        return (int) getEntryArrayFieldLong(headNextIndex, OFFSET.NEXT);
     }
 
     /**
@@ -328,7 +327,7 @@ class EntrySet<K, V> {
      */
     void setNextEntryIndex(int ei, int next) {
         assert ei <= nextFreeIndex.get() && next <= nextFreeIndex.get();
-        setEntryFieldInt(entryIdx2intIdx(ei), OFFSET.NEXT, next);
+        setEntryFieldLong(entryIdx2LongIdx(ei), OFFSET.NEXT, next);
     }
 
     /**
@@ -337,7 +336,7 @@ class EntrySet<K, V> {
      * The method serves external EntrySet users.
      */
     boolean casNextEntryIndex(int ei, int nextOld, int nextNew) {
-        return casEntriesArrayInt(entryIdx2intIdx(ei), OFFSET.NEXT, nextOld, nextNew);
+        return casEntriesArrayLong(entryIdx2LongIdx(ei), OFFSET.NEXT, nextOld, nextNew);
     }
 
 
@@ -510,7 +509,7 @@ class EntrySet<K, V> {
         In reality, the value reference is already set to zero,
         because the entries array is initialized that way (see specs).
          */
-        setEntryFieldLong(entryIdx2intIdx(ctx.entryIndex),
+        setEntryFieldLong(entryIdx2LongIdx(ctx.entryIndex),
             OFFSET.KEY_REFERENCE, keysMemoryManager.encodeReference(ctx.key));
     }
 
@@ -564,7 +563,7 @@ class EntrySet<K, V> {
         long newValueReference = ctx.newValue.getReference();
         assert valuesMemoryManager.isReferenceValid(newValueReference);
 
-        int intIdx = entryIdx2intIdx(ctx.entryIndex);
+        int intIdx = entryIdx2LongIdx(ctx.entryIndex);
         if (!casEntriesArrayLong(intIdx, OFFSET.VALUE_REFERENCE, oldValueReference, newValueReference)) {
             return ValueUtils.ValueResult.FALSE;
         }
@@ -593,7 +592,7 @@ class EntrySet<K, V> {
 
         assert ctx.valueState == ValueState.DELETED_NOT_FINALIZED;
 
-        int indIdx = entryIdx2intIdx(ctx.entryIndex);
+        int indIdx = entryIdx2LongIdx(ctx.entryIndex);
 
         // Value's reference codec prepares the reference to be used after value is deleted
         long expectedReference = ctx.value.getReference();
@@ -707,9 +706,9 @@ class EntrySet<K, V> {
         // therefore, to copy the rest of the entry we use the offset of next (which we assume is 0) and
         // add 1 to start the copying from the subsequent field of the entry.
         System.arraycopy(srcEntrySet.entries,  // source entries array
-                entryIdx2intIdx(srcEntryIdx) + OFFSET.NEXT.value + 1,
+                entryIdx2LongIdx(srcEntryIdx) + OFFSET.NEXT.value + 1,
                 entries,                        // this entries array
-                entryIdx2intIdx(destEntryIndex) + OFFSET.NEXT.value + 1, (FIELDS - 1));
+                entryIdx2LongIdx(destEntryIndex) + OFFSET.NEXT.value + 1, (FIELDS - 1));
 
         assert valuesMemoryManager.isReferenceConsistent(getValueReference(destEntryIndex));
 
