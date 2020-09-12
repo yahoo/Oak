@@ -23,12 +23,14 @@ public class InternalOakMapTest {
 
     @Before
     public void setUp() {
-        NovaManager memoryManager = new NovaManager(new NativeMemoryAllocator(128));
+        NativeMemoryAllocator ma = new NativeMemoryAllocator(128);
+        NativeMemoryManager memoryManager = new NativeMemoryManager(ma);
+        NoFreeMemoryManager noFreeMemoryManager = new NoFreeMemoryManager(ma);
         int chunkMaxItems = 100;
 
         testMap = new InternalOakMap<>(Integer.MIN_VALUE, OakCommonBuildersFactory.DEFAULT_INT_SERIALIZER,
                 OakCommonBuildersFactory.DEFAULT_INT_SERIALIZER, OakCommonBuildersFactory.DEFAULT_INT_COMPARATOR,
-                memoryManager, chunkMaxItems, new ValueUtilsImpl());
+                memoryManager, noFreeMemoryManager, chunkMaxItems, new ValueUtilsImpl());
     }
 
 

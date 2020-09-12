@@ -42,8 +42,8 @@ class Block {
             allocated.getAndAdd(-size);
             throw new OakOutOfMemoryException();
         }
-        s.update(id, now, size);
-        readByteBuffer(s);
+        s.setBlockidAndOffsetAndLength(id, now, size);
+        s.setBuffer(buffer);
         return true;
     }
 
@@ -78,12 +78,12 @@ class Block {
         cleaner.clean();
     }
 
-    void readByteBuffer(Slice s) {
-        s.setBuffer(buffer);
+    ByteBuffer getBuffer() {
+        return buffer;
     }
 
     // how many bytes a block may include, regardless allocated/free
-    public int getCapacity() {
+    int getCapacity() {
         return capacity;
     }
 

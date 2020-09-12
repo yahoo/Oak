@@ -52,13 +52,13 @@ public class HeapUsageTest {
 //                "heap size: " + heapSize / M + "MB" + ", heap max size: " + heapMaxSize / M + "MB" + ", heap free
 //                size: " + heapFreeSize / M + "MB");
 //            System.out.println("heap used: " + (heapSize - heapFreeSize) / M + "MB");
-//            System.out.println("off heap used: " + oak.getMemoryManager().allocated() / M + "MB");
+//            System.out.println("off heap used: " + oak.getValuesMemoryManager().allocated() / M + "MB");
 
             for (int i = 0; i < numOfEntries; i++) {
                 oak.zc().put(i, i);
             }
 //            System.out.println("\nAfter filling up oak");
-//            System.out.println("off heap used: " + oak.getMemoryManager().allocated() / M + "MB");
+//            System.out.println("off heap used: " + oak.getValuesMemoryManager().allocated() / M + "MB");
 //
 //            System.gc();
 //
@@ -79,7 +79,7 @@ public class HeapUsageTest {
                 Assert.assertEquals(i, value);
             }
 //            System.out.println("\nCheck again");
-//            System.out.println("off heap used: " + oak.getMemoryManager().allocated() / M + "MB");
+//            System.out.println("off heap used: " + oak.getValuesMemoryManager().allocated() / M + "MB");
 //            System.out.println("off heap allocated: " + Integer.MAX_VALUE / M + "MB");
 //            System.gc();
 //            heapSize = Runtime.getRuntime().totalMemory(); // Get current size of heap in bytes
@@ -89,7 +89,7 @@ public class HeapUsageTest {
 //                "heap size: " + heapSize / M + "MB" + ", heap max size: " + heapMaxSize / M + "MB" + ", heap free
 //                size: " + heapFreeSize / M + "MB");
 //            System.out.println("heap used: " + (heapSize - heapFreeSize) / M + "MB");
-//            float percent = (100 * (heapSize - heapFreeSize)) / oak.getMemoryManager().allocated();
+//            float percent = (100 * (heapSize - heapFreeSize)) / oak.getValuesMemoryManager().allocated();
 //            System.out.println("\non/off heap used: " + String.format("%.0f%%", percent));
         }
     }
@@ -118,7 +118,7 @@ public class HeapUsageTest {
 
                 System.out.println("\nBefore filling up oak");
                 System.out.println("heap used: " + (heapSize - heapFreeSize) / M + "MB");
-                System.out.println("off heap used: " + oak.getMemoryManager().allocated() / M + "MB");
+                System.out.println("off heap used: " + oak.getValuesMemoryManager().allocated() / M + "MB");
 
                 for (int i = 0; i < numOfEntries; i++) {
                     oak.zc().put(i, i);
@@ -129,12 +129,12 @@ public class HeapUsageTest {
                 heapSize = Runtime.getRuntime().totalMemory(); // Get current size of heap in bytes
                 heapFreeSize = Runtime.getRuntime().freeMemory();
                 System.out.println("heap used: " + (heapSize - heapFreeSize) / M + "MB");
-                System.out.println("off heap used: " + oak.getMemoryManager().allocated() / M + "MB");
+                System.out.println("off heap used: " + oak.getValuesMemoryManager().allocated() / M + "MB");
 
-                double percent = (100.0 * (heapSize - heapFreeSize)) / (oak.getMemoryManager().allocated() * 1.0);
+                double percent = (100.0 * (heapSize - heapFreeSize)) / (oak.getValuesMemoryManager().allocated() * 1.0);
                 System.out.println("\non/off heap used: " + String.format("%.2f%%", percent));
                 try {
-                    oak.getMemoryManager().close();
+                    oak.getValuesMemoryManager().close();
                 } catch (IOException e) {
                     e.printStackTrace();
                 }

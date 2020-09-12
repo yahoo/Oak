@@ -28,7 +28,8 @@ class InternalOakMap<K, V> {
     final ConcurrentSkipListMap<Object, Chunk<K, V>> skiplist;    // skiplist of chunks for fast navigation
     private final AtomicReference<Chunk<K, V>> head;
     private final OakComparator<K> comparator;
-    private final MemoryManager memoryManager;
+    private final MemoryManager valuesMemoryManager;
+    private final MemoryManager keysMemoryManager;
     private final AtomicInteger size;
     private final OakSerializer<K> keySerializer;
     private final OakSerializer<V> valueSerializer;
@@ -46,12 +47,12 @@ class InternalOakMap<K, V> {
      */
 
     InternalOakMap(K minKey, OakSerializer<K> keySerializer, OakSerializer<V> valueSerializer,
-                   OakComparator<K> oakComparator, MemoryManager memoryManager, int chunkMaxItems,
-                   ValueUtils valueOperator) {
+        OakComparator<K> oakComparator, MemoryManager vMM, MemoryManager kMM, int chunkMaxItems,
+        ValueUtils valueOperator) {
 
         this.size = new AtomicInteger(0);
-        this.memoryManager = memoryManager;
-
+        this.valuesMemoryManager = vMM;
+        this.keysMemoryManager = kMM;
         this.keySerializer = keySerializer;
         this.valueSerializer = valueSerializer;
 
@@ -77,7 +78,7 @@ class InternalOakMap<K, V> {
         };
         this.skiplist = new ConcurrentSkipListMap<>(mixedKeyComparator);
 
-        Chunk<K, V> head = new Chunk<>(minKey, chunkMaxItems, this.size, memoryManager, this.comparator,
+        Chunk<K, V> head = new Chunk<>(minKey, chunkMaxItems, this.size, vMM, kMM, this.comparator,
                 keySerializer, valueSerializer, valueOperator);
         this.skiplist.put(head.minKey, head);    // add first chunk (head) into skiplist
         this.head = new AtomicReference<>(head);
@@ -95,7 +96,10 @@ class InternalOakMap<K, V> {
         // reference count will never grow again
         if (res == 0) {
             try {
-                memoryManager.close();
+                // closing the same memory manager (or memory allocator) twice,
+                // has the same effect as closing once
+                valuesMemoryManager.close();
+                keysMemoryManager.close();
             } catch (IOException e) {
                 e.printStackTrace();
             }
@@ -125,7 +129,11 @@ class InternalOakMap<K, V> {
      * @return current off heap memory usage in bytes
      */
     long memorySize() {
-        return memoryManager.allocated();
+        if (valuesMemoryManager != keysMemoryManager) {
+            // if two memory managers are not the same instance
+            return valuesMemoryManager.allocated()+keysMemoryManager.allocated();
+        }
+        return valuesMemoryManager.allocated();
     }
 
     int entries() {
@@ -351,30 +359,72 @@ class InternalOakMap<K, V> {
         return false;
     }
 
-    /**
-     * This function completes the insertion of the value reference to the entry
-     * (reflected in {@code ctx}), and updates the value's version in {@code ctx} IF NEEDED.
-     * In case, the linking cannot be done (i.e., a concurrent rebalance), than
-     * rebalance is called.
-     *
-     * @param c   - the chuck pointed by {@code ctx}
-     * @param ctx - holds the value reference, old version, and relevant entry to update
-     * @return whether the caller method should restart (if a rebalance was executed).
-     */
-    private boolean updateVersionAfterLinking(Chunk<K, V> c, ThreadContext ctx) {
-        if (c.completeLinking(ctx) == EntrySet.INVALID_VERSION) {
-            rebalance(c);
+    private boolean isAfterRebalanceOrValueUpdate(Chunk c, ThreadContext ctx) {
+        // If chunk is frozen or infant, can't proceed with put, need to help rebalancer first,
+        // rebalance is done as part of inTheMiddleOfRebalance.
+        // Also if value is off-heap deleted, we need to finalizeDeletion on-heap, which can
+        // cause rebalance as well. If rebalance happened finalizeDeletion returns true.
+        // After rebalance we need to restart.
+        if (inTheMiddleOfRebalance(c) || finalizeDeletion(c, ctx)) {
             return true;
         }
+
+        // Value can be valid again, if key was found and partially deleted value needed help.
+        // But in the meanwhile value was reset to be another, valid value.
+        if (ctx.isValueValid()) {
+            return true;
+        }
+
         return false;
+    }
+
+    // returns false when restart is needed
+    // (if rebalance happened or another valid entry with same key was found)
+    private boolean allocateAndLinkEntry(Chunk c, ThreadContext ctx, K key, boolean isPutIfAbsent) {
+        // There was no such key found, going to allocate a new key.
+        // EntrySet allocates the entry (holding the key) and ctx is going to be updated
+        // to be used by EntrySet's subsequent requests to write value
+        if (!c.allocateEntry(ctx, key)) {
+            rebalance(c); // there was no space to allocate new entry, need to rebalance
+            return false;     // after rebalance always restart
+        }
+        int prevEi = c.linkEntry(ctx, key);
+        if (prevEi != ctx.entryIndex) {
+            if (!isPutIfAbsent) {
+                // our entry wasn't inserted because other entry with same key was found.
+                // If this entry (with index prevEi) is valid we should move to continue
+                // with existing entry scenario, otherwise we can reuse this entry because
+                // its value is invalid.
+                c.releaseKey(ctx);
+                if (!c.isValueRefValid(prevEi)) {
+                    return false;
+                }
+                // We use an existing entry only if its value reference is invalid
+                ctx.entryIndex = prevEi;
+            } else {
+                // our entry wasn't inserted because other entry with same key was found. If this
+                // entry (with index prevEi) is valid putIfAbsent should return ValueUtils.ValueResult.FALSE,
+                // otherwise we can reuse this entry because its value is invalid.
+                c.releaseKey(ctx);
+                // to support linearization, a deeper validity check is needed
+                // including off-heap delete bit check
+                ctx.entryIndex = prevEi;
+                c.readValue(ctx);
+                if (ctx.isValueValid()) {
+                    // If exists a matching value reference for the given key,
+                    // and it isn't marked deleted, returning here false will cause the restart
+                    // so the new value will be found and processed
+                    return false;
+                }
+            }
+        }
+        return true;
     }
 
     /*-------------- OakMap Methods --------------*/
 
-    static void negateVersion(Slice s) {
-        s.setVersion(-Math.abs(s.getVersion()));
-    }
-
+    // put the value assosiated with the key, if key existed old value is overwritten
+    // TODO: organize the return values for ZC and non-ZC APIs
     V put(K key, V value, OakTransformer<V> transformer) {
         if (key == null || value == null) {
             throw new NullPointerException();
@@ -385,13 +435,12 @@ class InternalOakMap<K, V> {
         for (int i = 0; i < MAX_RETRIES; i++) {
             Chunk<K, V> c = findChunk(key); // find chunk matching key
             c.lookUp(ctx, key);
-            // If there is a matching value reference for the given key, and it is not marked as deleted, then this put
-            // changes the slice pointed by this value reference.
+            // If there is a matching value reference for the given key, and it is not marked as deleted,
+            // then this put changes the slice pointed by this value reference.
             if (ctx.isValueValid()) {
-                if (updateVersionAfterLinking(c, ctx)) {
-                    continue;
-                }
-                Result res = valueOperator.exchange(c, ctx, value, transformer, valueSerializer, memoryManager,
+                // there is a value and it is not deleted
+                Result res = valueOperator.exchange(c, ctx, value, transformer, valueSerializer,
+                    valuesMemoryManager,
                         this);
                 if (res.operationResult == ValueUtils.ValueResult.TRUE) {
                     return (V) res.value;
@@ -401,45 +450,16 @@ class InternalOakMap<K, V> {
                 continue;
             }
 
-            // if chunk is frozen or infant, we can't add to it
-            // we need to help rebalancer first, then proceed
-            if (inTheMiddleOfRebalance(c) || finalizeDeletion(c, ctx)) {
+            if (isAfterRebalanceOrValueUpdate(c, ctx)) {
                 continue;
             }
-            /* If the key was not found, there is no entry with that key in Oak, the previous version
-            associated with the entry is INVALID_VERSION.
-            Otherwise, there is an entry with the given key and its value is deleted (or at least in the process of
-            being deleted, marked just off-heap). After calling {@code deleteValueFinish(Chunk<K, V>, ThreadContext)},
-            the version of this entry should be negative.
-            Concurrent insertions, however, may cause the version to become valid again.
-            Thus, to ensure that the operation behaves as if it itself unlinked the deleted value, we take the minus
-            the absolute value of the version written in ctx (this way, if the version is already negative, it
-            remains negative).
-             */
-            if (ctx.isKeyValid()) {
-                negateVersion(ctx.value);
-                assert ctx.entryIndex > 0;
-            } else {
-                // There was no such key found, while EntrySet allocates the entry
-                // (holding the key) ctx is going to be updated to be used by EntrySet's
-                // subsequent requests to write value
-                boolean isAllocationSuccessful = c.allocateEntryAndKey(ctx, key);
-                if (!isAllocationSuccessful) {
-                    rebalance(c);
-                    continue;
-                }
-                int prevEi = c.linkEntry(ctx, key);
-                if (prevEi != ctx.entryIndex) {
-                    // our entry wasn't inserted because other entry with same key was found.
-                    // If this entry (with index prevEi) is valid we should move to continue
-                    // with existing entry scenario, otherwise we can reuse this entry because
-                    // its value is invalid.
-                    c.releaseKey(ctx);
-                    if (!c.isValueRefValid(prevEi)) {
-                        continue;
-                    }
-                    // We use an existing entry only if its value reference is invalid
-                    ctx.entryIndex = prevEi;
+
+            // AT THIS POINT EITHER (in all cases context is updated):
+            // (1) Key wasn't found (key and value not valid)
+            // (2) Key was found and it's value is deleted/invalid (key valid value invalid)
+            if (!ctx.isKeyValid()) {
+                if (!allocateAndLinkEntry(c, ctx, key, false)) {
+                    continue; // allocation wasn't successfull and resulted in rebalance - retry
                 }
             }
 
@@ -460,10 +480,11 @@ class InternalOakMap<K, V> {
                 return null; // null can be returned only in zero-copy case
             }
         }
-
         throw new RuntimeException("put failed: reached retry limit (1024).");
     }
 
+    // put the value assosiated with the key, only if key didn't exist
+    // returned results describes whether the value was inserted or not
     Result putIfAbsent(K key, V value, OakTransformer<V> transformer) {
         if (key == null || value == null) {
             throw new NullPointerException();
@@ -474,11 +495,9 @@ class InternalOakMap<K, V> {
         for (int i = 0; i < MAX_RETRIES; i++) {
             Chunk<K, V> c = findChunk(key); // find chunk matching key
             c.lookUp(ctx, key);
-
+            // If exists a matching value reference for the given key, and it isn't marked deleted,
+            // organize the return value: false for ZC, and old value deserialization for non-ZC
             if (ctx.isValueValid()) {
-                if (updateVersionAfterLinking(c, ctx)) {
-                    continue;
-                }
                 if (transformer == null) {
                     return ctx.result.withFlag(ValueUtils.ValueResult.FALSE);
                 }
@@ -489,59 +508,18 @@ class InternalOakMap<K, V> {
                 continue;
             }
 
-            // if chunk is frozen or infant, we can't add to it
-            // we need to help rebalancer first, then proceed
-            if (inTheMiddleOfRebalance(c) || finalizeDeletion(c, ctx)) {
+            if (isAfterRebalanceOrValueUpdate(c, ctx)) {
                 continue;
             }
-            /* If the key was not found, the previous version
-            associated with the entry is INVALID_VERSION.
-            Otherwise, there is an entry with the given key and its value is deleted (or at least in the process of
-            being deleted). After calling {@code deleteValueFinish(Chunk<K, V>, ThreadContext)}, the version of this
-            entry should be negative.
-            Concurrent insertions, however, may cause the version to become valid again.
-            Thus, to ensure that the operation behaves as if it itself unlinked the deleted value, we take the minus
-            the absolute value of the version written in ctx (this way, if the version is already negative, it
-            remains negative).
-             */
-            if (ctx.isKeyValid()) {
-                // There's an entry for this key, but it isn't linked to any value (in which case valueReference is
-                // DELETED_VALUE)
-                // or it's linked to a deleted value that is referenced by valueReference (a valid one)
-                negateVersion(ctx.value);
-                assert ctx.entryIndex > 0;
-            } else {
-                // There was no such key found, while EntrySet allocates the entry
-                // (holding the key) ctx is going to be updated to be used by EntrySet's
-                // subsequent requests to write value
-                boolean isAllocationSuccessful = c.allocateEntryAndKey(ctx, key);
-                if (!isAllocationSuccessful) {
-                    rebalance(c);
+
+            // AT THIS POINT EITHER (in all cases context is updated):
+            // (1) Key wasn't found (key and value not valid)
+            // (2) Key was found and it's value is deleted/invalid (key valid value invalid)
+            if (!ctx.isKeyValid()) {
+                if (!allocateAndLinkEntry(c, ctx, key, true)) {
+                    // allocation wasn't successful and resulted in rebalance,
+                    // or retry is needed for other reason - retry
                     continue;
-                }
-                int prevEi = c.linkEntry(ctx, key);
-                if (prevEi != ctx.entryIndex) {
-                    // our entry wasn't inserted because other entry with same key was found.
-                    // If this entry (with index prevEi) is valid we should return false,
-                    // otherwise we can reuse this entry because its value is invalid.
-                    c.releaseKey(ctx);
-                    // for non-zc interface putIfAbsent returns the previous value associated with
-                    // the specified key, or null if there was no mapping for the key.
-                    // so we need to create a slice to let transformer create the value object
-                    boolean isAllocated = c.readValueFromEntryIndex(ctx.tempValue, prevEi);
-                    if (isAllocated) {
-                        if (transformer == null) {
-                            return ctx.result.withFlag(ValueUtils.ValueResult.FALSE);
-                        }
-                        Result res = valueOperator.transform(ctx.result, ctx.tempValue, transformer);
-                        if (res.operationResult == ValueUtils.ValueResult.TRUE) {
-                            return res;
-                        }
-                        continue;
-                    } else {
-                        // both threads compete for the put
-                        ctx.entryIndex = prevEi;
-                    }
                 }
             }
 
@@ -566,6 +544,9 @@ class InternalOakMap<K, V> {
         throw new RuntimeException("putIfAbsent failed: reached retry limit (1024).");
     }
 
+    // if key didn't exist, put the value to be associated with the key
+    // otherwise perform compute on the existing value
+    // return false if compute happened, true if put happened
     boolean putIfAbsentComputeIfPresent(K key, V value, Consumer<OakScopedWriteBuffer> computer) {
         if (key == null || value == null || computer == null) {
             throw new NullPointerException();
@@ -576,10 +557,9 @@ class InternalOakMap<K, V> {
         for (int i = 0; i < MAX_RETRIES; i++) {
             Chunk<K, V> c = findChunk(key); // find chunk matching key
             c.lookUp(ctx, key);
+            // If there is a matching value reference for the given key, and it is not marked as deleted,
+            // then apply compute on the existing value
             if (ctx.isValueValid()) {
-                if (updateVersionAfterLinking(c, ctx)) {
-                    continue;
-                }
                 ValueUtils.ValueResult res = valueOperator.compute(ctx.value, computer);
                 if (res == ValueUtils.ValueResult.TRUE) {
                     // compute was successful and the value wasn't found deleted; in case
@@ -590,48 +570,16 @@ class InternalOakMap<K, V> {
                 }
             }
 
-            if (inTheMiddleOfRebalance(c) || finalizeDeletion(c, ctx)) {
+            if (isAfterRebalanceOrValueUpdate(c, ctx)) {
                 continue;
             }
-            /* If there is no entry with that key in Oak, the previous version
-            associated with the entry is INVALID_VERSION.
-            Otherwise, there is an entry with the given key and its value is deleted (or at least in the process of
-            being deleted). After calling {@code deleteValueFinish(Chunk<K, V>, ThreadContext)}, the version of this
-            entry should be negative.
-            Concurrent insertions, however, may cause the version to become valid again.
-            Thus, to ensure that the operation behaves as if it itself unlinked the deleted value, we take the minus
-            the absolute value of the version written in ctx (this way, if the version is already negative, it
-            remains negative).
-             */
 
-            // we come here when no key was found, which can be in 3 cases:
-            // 1. no entry in the linked list at all
-            // 2. entry in the linked list, but the value reference is INVALID_VALUE_REFERENCE
-            // 3. entry in the linked list, the value referenced is marked as deleted
-            if (ctx.isKeyValid()) {
-                negateVersion(ctx.value);
-                assert ctx.entryIndex > 0;
-            } else {
-                // There was no such key found, while EntrySet allocates the entry
-                // (holding the key) ctx is going to be updated to be used by EntrySet's
-                // subsequent requests to write value
-                boolean isAllocationSuccessful = c.allocateEntryAndKey(ctx, key);
-                if (!isAllocationSuccessful) {
-                    rebalance(c);
+            // AT THIS POINT EITHER (in all cases context is updated):
+            // (1) Key wasn't found (key and value not valid)
+            // (2) Key was found and it's value is deleted/invalid (key valid value invalid)
+            if (!ctx.isKeyValid()) {
+                if (!allocateAndLinkEntry(c, ctx, key, false)) {
                     continue;
-                }
-                int prevEi = c.linkEntry(ctx, key);
-                if (prevEi != ctx.entryIndex) {
-                    // our entry wasn't inserted because other entry with same key was found.
-                    // If this entry (with index prevEi) is valid we should move to continue
-                    // with existing entry scenario (compute), otherwise we can reuse this entry because
-                    // its value is invalid.
-                    c.releaseKey(ctx);
-                    if (c.isValueRefValid(prevEi)) {
-                        continue;
-                    } else {
-                        ctx.entryIndex = prevEi;
-                    }
                 }
             }
 
@@ -656,6 +604,7 @@ class InternalOakMap<K, V> {
         throw new RuntimeException("putIfAbsentComputeIfPresent failed: reached retry limit (1024).");
     }
 
+    // if key exists, remove the key-value mapping from the map
     Result remove(K key, V oldValue, OakTransformer<V> transformer) {
         if (key == null) {
             throw new NullPointerException();
@@ -677,23 +626,28 @@ class InternalOakMap<K, V> {
                 // then the old value is saved in v. Otherwise v is (correctly) null
                 return transformer == null ? ctx.result.withFlag(logicallyDeleted) : ctx.result.withValue(v);
             } else if (!ctx.isValueValid()) {
-                if (!c.finalizeDeletion(ctx)) {
+                // There is such a key, but the value is invalid,
+                // either deleted (maybe only off-heap) or not yet allocated
+                if (!finalizeDeletion(c, ctx)) {
+                    // finalize deletion returns false, meaning no rebalance was requested
+                    // and there was an attempt to finalize deletion
                     return transformer == null ? ctx.result.withFlag(logicallyDeleted) : ctx.result.withValue(v);
                 }
-                rebalance(c);
                 continue;
             }
 
-            if (inTheMiddleOfRebalance(c) || updateVersionAfterLinking(c, ctx)) {
+            if (inTheMiddleOfRebalance(c)) {
                 continue;
             }
 
+            // AT THIS POINT Key wasn't found (key and value not valid) and context is updated
             if (logicallyDeleted) {
-                // This is the case where we logically deleted this entry (marked the value as deleted), but someone
-                // reused the entry before we unlinked it. We have the previous value saved in v.
+                // This is the case where we logically deleted this entry (marked the value off-heap as deleted),
+                // but someone helped and (marked the value reference as deleted) and reused the entry
+                // before we marked the value reference as deleted. We have the previous value saved in v.
                 return transformer == null ? ctx.result.withFlag(ValueUtils.ValueResult.TRUE) : ctx.result.withValue(v);
             } else {
-                Result removeResult = valueOperator.remove(ctx, memoryManager,
+                Result removeResult = valueOperator.remove(ctx, valuesMemoryManager,
                         oldValue, transformer);
                 if (removeResult.operationResult == ValueUtils.ValueResult.FALSE) {
                     // we didn't succeed to remove the value: it didn't contain oldValue, or was already marked
@@ -707,42 +661,36 @@ class InternalOakMap<K, V> {
                 v = (V) removeResult.value;
             }
 
+            // AT THIS POINT value was marked deleted off-heap by this thread,
+            // continue to set the entry's value reference as deleted
             assert ctx.entryIndex > 0;
-            assert ctx.value.isAllocated();
-
+            assert ctx.isValueValid();
             ctx.valueState = EntrySet.ValueState.DELETED_NOT_FINALIZED;
-            // publish
-            if (c.finalizeDeletion(ctx)) {
-                rebalance(c);
-            }
+            finalizeDeletion(c, ctx); // includes publish/unpublish
+            return transformer == null ? ctx.result.withFlag(logicallyDeleted) : ctx.result.withValue(v);
         }
 
         throw new RuntimeException("remove failed: reached retry limit (1024).");
     }
 
+    // the zero-copy version of get
     OakUnscopedBuffer get(K key) {
         if (key == null) {
             throw new NullPointerException();
         }
 
         ThreadContext ctx = getThreadContext();
-
-        for (int i = 0; i < MAX_RETRIES; i++) {
-            Chunk<K, V> c = findChunk(key); // find chunk matching key
-            c.lookUp(ctx, key);
-            if (!ctx.isValueValid()) {
-                return null;
-            }
-            if (updateVersionAfterLinking(c, ctx)) {
-                continue;
-            }
-
-            return getValueUnscopedBuffer(ctx);
+        Chunk<K, V> c = findChunk(key); // find chunk matching key
+        c.lookUp(ctx, key);
+        if (!ctx.isValueValid()) {
+            return null;
         }
+        return getValueUnscopedBuffer(ctx);
 
-        throw new RuntimeException("get failed: reached retry limit (1024).");
     }
 
+    // if key with a valid value exists in the map, apply compute function on the value
+    // return true if compute did happen
     boolean computeIfPresent(K key, Consumer<OakScopedWriteBuffer> computer) {
         if (key == null || computer == null) {
             throw new NullPointerException();
@@ -753,11 +701,7 @@ class InternalOakMap<K, V> {
         for (int i = 0; i < MAX_RETRIES; i++) {
             Chunk<K, V> c = findChunk(key); // find chunk matching key
             c.lookUp(ctx, key);
-
             if (ctx.isValueValid()) {
-                if (updateVersionAfterLinking(c, ctx)) {
-                    continue;
-                }
                 ValueUtils.ValueResult res = valueOperator.compute(ctx.value, computer);
                 if (res == ValueUtils.ValueResult.TRUE) {
                     // compute was successful and the value wasn't found deleted; in case
@@ -783,22 +727,9 @@ class InternalOakMap<K, V> {
      */
     boolean refreshValuePosition(ThreadContext ctx) {
         K deserializedKey = keySerializer.deserialize(ctx.key);
-
-        for (int i = 0; i < MAX_RETRIES; i++) {
-            Chunk<K, V> c = findChunk(deserializedKey); // find chunk matching key
-            c.lookUp(ctx, deserializedKey);
-            if (!ctx.isValueValid()) {
-                return false;
-            }
-
-            if (updateVersionAfterLinking(c, ctx)) {
-                continue;
-            }
-
-            return true;
-        }
-
-        throw new RuntimeException("refreshValuePosition failed: reached retry limit (1024).");
+        Chunk<K, V> c = findChunk(deserializedKey); // find chunk matching key
+        c.lookUp(ctx, deserializedKey);
+        return ctx.isValueValid();
     }
 
     /**
@@ -826,6 +757,7 @@ class InternalOakMap<K, V> {
         return getValueTransformation(deserializedKey, transformer);
     }
 
+    // the non-ZC variation of the get
     <T> T getValueTransformation(K key, OakTransformer<T> transformer) {
         if (key == null || transformer == null) {
             throw new NullPointerException();
@@ -840,9 +772,6 @@ class InternalOakMap<K, V> {
                 return null;
             }
 
-            if (updateVersionAfterLinking(c, ctx)) {
-                continue;
-            }
             Result res = valueOperator.transform(ctx.result, ctx.value, transformer);
             if (res.operationResult == ValueUtils.ValueResult.RETRY) {
                 continue;
@@ -937,7 +866,7 @@ class InternalOakMap<K, V> {
 
             // will return null if the value is deleted
             Result result = valueOperator.exchange(c, ctx, value, valueDeserializeTransformer, valueSerializer,
-                    memoryManager, this);
+                valuesMemoryManager, this);
             if (result.operationResult != ValueUtils.ValueResult.RETRY) {
                 return (V) result.value;
             }
@@ -957,7 +886,7 @@ class InternalOakMap<K, V> {
             }
 
             ValueUtils.ValueResult res = valueOperator.compareExchange(c, ctx, oldValue, newValue,
-                    valueDeserializeTransformer, valueSerializer, memoryManager, this);
+                    valueDeserializeTransformer, valueSerializer, valuesMemoryManager, this);
             if (res == ValueUtils.ValueResult.RETRY) {
                 continue;
             }
@@ -1185,7 +1114,7 @@ class InternalOakMap<K, V> {
                 ctx.initEntryContext(curIndex);
 
                 if (!needBoundCheck) {
-                    c.readKeyFromEntryIndex(ctx);
+                    c.readKey(ctx);
                 } else {
                     // If we checked the boundary, than we already read the current key into ctx.tempKey
                     ctx.key.copyFrom(ctx.tempKey);
@@ -1195,20 +1124,9 @@ class InternalOakMap<K, V> {
 
                 if (needsValue) {
                     // Set value references and checks for value validity.
-                    // if value is deleted ctx.value is going to be invalid
-                    c.readValueFromEntryIndex(ctx);
-                    validState = ctx.value.isAllocated();
-                    if (validState) {
-                        ctx.value.setVersion(c.completeLinking(ctx));
-                        // The CAS could not complete due to concurrent rebalance, so rebalance and try again
-                        // without advancing the state
-                        if (!ctx.value.isValidVersion()) {
-                            rebalance(c);
-                            continue;
-                        }
-                        // If the value is deleted, advance to the next value
-                        validState = ctx.isValueValid();
-                    }
+                    // if value is deleted ctx.valueState is going to be invalid
+                    c.readValue(ctx);
+                    validState = ctx.isValueValid();
                 }
 
                 advanceState();
@@ -1250,7 +1168,7 @@ class InternalOakMap<K, V> {
 
                 if (value != null) {
                     // If the current value is deleted, then advance and try again
-                    validState = c.readValueNoVersionFromEntryIndex(value.buffer, curIndex);
+                    validState = c.readValueFromEntryIndex(value.buffer, curIndex);
                 }
 
                 advanceState();

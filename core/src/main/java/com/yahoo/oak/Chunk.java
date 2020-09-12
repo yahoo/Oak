@@ -64,12 +64,14 @@ class Chunk<K, V> {
      * This constructor is only used internally to instantiate a Chunk without a creator and a min-key.
      * The caller should set the creator and min-key before returning the Chunk to the user.
      */
-    private Chunk(int maxItems, AtomicInteger externalSize, MemoryManager memoryManager, OakComparator<K> comparator,
-                  OakSerializer<K> keySerializer, OakSerializer<V> valueSerializer, ValueUtils valueOperator) {
+    private Chunk(int maxItems, AtomicInteger externalSize, MemoryManager vMM, MemoryManager kMM,
+        OakComparator<K> comparator, OakSerializer<K> keySerializer, OakSerializer<V> valueSerializer,
+        ValueUtils valueOperator) {
         this.maxItems = maxItems;
         this.externalSize = externalSize;
         this.comparator = comparator;
-        this.entrySet = new EntrySet<>(memoryManager, maxItems, keySerializer, valueSerializer, valueOperator);
+        this.entrySet =
+            new EntrySet<>(vMM, kMM, maxItems, keySerializer, valueSerializer, valueOperator);
         // if not zero, sorted count keeps the entry index of the last
         // subsequent and ordered entry in the entries array
         this.sortedCount = new AtomicInteger(0);
@@ -85,9 +87,11 @@ class Chunk<K, V> {
     /**
      * This constructor is only used when creating the first chunk (without a creator).
      */
-    Chunk(K minKey, int maxItems, AtomicInteger externalSize, MemoryManager memoryManager, OakComparator<K> comparator,
-          OakSerializer<K> keySerializer, OakSerializer<V> valueSerializer, ValueUtils valueOperator) {
-        this(maxItems, externalSize, memoryManager, comparator, keySerializer, valueSerializer, valueOperator);
+    Chunk(K minKey, int maxItems, AtomicInteger externalSize, MemoryManager vMM, MemoryManager kMM,
+        OakComparator<K> comparator, OakSerializer<K> keySerializer, OakSerializer<V> valueSerializer,
+        ValueUtils valueOperator) {
+
+        this(maxItems, externalSize, vMM, kMM, comparator, keySerializer, valueSerializer, valueOperator);
         entrySet.allocateKey(minKey, this.minKey);
     }
 
@@ -96,8 +100,11 @@ class Chunk<K, V> {
      * The child Chunk will have the same minKey as this Chunk (without duplicating the KeyBuffer data).
      */
     Chunk<K, V> createFirstChild() {
-        Chunk<K, V> child = new Chunk<>(maxItems, externalSize, entrySet.memoryManager, comparator,
-                entrySet.keySerializer, entrySet.valueSerializer, entrySet.valOffHeapOperator);
+        Chunk<K, V> child =
+            new Chunk<>(maxItems, externalSize,
+                entrySet.valuesMemoryManager, entrySet.keysMemoryManager,
+                comparator, entrySet.keySerializer, entrySet.valueSerializer,
+                entrySet.valOffHeapOperator);
         child.creator.set(this);
         child.state.set(State.INFANT);
         child.minKey.copyFrom(this.minKey);
@@ -109,8 +116,10 @@ class Chunk<K, V> {
      * The child Chunk will use a duplicate minKey of the input (allocates a new buffer).
      */
     Chunk<K, V> createNextChild(KeyBuffer minKey) {
-        Chunk<K, V> child = new Chunk<>(maxItems, externalSize, entrySet.memoryManager, comparator,
-                entrySet.keySerializer, entrySet.valueSerializer, entrySet.valOffHeapOperator);
+        Chunk<K, V> child = new Chunk<>(maxItems, externalSize,
+            entrySet.valuesMemoryManager, entrySet.keysMemoryManager,
+            comparator, entrySet.keySerializer, entrySet.valueSerializer,
+            entrySet.valOffHeapOperator);
         child.creator.set(this);
         child.state.set(State.INFANT);
         entrySet.duplicateKey(minKey, child.minKey);
@@ -121,23 +130,23 @@ class Chunk<K, V> {
     /*-----------------------------  Wrappers for EntrySet methods -----------------------------*/
 
     /**
-     * See {@code EntrySet.isValueRefValid(int)} for more information
+     * See {@code EntrySet.isValueRefValidAndNotDeleted(int)} for more information
      */
     boolean isValueRefValid(int ei) {
-        return entrySet.isValueRefValid(ei);
+        return entrySet.isValueRefValidAndNotDeleted(ei);
     }
 
     /**
      * See {@code EntrySet.readKey(ThreadContext)} for more information
      */
-    void readKeyFromEntryIndex(ThreadContext ctx) {
+    void readKey(ThreadContext ctx) {
         entrySet.readKey(ctx);
     }
 
     /**
      * See {@code EntrySet.readValue(ThreadContext)} for more information
      */
-    void readValueFromEntryIndex(ThreadContext ctx) {
+    void readValue(ThreadContext ctx) {
         entrySet.readValue(ctx);
     }
 
@@ -156,16 +165,9 @@ class Chunk<K, V> {
     }
 
     /**
-     * See {@code EntrySet.readValueNoVersion(ValueBuffer)} for more information
-     */
-    boolean readValueNoVersionFromEntryIndex(ValueBuffer value, int ei) {
-        return entrySet.readValueNoVersion(value, ei);
-    }
-
-    /**
      * See {@code EntrySet.allocateEntry(ThreadContext)} for more information
      */
-    boolean allocateEntryAndKey(ThreadContext ctx, K key) {
+    boolean allocateEntry(ThreadContext ctx, K key) {
         return entrySet.allocateEntry(ctx, key);
     }
 
@@ -375,46 +377,6 @@ class Chunk<K, V> {
     }
 
     /**
-     * This function completes the insertion of a value to Entry. When inserting a
-     * value, the value reference is CASed inside the entry first and only afterwards the version is
-     * CASed. Thus, there can be a time in which the value reference is valid but the version is
-     * INVALID_VERSION or a negative one. In this function, the version is CASed to complete the
-     * insertion.
-     * <p>
-     * The version written to entry is the version written in the off-heap memory. There is no worry
-     * of concurrent removals since these removals will have to first call this function as well,
-     * and they eventually change the version as well.
-     * <p>
-     * This method expects the value buffer to be valid, the valueState to be VALID_INSERT_NOT_FINALIZED, and the
-     * version to be positive.
-     * If the context that not match these requirements, its behavior is undefined.
-     *
-     * @param ctx The context that follows the operation since the key was found/created.
-     *            It holds the entry to CAS, the value version written in this entry and the
-     *            value reference from which the correct version can be read.
-     * @return a version is returned.
-     * <p>
-     * Note: the value's version and state in {@code ctx} are updated in this method to be the
-     * updated positive version and a valid state.
-     */
-    int completeLinking(ThreadContext ctx) {
-        if (ctx.valueState != EntrySet.ValueState.VALID_INSERT_NOT_FINALIZED) {
-            // the version written in the value is a good one!
-            return ctx.value.getVersion();
-        }
-        if (!publish()) {
-            return EntrySet.INVALID_VERSION;
-        }
-        try {
-            entrySet.writeValueFinish(ctx);
-        } finally {
-            unpublish();
-        }
-
-        return ctx.value.getVersion();
-    }
-
-    /**
      * As written in {@code writeValueFinish(ctx)}, when changing an entry, the value reference is CASed first and
      * later the value version, and the same applies when removing a value. However, there is another step before
      * changing an entry to remove a value and it is marking the value off-heap (the LP). This function is used to
@@ -425,6 +387,8 @@ class Chunk<K, V> {
      * @param ctx The context that follows the operation since the key was found/created.
      *            Holds the entry to change, the old value reference to CAS out, and the current value version.
      * @return true if a rebalance is needed
+     * IMPORTANT: whether deleteValueFinish succeeded to mark the entry's value reference as
+     * deleted, or not, if there were no request to rebalance FALSE is going to be returned
      */
     boolean finalizeDeletion(ThreadContext ctx) {
         if (ctx.valueState != EntrySet.ValueState.DELETED_NOT_FINALIZED) {
@@ -679,6 +643,10 @@ class Chunk<K, V> {
         // sorted count keeps the number of sorted entries
         sortedCount.set(numOfEntries);
         statistics.updateInitialSortedCount(sortedCount.get());
+
+        // check the validity of the new entrySet
+        assert entrySet.isEntrySetValidAfterRebalance();
+
         return curEntryIdx; // if NONE_NEXT then we finished copying old chunk, else we reached max in new chunk
     }
 
@@ -769,7 +737,7 @@ class Chunk<K, V> {
 
     private int advanceNextIndex(final int entryIndex) {
         int next = entryIndex;
-        while (next != NONE_NEXT && !entrySet.isValueRefValid(next)) {
+        while (next != NONE_NEXT && !entrySet.isValueRefValidAndNotDeleted(next)) {
             next = entrySet.getNextEntryIndex(next);
         }
         return next;
@@ -799,7 +767,7 @@ class Chunk<K, V> {
                 compare = compareKeyAndEntryIndex(tempKeyBuff, from, next);
             }
             while (next != NONE_NEXT &&
-                    (compare > 0 || (compare >= 0 && !inclusive) || !entrySet.isValueRefValid(next))) {
+                    (compare > 0 || (compare >= 0 && !inclusive) || !entrySet.isValueRefValidAndNotDeleted(next))) {
                 next = entrySet.getNextEntryIndex(next);
                 if (next != NONE_NEXT) {
                     compare = compareKeyAndEntryIndex(tempKeyBuff, from, next);
@@ -875,7 +843,7 @@ class Chunk<K, V> {
                 return;
             }
             next = stack.pop();
-            while (next != NONE_NEXT && !entrySet.isValueRefValid(next)) {
+            while (next != NONE_NEXT && !entrySet.isValueRefValidAndNotDeleted(next)) {
                 if (!stack.empty()) {
                     next = stack.pop();
                 } else {

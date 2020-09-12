@@ -7,68 +7,130 @@
 package com.yahoo.oak;
 
 /**
- * A reference is composed of 3 parameters: block ID, offset and length.
- * All these parameters may be squashed together into one long for easy representation.
- * Using different number of bits for each parameter may incur different limitations on their sizes.
+ * ReferenceCodec is responsible to encode and decode in one reference (long) all the information
+ * needed to access a memory. ReferenceCodec knows how to mark a reference as deleted and to
+ * check for reference being deleted.
+ *
+ * A reference is composed of 3 parameters: first, second and third.
+ * All these parameters are squashed together into one long for easy representation.
+ * The derived concrete classes represent codecs for different types of references and
+ * can use the parameters for different purposes.
+ *
+ * IMPORTANT: The 3 parameters (first, second and third) cannot be negative numbers!
+ * (As negatives have prefix of ones.)
  */
-class ReferenceCodec {
-    public static final long INVALID_REFERENCE = 0;
+abstract class ReferenceCodec {
+    protected static final int INVALID_BIT_SIZE = -1;
 
-    final int offsetBitSize;
-    final int lengthBitSize;
-    final int blockBitSize;
+    private int firstBitSize = 0;
+    private int secondBitSize = 0;
+    private int thirdBitSize = 0;
 
-    final int lengthShift;
-    final int blockShift;
+    private final int secondShift;
+    private final int thirdShift;
 
-    final long offsetMask;
-    final long lengthMask;
-    final long blockMask;
+    private final long firstMask;
+    private final long secondMask;
+    private final long thirdMask;
+
+    /*------- Constructor -------*/
 
     /**
-     * Initialize the codec with size block-size and value length limits.
-     * These limits will inflict a limit on the maximal number of blocks (the remaining bits).
-     *
-     * @param blockSizeLimit an upper limit on the size of a block (exclusive)
-     * @param lengthLimit    an upper limit on the data length (exclusive)
+     * Construct the codec setting the number of bits to be used for each parameter
+     * The bit sizes of 2 parameters can be given and the third is always the remaining bits.
+     * @param firstBitSizeLimit an upper limit on the size of the first parameter (exclusive)
+     *                          if invalid calculate according to other two limits
+     * @param secondBitSizeLimit an upper limit on the size of the second parameter (exclusive)
+     *                          if invalid calculate according to other two limits
+     * @param thirdBitSizeLimit an upper limit on the size of the third parameter (exclusive)
      */
-    ReferenceCodec(long blockSizeLimit, long lengthLimit) {
-        this.offsetBitSize = requiredBits(blockSizeLimit);
-        this.lengthBitSize = requiredBits(lengthLimit);
-        this.blockBitSize = Long.SIZE - offsetBitSize - lengthBitSize;
-        assert this.blockBitSize > 0 : String.format(
-                "Not enough bits to encode a reference: blockSizeLimit=%,d, lengthLimit=%,d.",
-                blockSizeLimit, lengthLimit);
+    protected ReferenceCodec(int firstBitSizeLimit, int secondBitSizeLimit, int thirdBitSizeLimit) {
 
-        this.lengthShift = this.offsetBitSize;
-        this.blockShift = this.lengthShift + this.lengthBitSize;
+        if (thirdBitSizeLimit == INVALID_BIT_SIZE) {
+            assert (secondBitSizeLimit != INVALID_BIT_SIZE) && (firstBitSizeLimit != INVALID_BIT_SIZE);
+            this.firstBitSize = firstBitSizeLimit;
+            this.secondBitSize = secondBitSizeLimit;
+            this.thirdBitSize = Long.SIZE - firstBitSize - secondBitSize;
+        } else if (secondBitSizeLimit == INVALID_BIT_SIZE) {
+            // thirdBitSizeLimit is valid
+            assert (firstBitSizeLimit != INVALID_BIT_SIZE);
+            this.firstBitSize = firstBitSizeLimit;
+            this.thirdBitSize = thirdBitSizeLimit;
+            this.secondBitSize = Long.SIZE - firstBitSize - thirdBitSize;
+        } else if (firstBitSizeLimit == INVALID_BIT_SIZE) {
+            this.secondBitSize = secondBitSizeLimit;
+            this.thirdBitSize = thirdBitSizeLimit;
+            this.firstBitSize = Long.SIZE - secondBitSize - thirdBitSize;
+        }
 
-        this.offsetMask = mask(this.offsetBitSize);
-        this.lengthMask = mask(this.lengthBitSize);
-        this.blockMask = mask(this.blockBitSize);
+        assert (this.firstBitSize > 0 || this.secondBitSize > 0 || this.thirdBitSize > 0):
+            String.format(
+                "Not enough bits to encode a reference: firstBitSizeLimit=%,d, secondBitSizeLimit=%,d.",
+                firstBitSizeLimit, secondBitSizeLimit);
+
+        this.secondShift = this.firstBitSize;
+        this.thirdShift  = this.firstBitSize + this.secondBitSize;
+
+        this.firstMask  = mask(this.firstBitSize);
+        this.secondMask = mask(this.secondBitSize);
+        this.thirdMask  = mask(this.thirdBitSize);
     }
+
+    /*------- Static helpers -------*/
 
     /**
      * @param size the value to encode
      * @return the required bits to encode the value (exclusive)
      */
-    static int requiredBits(long size) {
+    protected static int requiredBits(long size) {
         return (int) Math.ceil(Math.log(size) / Math.log(2));
     }
 
-    static long mask(int size) {
+    protected static long mask(int size) {
         return (1L << size) - 1L;
-    }
-
-    static boolean isValidReference(long reference) {
-        return reference != INVALID_REFERENCE;
     }
 
     @Override
     public String toString() {
-        return String.format("ReferenceCodec(offset=%d bit, length=%d bit, block=%d bit)",
-                this.offsetBitSize, this.lengthBitSize, this.blockBitSize);
+        return String.format(
+            "ReferenceCodec(first parameter size: %d bits, second parameter size: %d bits," +
+                " third parameter size: %d bits)",
+                this.firstBitSize, this.secondBitSize, this.thirdBitSize);
     }
+
+    /*------- Internal abstract helpers -------*/
+    /* The ability to get the first parameter value from a slice */
+    protected abstract long getFirst(Slice s);
+
+    /* The ability to get the second parameter value from a slice */
+    protected abstract long getSecond(Slice s);
+
+    /* The ability to get the third parameter value from a slice */
+    protected abstract long getThird(Slice s);
+
+    /* The ability to get the first parameter value from a slice */
+    protected abstract long getFirstForDelete(long reference);
+
+    /* The ability to get the second parameter value from a slice */
+    protected abstract long getSecondForDelete(long reference);
+
+    /* The ability to get the third parameter value from a slice */
+    protected abstract long getThirdForDelete(long reference);
+
+    /* The ability to set the slice with all 3 parameters */
+    protected abstract void setAll(Slice s, long first, long second, long third);
+
+    /*------- User Interface -------*/
+
+    // check if reference is invalid, according to concreete implementation
+    abstract boolean isReferenceValid(long reference);
+
+    // check is reference deleted should be applied according to reference type
+    abstract boolean isReferenceDeleted(long reference);
+
+    // invoked (only within assert statement) to check
+    // the consistency and correctness of the reference encoding
+    abstract boolean isReferenceConsistent(long reference);
 
     /*
     In the implementation of encode/decode methods, we make two assumptions that
@@ -83,18 +145,24 @@ class ReferenceCodec {
      * @param s the object to encode
      * @return the encoded reference
      */
-    public long encode(final Slice s) {
-        // These checks validates that the chosen encoding is sufficient for the current use-case.
-        if ((((long) s.getAllocatedOffset()) & ~offsetMask) != 0 ||
-                (((long) s.getAllocatedLength()) & ~lengthMask) != 0 ||
-                (((long) s.getAllocatedBlockID()) & ~blockMask) != 0) {
-            throw new IllegalArgumentException(String.format("%s has insufficient capacity to encode %s", this, s));
-        }
+    long encode(final Slice s) {
+        long first  = getFirst(s);
+        long second = getSecond(s);
+        long third  = getThird(s);
 
-        long offsetPart = ((long) s.getAllocatedOffset()) & offsetMask;
-        long lengthPart = (((long) s.getAllocatedLength()) & lengthMask) << lengthShift;
-        long blockPart = (((long) s.getAllocatedBlockID()) & blockMask) << blockShift;
-        return offsetPart | lengthPart | blockPart;
+        return  encode(first, second, third);
+    }
+
+    /** Present the reference as it needs to be when the target is deleted
+     * @param reference to alter
+     * @return the encoded reference
+     */
+    long alterForDelete(final long reference) {
+        long first  = getFirstForDelete(reference);
+        long second = getSecondForDelete(reference);
+        long third  = getThirdForDelete(reference);
+
+        return  encode(first, second, third);
     }
 
     /**
@@ -102,16 +170,47 @@ class ReferenceCodec {
      * @param reference the reference to decode
      * @return true if the allocation reference is valid
      */
-    public boolean decode(final Slice s, final long reference) {
-        if (!isValidReference(reference)) {
+    boolean decode(final Slice s, final long reference){
+        if (!isReferenceValid(reference)) {
             s.invalidate();
             return false;
         }
 
-        int offset = (int) (reference & offsetMask);
-        int length = (int) ((reference >>> lengthShift) & lengthMask);
-        int blockId = (int) ((reference >>> blockShift) & blockMask);
-        s.update(blockId, offset, length);
-        return true;
+        int first  = getFirst(reference);
+        int second = getSecond(reference);
+        int third  = getThird(reference);
+
+        setAll(s, first, second, third);
+        return !isReferenceDeleted(reference);
+    }
+
+
+    private long encode(long first, long second, long third) {
+        // These checks validates that the chosen encoding is sufficient for the current use-case.
+        if ((first & ~firstMask) != 0 || (second & ~secondMask) != 0 || (third & ~thirdMask) != 0 ) {
+            throw new IllegalArgumentException(
+                String.format(
+                    "%s has insufficient capacity to encode first %s, second %s, and third %s",
+                    this, first, second, third));
+        }
+
+        long firstPart  = first & firstMask;
+        long secondPart = (second & secondMask) << secondShift;
+        long thirdPart  = (third & thirdMask)   << thirdShift;
+
+        return firstPart | secondPart | thirdPart;
+    }
+
+
+    /* To be used by derived classes */
+    protected int getFirst(final long reference) {
+        return  (int) (reference & firstMask);
+    }
+
+    protected int getSecond(final long reference) {
+        return  (int) ((reference >>> secondShift) & secondMask);
+    }
+    protected int getThird(final long reference) {
+        return  (int) ((reference >>> thirdShift) & thirdMask);
     }
 }

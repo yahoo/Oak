@@ -7,7 +7,6 @@
 package com.yahoo.oak;
 
 public class ValueBuffer extends ScopedReadBuffer {
-    protected long reference;
 
     public ValueBuffer(int headerSize) {
         super(headerSize);
@@ -24,7 +23,6 @@ public class ValueBuffer extends ScopedReadBuffer {
     @Override
     void invalidate() {
         super.invalidate();
-        setReference(ReferenceCodec.INVALID_REFERENCE);
     }
 
     void copyFrom(ValueBuffer alloc) {
@@ -33,14 +31,5 @@ public class ValueBuffer extends ScopedReadBuffer {
             return;
         }
         super.copyFrom(alloc);
-        this.setReference(alloc.getReference());
-    }
-
-    long getReference() {
-        return reference;
-    }
-
-    void setReference(long reference) {
-        this.reference = reference;
     }
 }

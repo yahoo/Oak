@@ -29,14 +29,10 @@ public class OakMap<K, V> extends AbstractMap<K, V> implements AutoCloseable, Co
     private final InternalOakMap<K, V> internalOakMap;
     /*
      * Memory manager cares for allocation, de-allocation and reuse of the internally pre-allocated
-     * memory. Each thread that is going to access a memory that can be released by memory must
-     * start with startThread() and end with stopOperation(). Those calls can be nested, but amount of
-     * attaches must be equal to detach.
-     * Attach-Detach Policy:
-     * For any externally used Oak class (OakMap, Iterator, OakBuffer- or OakTransform- View),
-     * this specific class is responsible to wrap the internal methods with attach-detach.
+     * memory. There can be separate memory managing algorithms for keys and values.
      * */
-    private final MemoryManager memoryManager;
+    private final MemoryManager valuesMemoryManager;
+    private final MemoryManager keysMemoryManager;
     private final OakTransformer<K> keyDeserializeTransformer;
     private final OakTransformer<V> valueDeserializeTransformer;
     private final Function<Map.Entry<OakScopedReadBuffer, OakScopedReadBuffer>,
@@ -52,12 +48,13 @@ public class OakMap<K, V> extends AbstractMap<K, V> implements AutoCloseable, Co
 
     // internal constructor, to create OakMap use OakMapBuilder
     OakMap(K minKey, OakSerializer<K> keySerializer, OakSerializer<V> valueSerializer, OakComparator<K> oakComparator,
-           int chunkMaxItems, MemoryManager mm) {
+        int chunkMaxItems, MemoryManager vMM, MemoryManager kMM) {
 
-        this.memoryManager = mm;
+        this.valuesMemoryManager = vMM;
+        this.keysMemoryManager = kMM;
         this.comparator = oakComparator;
         this.internalOakMap = new InternalOakMap<>(minKey, keySerializer, valueSerializer, oakComparator,
-                this.memoryManager, chunkMaxItems, new ValueUtilsImpl());
+                this.valuesMemoryManager, kMM, chunkMaxItems, new ValueUtilsImpl());
 
         this.fromKey = null;
         this.fromInclusive = false;
@@ -75,7 +72,8 @@ public class OakMap<K, V> extends AbstractMap<K, V> implements AutoCloseable, Co
     private OakMap(OakMap<K, V> oakMap, K fromKey, boolean fromInclusive, K toKey,
                    boolean toInclusive, boolean isDescending) {
         this.internalOakMap = oakMap.internalOakMap;
-        this.memoryManager = oakMap.memoryManager;
+        this.valuesMemoryManager = oakMap.valuesMemoryManager;
+        this.keysMemoryManager = oakMap.keysMemoryManager;
         this.keyDeserializeTransformer = oakMap.keyDeserializeTransformer;
         this.valueDeserializeTransformer = oakMap.valueDeserializeTransformer;
         this.entryDeserializeTransformer = oakMap.entryDeserializeTransformer;
@@ -477,8 +475,8 @@ public class OakMap<K, V> extends AbstractMap<K, V> implements AutoCloseable, Co
         return new OakZeroCopyMap<>(this);
     }
 
-    public MemoryManager getMemoryManager() {
-        return memoryManager;
+    public MemoryManager getValuesMemoryManager() {
+        return valuesMemoryManager;
     }
 
     public static class OakZeroCopyMap<K, V> implements ZeroCopyMap<K, V> {
