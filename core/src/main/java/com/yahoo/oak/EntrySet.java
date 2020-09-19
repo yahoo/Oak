@@ -204,8 +204,23 @@ class EntrySet<K, V> {
     }
 
     /**
+<<<<<<< HEAD
      * getEntryArrayFieldLong atomically reads long field of the entries array.
      * Could be used with any OFFSET.value
+=======
+     * getEntryArrayFieldInt gets the integer field of entry at specified offset for given
+     * start of the entry index in the entry array.
+     * The field is read atomically as it is a machine word, however the concurrency of the
+     * mostly updated value is not ensured as no memory fence is issued.
+     */
+    private long getEntryArrayFieldInt(int intFieldIdx, OFFSET offset) {
+        return entries[intFieldIdx + offset.value]; // used for NEXT
+    }
+
+    /**
+     * getEntryArrayFieldLong atomically reads two integers field of the entries array.
+     * Should be used with OFFSET.VALUE_REFERENCE and OFFSET.KEY_REFERENCE
+>>>>>>> 7ea91e5b1433fe70d89c56c5d0ca6614b323f6ab
      */
     private long getEntryArrayFieldLong(int intStartFieldIdx, OFFSET offset) {
         long arrayOffset =
