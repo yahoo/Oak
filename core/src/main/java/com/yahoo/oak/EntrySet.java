@@ -91,7 +91,7 @@ class EntrySet<K, V> {
     // (not necessarily first in the array!)
     private static final int HEAD_NEXT_INDEX_SIZE = 1;
 
-    private static final int FIELDS = 3;  // # of fields in each item of entries array
+    private static final int FIELDS = 3;  // # of primitive fields in each item of entries array
 
     private static final Unsafe UNSAFE = UnsafeUtils.unsafe;
     final MemoryManager valuesMemoryManager;
@@ -190,7 +190,7 @@ class EntrySet<K, V> {
      * Converts external entry-index to internal array index.
      * <p>
      * We use the following terminology:
-     *  - intIdx for the integer's index inside the entries array (referred as a set of integers)
+     *  - longIdx for the long's index inside the entries array (referred as a set of longs)
      *  - entryIdx for the index of entry array (referred as a set of entries)
      *
      * @param entryIdx external entry-index
@@ -204,33 +204,14 @@ class EntrySet<K, V> {
     }
 
     /**
-     * getEntryArrayFieldInt gets the integer field of entry at specified offset for given
-     * start of the entry index in the entry array.
-     * The field is read atomically as it is a machine word, however the concurrency of the
-     * mostly updated value is not ensured as no memory fence is issued.
-     */
-    private long getEntryArrayFieldInt(int intFieldIdx, OFFSET offset) {
-        return entries[intFieldIdx + offset.value]; // used for NEXT
-    }
-
-    /**
-     * getEntryArrayFieldLong atomically reads two integers field of the entries array.
-     * Should be used with OFFSET.VALUE_REFERENCE and OFFSET.KEY_REFERENCE
+     * getEntryArrayFieldLong atomically reads long field of the entries array.
+     * Could be used with any OFFSET.value
      */
     private long getEntryArrayFieldLong(int intStartFieldIdx, OFFSET offset) {
         long arrayOffset =
                 Unsafe.ARRAY_LONG_BASE_OFFSET + (intStartFieldIdx + offset.value) * Unsafe.ARRAY_LONG_INDEX_SCALE;
         assert arrayOffset % 8 == 0;
         return UNSAFE.getLong(entries, arrayOffset);
-    }
-
-    /**
-     * setEntryFieldInt sets the integer field of specified offset to 'value'
-     * for given integer index in the entry array
-     */
-    private void setEntryFieldInt(int intFieldIdx, OFFSET offset, int value) {
-        assert intFieldIdx + offset.value >= 0;
-        entries[intFieldIdx + offset.value] = value; // used for NEXT
     }
 
     private void setEntryFieldLong(int item, OFFSET offset, long value) {
@@ -240,27 +221,15 @@ class EntrySet<K, V> {
     }
 
     /**
-     * casEntriesArrayInt performs CAS of given integer field of the entries ints array,
-     * that should be associated with some field of some entry.
-     * CAS from 'expectedIntValue' to 'newIntValue' for field at specified offset
-     * of given int-field in the entries array
-     */
-    private boolean casEntriesArrayInt(int intFieldIdx, OFFSET offset, int expectedIntValue, int newIntValue) {
-        return UNSAFE.compareAndSwapInt(entries,
-                Unsafe.ARRAY_INT_BASE_OFFSET + (intFieldIdx + offset.value) * Unsafe.ARRAY_INT_INDEX_SCALE,
-                expectedIntValue, newIntValue);
-    }
-
-    /**
-     * casEntriesArrayLong performs CAS of given two integers field of the entries ints array,
-     * that should be associated with some 2 consecutive integer fields of some entry.
+     * casEntriesArrayLong performs CAS of given long field of the entries longs array,
+     * that should be associated with some entry.
      * CAS from 'expectedLongValue' to 'newLongValue' for field at specified offset
-     * of given int-field in the entries array
+     *
      */
-    private boolean casEntriesArrayLong(int intStartFieldIdx, OFFSET offset, long expectedLongValue,
+    private boolean casEntriesArrayLong(int longStartFieldIdx, OFFSET offset, long expectedLongValue,
                                         long newLongValue) {
         return UNSAFE.compareAndSwapLong(entries,
-                Unsafe.ARRAY_LONG_BASE_OFFSET + (intStartFieldIdx + offset.value) * Unsafe.ARRAY_LONG_INDEX_SCALE,
+                Unsafe.ARRAY_LONG_BASE_OFFSET + (longStartFieldIdx + offset.value) * Unsafe.ARRAY_LONG_INDEX_SCALE,
                 expectedLongValue, newLongValue);
     }
 
@@ -563,8 +532,8 @@ class EntrySet<K, V> {
         long newValueReference = ctx.newValue.getReference();
         assert valuesMemoryManager.isReferenceValid(newValueReference);
 
-        int intIdx = entryIdx2LongIdx(ctx.entryIndex);
-        if (!casEntriesArrayLong(intIdx, OFFSET.VALUE_REFERENCE, oldValueReference, newValueReference)) {
+        int longIdx = entryIdx2LongIdx(ctx.entryIndex);
+        if (!casEntriesArrayLong(longIdx, OFFSET.VALUE_REFERENCE, oldValueReference, newValueReference)) {
             return ValueUtils.ValueResult.FALSE;
         }
         return ValueUtils.ValueResult.TRUE;
