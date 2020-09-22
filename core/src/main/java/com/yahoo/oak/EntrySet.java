@@ -204,35 +204,15 @@ class EntrySet<K, V> {
     }
 
     /**
-<<<<<<< HEAD
      * getEntryArrayFieldLong atomically reads long field of the entries array.
      * Could be used with any OFFSET.value
-=======
-     * getEntryArrayFieldInt gets the integer field of entry at specified offset for given
-     * start of the entry index in the entry array.
-     * The field is read atomically as it is a machine word, however the concurrency of the
-     * mostly updated value is not ensured as no memory fence is issued.
      */
-    private long getEntryArrayFieldInt(int intFieldIdx, OFFSET offset) {
-        return entries[intFieldIdx + offset.value]; // used for NEXT
+    private long getEntryArrayFieldLong(int longFieldIdx, OFFSET offset) {
+        return entries[longFieldIdx + offset.value];
     }
 
-    /**
-     * getEntryArrayFieldLong atomically reads two integers field of the entries array.
-     * Should be used with OFFSET.VALUE_REFERENCE and OFFSET.KEY_REFERENCE
->>>>>>> 7ea91e5b1433fe70d89c56c5d0ca6614b323f6ab
-     */
-    private long getEntryArrayFieldLong(int intStartFieldIdx, OFFSET offset) {
-        long arrayOffset =
-                Unsafe.ARRAY_LONG_BASE_OFFSET + (intStartFieldIdx + offset.value) * Unsafe.ARRAY_LONG_INDEX_SCALE;
-        assert arrayOffset % 8 == 0;
-        return UNSAFE.getLong(entries, arrayOffset);
-    }
-
-    private void setEntryFieldLong(int item, OFFSET offset, long value) {
-        long arrayOffset = Unsafe.ARRAY_LONG_BASE_OFFSET + (item + offset.value) * Unsafe.ARRAY_LONG_INDEX_SCALE;
-        assert arrayOffset % 8 == 0;
-        UNSAFE.putLong(entries, arrayOffset, value);
+    private void setEntryFieldLong(int longFieldIdx, OFFSET offset, long value) {
+        entries[longFieldIdx + offset.value] = value;
     }
 
     /**
@@ -576,7 +556,7 @@ class EntrySet<K, V> {
 
         assert ctx.valueState == ValueState.DELETED_NOT_FINALIZED;
 
-        int indIdx = entryIdx2LongIdx(ctx.entryIndex);
+        int longIdx = entryIdx2LongIdx(ctx.entryIndex);
 
         // Value's reference codec prepares the reference to be used after value is deleted
         long expectedReference = ctx.value.getReference();
@@ -590,7 +570,7 @@ class EntrySet<K, V> {
         // This is ABA problem and resolved via always changing deleted variation of the reference
         // Also value's off-heap slice is released to memory manager only after deleteValueFinish
         // is done.
-        if (casEntriesArrayLong(indIdx, OFFSET.VALUE_REFERENCE, expectedReference, newReference)) {
+        if (casEntriesArrayLong(longIdx, OFFSET.VALUE_REFERENCE, expectedReference, newReference)) {
             assert valuesMemoryManager.isReferenceConsistent(getValueReference(ctx.entryIndex));
             numOfEntries.getAndDecrement();
             valuesMemoryManager.release(ctx.value);
