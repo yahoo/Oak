@@ -111,7 +111,7 @@ class ReferenceCodecMM extends ReferenceCodec{
         return ((reference & REFERENCE_DELETE_BIT_MASK) != INVALID_MM_REFERENCE );
     }
 
-    static boolean isReferenceValidAndNotDeleted(long reference) {
+    boolean isReferenceValidAndNotDeleted(long reference) {
         return (reference != INVALID_MM_REFERENCE &&
             (reference & REFERENCE_DELETE_BIT_MASK) == INVALID_MM_REFERENCE );
     }

@@ -148,7 +148,7 @@ class InternalOakMap<K, V> {
      * @return a context instance.
      */
     ThreadContext getThreadContext() {
-        return new ThreadContext(valueOperator);
+        return new ThreadContext(keysMemoryManager, valuesMemoryManager);
     }
 
     /*-------------- Methods --------------*/
@@ -735,20 +735,20 @@ class InternalOakMap<K, V> {
     /**
      * See {@code refreshValuePosition(ctx)} for more details.
      *
-     * @param keySlice   the key to refresh
-     * @param valueSlice the output value to update
+     * @param key   the key to refresh
+     * @param value the output value to update
      * @return true if the refresh was successful.
      */
-    boolean refreshValuePosition(Slice keySlice, Slice valueSlice) {
+    boolean refreshValuePosition(KeyBuffer key, ValueBuffer value) {
         ThreadContext ctx = getThreadContext();
-        ctx.key.copyFrom(keySlice);
+        ctx.key.copyFrom(key);
         boolean isSuccessful = refreshValuePosition(ctx);
 
         if (!isSuccessful) {
             return false;
         }
 
-        valueSlice.copyFrom(ctx.value);
+        value.copyFrom(ctx.value);
         return true;
     }
 
@@ -1032,7 +1032,7 @@ class InternalOakMap<K, V> {
             this.hiInclusive = hiInclusive;
             this.isDescending = isDescending;
             this.needBoundCheck = (hi != null && !isDescending) || (lo != null && isDescending);
-            this.ctx = new ThreadContext(valueOperator);
+            this.ctx = new ThreadContext(keysMemoryManager, valuesMemoryManager);
             initState(isDescending, lo, loInclusive, hi, hiInclusive);
 
         }
@@ -1157,18 +1157,18 @@ class InternalOakMap<K, V> {
 
                 if (key != null) {
                     if (!needBoundCheck) {
-                        validState = c.readKeyFromEntryIndex(key.buffer, curIndex);
+                        validState = c.readKeyFromEntryIndex(key.getInternalScopedReadBuffer(), curIndex);
                         assert validState;
                     } else {
                         // If we checked the boundary, than we already read the current key into ctx.tempKey
-                        key.buffer.copyFrom(ctx.tempKey);
+                        key.copyFrom(ctx.tempKey);
                         validState = true;
                     }
                 }
 
                 if (value != null) {
                     // If the current value is deleted, then advance and try again
-                    validState = c.readValueFromEntryIndex(value.buffer, curIndex);
+                    validState = c.readValueFromEntryIndex(value.getInternalScopedReadBuffer(), curIndex);
                 }
 
                 advanceState();
@@ -1281,7 +1281,7 @@ class InternalOakMap<K, V> {
     class ValueStreamIterator extends Iter<OakUnscopedBuffer> {
 
         private final UnscopedBuffer<ValueBuffer> value =
-                new UnscopedBuffer<>(new ValueBuffer(valueOperator));
+                new UnscopedBuffer<>(new ValueBuffer(valuesMemoryManager.getEmptySlice()));
 
         ValueStreamIterator(K lo, boolean loInclusive, K hi, boolean hiInclusive, boolean isDescending) {
             super(lo, loInclusive, hi, hiInclusive, isDescending);
@@ -1342,9 +1342,10 @@ class InternalOakMap<K, V> {
     class EntryStreamIterator extends Iter<Map.Entry<OakUnscopedBuffer, OakUnscopedBuffer>>
             implements Map.Entry<OakUnscopedBuffer, OakUnscopedBuffer> {
 
-        private final UnscopedBuffer<KeyBuffer> key = new UnscopedBuffer<>(new KeyBuffer());
+        private final UnscopedBuffer<KeyBuffer> key =
+            new UnscopedBuffer<>(new KeyBuffer(keysMemoryManager.getEmptySlice()));
         private final UnscopedBuffer<ValueBuffer> value =
-                new UnscopedBuffer<>(new ValueBuffer(valueOperator));
+                new UnscopedBuffer<>(new ValueBuffer(valuesMemoryManager.getEmptySlice()));
 
         EntryStreamIterator(K lo, boolean loInclusive, K hi, boolean hiInclusive, boolean isDescending) {
             super(lo, loInclusive, hi, hiInclusive, isDescending);
@@ -1384,7 +1385,7 @@ class InternalOakMap<K, V> {
 
         public T next() {
             advance(true);
-            ValueUtils.ValueResult res = valueOperator.lockRead(ctx.value);
+            ValueUtils.ValueResult res = valueOperator.lockRead(ctx.value.s);
             if (res == ValueUtils.ValueResult.FALSE) {
                 return next();
             } else if (res == ValueUtils.ValueResult.RETRY) {
@@ -1393,7 +1394,7 @@ class InternalOakMap<K, V> {
                     if (!isSuccessful) {
                         return next();
                     }
-                    res = valueOperator.lockRead(ctx.value);
+                    res = valueOperator.lockRead(ctx.value.s);
                 } while (res != ValueUtils.ValueResult.TRUE);
             }
 
@@ -1401,7 +1402,7 @@ class InternalOakMap<K, V> {
                     new AbstractMap.SimpleEntry<>(ctx.key, ctx.value);
 
             T transformation = transformer.apply(entry);
-            valueOperator.unlockRead(ctx.value);
+            valueOperator.unlockRead(ctx.value.s);
             return transformation;
         }
     }
@@ -1423,7 +1424,8 @@ class InternalOakMap<K, V> {
 
     public class KeyStreamIterator extends Iter<OakUnscopedBuffer> {
 
-        private final UnscopedBuffer<KeyBuffer> key = new UnscopedBuffer<>(new KeyBuffer());
+        private final UnscopedBuffer<KeyBuffer> key
+            = new UnscopedBuffer<>(new KeyBuffer(keysMemoryManager.getEmptySlice()));
 
         KeyStreamIterator(K lo, boolean loInclusive, K hi, boolean hiInclusive, boolean isDescending) {
             super(lo, loInclusive, hi, hiInclusive, isDescending);

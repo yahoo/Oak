@@ -14,6 +14,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 class NativeMemoryManager implements MemoryManager {
     static final int RELEASE_LIST_LIMIT = 1024;
     private static final int VERS_INIT_VALUE = 1;
+    private static final int OFF_HEAP_HEADER_SIZE = 12; /* Bytes */
     private final ThreadIndexCalculator threadIndexCalculator;
     private final List<List<Slice>> releaseLists;
     private final AtomicInteger globalVersionNumber;
@@ -106,9 +107,17 @@ class NativeMemoryManager implements MemoryManager {
         return rcmm.isReferenceDeleted(reference);
     }
 
+    @Override public boolean isReferenceValidAndNotDeleted(long reference) {
+        return rcmm.isReferenceValidAndNotDeleted(reference);
+    }
+
     @Override
     public boolean isReferenceConsistent(long reference) {
         return rcmm.isReferenceConsistent(reference);
+    }
+
+    @Override public Slice getEmptySlice() {
+        return new Slice(OFF_HEAP_HEADER_SIZE);
     }
 
     @Override
@@ -131,7 +140,7 @@ class NativeMemoryManager implements MemoryManager {
         int idx = threadIndexCalculator.getIndex();
         List<Slice> myReleaseList = this.releaseLists.get(idx);
         // ensure the length of the slice is always set
-        myReleaseList.add(new Slice(s));
+        myReleaseList.add(s.getDuplicatedSlice());
         if (myReleaseList.size() >= RELEASE_LIST_LIMIT) {
             increaseGlobalVersion();
             for (Slice allocToRelease : myReleaseList) {

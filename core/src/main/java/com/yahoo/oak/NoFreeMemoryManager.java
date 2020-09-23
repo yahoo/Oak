@@ -119,8 +119,18 @@ class NoFreeMemoryManager implements MemoryManager {
     }
 
     @Override
+    public boolean isReferenceValidAndNotDeleted(long reference) {
+        return isReferenceValid(reference);
+    }
+
+    @Override
     public boolean isReferenceConsistent(long reference) {
         return rcd.isReferenceConsistent(reference);
+    }
+
+    @Override
+    public Slice getEmptySlice() {
+        return new Slice(0);
     }
 }
 

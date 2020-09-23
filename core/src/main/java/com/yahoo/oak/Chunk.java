@@ -75,7 +75,7 @@ class Chunk<K, V> {
         // if not zero, sorted count keeps the entry index of the last
         // subsequent and ordered entry in the entries array
         this.sortedCount = new AtomicInteger(0);
-        this.minKey = new KeyBuffer();
+        this.minKey = new KeyBuffer(kMM.getEmptySlice());
         this.creator = new AtomicReference<>(null);
         this.state = new AtomicReference<>(State.NORMAL);
         this.next = new AtomicMarkableReference<>(null, false);
