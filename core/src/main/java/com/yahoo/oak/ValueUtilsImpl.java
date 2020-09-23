@@ -107,7 +107,7 @@ class ValueUtilsImpl implements ValueUtils {
 
     @Override
     public <T> Result transform(Result result, ValueBuffer value, OakTransformer<T> transformer) {
-        ValueResult ret = lockRead(value);
+        ValueResult ret = lockRead(value.s);
         if (ret != ValueResult.TRUE) {
             return result.withFlag(ret);
         }
@@ -116,14 +116,14 @@ class ValueUtilsImpl implements ValueUtils {
             T transformation = transformer.apply(value);
             return result.withValue(transformation);
         } finally {
-            unlockRead(value);
+            unlockRead(value.s);
         }
     }
 
     @Override
     public <V> ValueResult put(Chunk<?, V> chunk, ThreadContext ctx, V newVal, OakSerializer<V> serializer,
                                MemoryManager memoryManager, InternalOakMap internalOakMap) {
-        ValueResult result = lockWrite(ctx.value);
+        ValueResult result = lockWrite(ctx.value.s);
         if (result != ValueResult.TRUE) {
             return result;
         }
@@ -131,7 +131,7 @@ class ValueUtilsImpl implements ValueUtils {
         // in case move happened: ctx.valueSlice might be set to a new slice.
         // Alternatively, if returned result is RETRY, a rebalance might be needed
         // or the entry might be updated by someone else, need to retry
-        unlockWrite(ctx.value);
+        unlockWrite(ctx.value.s);
         return result;
     }
 
@@ -141,7 +141,7 @@ class ValueUtilsImpl implements ValueUtils {
         if (capacity > ctx.value.getLength()) {
             return moveValue(chunk, ctx, memoryManager, internalOakMap, newVal);
         }
-        ScopedWriteBuffer.serialize(ctx.value, newVal, serializer);
+        ScopedWriteBuffer.serialize(ctx.value.s, newVal, serializer);
         return ValueResult.TRUE;
     }
 
@@ -155,7 +155,7 @@ class ValueUtilsImpl implements ValueUtils {
             return ValueResult.RETRY;
         }
         // can not release the old slice or mark it moved, before the new one is updated!
-        setLockState(ctx.value, LockStates.MOVED);
+        setLockState(ctx.value.s, LockStates.MOVED);
         // currently the slices which value was moved aren't going to be released, to keep the MOVED mark
         // TODO: deal with the reallocation of the moved memory
 
@@ -165,15 +165,15 @@ class ValueUtilsImpl implements ValueUtils {
 
     @Override
     public ValueResult compute(ValueBuffer value, Consumer<OakScopedWriteBuffer> computer) {
-        ValueResult result = lockWrite(value);
+        ValueResult result = lockWrite(value.s);
         if (result != ValueResult.TRUE) {
             return result;
         }
 
         try {
-            ScopedWriteBuffer.compute(value, computer);
+            ScopedWriteBuffer.compute(value.s, computer);
         } finally {
-            unlockWrite(value);
+            unlockWrite(value.s);
         }
 
         return ValueResult.TRUE;
@@ -185,7 +185,7 @@ class ValueUtilsImpl implements ValueUtils {
         // Not a conditional remove, so we can delete immediately
         if (oldValue == null) {
             // try to delete
-            ValueResult result = deleteValue(ctx.value);
+            ValueResult result = deleteValue(ctx.value.s);
             if (result != ValueResult.TRUE) {
                 return ctx.result.withFlag(result);
             }
@@ -199,18 +199,18 @@ class ValueUtilsImpl implements ValueUtils {
             // This is a conditional remove, so we first have to check whether the current value matches the expected
             // one.
             // We start by acquiring a write lock for reading since we do not want concurrent reads.
-            ValueResult result = lockWrite(ctx.value);
+            ValueResult result = lockWrite(ctx.value.s);
             if (result != ValueResult.TRUE) {
                 return ctx.result.withFlag(result);
             }
             V v = transformer.apply(ctx.value);
             // This is where we check the equality between the expected value and the actual value
             if (!oldValue.equals(v)) {
-                unlockWrite(ctx.value);
+                unlockWrite(ctx.value.s);
                 return ctx.result.withFlag(ValueResult.FALSE);
             }
             // both values match so the value is marked as deleted. No need for a CAS since a write lock is exclusive
-            setLockState(ctx.value, LockStates.DELETED);
+            setLockState(ctx.value.s, LockStates.DELETED);
             // delete the value in the entry happens next and the slice will be released as part of it
             // slice can be released only after the entry is marked appropriately
             return ctx.result.withValue(v);
@@ -221,7 +221,7 @@ class ValueUtilsImpl implements ValueUtils {
     public <V> Result exchange(Chunk<?, V> chunk, ThreadContext ctx, V value,
                                OakTransformer<V> valueDeserializeTransformer, OakSerializer<V> serializer,
                                MemoryManager memoryManager, InternalOakMap internalOakMap) {
-        ValueResult result = lockWrite(ctx.value);
+        ValueResult result = lockWrite(ctx.value.s);
         if (result != ValueResult.TRUE) {
             return ctx.result.withFlag(result);
         }
@@ -233,7 +233,7 @@ class ValueUtilsImpl implements ValueUtils {
         // in case move happened: ctx.value might be set to a new slice.
         // Alternatively, if returned result is RETRY, a rebalance might be needed
         // or the entry might be updated by someone else, need to retry
-        unlockWrite(ctx.value);
+        unlockWrite(ctx.value.s);
         return result == ValueResult.TRUE ? ctx.result.withValue(oldValue) : ctx.result.withFlag(ValueResult.RETRY);
     }
 
@@ -241,20 +241,20 @@ class ValueUtilsImpl implements ValueUtils {
     public <V> ValueResult compareExchange(Chunk<?, V> chunk, ThreadContext ctx, V expected, V value,
                                            OakTransformer<V> valueDeserializeTransformer, OakSerializer<V> serializer,
                                            MemoryManager memoryManager, InternalOakMap internalOakMap) {
-        ValueResult result = lockWrite(ctx.value);
+        ValueResult result = lockWrite(ctx.value.s);
         if (result != ValueResult.TRUE) {
             return result;
         }
         V oldValue = valueDeserializeTransformer.apply(ctx.value);
         if (!oldValue.equals(expected)) {
-            unlockWrite(ctx.value);
+            unlockWrite(ctx.value.s);
             return ValueResult.FALSE;
         }
         result = innerPut(chunk, ctx, value, serializer, memoryManager, internalOakMap);
         // in case move happened: ctx.value might be set to a new allocation.
         // Alternatively, if returned result is RETRY, a rebalance might be needed
         // or the entry might be updated by someone else, need to retry
-        unlockWrite(ctx.value);
+        unlockWrite(ctx.value.s);
         return result;
     }
 

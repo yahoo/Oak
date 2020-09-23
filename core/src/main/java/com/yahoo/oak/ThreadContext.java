@@ -55,17 +55,17 @@ class ThreadContext {
     final KeyBuffer tempKey;
     final ValueBuffer tempValue;
 
-    ThreadContext(ValueUtils valueOperator) {
+    ThreadContext(MemoryManager kmm, MemoryManager vmm) {
         entryIndex = EntrySet.INVALID_ENTRY_INDEX;
         valueState = EntrySet.ValueState.UNKNOWN;
         isNewValueForMove = false;
 
-        this.key = new KeyBuffer();
-        this.value = new ValueBuffer(valueOperator.getHeaderSize());
-        this.newValue = new ValueBuffer(valueOperator.getHeaderSize());
+        this.key = new KeyBuffer(kmm.getEmptySlice());
+        this.value = new ValueBuffer(vmm.getEmptySlice());
+        this.newValue = new ValueBuffer(vmm.getEmptySlice());
         this.result = new Result();
-        this.tempKey = new KeyBuffer();
-        this.tempValue = new ValueBuffer(valueOperator.getHeaderSize());
+        this.tempKey = new KeyBuffer(kmm.getEmptySlice());
+        this.tempValue = new ValueBuffer(vmm.getEmptySlice());
     }
 
     void invalidate() {

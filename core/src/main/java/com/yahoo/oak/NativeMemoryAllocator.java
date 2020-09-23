@@ -142,7 +142,7 @@ class NativeMemoryAllocator implements BlockMemoryAllocator {
         if (stats != null) {
             stats.release(size);
         }
-        freeList.add(new Slice(s));
+        freeList.add(s.getDuplicatedSlice());
     }
 
     // Releases all memory allocated for this Oak (should be used as part of the Oak destruction)

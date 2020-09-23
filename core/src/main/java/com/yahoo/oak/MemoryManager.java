@@ -73,8 +73,16 @@ interface MemoryManager extends Closeable {
     // check if reference is deleted, according to the reference coding implementation
     boolean isReferenceDeleted(long reference);
 
+    // check if reference is valid and not deleted, in one function call
+    // according to the reference codec implementation
+    boolean isReferenceValidAndNotDeleted(long reference);
+
     // invoked (only within assert statement) to check
     // the consistency and correctness of the reference encoding
     boolean isReferenceConsistent(long reference);
+
+    // invoked to get the slice (implementing Slice interface)
+    // Slice may have different implementation for different Memory Managers
+    Slice getEmptySlice();
 
 }
