@@ -118,7 +118,7 @@ abstract class ReferenceCodec {
     protected abstract long getThirdForDelete(long reference);
 
     /* The ability to set the slice with all 3 parameters */
-    protected abstract void setAll(Slice s, long first, long second, long third);
+    protected abstract void setAll(Slice s, long first, long second, long third, long reference);
 
     /*------- User Interface -------*/
 
@@ -180,12 +180,12 @@ abstract class ReferenceCodec {
         int second = getSecond(reference);
         int third  = getThird(reference);
 
-        setAll(s, first, second, third);
+        setAll(s, first, second, third, reference);
         return !isReferenceDeleted(reference);
     }
 
 
-    private long encode(long first, long second, long third) {
+    long encode(long first, long second, long third) {
         // These checks validates that the chosen encoding is sufficient for the current use-case.
         if ((first & ~firstMask) != 0 || (second & ~secondMask) != 0 || (third & ~thirdMask) != 0 ) {
             throw new IllegalArgumentException(

@@ -440,7 +440,7 @@ class EntrySet<K, V> {
      */
     void allocateKey(K key, KeyBuffer keyBuffer) {
         int keySize = keySerializer.calculateSize(key);
-        keysMemoryManager.allocate(keyBuffer.getSlice(), keySize);
+        keysMemoryManager.allocate(keyBuffer.getSlice(), keySize, false);
         ScopedWriteBuffer.serialize(keyBuffer.getSlice(), key, keySerializer);
     }
 
@@ -452,7 +452,7 @@ class EntrySet<K, V> {
      */
     void duplicateKey(KeyBuffer src, KeyBuffer dst) {
         final int keySize = src.capacity();
-        keysMemoryManager.allocate(dst.getSlice(), keySize);
+        keysMemoryManager.allocate(dst.getSlice(), keySize, false);
 
         // We duplicate the buffer without instantiating a write buffer because the user is not involved.
         UnsafeUtils.unsafe.copyMemory(src.getAddress(), dst.getAddress(), keySize);
@@ -490,21 +490,11 @@ class EntrySet<K, V> {
     void writeValueStart(ThreadContext ctx, V value, boolean writeForMove) {
         // the length of the given value plus its header
         int valueDataSize   = valueSerializer.calculateSize(value);
-        int valueLength     = valueDataSize + valOffHeapOperator.getHeaderSize();
 
-        // The allocated slice includes all the needed information for further access
-        valuesMemoryManager.allocate(ctx.newValue.getSlice(), valueLength);
-        ctx.newValue.getSlice().setReference(valuesMemoryManager.encodeReference(ctx.newValue.getSlice()));
+        // The allocated slice includes all the needed information for further access,
+        // the reference is set in the slice as part of the alocation
+        valuesMemoryManager.allocate(ctx.newValue.getSlice(), valueDataSize, writeForMove);
         ctx.isNewValueForMove = writeForMove;
-
-        // for value written for the first time:
-        // initializing the off-heap header's lock to be free
-        // for value being moved, initialize the lock to be locked
-        if (writeForMove) {
-            valOffHeapOperator.initLockedHeader(ctx.newValue.getSlice(), valueDataSize);
-        } else {
-            valOffHeapOperator.initHeader(ctx.newValue.getSlice(), valueDataSize);
-        }
 
         ScopedWriteBuffer.serialize(ctx.newValue.getSlice(), value, valueSerializer);
     }

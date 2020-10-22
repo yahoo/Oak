@@ -40,10 +40,9 @@ class Block {
         int now = allocated.getAndAdd(size);
         if (now + size > this.capacity) {
             allocated.getAndAdd(-size);
-            throw new OakOutOfMemoryException();
+            throw new OakOutOfMemoryException("Block " + id + " out of memory");
         }
-        s.setBlockidAndOffsetAndLength(id, now, size);
-        s.setBuffer(buffer);
+        s.associateBlockAllocation(id, now, size, buffer);
         return true;
     }
 

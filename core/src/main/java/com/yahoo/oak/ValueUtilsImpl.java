@@ -12,38 +12,13 @@ import java.util.function.Consumer;
 
 class ValueUtilsImpl implements ValueUtils {
 
-    /*
-    * Long Header: int version + int lock
-    * 0...  ...31 | 32...                  ...61| 62 63
-    *  version    |   lock: current_readers#    | lock state
-    *
-    * lock state: 0x00 - FREE, 0x01 - LOCKED, 0x10 - DELETED, 0x11 - MOVED
-    *
-    * The length (in integer size) of the data is also held just following the header (in long size)
-    * The length is set once upon header allocation and later can only be read. */
-
-    private enum LockStates {
-        FREE(0), LOCKED(1), DELETED(2), MOVED(3);
-
-        public final int value;
-
-        LockStates(int value) {
-            this.value = value;
-        }
-    }
-
-    private static final int VERSION_SIZE = 4;
-    private static final int VERSION_OFFSET = 0;
-
     private static final int LOCK_STATE_MASK = 0x3;
     private static final int LOCK_STATE_SHIFT = 2;
-    private static final int LOCK_SIZE = 4;
-    private static final int LOCK_OFFSET = VERSION_SIZE;
-
-    private static final int LENGTH_SIZE = 4;
-    private static final int LENGTH_OFFSET = LOCK_OFFSET+LOCK_SIZE;
 
     private static Unsafe unsafe = UnsafeUtils.unsafe;
+
+    private static final Header HEADER = new Header(); //To be moved to Memory Manager
+
 
     private static boolean cas(Slice s, int expectedLock, int newLock, int version) {
         long headerAddress = s.getMetadataAddress();
@@ -55,52 +30,20 @@ class ValueUtilsImpl implements ValueUtils {
         return unsafe.compareAndSwapLong(null, headerAddress, expected, value);
     }
 
-    private static int getInt(Slice s, int headerOffsetInBytes) {
-        return unsafe.getInt(s.getMetadataAddress() + headerOffsetInBytes);
-    }
-
-    private static void putInt(Slice s, int headerOffsetInBytes, int value) {
-        unsafe.putInt(s.getMetadataAddress() + headerOffsetInBytes, value);
-    }
-
-    private void setVersion(Slice s) {
-        putInt(s, VERSION_OFFSET, s.getVersion());
-    }
-
     public static int getOffHeapVersion(Slice s) {
-        return getInt(s, VERSION_OFFSET);
+        return HEADER.getVersion(s);
     }
 
     private int getLockState(Slice s) {
-        return getInt(s, LOCK_OFFSET);
+        return HEADER.getLockState(s);
     }
 
-    private void setLockState(Slice s, LockStates state) {
-        putInt(s, LOCK_OFFSET, state.value);
+    private void setLockState(Slice s, Header.LockStates state) {
+        HEADER.setLockState(s, state);
     }
 
     public static void setLengthFromOffHeap(Slice s){
-        s.setDataLength(getInt(s, LENGTH_OFFSET));
-    }
-
-    private void setLength(Slice s, int length) {
-        putInt(s, LENGTH_OFFSET, length);
-    }
-
-    private void initHeader(Slice s, LockStates state, int dataLength) {
-        setVersion(s);
-        setLockState(s, state);
-        setLength(s, dataLength);
-    }
-
-    @Override
-    public void initHeader(Slice s, int dataLength) {
-        initHeader(s, LockStates.FREE, dataLength);
-    }
-
-    @Override
-    public void initLockedHeader(Slice s, int dataLength) {
-        initHeader(s, LockStates.LOCKED, dataLength);
+        s.setDataLength(HEADER.getLength(s));
     }
 
     /*-----------------------------------------------------------------------*/
@@ -155,7 +98,7 @@ class ValueUtilsImpl implements ValueUtils {
             return ValueResult.RETRY;
         }
         // can not release the old slice or mark it moved, before the new one is updated!
-        setLockState(ctx.value.s, LockStates.MOVED);
+        setLockState(ctx.value.s, Header.LockStates.MOVED);
         // currently the slices which value was moved aren't going to be released, to keep the MOVED mark
         // TODO: deal with the reallocation of the moved memory
 
@@ -210,7 +153,7 @@ class ValueUtilsImpl implements ValueUtils {
                 return ctx.result.withFlag(ValueResult.FALSE);
             }
             // both values match so the value is marked as deleted. No need for a CAS since a write lock is exclusive
-            setLockState(ctx.value.s, LockStates.DELETED);
+            setLockState(ctx.value.s, Header.LockStates.DELETED);
             // delete the value in the entry happens next and the slice will be released as part of it
             // slice can be released only after the entry is marked appropriately
             return ctx.result.withValue(v);
@@ -259,11 +202,6 @@ class ValueUtilsImpl implements ValueUtils {
     }
 
     @Override
-    public int getHeaderSize() {
-        return VERSION_SIZE + LOCK_SIZE + LENGTH_SIZE;
-    }
-
-    @Override
     public ValueResult lockRead(Slice s) {
         int lockState;
         final int version = s.getVersion();
@@ -277,10 +215,10 @@ class ValueUtilsImpl implements ValueUtils {
             if (oldVersion != getOffHeapVersion(s)) {
                 return ValueResult.RETRY;
             }
-            if (lockState == LockStates.DELETED.value) {
+            if (lockState == Header.LockStates.DELETED.value) {
                 return ValueResult.FALSE;
             }
-            if (lockState == LockStates.MOVED.value) {
+            if (lockState == Header.LockStates.MOVED.value) {
                 return ValueResult.RETRY;
             }
             lockState &= ~LOCK_STATE_MASK;
@@ -295,7 +233,7 @@ class ValueUtilsImpl implements ValueUtils {
         assert version > ReferenceCodecMM.INVALID_VERSION;
         do {
             lockState = getLockState(s);
-            assert lockState > LockStates.MOVED.value;
+            assert lockState > Header.LockStates.MOVED.value;
             lockState &= ~LOCK_STATE_MASK;
         } while (!cas(s, lockState, lockState - (1 << LOCK_STATE_SHIFT), version));
         return ValueResult.TRUE;
@@ -314,19 +252,19 @@ class ValueUtilsImpl implements ValueUtils {
             if (oldVersion != getOffHeapVersion(s)) {
                 return ValueResult.RETRY;
             }
-            if (lockState == LockStates.DELETED.value) {
+            if (lockState == Header.LockStates.DELETED.value) {
                 return ValueResult.FALSE;
             }
-            if (lockState == LockStates.MOVED.value) {
+            if (lockState == Header.LockStates.MOVED.value) {
                 return ValueResult.RETRY;
             }
-        } while (!cas(s, LockStates.FREE.value, LockStates.LOCKED.value, version));
+        } while (!cas(s, Header.LockStates.FREE.value, Header.LockStates.LOCKED.value, version));
         return ValueResult.TRUE;
     }
 
     @Override
     public ValueResult unlockWrite(Slice s) {
-        setLockState(s, LockStates.FREE);
+        setLockState(s, Header.LockStates.FREE);
         return ValueResult.TRUE;
     }
 
@@ -343,13 +281,13 @@ class ValueUtilsImpl implements ValueUtils {
             if (oldVersion != getOffHeapVersion(s)) {
                 return ValueResult.RETRY;
             }
-            if (lockState == LockStates.DELETED.value) {
+            if (lockState == Header.LockStates.DELETED.value) {
                 return ValueResult.FALSE;
             }
-            if (lockState == LockStates.MOVED.value) {
+            if (lockState == Header.LockStates.MOVED.value) {
                 return ValueResult.RETRY;
             }
-        } while (!cas(s, LockStates.FREE.value, LockStates.DELETED.value, version));
+        } while (!cas(s, Header.LockStates.FREE.value, Header.LockStates.DELETED.value, version));
         return ValueResult.TRUE;
     }
 
@@ -364,10 +302,10 @@ class ValueUtilsImpl implements ValueUtils {
         if (oldVersion != getOffHeapVersion(s)) {
             return ValueResult.RETRY;
         }
-        if (lockState == LockStates.MOVED.value) {
+        if (lockState == Header.LockStates.MOVED.value) {
             return ValueResult.RETRY;
         }
-        if (lockState == LockStates.DELETED.value) {
+        if (lockState == Header.LockStates.DELETED.value) {
             return ValueResult.TRUE;
         }
         return ValueResult.FALSE;
