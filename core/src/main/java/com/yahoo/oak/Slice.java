@@ -10,50 +10,55 @@ import sun.nio.ch.DirectBuffer;
 
 import java.nio.ByteBuffer;
 
-// Represents a portion of a bigger block which is part of the underlying managed memory.
-// It is allocated via block memory allocator, and can be de-allocated later
+// Slice represents an data about an off-heap cut: a portion of a bigger block,
+// which is part of the underlying managed off-heap memory.
+// Slice is allocated only via memory manager, and can be de-allocated later.
+// Slice can be either empty or associated with an off-heap cut,
+// which is the aforementioned portion of an off-heap memory.
 class Slice implements OakUnsafeDirectBuffer, Comparable<Slice> {
     static final int UNDEFINED_LENGTH_OR_OFFSET = -1;
 
     /**
-     * An allocated slice might have reserved space for meta-data, i.e., a header.
-     * In the current implementation, the header size is defined externally at the construction.
-     * In future implementations, the header size should be part of the allocation and defined
-     * by the allocator/memory-manager using the update() method.
+     * An allocated off-heap cut might have reserved space for meta-data, i.e., a header.
+     * The header size is defined externally by memory-manager at the slice construction.
      */
     protected final int headerSize;
+
+    /** The fields describing the associated off-heap cut, they are set when slice is not empty **/
     protected long reference;
+    private final long invalidReferenceValue; // used for invalidation
     protected int blockID = NativeMemoryAllocator.INVALID_BLOCK_ID;
-    protected int offset = UNDEFINED_LENGTH_OR_OFFSET;
+    protected int offset  = UNDEFINED_LENGTH_OR_OFFSET;
 
-    // The entire length of slice including header!
+    // The entire length of the off-heap cut, including the header!
     protected int length = UNDEFINED_LENGTH_OR_OFFSET;
-
-    // Allocation time version
-    private int version;
-
+    private int version;    // Allocation time version
     private ByteBuffer buffer = null;
 
     // true if slice is associated with an off-heap slice of memory
-    // is associated is false the Slice is empty
+    // if associated is false the Slice is empty
     private boolean associated = false;
 
-    // Should be used only within Memory Manager package
-    Slice(int headerSize) {
+    /* ------------------------------------------------------------------------------------
+     * Constructors
+     * ------------------------------------------------------------------------------------*/
+    // Should be used only by Memory Manager (within Memory Manager package)
+    Slice(int headerSize, long invalidReferenceValue) {
         this.headerSize = headerSize;
+        this.invalidReferenceValue = invalidReferenceValue;
         invalidate();
     }
 
     // Should be used only for testing
     @VisibleForTesting
     Slice() {
-        this(0);
+        this(0, 0);
     }
 
-    // Used to duplicate the allocation state. Does not duplicate the buffer itself.
-    // Should be used when ThreadContext slice needs to be exported to the user
+    // Used to duplicate the allocation state. Does not duplicate the underlying memory buffer itself.
+    // Should be used when ThreadContext's internal Slice needs to be exported to the user.
     Slice getDuplicatedSlice() {
-        Slice newSlice = new Slice(this.headerSize);
+        Slice newSlice = new Slice(this.headerSize, this.invalidReferenceValue);
         newSlice.copyFrom(this);
         return newSlice;
     }
@@ -68,11 +73,10 @@ class Slice implements OakUnsafeDirectBuffer, Comparable<Slice> {
     /* ------------------------------------------------------------------------------------
      * Allocation info and metadata setters
      * ------------------------------------------------------------------------------------*/
-
     // Reset all not final fields to invalid state
     void invalidate() {
         blockID     = NativeMemoryAllocator.INVALID_BLOCK_ID;
-        reference   = ReferenceCodecMM.getInvalidReference();
+        reference   = invalidReferenceValue;
         length      = UNDEFINED_LENGTH_OR_OFFSET;
         offset      = UNDEFINED_LENGTH_OR_OFFSET;
         buffer      = null;
@@ -86,25 +90,43 @@ class Slice implements OakUnsafeDirectBuffer, Comparable<Slice> {
     }
 
     /*
-     * Updates the offset and length of the slice.
-     * The buffer and its blockID should be set later by the block allocator (via setBufferAndBlockID).
+     * Sets everything related to allocation of an off-heap cut: a portion of a bigger block.
+     * Turns empty slice to an associated slice upon allocation.
      */
-    void setBlockidAndOffsetAndLength(int blockID, int offset, int length) {
-        // length can remain undefined until requested, but if given length should include the header
-        assert length == UNDEFINED_LENGTH_OR_OFFSET || headerSize <= length;
-        this.blockID = blockID;
-        this.offset = offset;
-        this.length = length;
-        associated = false;
+    void associateBlockAllocation(int blockID, int offset, int length, ByteBuffer buffer){
+        assert blockID != NativeMemoryAllocator.INVALID_BLOCK_ID
+            && offset > UNDEFINED_LENGTH_OR_OFFSET && length > UNDEFINED_LENGTH_OR_OFFSET
+            && buffer != null;
+        setBlockIdOffsetAndLength(blockID, offset, length);
+        this.buffer  = buffer;
+        this.associated = true;
+
+        // reference and (maybe) version are yet to be set by associateMMAllocation
     }
 
     /*
-     * Updates the offset, length and version of the slice
-     * The buffer and its blockID should be set later by the block allocator (via setBufferAndBlockID).
+     * Updates everything that can be extracted with reference decoding of "NoFree" type,
+     * including reference itself. The separation by reference decoding type is temporary!
+     * This is not the full setting of the association, therefore 'associated' flag remains false
      */
-    void setBlockidOffsetLengthAndVersion(int blockID, int offset, int length, int version) {
-        setBlockidAndOffsetAndLength(blockID, offset, length);
+    void associateReferenceDecodingNoFree(int blockID, int offset, int length, long reference) {
+        // length can remain undefined until requested, but if given length should include the header
+        assert length != UNDEFINED_LENGTH_OR_OFFSET && headerSize <= length;
+        setBlockIdOffsetAndLength(blockID, offset, length);
+        this.reference = reference;
+        associated   = false;
+    }
+
+    /*
+     * Updates everything that can be extracted with reference decoding of "Native" type,
+     * including reference itself. The separation by reference decoding type is temporary!
+     * This is not the full setting of the association, therefore 'associated' flag remains false
+     */
+    void associateReferenceDecodingNative(int blockID, int offset, int version, long reference) {
+        setBlockIdOffsetAndLength(blockID, offset, UNDEFINED_LENGTH_OR_OFFSET);
+        this.reference = reference;
         this.version = version;
+        associated   = false;
     }
 
     // Copy the block allocation information from another block allocation.
@@ -118,38 +140,48 @@ class Slice implements OakUnsafeDirectBuffer, Comparable<Slice> {
         this.length = other.length;
         this.version = other.version;
         this.buffer = other.buffer;
-        this.associated = other.associated;
         this.reference = other.reference;
+        this.associated = other.associated;
     }
 
     // Set the internal buffer.
-    // This method should be used only by the block memory allocator.
+    // This method should be used only within Memory Management package.
     void setBuffer(ByteBuffer buffer) {
         this.buffer = buffer;
         assert buffer != null;
         associated = true; // buffer is the final and the most important field for the slice validity
     }
 
-    // Set the version. Should be used by the memory allocator.
-    void setVersion(int version) {
+    /*
+     * Upon allocstion, sets everything related to memory management of an off-heap cut:
+     * a portion of a bigger block.
+     * Used only within Memory Manager package.
+     */
+    void associateMMAllocation(int version, long reference) {
         this.version = version;
-    }
-
-    long getReference() {
-        return reference;
-    }
-
-    void setReference(long reference) {
         this.reference = reference;
     }
 
     // used only in case of iterations when the rest of the slice's data should remain the same
     // in this case once the offset is set the the slice is associated
-    void setOffsetAndLength(int offset, int length) {
+    void setIterationOnSameBlock(int offset, int length) {
         this.offset = offset;
         this.length = length;
         assert buffer != null;
         this.associated = true;
+    }
+
+    void setDataLength(int length) {
+        // the length kept in header is the length of the data only!
+        // add header size
+        this.length = length + headerSize;
+    }
+
+    // simple setter, frequently internally used, to save code duplication
+    private void setBlockIdOffsetAndLength(int blockID, int offset, int length) {
+        this.blockID = blockID;
+        this.offset = offset;
+        this.length = length;
     }
 
     /* ------------------------------------------------------------------------------------
@@ -158,6 +190,10 @@ class Slice implements OakUnsafeDirectBuffer, Comparable<Slice> {
 
     boolean isInitiated() {
         return associated;
+    }
+
+    long getReference() {
+        return reference;
     }
 
     int getAllocatedBlockID() {
@@ -208,12 +244,6 @@ class Slice implements OakUnsafeDirectBuffer, Comparable<Slice> {
             ValueUtilsImpl.setLengthFromOffHeap(this);
         }
         return length - headerSize;
-    }
-
-    void setDataLength(int length) {
-        // the length kept in header is the length of the data only!
-        // add header size
-        this.length = length + headerSize;
     }
 
     @Override

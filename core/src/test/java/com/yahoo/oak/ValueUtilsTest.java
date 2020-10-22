@@ -28,9 +28,7 @@ public class ValueUtilsTest {
         keysMemoryManager = new NoFreeMemoryManager(allocator);
         ctx = new ThreadContext(keysMemoryManager, valuesMemoryManager);
         s = ctx.value;
-        valuesMemoryManager.allocate(
-            s.getSlice(), (valueOperator.getHeaderSize() + Integer.BYTES*3));
-        valueOperator.initHeader(s.getSlice(), Integer.BYTES*3);
+        valuesMemoryManager.allocate(s.getSlice(), Integer.BYTES*3, false);
     }
 
     private void putInt(int index, int value) {
@@ -131,7 +129,7 @@ public class ValueUtilsTest {
 
     @Test
     public void cannotTransformedDifferentVersionTest() {
-        s.getSlice().setVersion(2);
+        s.getSlice().associateMMAllocation(2, -1);
         Result result = valueOperator.transform(new Result(), s, byteBuffer -> byteBuffer.getInt(0));
         Assert.assertEquals(ValueUtils.ValueResult.RETRY, result.operationResult);
     }
@@ -317,7 +315,7 @@ public class ValueUtilsTest {
 
     @Test
     public void cannotPutToValueOfDifferentVersionTest() {
-        s.getSlice().setVersion(2);
+        s.getSlice().associateMMAllocation(2, -1);
         Assert.assertEquals(ValueUtils.ValueResult.RETRY, valueOperator.put(null, ctx, null, null,
             valuesMemoryManager, null));
     }
@@ -436,7 +434,7 @@ public class ValueUtilsTest {
 
     @Test
     public void cannotComputeValueOfDifferentVersionTest() {
-        s.getSlice().setVersion(2);
+        s.getSlice().associateMMAllocation(2, -1);
         Assert.assertEquals(ValueUtils.ValueResult.RETRY, valueOperator.compute(s, oakWBuffer -> {
         }));
     }

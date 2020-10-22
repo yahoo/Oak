@@ -23,13 +23,16 @@ interface MemoryManager extends Closeable {
     long allocated();
 
     /**
-     * This method allocates memory out of the off-heap, i.e., the ByteBuffer inside of {@code s} is pointing to the
-     * off-heap. The blockID, is an internal reference to which block the ByteBuffer points, allowing the functions
-     * {@code getSliceFromBlockID} and {@code getByteBufferFromBlockID} to reconstruct the same ByteBuffer.
-     *  @param s        - an allocation object to update with the new allocation
+     * This method allocates memory out of the off-heap, i.e. off-heap cut of the given size in bytes.
+     * The new off-heap cut is going to be associated with the given Slice.
+     * The given length is the size which is needed for the user. If off-heap metadata is needed
+     * for the off-heap cut, this is up to memory manager to allocate internally a bigger size.
+     * @param s        - an allocation object to update with the new allocation
      * @param size     - the size of the Slice to allocate
+     * @param existing - if true allocation is for the value already existing in the managed memory,
+     *                 just moving to the new place
      */
-    void allocate(Slice s, int size);
+    void allocate(Slice s, int size, boolean existing);
 
     /**
      * When returning an allocated Slice to the Memory Manager, depending on the implementation, there might be a
@@ -84,5 +87,10 @@ interface MemoryManager extends Closeable {
     // invoked to get the slice (implementing Slice interface)
     // Slice may have different implementation for different Memory Managers
     Slice getEmptySlice();
+
+    // Used only for testing
+    // returns the size of the header used in off-heap to keep Memory Manager's metadata
+    @VisibleForTesting
+    int getHeaderSize();
 
 }

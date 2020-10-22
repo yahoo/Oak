@@ -85,8 +85,8 @@ class ReferenceCodecDirect extends ReferenceCodec {
     }
 
     @Override
-    protected void setAll(Slice s, long blockID, long offset, long length) {
-        s.setBlockidAndOffsetAndLength((int) blockID, (int) offset, (int) length);
+    protected void setAll(Slice s, long blockID, long offset, long length, long reference) {
+        s.associateReferenceDecodingNoFree((int) blockID, (int) offset, (int) length, reference);
     }
 
     @Override
@@ -104,7 +104,7 @@ class ReferenceCodecDirect extends ReferenceCodec {
         return reference != INVALID_DIRECT_REFERENCE;
     }
 
-    static long getInvalidReference() {
+    long getInvalidReference() {
         return INVALID_DIRECT_REFERENCE;
     }
 }

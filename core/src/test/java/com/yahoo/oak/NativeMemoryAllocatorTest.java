@@ -28,10 +28,10 @@ public class NativeMemoryAllocatorTest {
 
     static int calcExpectedSize(int keyCount, int valueCount) {
         return (keyCount * KEYS_SIZE_AFTER_SERIALIZATION) +
-                (valueCount * (VALUE_SIZE_AFTER_SERIALIZATION + VALUE_OPERATOR.getHeaderSize()));
+                (valueCount * (VALUE_SIZE_AFTER_SERIALIZATION + VALUE_MEMORY_MANAGER.getHeaderSize()));
     }
 
-    private static final ValueUtilsImpl VALUE_OPERATOR = new ValueUtilsImpl();
+    private static final MemoryManager VALUE_MEMORY_MANAGER = new NativeMemoryManager(null);
 
     Slice allocate(NativeMemoryAllocator allocator, int size) {
         Slice s = new Slice();
