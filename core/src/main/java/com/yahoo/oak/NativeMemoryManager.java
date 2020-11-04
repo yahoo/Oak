@@ -13,7 +13,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 class NativeMemoryManager implements MemoryManager {
     static final int RELEASE_LIST_LIMIT = 1024;
-    private static final Header HEADER = new Header(); // for off-heap header operations
+    private static final NativeMemoryManagerHeader HEADER =
+        new NativeMemoryManagerHeader(); // for off-heap header operations
     private static final int VERS_INIT_VALUE = 1;
     private static final int OFF_HEAP_HEADER_SIZE = 12; /* Bytes */
     private final ThreadIndexCalculator threadIndexCalculator;
@@ -133,8 +134,11 @@ class NativeMemoryManager implements MemoryManager {
         return allocator.allocated();
     }
 
-    // Native memory manager requires metadata header to be placed before the user data written off-heap
-    // therefore the bigger than requested size is allocated
+    // 1. Native memory manager requires metadata header to be placed before the user data written
+    // off-heap, therefore the bigger than requested size is allocated
+    // 2. The parameter flag existing explains whether the allocation is for existing slice
+    // moving to the other location (e.g. in order to be enlarged). The algorithm of move requires
+    // the lock of the newly allocated slice to be taken exclusively until the process of move is finished.
     @Override
     public void allocate(Slice s, int size, boolean existing) {
         boolean allocated = allocator.allocate(s, size + OFF_HEAP_HEADER_SIZE);

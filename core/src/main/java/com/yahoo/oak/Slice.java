@@ -164,7 +164,7 @@ class Slice implements OakUnsafeDirectBuffer, Comparable<Slice> {
 
     // used only in case of iterations when the rest of the slice's data should remain the same
     // in this case once the offset is set the the slice is associated
-    void setIterationOnSameBlock(int offset, int length) {
+    void updateOnSameBlock(int offset, int length) {
         this.offset = offset;
         this.length = length;
         assert buffer != null;

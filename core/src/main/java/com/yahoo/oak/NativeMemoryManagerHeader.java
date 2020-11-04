@@ -8,10 +8,10 @@ package com.yahoo.oak;
 
 import sun.misc.Unsafe;
 
-class Header {
+class NativeMemoryManagerHeader {
 
     /*
-    * Long Header: int version + int lock
+    * Long NativeMemoryManagerHeader: int version + int lock
     * 0...  ...31 | 32...                  ...61| 62 63
     *  version    |   lock: current_readers#    | lock state
     *
@@ -33,8 +33,6 @@ class Header {
     private static final int VERSION_SIZE = 4;
     private static final int VERSION_OFFSET = 0;
 
-    private static final int LOCK_STATE_MASK = 0x3;
-    private static final int LOCK_STATE_SHIFT = 2;
     private static final int LOCK_SIZE = 4;
     private static final int LOCK_OFFSET = VERSION_SIZE;
 

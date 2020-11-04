@@ -40,7 +40,7 @@ class Block {
         int now = allocated.getAndAdd(size);
         if (now + size > this.capacity) {
             allocated.getAndAdd(-size);
-            throw new OakOutOfMemoryException("Block " + id + " out of memory");
+            throw new OakOutOfMemoryException(String.format("Block %d is out of memory", id));
         }
         s.associateBlockAllocation(id, now, size, buffer);
         return true;
