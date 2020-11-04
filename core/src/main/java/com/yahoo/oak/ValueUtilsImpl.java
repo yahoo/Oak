@@ -17,7 +17,8 @@ class ValueUtilsImpl implements ValueUtils {
 
     private static Unsafe unsafe = UnsafeUtils.unsafe;
 
-    private static final Header HEADER = new Header(); //To be moved to Memory Manager
+    private static final NativeMemoryManagerHeader HEADER =
+        new NativeMemoryManagerHeader(); //To be moved to Memory Manager
 
 
     private static boolean cas(Slice s, int expectedLock, int newLock, int version) {
@@ -38,7 +39,7 @@ class ValueUtilsImpl implements ValueUtils {
         return HEADER.getLockState(s);
     }
 
-    private void setLockState(Slice s, Header.LockStates state) {
+    private void setLockState(Slice s, NativeMemoryManagerHeader.LockStates state) {
         HEADER.setLockState(s, state);
     }
 
@@ -98,7 +99,7 @@ class ValueUtilsImpl implements ValueUtils {
             return ValueResult.RETRY;
         }
         // can not release the old slice or mark it moved, before the new one is updated!
-        setLockState(ctx.value.s, Header.LockStates.MOVED);
+        setLockState(ctx.value.s, NativeMemoryManagerHeader.LockStates.MOVED);
         // currently the slices which value was moved aren't going to be released, to keep the MOVED mark
         // TODO: deal with the reallocation of the moved memory
 
@@ -132,8 +133,8 @@ class ValueUtilsImpl implements ValueUtils {
             if (result != ValueResult.TRUE) {
                 return ctx.result.withFlag(result);
             }
-            // Now the value is deleted, and all other threads will treat it as deleted, but it is not yet freed, so
-            // this thread can read from it.
+            // Now the value is deleted, and all other threads will treat it as deleted,
+            // but it is not yet freed, so this thread can read from it.
             // read the old value (the slice is not reclaimed yet)
             V v = transformer != null ? transformer.apply(ctx.value) : null;
             // return TRUE with the old value
@@ -153,7 +154,7 @@ class ValueUtilsImpl implements ValueUtils {
                 return ctx.result.withFlag(ValueResult.FALSE);
             }
             // both values match so the value is marked as deleted. No need for a CAS since a write lock is exclusive
-            setLockState(ctx.value.s, Header.LockStates.DELETED);
+            setLockState(ctx.value.s, NativeMemoryManagerHeader.LockStates.DELETED);
             // delete the value in the entry happens next and the slice will be released as part of it
             // slice can be released only after the entry is marked appropriately
             return ctx.result.withValue(v);
@@ -215,10 +216,10 @@ class ValueUtilsImpl implements ValueUtils {
             if (oldVersion != getOffHeapVersion(s)) {
                 return ValueResult.RETRY;
             }
-            if (lockState == Header.LockStates.DELETED.value) {
+            if (lockState == NativeMemoryManagerHeader.LockStates.DELETED.value) {
                 return ValueResult.FALSE;
             }
-            if (lockState == Header.LockStates.MOVED.value) {
+            if (lockState == NativeMemoryManagerHeader.LockStates.MOVED.value) {
                 return ValueResult.RETRY;
             }
             lockState &= ~LOCK_STATE_MASK;
@@ -233,7 +234,7 @@ class ValueUtilsImpl implements ValueUtils {
         assert version > ReferenceCodecMM.INVALID_VERSION;
         do {
             lockState = getLockState(s);
-            assert lockState > Header.LockStates.MOVED.value;
+            assert lockState > NativeMemoryManagerHeader.LockStates.MOVED.value;
             lockState &= ~LOCK_STATE_MASK;
         } while (!cas(s, lockState, lockState - (1 << LOCK_STATE_SHIFT), version));
         return ValueResult.TRUE;
@@ -252,19 +253,20 @@ class ValueUtilsImpl implements ValueUtils {
             if (oldVersion != getOffHeapVersion(s)) {
                 return ValueResult.RETRY;
             }
-            if (lockState == Header.LockStates.DELETED.value) {
+            if (lockState == NativeMemoryManagerHeader.LockStates.DELETED.value) {
                 return ValueResult.FALSE;
             }
-            if (lockState == Header.LockStates.MOVED.value) {
+            if (lockState == NativeMemoryManagerHeader.LockStates.MOVED.value) {
                 return ValueResult.RETRY;
             }
-        } while (!cas(s, Header.LockStates.FREE.value, Header.LockStates.LOCKED.value, version));
+        } while (!cas(s, NativeMemoryManagerHeader.LockStates.FREE.value,
+            NativeMemoryManagerHeader.LockStates.LOCKED.value, version));
         return ValueResult.TRUE;
     }
 
     @Override
     public ValueResult unlockWrite(Slice s) {
-        setLockState(s, Header.LockStates.FREE);
+        setLockState(s, NativeMemoryManagerHeader.LockStates.FREE);
         return ValueResult.TRUE;
     }
 
@@ -281,13 +283,14 @@ class ValueUtilsImpl implements ValueUtils {
             if (oldVersion != getOffHeapVersion(s)) {
                 return ValueResult.RETRY;
             }
-            if (lockState == Header.LockStates.DELETED.value) {
+            if (lockState == NativeMemoryManagerHeader.LockStates.DELETED.value) {
                 return ValueResult.FALSE;
             }
-            if (lockState == Header.LockStates.MOVED.value) {
+            if (lockState == NativeMemoryManagerHeader.LockStates.MOVED.value) {
                 return ValueResult.RETRY;
             }
-        } while (!cas(s, Header.LockStates.FREE.value, Header.LockStates.DELETED.value, version));
+        } while (!cas(s, NativeMemoryManagerHeader.LockStates.FREE.value,
+            NativeMemoryManagerHeader.LockStates.DELETED.value, version));
         return ValueResult.TRUE;
     }
 
@@ -302,10 +305,10 @@ class ValueUtilsImpl implements ValueUtils {
         if (oldVersion != getOffHeapVersion(s)) {
             return ValueResult.RETRY;
         }
-        if (lockState == Header.LockStates.MOVED.value) {
+        if (lockState == NativeMemoryManagerHeader.LockStates.MOVED.value) {
             return ValueResult.RETRY;
         }
-        if (lockState == Header.LockStates.DELETED.value) {
+        if (lockState == NativeMemoryManagerHeader.LockStates.DELETED.value) {
             return ValueResult.TRUE;
         }
         return ValueResult.FALSE;

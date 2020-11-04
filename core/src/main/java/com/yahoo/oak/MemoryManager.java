@@ -12,7 +12,11 @@ import java.io.Closeable;
  ** (1) Memory allocation services
  ** (2) Memory reclamation services
  ** (3) Safe access, in a way that a reused memory allocated to a new usage can be never accessed
- ** via old references to the same location.*/
+ ** via old references to the same location.
+ *
+ * Slice is an object that depicts the physical (virtual) memory addresses being references.
+ * The memory addresses are named "off-heap cut".
+ * */
 interface MemoryManager extends Closeable {
 
     boolean isClosed();
