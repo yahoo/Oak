@@ -71,7 +71,7 @@ class NoFreeMemoryManager implements MemoryManager {
             // key's slice is updated upon reference decoding.
             // Slice is not invalidated between next iterator steps and all the rest information
             // in slice remains the same.
-            s.updateOnSameBlock(rcd.getSecond(reference), rcd.getThird(reference));
+            s.updateOnSameBlock(rcd.getSecond(reference)/*offset*/, rcd.getThird(reference)/*length*/);
             return true;
         }
         if (rcd.decode(s, reference)) {
