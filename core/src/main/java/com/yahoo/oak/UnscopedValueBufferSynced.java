@@ -46,7 +46,7 @@ class UnscopedValueBufferSynced extends UnscopedBuffer<ValueBuffer> {
 
         start();
         try {
-            return transformer.apply(buffer);
+            return transformer.apply(internalScopedReadBuffer);
         } finally {
             end();
         }
@@ -58,7 +58,7 @@ class UnscopedValueBufferSynced extends UnscopedBuffer<ValueBuffer> {
 
         start();
         try {
-            return getter.get(buffer, index);
+            return getter.get(internalScopedReadBuffer, index);
         } finally {
             end();
         }
@@ -67,7 +67,7 @@ class UnscopedValueBufferSynced extends UnscopedBuffer<ValueBuffer> {
     private void start() {
         // Use a "for" loop to ensure maximal retries.
         for (int i = 0; i < MAX_RETRIES; i++) {
-            ValueUtils.ValueResult res = valueOperator.lockRead(buffer);
+            ValueUtils.ValueResult res = valueOperator.lockRead(internalScopedReadBuffer.s);
             switch (res) {
                 case TRUE:
                     return;
@@ -83,7 +83,7 @@ class UnscopedValueBufferSynced extends UnscopedBuffer<ValueBuffer> {
     }
 
     private void end() {
-        valueOperator.unlockRead(buffer);
+        valueOperator.unlockRead(internalScopedReadBuffer.s);
     }
 
     /**
@@ -93,7 +93,7 @@ class UnscopedValueBufferSynced extends UnscopedBuffer<ValueBuffer> {
      * it was deleted.
      */
     private void refreshValueReference() {
-        boolean success = internalOakMap.refreshValuePosition(key, buffer);
+        boolean success = internalOakMap.refreshValuePosition(key, internalScopedReadBuffer);
         if (!success) {
             throw new ConcurrentModificationException();
         }

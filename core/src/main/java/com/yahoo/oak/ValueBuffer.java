@@ -8,28 +8,22 @@ package com.yahoo.oak;
 
 public class ValueBuffer extends ScopedReadBuffer {
 
-    public ValueBuffer(int headerSize) {
-        super(headerSize);
+    // Should be used only when a new empty ValueBuffer needs to be created
+    public ValueBuffer(Slice emptySlice) {
+        super(emptySlice);
     }
 
-    public ValueBuffer(ValueUtils valueOperator) {
-        super(valueOperator.getHeaderSize());
-    }
-
+    // Should be used only when a new ValueBuffer needs to be created as a copy of the given value
     public ValueBuffer(ValueBuffer value) {
         super(value);
     }
 
-    @Override
-    void invalidate() {
-        super.invalidate();
-    }
-
-    void copyFrom(ValueBuffer alloc) {
-        if (alloc == this) {
+    // Should be used only when an existing ValueBuffer needs to be updated as a copy of the given value
+    void copyFrom(ValueBuffer value) {
+        if (value == this) {
             // No need to do anything if the input is this object
             return;
         }
-        super.copyFrom(alloc);
+        s.copyFrom(value.s);
     }
 }

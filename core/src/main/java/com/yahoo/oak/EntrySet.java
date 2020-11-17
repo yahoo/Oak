@@ -258,7 +258,7 @@ class EntrySet<K, V> {
      * */
     boolean isValueRefValidAndNotDeleted(int ei) {
         long valRef = getValueReference(ei);
-        return ReferenceCodecMM.isReferenceValidAndNotDeleted(valRef);
+        return valuesMemoryManager.isReferenceValidAndNotDeleted(valRef);
     }
 
     /********************************************************************************************/
@@ -324,7 +324,7 @@ class EntrySet<K, V> {
         }
 
         long reference = getKeyReference(ei);
-        return keysMemoryManager.decodeReference(key, reference);
+        return keysMemoryManager.decodeReference(key.getSlice(), reference);
     }
 
     /**
@@ -344,7 +344,7 @@ class EntrySet<K, V> {
             return false;
         }
         long reference = getValueReference(ei);
-        return valuesMemoryManager.decodeReference(value, reference);
+        return valuesMemoryManager.decodeReference(value.getSlice(), reference);
     }
 
 
@@ -371,7 +371,7 @@ class EntrySet<K, V> {
     void readValue(ThreadContext ctx) {
         readValue(ctx.value, ctx.entryIndex);
         ctx.valueState = getValueState(ctx.value);
-        assert valuesMemoryManager.isReferenceConsistent(ctx.value.reference);
+        assert valuesMemoryManager.isReferenceConsistent(ctx.value.getSlice().reference);
     }
 
     /**
@@ -385,19 +385,19 @@ class EntrySet<K, V> {
         //   remove: (1)off-heap delete bit, (2)reference deleted
         //   middle state: off-heap header marked deleted, but valid reference
 
-        if (!valuesMemoryManager.isReferenceValid(value.reference)) {
+        if (!valuesMemoryManager.isReferenceValid(value.getSlice().reference)) {
             // if there is no value associated with given key,
             // thebvalue of this entry was never yet allocated
             return ValueState.UNKNOWN;
         }
 
-        if (valuesMemoryManager.isReferenceDeleted(value.reference)) {
+        if (valuesMemoryManager.isReferenceDeleted(value.getSlice().reference)) {
             // if value is valid the reference can still be deleted
             return  ValueState.DELETED;
         }
 
         // value reference is valid, just need to check if off-heap is marked deleted
-        ValueUtils.ValueResult result = valOffHeapOperator.isValueDeleted(value);
+        ValueUtils.ValueResult result = valOffHeapOperator.isValueDeleted(value.getSlice());
 
         // If result == TRUE, there is a deleted value associated with the given key
         // If result == RETRY, we ignore it, since it will be discovered later down the line as well
@@ -440,8 +440,8 @@ class EntrySet<K, V> {
      */
     void allocateKey(K key, KeyBuffer keyBuffer) {
         int keySize = keySerializer.calculateSize(key);
-        keysMemoryManager.allocate(keyBuffer, keySize);
-        ScopedWriteBuffer.serialize(keyBuffer, key, keySerializer);
+        keysMemoryManager.allocate(keyBuffer.getSlice(), keySize, false);
+        ScopedWriteBuffer.serialize(keyBuffer.getSlice(), key, keySerializer);
     }
 
     /**
@@ -452,7 +452,7 @@ class EntrySet<K, V> {
      */
     void duplicateKey(KeyBuffer src, KeyBuffer dst) {
         final int keySize = src.capacity();
-        keysMemoryManager.allocate(dst, keySize);
+        keysMemoryManager.allocate(dst.getSlice(), keySize, false);
 
         // We duplicate the buffer without instantiating a write buffer because the user is not involved.
         UnsafeUtils.unsafe.copyMemory(src.getAddress(), dst.getAddress(), keySize);
@@ -474,7 +474,7 @@ class EntrySet<K, V> {
         because the entries array is initialized that way (see specs).
          */
         setEntryFieldLong(entryIdx2LongIdx(ctx.entryIndex),
-            OFFSET.KEY_REFERENCE, keysMemoryManager.encodeReference(ctx.key));
+            OFFSET.KEY_REFERENCE, keysMemoryManager.encodeReference(ctx.key.getSlice()));
     }
 
     /**
@@ -490,23 +490,13 @@ class EntrySet<K, V> {
     void writeValueStart(ThreadContext ctx, V value, boolean writeForMove) {
         // the length of the given value plus its header
         int valueDataSize   = valueSerializer.calculateSize(value);
-        int valueLength     = valueDataSize + valOffHeapOperator.getHeaderSize();
 
-        // The allocated slice includes all the needed information for further access
-        valuesMemoryManager.allocate(ctx.newValue, valueLength);
-        ctx.newValue.setReference(valuesMemoryManager.encodeReference(ctx.newValue));
+        // The allocated slice includes all the needed information for further access,
+        // the reference is set in the slice as part of the alocation
+        valuesMemoryManager.allocate(ctx.newValue.getSlice(), valueDataSize, writeForMove);
         ctx.isNewValueForMove = writeForMove;
 
-        // for value written for the first time:
-        // initializing the off-heap header's lock to be free
-        // for value being moved, initialize the lock to be locked
-        if (writeForMove) {
-            valOffHeapOperator.initLockedHeader(ctx.newValue, valueDataSize);
-        } else {
-            valOffHeapOperator.initHeader(ctx.newValue, valueDataSize);
-        }
-
-        ScopedWriteBuffer.serialize(ctx.newValue, value, valueSerializer);
+        ScopedWriteBuffer.serialize(ctx.newValue.getSlice(), value, valueSerializer);
     }
 
     /**
@@ -523,8 +513,8 @@ class EntrySet<K, V> {
         // If the commit is for a writing the new value, the old values should be invalid.
         // Otherwise (commit is for moving the value) old value reference is saved in the context.
 
-        long oldValueReference = ctx.value.getReference();
-        long newValueReference = ctx.newValue.getReference();
+        long oldValueReference = ctx.value.getSlice().getReference();
+        long newValueReference = ctx.newValue.getSlice().getReference();
         assert valuesMemoryManager.isReferenceValid(newValueReference);
 
         int longIdx = entryIdx2LongIdx(ctx.entryIndex);
@@ -550,7 +540,7 @@ class EntrySet<K, V> {
      * is responsible to call it inside the publish/unpublish scope.
      */
     boolean deleteValueFinish(ThreadContext ctx) {
-        if (valuesMemoryManager.isReferenceDeleted(ctx.value.reference)) {
+        if (valuesMemoryManager.isReferenceDeleted(ctx.value.getSlice().reference)) {
             return false; // value reference in the slice is marked deleted
         }
 
@@ -559,7 +549,7 @@ class EntrySet<K, V> {
         int longIdx = entryIdx2LongIdx(ctx.entryIndex);
 
         // Value's reference codec prepares the reference to be used after value is deleted
-        long expectedReference = ctx.value.getReference();
+        long expectedReference = ctx.value.getSlice().getReference();
         long newReference = valuesMemoryManager.alterReferenceForDelete(expectedReference);
         // Scenario:
         // 1. The value's slice is marked as deleted off-heap and the thread that started
@@ -573,7 +563,7 @@ class EntrySet<K, V> {
         if (casEntriesArrayLong(longIdx, OFFSET.VALUE_REFERENCE, expectedReference, newReference)) {
             assert valuesMemoryManager.isReferenceConsistent(getValueReference(ctx.entryIndex));
             numOfEntries.getAndDecrement();
-            valuesMemoryManager.release(ctx.value);
+            valuesMemoryManager.release(ctx.value.getSlice());
             ctx.value.invalidate();
             ctx.valueState = ValueState.DELETED;
 
@@ -593,7 +583,7 @@ class EntrySet<K, V> {
      **/
     void releaseKey(ThreadContext ctx) {
         // currently using values memory manager as keys are not a subject to be released
-        valuesMemoryManager.release(ctx.key);
+        valuesMemoryManager.release(ctx.key.getSlice());
     }
 
     /**
@@ -606,7 +596,7 @@ class EntrySet<K, V> {
      * @param ctx the context that follows the operation since the key was found/created
      **/
     void releaseNewValue(ThreadContext ctx) {
-        valuesMemoryManager.release(ctx.newValue);
+        valuesMemoryManager.release(ctx.newValue.getSlice());
     }
 
     /**
@@ -621,7 +611,7 @@ class EntrySet<K, V> {
         if (!isAllocatedAndNotDeleted) {
             return true;
         }
-        return valOffHeapOperator.isValueDeleted(tempValue) != ValueUtils.ValueResult.FALSE;
+        return valOffHeapOperator.isValueDeleted(tempValue.getSlice()) != ValueUtils.ValueResult.FALSE;
     }
 
 
@@ -662,7 +652,7 @@ class EntrySet<K, V> {
             return true;
         }
 
-        assert valuesMemoryManager.isReferenceConsistent(tempValue.reference);
+        assert valuesMemoryManager.isReferenceConsistent(tempValue.getSlice().reference);
 
         // ARRAY COPY: using next as the base of the entry
         // copy both the key and the value references and integer for future use => 5 integers via array copy

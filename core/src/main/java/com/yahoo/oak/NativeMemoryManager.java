@@ -13,7 +13,10 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 class NativeMemoryManager implements MemoryManager {
     static final int RELEASE_LIST_LIMIT = 1024;
+    private static final NativeMemoryManagerHeader HEADER =
+        new NativeMemoryManagerHeader(); // for off-heap header operations
     private static final int VERS_INIT_VALUE = 1;
+    private static final int OFF_HEAP_HEADER_SIZE = 12; /* Bytes */
     private final ThreadIndexCalculator threadIndexCalculator;
     private final List<List<Slice>> releaseLists;
     private final AtomicInteger globalVersionNumber;
@@ -60,7 +63,7 @@ class NativeMemoryManager implements MemoryManager {
      */
     @Override
     public boolean decodeReference(Slice s, long reference) {
-        s.setReference(reference);
+        // reference is set in the slice as part of decoding
         if (rcmm.decode(s, reference)) {
             allocator.readByteBuffer(s);
             return true;
@@ -93,7 +96,7 @@ class NativeMemoryManager implements MemoryManager {
      */
     @Override
     public long getInvalidReference() {
-        return ReferenceCodecMM.getInvalidReference();
+        return rcmm.getInvalidReference();
     }
 
     @Override
@@ -106,9 +109,24 @@ class NativeMemoryManager implements MemoryManager {
         return rcmm.isReferenceDeleted(reference);
     }
 
+    @Override public boolean isReferenceValidAndNotDeleted(long reference) {
+        return rcmm.isReferenceValidAndNotDeleted(reference);
+    }
+
     @Override
     public boolean isReferenceConsistent(long reference) {
         return rcmm.isReferenceConsistent(reference);
+    }
+
+    @Override
+    public Slice getEmptySlice() {
+        return new Slice(OFF_HEAP_HEADER_SIZE, rcmm.getInvalidReference());
+    }
+
+    @VisibleForTesting
+    @Override
+    public int getHeaderSize() {
+        return OFF_HEAP_HEADER_SIZE;
     }
 
     @Override
@@ -116,11 +134,30 @@ class NativeMemoryManager implements MemoryManager {
         return allocator.allocated();
     }
 
+    // 1. Native memory manager requires metadata header to be placed before the user data written
+    // off-heap, therefore the bigger than requested size is allocated
+    // 2. The parameter flag existing explains whether the allocation is for existing slice
+    // moving to the other location (e.g. in order to be enlarged). The algorithm of move requires
+    // the lock of the newly allocated slice to be taken exclusively until the process of move is finished.
     @Override
-    public void allocate(Slice s, int size) {
-        boolean allocated = allocator.allocate(s, size);
+    public void allocate(Slice s, int size, boolean existing) {
+        boolean allocated = allocator.allocate(s, size + OFF_HEAP_HEADER_SIZE);
         assert allocated;
-        s.setVersion(globalVersionNumber.get());
+        int allocationVersion = globalVersionNumber.get();
+        s.associateMMAllocation(allocationVersion,
+            rcmm.encode((long) s.getAllocatedBlockID(), // can not use the encode(Slice s)
+                        (long) s.getAllocatedOffset(),  // because version is not yet set in slice
+                        (long) allocationVersion));
+        // Initiate the header that is serving for synchronization and memory management
+        // for value written for the first time (not existing):
+        //      initializing the header's lock to be free
+        // for value being moved (existing): initialize the lock to be locked
+        if (existing) {
+            HEADER.initLockedHeader(s, size);
+        } else {
+            HEADER.initHeader(s, size);
+        }
+        assert HEADER.getVersion(s) == allocationVersion;
     }
 
     @Override
@@ -131,7 +168,7 @@ class NativeMemoryManager implements MemoryManager {
         int idx = threadIndexCalculator.getIndex();
         List<Slice> myReleaseList = this.releaseLists.get(idx);
         // ensure the length of the slice is always set
-        myReleaseList.add(new Slice(s));
+        myReleaseList.add(s.getDuplicatedSlice());
         if (myReleaseList.size() >= RELEASE_LIST_LIMIT) {
             increaseGlobalVersion();
             for (Slice allocToRelease : myReleaseList) {

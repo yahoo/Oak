@@ -23,7 +23,7 @@ final class ScopedWriteBuffer extends ScopedReadBuffer implements OakScopedWrite
      * @param s the buffer to use.
      */
     private ScopedWriteBuffer(Slice s) {
-        super(s);
+        super(s.getDuplicatedSlice());
     }
 
     /**
@@ -68,49 +68,49 @@ final class ScopedWriteBuffer extends ScopedReadBuffer implements OakScopedWrite
     @Override
     public OakScopedWriteBuffer put(int index, byte value) {
         validateAccess();
-        buffer.put(getDataOffset(index), value);
+        s.getByteBuffer().put(getDataOffset(index), value);
         return this;
     }
 
     @Override
     public OakScopedWriteBuffer putChar(int index, char value) {
         validateAccess();
-        buffer.putChar(getDataOffset(index), value);
+        s.getByteBuffer().putChar(getDataOffset(index), value);
         return this;
     }
 
     @Override
     public OakScopedWriteBuffer putShort(int index, short value) {
         validateAccess();
-        buffer.putShort(getDataOffset(index), value);
+        s.getByteBuffer().putShort(getDataOffset(index), value);
         return this;
     }
 
     @Override
     public OakScopedWriteBuffer putInt(int index, int value) {
         validateAccess();
-        buffer.putInt(getDataOffset(index), value);
+        s.getByteBuffer().putInt(getDataOffset(index), value);
         return this;
     }
 
     @Override
     public OakScopedWriteBuffer putLong(int index, long value) {
         validateAccess();
-        buffer.putLong(getDataOffset(index), value);
+        s.getByteBuffer().putLong(getDataOffset(index), value);
         return this;
     }
 
     @Override
     public OakScopedWriteBuffer putFloat(int index, float value) {
         validateAccess();
-        buffer.putFloat(getDataOffset(index), value);
+        s.getByteBuffer().putFloat(getDataOffset(index), value);
         return this;
     }
 
     @Override
     public OakScopedWriteBuffer putDouble(int index, double value) {
         validateAccess();
-        buffer.putDouble(getDataOffset(index), value);
+        s.getByteBuffer().putDouble(getDataOffset(index), value);
         return this;
     }
 }

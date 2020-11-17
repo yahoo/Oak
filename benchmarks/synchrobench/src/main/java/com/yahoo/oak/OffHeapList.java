@@ -98,30 +98,30 @@ public class OffHeapList<K extends MyBuffer, V extends MyBuffer> implements Comp
         Cell prevValue = skipListMap.putIfAbsent(newCell, newCell);
 
         if (prevValue == null) {
-            ScopedReadBuffer keybb = new ScopedReadBuffer(0);
-            ScopedReadBuffer valuebb = new ScopedReadBuffer(0);
-            allocator.allocate(keybb, key.calculateSerializedSize());
-            keybb.duplicateBuffer();
-            ScopedWriteBuffer.serialize(keybb, key, MyBuffer.DEFAULT_SERIALIZER);
+            ScopedReadBuffer keybb = new ScopedReadBuffer(new Slice());
+            ScopedReadBuffer valuebb = new ScopedReadBuffer(new Slice());
+            allocator.allocate(keybb.getSlice(), key.calculateSerializedSize());
+            keybb.getSlice().duplicateBuffer();
+            ScopedWriteBuffer.serialize(keybb.getSlice(), key, MyBuffer.DEFAULT_SERIALIZER);
             newCell.key.set(keybb);
-            allocator.allocate(valuebb, value.calculateSerializedSize());
-            valuebb.duplicateBuffer();
-            ScopedWriteBuffer.serialize(valuebb, value, MyBuffer.DEFAULT_SERIALIZER);
+            allocator.allocate(valuebb.getSlice(), value.calculateSerializedSize());
+            valuebb.getSlice().duplicateBuffer();
+            ScopedWriteBuffer.serialize(valuebb.getSlice(), value, MyBuffer.DEFAULT_SERIALIZER);
             if (!newCell.value.compareAndSet(null, valuebb)) {
-                allocator.free(valuebb);
+                allocator.free(valuebb.getSlice());
             }
         } else {
             if (prevValue.value.get() == null) {
-                ScopedReadBuffer valuebb = new ScopedReadBuffer(0);
-                allocator.allocate(valuebb, value.calculateSerializedSize());
-                valuebb.duplicateBuffer();
-                ScopedWriteBuffer.serialize(valuebb, value, MyBuffer.DEFAULT_SERIALIZER);
+                ScopedReadBuffer valuebb = new ScopedReadBuffer(new Slice());
+                allocator.allocate(valuebb.getSlice(), value.calculateSerializedSize());
+                valuebb.getSlice().duplicateBuffer();
+                ScopedWriteBuffer.serialize(valuebb.getSlice(), value, MyBuffer.DEFAULT_SERIALIZER);
                 if (!prevValue.value.compareAndSet(null, valuebb)) {
-                    allocator.free(valuebb);
+                    allocator.free(valuebb.getSlice());
                 }
             } else {
                 synchronized (prevValue.value) {
-                    ScopedWriteBuffer.serialize(prevValue.value.get(), value, MyBuffer.DEFAULT_SERIALIZER);
+                    ScopedWriteBuffer.serialize(prevValue.value.get().getSlice(), value, MyBuffer.DEFAULT_SERIALIZER);
                 }
             }
         }
@@ -135,17 +135,17 @@ public class OffHeapList<K extends MyBuffer, V extends MyBuffer> implements Comp
         newCell.key.set(key);
         Cell prevValue = skipListMap.putIfAbsent(newCell, newCell);
         if (prevValue == null) {
-            ScopedReadBuffer keybb = new ScopedReadBuffer(0);
-            ScopedReadBuffer valuebb = new ScopedReadBuffer(0);
-            allocator.allocate(keybb, key.calculateSerializedSize());
-            keybb.duplicateBuffer();
-            ScopedWriteBuffer.serialize(keybb, key, MyBuffer.DEFAULT_SERIALIZER);
+            ScopedReadBuffer keybb = new ScopedReadBuffer(new Slice());
+            ScopedReadBuffer valuebb = new ScopedReadBuffer(new Slice());
+            allocator.allocate(keybb.getSlice(), key.calculateSerializedSize());
+            keybb.getSlice().duplicateBuffer();
+            ScopedWriteBuffer.serialize(keybb.getSlice(), key, MyBuffer.DEFAULT_SERIALIZER);
             newCell.key.set(keybb);
-            allocator.allocate(valuebb, value.calculateSerializedSize());
-            valuebb.duplicateBuffer();
-            ScopedWriteBuffer.serialize(valuebb, value, MyBuffer.DEFAULT_SERIALIZER);
+            allocator.allocate(valuebb.getSlice(), value.calculateSerializedSize());
+            valuebb.getSlice().duplicateBuffer();
+            ScopedWriteBuffer.serialize(valuebb.getSlice(), value, MyBuffer.DEFAULT_SERIALIZER);
             if (!newCell.value.compareAndSet(null, valuebb)) {
-                allocator.free(valuebb);
+                allocator.free(valuebb.getSlice());
                 return false;
             }
             return true;
@@ -157,8 +157,8 @@ public class OffHeapList<K extends MyBuffer, V extends MyBuffer> implements Comp
     @Override
     public void removeOak(K key) {
         Cell val = skipListMap.remove(key);
-        allocator.free((ScopedReadBuffer) val.key.get());
-        allocator.free(val.value.get());
+        allocator.free(((ScopedReadBuffer) val.key.get()).getSlice());
+        allocator.free(val.value.get().getSlice());
         // TODO YONIGO - need some sync here!
     }
 
@@ -209,8 +209,8 @@ public class OffHeapList<K extends MyBuffer, V extends MyBuffer> implements Comp
     public void clear() {
 
         skipListMap.values().forEach(cell -> {
-            allocator.free((ScopedReadBuffer) cell.key.get());
-            allocator.free(cell.value.get());
+            allocator.free(((ScopedReadBuffer) cell.key.get()).getSlice());
+            allocator.free(cell.value.get().getSlice());
         });
         skipListMap = new ConcurrentSkipListMap<>(comparator);
         allocator.close();
@@ -239,19 +239,19 @@ public class OffHeapList<K extends MyBuffer, V extends MyBuffer> implements Comp
             Cell prevValue = (Cell) prevValueO;
             // cell is in map but maybe not initialized yet
             if (prevValue.value.get() == null) {
-                ScopedReadBuffer valuebb = new ScopedReadBuffer(0);
-                allocator.allocate(valuebb, value.calculateSerializedSize());
-                valuebb.duplicateBuffer();
-                ScopedWriteBuffer.serialize(valuebb, value, MyBuffer.DEFAULT_SERIALIZER);
+                ScopedReadBuffer valuebb = new ScopedReadBuffer(new Slice());
+                allocator.allocate(valuebb.getSlice(), value.calculateSerializedSize());
+                valuebb.getSlice().duplicateBuffer();
+                ScopedWriteBuffer.serialize(valuebb.getSlice(), value, MyBuffer.DEFAULT_SERIALIZER);
                 if (!prevValue.value.compareAndSet(null, valuebb)) {
-                    allocator.free(valuebb);
+                    allocator.free(valuebb.getSlice());
                     synchronized (prevValue.value) {
-                        ScopedWriteBuffer.compute(prevValue.value.get(), computeFunction);
+                        ScopedWriteBuffer.compute(prevValue.value.get().getSlice(), computeFunction);
                     }
                 }
             } else {
                 synchronized (prevValue.value) {
-                    ScopedWriteBuffer.compute(prevValue.value.get(), computeFunction);
+                    ScopedWriteBuffer.compute(prevValue.value.get().getSlice(), computeFunction);
                 }
             }
             return prevValue;
@@ -267,19 +267,19 @@ public class OffHeapList<K extends MyBuffer, V extends MyBuffer> implements Comp
 
         // If we only added and didnt do any compute, still have to init cell
         if (retval.value.get() == null) {
-            ScopedReadBuffer keybb = new ScopedReadBuffer(0);
-            ScopedReadBuffer valuebb = new ScopedReadBuffer(0);
-            allocator.allocate(keybb, key.calculateSerializedSize());
-            keybb.duplicateBuffer();
-            ScopedWriteBuffer.serialize(keybb, key, MyBuffer.DEFAULT_SERIALIZER);
+            ScopedReadBuffer keybb = new ScopedReadBuffer(new Slice());
+            ScopedReadBuffer valuebb = new ScopedReadBuffer(new Slice());
+            allocator.allocate(keybb.getSlice(), key.calculateSerializedSize());
+            keybb.getSlice().duplicateBuffer();
+            ScopedWriteBuffer.serialize(keybb.getSlice(), key, MyBuffer.DEFAULT_SERIALIZER);
             retval.key.set(keybb);
-            allocator.allocate(valuebb, value.calculateSerializedSize());
-            valuebb.duplicateBuffer();
-            ScopedWriteBuffer.serialize(valuebb, value, MyBuffer.DEFAULT_SERIALIZER);
+            allocator.allocate(valuebb.getSlice(), value.calculateSerializedSize());
+            valuebb.getSlice().duplicateBuffer();
+            ScopedWriteBuffer.serialize(valuebb.getSlice(), value, MyBuffer.DEFAULT_SERIALIZER);
             if (!retval.value.compareAndSet(null, valuebb)) {
-                allocator.free(valuebb);
+                allocator.free(valuebb.getSlice());
                 synchronized (retval.value) {
-                    ScopedWriteBuffer.compute(retval.value.get(), computeFunction);
+                    ScopedWriteBuffer.compute(retval.value.get().getSlice(), computeFunction);
                 }
             }
         }

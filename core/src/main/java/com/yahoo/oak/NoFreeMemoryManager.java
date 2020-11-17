@@ -44,8 +44,9 @@ class NoFreeMemoryManager implements MemoryManager {
         return allocator.allocated();
     }
 
+    // No-free memory manager requires no header therefore the same size as requested is allocated
     @Override
-    public void allocate(Slice s, int size) {
+    public void allocate(Slice s, int size, boolean existing) {
         boolean allocated = allocator.allocate(s, size);
         assert allocated;
     }
@@ -70,7 +71,7 @@ class NoFreeMemoryManager implements MemoryManager {
             // key's slice is updated upon reference decoding.
             // Slice is not invalidated between next iterator steps and all the rest information
             // in slice remains the same.
-            s.setOffsetAndLength(rcd.getSecond(reference), rcd.getThird(reference));
+            s.updateOnSameBlock(rcd.getSecond(reference)/*offset*/, rcd.getThird(reference)/*length*/);
             return true;
         }
         if (rcd.decode(s, reference)) {
@@ -105,7 +106,7 @@ class NoFreeMemoryManager implements MemoryManager {
      */
     @Override
     public long getInvalidReference() {
-        return ReferenceCodecDirect.getInvalidReference();
+        return rcd.getInvalidReference();
     }
 
     @Override
@@ -119,8 +120,22 @@ class NoFreeMemoryManager implements MemoryManager {
     }
 
     @Override
+    public boolean isReferenceValidAndNotDeleted(long reference) {
+        return isReferenceValid(reference);
+    }
+
+    @Override
     public boolean isReferenceConsistent(long reference) {
         return rcd.isReferenceConsistent(reference);
+    }
+
+    @Override
+    public Slice getEmptySlice() {
+        return new Slice(0, rcd.getInvalidReference());
+    }
+
+    @Override public int getHeaderSize() {
+        return 0;
     }
 }
 

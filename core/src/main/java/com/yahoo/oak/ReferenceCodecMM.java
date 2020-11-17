@@ -84,9 +84,9 @@ class ReferenceCodecMM extends ReferenceCodec{
     }
 
     @Override
-    protected void setAll(Slice s, long blockID, long offset, long version) {
-        s.setBlockidOffsetLengthAndVersion(
-            (int) blockID, (int) offset, Slice.UNDEFINED_LENGTH_OR_OFFSET, (int) version);
+    protected void setAll(Slice s, long blockID, long offset, long version, long reference) {
+        s.associateReferenceDecodingNative(
+            (int) blockID, (int) offset, (int) version, reference);
     }
 
     @Override
@@ -111,12 +111,12 @@ class ReferenceCodecMM extends ReferenceCodec{
         return ((reference & REFERENCE_DELETE_BIT_MASK) != INVALID_MM_REFERENCE );
     }
 
-    static boolean isReferenceValidAndNotDeleted(long reference) {
+    boolean isReferenceValidAndNotDeleted(long reference) {
         return (reference != INVALID_MM_REFERENCE &&
             (reference & REFERENCE_DELETE_BIT_MASK) == INVALID_MM_REFERENCE );
     }
 
-    static long getInvalidReference() {
+    long getInvalidReference() {
         return INVALID_MM_REFERENCE;
     }
 }

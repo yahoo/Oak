@@ -15,12 +15,6 @@ interface ValueUtils {
     }
 
     /**
-     * Some implementations of values which reside in the off-heap may have a header to it (e.g., the implementation of
-     * Nova Values has a header of 8 bytes).
-     */
-    int getHeaderSize();
-
-    /**
      * Acquires a read lock
      *
      * @param s the value's off-heap Slice object
@@ -79,24 +73,6 @@ interface ValueUtils {
      * {@code RETRY} if the value was moved, or the version of the off-heap value does not match {@code version}.
      */
     ValueResult isValueDeleted(Slice s);
-
-    /**
-     * Initializing the header version.
-     * May also set other members in the header to their default values.
-     *
-     * @param s the value's off-heap Slice object
-     * @param dataLength
-     */
-    void initHeader(Slice s, int dataLength);
-
-    /**
-     * Initializing the header version and lock to be locked.
-     * May also set other members in the header to their default values.
-     *
-     * @param s the value's off-heap Slice object
-     * @param dataLength
-     */
-    void initLockedHeader(Slice s, int dataLength);
 
     /* ==================== More complex methods on off-heap values ==================== */
 

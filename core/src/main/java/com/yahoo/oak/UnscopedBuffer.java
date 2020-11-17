@@ -27,20 +27,28 @@ import java.nio.ByteOrder;
  */
 class UnscopedBuffer<B extends ScopedReadBuffer> implements OakUnscopedBuffer, OakUnsafeDirectBuffer {
 
-    final B buffer;
+    protected final B internalScopedReadBuffer;
 
     UnscopedBuffer(B buffer) {
-        this.buffer = buffer;
+        this.internalScopedReadBuffer = buffer;
+    }
+
+    void copyFrom(ScopedReadBuffer otherScopedReadBuffer) {
+        this.internalScopedReadBuffer.s.copyFrom(otherScopedReadBuffer.s);
+    }
+
+    B getInternalScopedReadBuffer() {
+        return internalScopedReadBuffer;
     }
 
     @Override
     public int capacity() {
-        return buffer.capacity();
+        return internalScopedReadBuffer.capacity();
     }
 
     @Override
     public ByteOrder order() {
-        return buffer.order();
+        return internalScopedReadBuffer.order();
     }
 
     @Override
@@ -91,7 +99,7 @@ class UnscopedBuffer<B extends ScopedReadBuffer> implements OakUnscopedBuffer, O
         if (transformer == null) {
             throw new NullPointerException();
         }
-        return transformer.apply(buffer);
+        return transformer.apply(internalScopedReadBuffer);
     }
 
     @FunctionalInterface
@@ -107,28 +115,28 @@ class UnscopedBuffer<B extends ScopedReadBuffer> implements OakUnscopedBuffer, O
      */
     protected <R> R safeAccessToScopedBuffer(Getter<R> getter, int index) {
         // Internal call. No input validation.
-        return getter.get(buffer, index);
+        return getter.get(internalScopedReadBuffer, index);
     }
 
     /*-------------- OakUnsafeDirectBuffer --------------*/
 
     @Override
     public ByteBuffer getByteBuffer() {
-        return buffer.getByteBuffer();
+        return internalScopedReadBuffer.getByteBuffer();
     }
 
     @Override
     public int getOffset() {
-        return buffer.getOffset();
+        return internalScopedReadBuffer.getOffset();
     }
 
     @Override
     public int getLength() {
-        return buffer.getLength();
+        return internalScopedReadBuffer.getLength();
     }
 
     @Override
     public long getAddress() {
-        return buffer.getAddress();
+        return internalScopedReadBuffer.getAddress();
     }
 }

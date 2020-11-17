@@ -63,9 +63,10 @@ class NativeMemoryAllocator implements BlockMemoryAllocator {
         this.capacity = capacity;
     }
 
-    // Allocates ByteBuffer of the given size, either from freeList or (if it is still possible)
+    // Allocates an off-heap cut of the given size, either from freeList or (if it is still possible)
     // within current block bounds.
     // Otherwise, new block is allocated within Oak memory bounds. Thread safe.
+    // Given size already includes the size for metadata header if needed.
     @Override
     public boolean allocate(Slice s, int size) {
         // While the free list is not empty there can be a suitable free slice to reuse.
@@ -142,7 +143,7 @@ class NativeMemoryAllocator implements BlockMemoryAllocator {
         if (stats != null) {
             stats.release(size);
         }
-        freeList.add(new Slice(s));
+        freeList.add(s.getDuplicatedSlice());
     }
 
     // Releases all memory allocated for this Oak (should be used as part of the Oak destruction)

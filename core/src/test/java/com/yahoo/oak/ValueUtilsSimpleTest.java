@@ -21,11 +21,10 @@ public class ValueUtilsSimpleTest {
 
     @Before
     public void init() {
-        NativeMemoryManager novaManager = new NativeMemoryManager(new NativeMemoryAllocator(128));
-        s = new Slice();
-        novaManager.allocate(s, 16);
-        s.buffer.putInt(s.getOffset(), 1);
-        valueOperator.initHeader(s, -1);
+        NativeMemoryManager nativeMemoryManager = new NativeMemoryManager(new NativeMemoryAllocator(128));
+        s = nativeMemoryManager.getEmptySlice();
+        nativeMemoryManager.allocate(s, 16, false);
+        s.getByteBuffer().putInt(s.getOffset(), 1);
     }
 
     @Test
@@ -209,19 +208,19 @@ public class ValueUtilsSimpleTest {
 
     @Test
     public void testCannotReadLockDifferentVersion() {
-        s.setVersion(2);
+        s.associateMMAllocation(2, -1);
         Assert.assertEquals(ValueUtils.ValueResult.RETRY, valueOperator.lockRead(s));
     }
 
     @Test
     public void testCannotWriteLockDifferentVersion() {
-        s.setVersion(2);
+        s.associateMMAllocation(2, -1);
         Assert.assertEquals(ValueUtils.ValueResult.RETRY, valueOperator.lockWrite(s));
     }
 
     @Test
     public void testCannotDeletedDifferentVersion() {
-        s.setVersion(2);
+        s.associateMMAllocation(2, -1);
         Assert.assertEquals(ValueUtils.ValueResult.RETRY, valueOperator.deleteValue(s));
     }
 }
