@@ -802,7 +802,7 @@ class Chunk<K, V> {
         private final K from;
         private boolean inclusive;
 
-        static final int SKIP_ENTRIES_FOR_BIGGER_STACK = 1; // 1 is the lowest possible value
+        private final int skipEntriesForBiggerStack = (maxItems/10); // 1 is the lowest possible value
 
         DescendingIter(ThreadContext ctx) {
             KeyBuffer tempKeyBuff = ctx.tempKey;
@@ -913,10 +913,10 @@ class Chunk<K, V> {
             } else if (anchor == 1) { // cannot get below the first index
                 anchor = entrySet.getHeadNextIndex();
             } else {
-                if ((anchor - SKIP_ENTRIES_FOR_BIGGER_STACK) > 1) {
+                if ((anchor - skipEntriesForBiggerStack) > 1) {
                     // try to skip more then one backward step at a time
                     // if it shows better performance
-                    anchor -= SKIP_ENTRIES_FOR_BIGGER_STACK;
+                    anchor -= skipEntriesForBiggerStack;
                 } else {
                     anchor -= 1;
                 }
