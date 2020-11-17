@@ -1239,7 +1239,7 @@ class InternalOakMap<K, V> {
         private void setNeedBoundCheck(Chunk<K, V> current) {
             needBoundCheck = false;
             if (!isDescending) {
-                if (lo != null) {
+                if (hi != null) {
                     // need to check upper bound for this ascending scan,
                     // but does the current chunk includes the upper bound?
                     Chunk nextChunk = current.next.getReference();
