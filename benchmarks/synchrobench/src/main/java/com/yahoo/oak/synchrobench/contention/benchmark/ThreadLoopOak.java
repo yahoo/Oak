@@ -90,7 +90,7 @@ public class ThreadLoopOak implements Runnable {
     public void run() {
 
         boolean change = Parameters.change;
-        int size = 10000;
+        int scanLength = 10000;
 
 
         MyBuffer key = new MyBuffer(Parameters.keySize);
@@ -107,7 +107,7 @@ public class ThreadLoopOak implements Runnable {
                     bench.removeOak(key);
                     numRemove++;
                 } else {
-                    if (bench.descendOak(key, size)) {
+                    if (bench.descendOak(key, scanLength)) {
                         numRemoveAll++;
                     } else {
                         failures++;
@@ -148,7 +148,7 @@ public class ThreadLoopOak implements Runnable {
                         failures++;
                     }
                 } else {
-                    if (bench.ascendOak(key, size)) {
+                    if (bench.ascendOak(key, scanLength)) {
                         numContains++;
                     } else {
                         failures++;

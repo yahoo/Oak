@@ -1007,7 +1007,7 @@ class InternalOakMap<K, V> {
         /* direction */
         private final boolean isDescending;
         /* do we need to check the boundaries when advancing */
-        private final boolean needBoundCheck;
+        private boolean needBoundCheck;
 
         /**
          * the next node to return from next();
@@ -1050,6 +1050,7 @@ class InternalOakMap<K, V> {
                 return false;
             }
             int c = comparator.compareKeyAndSerializedKey(hi, key);
+            // return true if hi<key or hi==key and the scan was not inclusive
             return c < 0 || (c == 0 && !hiInclusive);
         }
 
@@ -1186,10 +1187,12 @@ class InternalOakMap<K, V> {
                     nextChunk = skiplist.floorEntry(lowerBound).getValue();
                 } else {
                     nextChunk = skiplist.firstEntry().getValue();
+                    // need to iterate from the beginning of the chunk till the end
                 }
                 if (nextChunk != null) {
                     nextChunkIter = lowerBound != null ?
                             nextChunk.ascendingIter(ctx, lowerBound, lowerInclusive) : nextChunk.ascendingIter();
+                    setNeedBoundCheck(nextChunk);
                 } else {
                     state = null;
                     return;
@@ -1200,6 +1203,7 @@ class InternalOakMap<K, V> {
                 if (nextChunk != null) {
                     nextChunkIter = upperBound != null ?
                             nextChunk.descendingIter(ctx, upperBound, upperInclusive) : nextChunk.descendingIter(ctx);
+                    setNeedBoundCheck(nextChunk);
                 } else {
                     state = null;
                     return;
@@ -1225,10 +1229,38 @@ class InternalOakMap<K, V> {
         }
 
         private Chunk.ChunkIter getChunkIter(Chunk<K, V> current) {
+            setNeedBoundCheck(current);
             if (!isDescending) {
                 return current.ascendingIter();
             } else {
                 return current.descendingIter(ctx);
+            }
+        }
+
+        private void setNeedBoundCheck(Chunk<K, V> current) {
+            needBoundCheck = false;
+            if (!isDescending) {
+                if (hi != null) {
+                    // need to check upper bound for this ascending scan,
+                    // but does the current chunk includes the upper bound?
+                    Chunk nextChunk = current.next.getReference();
+                    // checking the min key of the next chunk, in order to avoid linear search
+                    // for the maximal key on current chunk. The minKey of the next
+                    // chunk is higher than the max key of the current chunk, therefore it can
+                    // only be unnecessary check for boundaries, but not correctness fault.
+                    if (nextChunk == null || tooHigh(nextChunk.minKey)) {
+                        needBoundCheck = true;
+                    }
+                }
+
+            } else {
+                if (lo != null) {
+                    // need to check lower bound for this descending scan,
+                    // but does the current chunk includes the lower bound?
+                    if (tooLow(current.minKey)) {
+                        needBoundCheck = true;
+                    }
+                }
             }
         }
 
