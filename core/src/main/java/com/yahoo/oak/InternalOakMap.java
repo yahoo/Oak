@@ -1050,6 +1050,7 @@ class InternalOakMap<K, V> {
                 return false;
             }
             int c = comparator.compareKeyAndSerializedKey(hi, key);
+            // return true if hi<key or hi==key and the scan was not inclusive
             return c < 0 || (c == 0 && !hiInclusive);
         }
 
