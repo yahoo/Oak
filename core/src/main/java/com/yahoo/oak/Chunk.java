@@ -783,9 +783,7 @@ class Chunk<K, V> {
             }
             // otherwise (next < midIdx) means that midIdx is surely of one of the entries to be scanned,
             // if not binaryFind will return midIdx or higher
-            // the setting of the upper bound should know if midIdx is not in the scope of this scan
-            // (too low); so setUpperBoundChecks can be invoked only after the above check
-            setUpperBoundChecks(ctx, to, toInclusive, upperBoundKey);
+
             next = (next == NONE_NEXT) ? entrySet.getHeadNextIndex() : entrySet.getNextEntryIndex(next);
             int compare = -1;
             if (next != NONE_NEXT) {
@@ -798,7 +796,10 @@ class Chunk<K, V> {
                     compare = compareKeyAndEntryIndex(tempKeyBuff, from, next);
                 }
             }
-
+            // the setting of the upper bound should know if midIdx is not in the scope of this scan
+            // (too low); and also whether current next is already out of bound.
+            // So setUpperBoundChecks can be invoked only after the above check
+            setUpperBoundChecks(ctx, to, toInclusive, upperBoundKey);
         }
 
         private void advance(ThreadContext ctx) {
@@ -873,6 +874,14 @@ class Chunk<K, V> {
                     readKeyFromEntryIndex(ctx.tempKey, midIdx);
                     if (tooHigh(ctx.tempKey)) {
                         needBoundCheckDynamic = true;
+
+                        // check if curent next already out of bound (if applicable)
+                        if (next != NONE_NEXT) {
+                            readKeyFromEntryIndex(ctx.tempKey, next);
+                            if (tooHigh(ctx.tempKey)) {
+                                next = NONE_NEXT;
+                            }
+                        }
                     }
                     // if midIdx is out of the scope of this scan (lower than the lower bound),
                     // but bound check still needs to be done in this chunk,
