@@ -717,30 +717,38 @@ class Chunk<K, V> {
     }
 
 
-    /*-------------- Iterators --------------*/
+    /********************************************************************************************/
+    /*-------------------------------------- Iterators --------------------------------------*/
 
-    AscendingIter ascendingIter() {
-        return new AscendingIter();
+    // Ascending iterator from the beginning of the chunk.
+    // The upper bound given by parameter key "to" might not be in this chunk
+    // thisChunkUpperBoundKey - is the minimal key of the next chunk,
+    // all current and future keys of this chunk are less than thisChunkUpperBoundKey
+    AscendingIter ascendingIter(ThreadContext ctx, K to, boolean toInclusive,
+        OakScopedReadBuffer thisChunkUpperBoundKey) {
+        return new AscendingIter(ctx, to, toInclusive, thisChunkUpperBoundKey);
     }
 
-    AscendingIter ascendingIter(ThreadContext ctx, K from, boolean inclusive) {
-        return new AscendingIter(ctx, from, inclusive);
+    // Ascending iterator from key "from" given as parameter.
+    // The upper bound given by parameter key "to" might not be in this chunk
+    // thisChunkUpperBoundKey - is the minimal key of the next chunk,
+    // all current and future keys of this chunk are less than thisChunkUpperBoundKey
+    AscendingIter ascendingIter(ThreadContext ctx, K from, boolean fromInclusive, K to,
+        boolean toInclusive, OakScopedReadBuffer thisChunkUpperBoundKey) {
+        return new AscendingIter(ctx, from, fromInclusive, to, toInclusive, thisChunkUpperBoundKey);
     }
 
-    DescendingIter descendingIter(ThreadContext ctx) {
-        return new DescendingIter(ctx);
+    // Descending iterator from the end of the chunk.
+    // The lower bound given by parameter key "to" might not be in this chunk
+    DescendingIter descendingIter(ThreadContext ctx, K to, boolean toInclusive) {
+        return new DescendingIter(ctx, to, toInclusive);
     }
 
-    DescendingIter descendingIter(ThreadContext ctx, K from, boolean inclusive) {
-        return new DescendingIter(ctx, from, inclusive);
-    }
-
-    private int advanceNextIndex(final int entryIndex) {
-        int next = entryIndex;
-        while (next != NONE_NEXT && !entrySet.isValueRefValidAndNotDeleted(next)) {
-            next = entrySet.getNextEntryIndex(next);
-        }
-        return next;
+    // Descending iterator from key "from" given as parameter.
+    // The lower bound given by parameter key "to" might not be in this chunk
+    DescendingIter descendingIter(ThreadContext ctx, K from, boolean fromInclusive, K to,
+        boolean toInclusive) {
+        return new DescendingIter(ctx, from, fromInclusive, to, toInclusive);
     }
 
     interface ChunkIter {
@@ -752,32 +760,50 @@ class Chunk<K, V> {
     class AscendingIter implements ChunkIter {
 
         private int next;
+        private K to; // upper bound key, or null if to the end of map
+        private boolean toInclusive;  // inclusion flag for "to"
+        private boolean needBoundCheckStatic; // to check the boundaries somewhere in this chunk?
+        private boolean needBoundCheckDynamic = false; // to check the boundaries on each advancing?
+        private int midIdx = sortedCount.get()/2; // approximately index of the middle key in the chunk
 
-        AscendingIter() {
+        AscendingIter(ThreadContext ctx, K to, boolean toInclusive,
+            OakScopedReadBuffer upperBoundKey) {
+            setUpperBoundChecks(ctx, to, toInclusive, upperBoundKey);
             next = entrySet.getHeadNextIndex();
-            next = advanceNextIndex(next);
+            next = advanceNextIndex(next, ctx);
         }
 
-        AscendingIter(ThreadContext ctx, K from, boolean inclusive) {
+        AscendingIter(ThreadContext ctx, K from, boolean fromInclusive, K to, boolean toInclusive,
+            OakScopedReadBuffer upperBoundKey) {
             KeyBuffer tempKeyBuff = ctx.tempKey;
+
             next = binaryFind(tempKeyBuff, from);
+            if (next >= midIdx) { // binaryFind output is always less than sorted Count; or NONE_NEXT (0)
+                midIdx = -1; // midIdx is not in the scope of this scan (too low)
+            }
+            // otherwise (next < midIdx) means that midIdx is surely of one of the entries to be scanned,
+            // if not binaryFind will return midIdx or higher
+            // the setting of the upper bound should know if midIdx is not in the scope of this scan
+            // (too low); so setUpperBoundChecks can be invoked only after the above check
+            setUpperBoundChecks(ctx, to, toInclusive, upperBoundKey);
             next = (next == NONE_NEXT) ? entrySet.getHeadNextIndex() : entrySet.getNextEntryIndex(next);
             int compare = -1;
             if (next != NONE_NEXT) {
                 compare = compareKeyAndEntryIndex(tempKeyBuff, from, next);
             }
             while (next != NONE_NEXT &&
-                    (compare > 0 || (compare >= 0 && !inclusive) || !entrySet.isValueRefValidAndNotDeleted(next))) {
+                    (compare > 0 || (compare >= 0 && !fromInclusive) || !entrySet.isValueRefValidAndNotDeleted(next))) {
                 next = entrySet.getNextEntryIndex(next);
                 if (next != NONE_NEXT) {
                     compare = compareKeyAndEntryIndex(tempKeyBuff, from, next);
                 }
             }
+
         }
 
-        private void advance() {
+        private void advance(ThreadContext ctx) {
             next = entrySet.getNextEntryIndex(next);
-            next = advanceNextIndex(next);
+            next = advanceNextIndex(next, ctx);
         }
 
         @Override
@@ -788,8 +814,73 @@ class Chunk<K, V> {
         @Override
         public int next(ThreadContext ctx) {
             int toReturn = next;
-            advance();
+            advance(ctx);
             return toReturn;
+        }
+
+        private int advanceNextIndex(final int entryIndex, ThreadContext ctx) {
+            int next = entryIndex;
+            while (next != NONE_NEXT && !entrySet.isValueRefValidAndNotDeleted(next)) {
+                next = entrySet.getNextEntryIndex(next);
+                if (needBoundCheckStatic && !needBoundCheckDynamic && next==midIdx) {
+                    // needBoundCheckDynamic false, but needBoundCheckStatic is true
+                    // need to reset needBoundCheckDynamic to true when reaching the midIndex
+                    needBoundCheckDynamic = true;
+                }
+            }
+
+            if (next != NONE_NEXT && needBoundCheckStatic) {
+                // check if suggested next index doesn't point on key out of bound
+                if (needBoundCheckDynamic) {
+                    readKeyFromEntryIndex(ctx.tempKey, next);
+                    if (tooHigh(ctx.tempKey)) {
+                        next = NONE_NEXT;
+                    }
+                }
+            }
+
+            return next;
+        }
+
+        private boolean tooHigh(OakScopedReadBuffer key) {
+            if (to == null) {
+                return false;
+            }
+            if (key == null) {
+                // we are on the last chunk and to is not null
+                return true;
+            }
+            int c = comparator.compareKeyAndSerializedKey(to, key);
+            // return true if to<key or to==key and the scan was not inclusive
+            return c < 0 || (c == 0 && !toInclusive);
+        }
+
+        private void setUpperBoundChecks(
+            ThreadContext ctx, K to, boolean toInclusive, OakScopedReadBuffer upperBoundKey) {
+            this.to = to;
+            this.toInclusive = toInclusive;
+
+            if (this.to != null && tooHigh(upperBoundKey)) {
+                needBoundCheckStatic = true;
+                // generally there is a need for the boundary check
+                // but maybe we can delay the check to the middle of the chunk
+                if (midIdx == 0 || midIdx == -1) {
+                    // first chunk where sortedCount is still 0
+                    // or midIdx is out of scope
+                    needBoundCheckDynamic = true; // didn't succeed to delay the check
+                } else {
+                    // is the key in the middle index already above the upper limit to stop on?
+                    readKeyFromEntryIndex(ctx.tempKey, midIdx);
+                    if (tooHigh(ctx.tempKey)) {
+                        needBoundCheckDynamic = true;
+                    }
+                    // if midIdx is out of the scope of this scan (lower than the lower bound),
+                    // but bound check still needs to be done in this chunk,
+                    // it is caught when traversing to the lower bound and midIdx is set to -1
+                }
+            } else {
+                needBoundCheckStatic = false; // needBoundCheckDynamic is false by default
+            }
         }
     }
 
@@ -804,9 +895,15 @@ class Chunk<K, V> {
 
         private final int skipEntriesForBiggerStack = (maxItems/10); // 1 is the lowest possible value
 
-        DescendingIter(ThreadContext ctx) {
-            KeyBuffer tempKeyBuff = ctx.tempKey;
+        private K to; // lower bound key, or null if to the beginning of the map
+        private boolean toInclusive;  // inclusion flag for "to"
+        private boolean needBoundCheckStatic; // to check the boundaries somewhere in this chunk?
+        private boolean needBoundCheckDynamic = false; // to check the boundaries on each advancing?
+        private int midIdx = sortedCount.get()/2;
 
+        DescendingIter(ThreadContext ctx, K to, boolean toInclusive) {
+            KeyBuffer tempKeyBuff = ctx.tempKey;
+            setLowerBoundChecks(ctx, to, toInclusive);
             from = null;
             stack = new IntStack(entrySet.getLastEntryIndex());
             int sortedCnt = sortedCount.get();
@@ -816,17 +913,25 @@ class Chunk<K, V> {
             initNext(tempKeyBuff);
         }
 
-        DescendingIter(ThreadContext ctx, K from, boolean inclusive) {
+        DescendingIter(ThreadContext ctx, K from, boolean inclusive, K to, boolean toInclusive) {
             KeyBuffer tempKeyBuff = ctx.tempKey;
 
             this.from = from;
             this.inclusive = inclusive;
             stack = new IntStack(entrySet.getLastEntryIndex());
             anchor = binaryFind(tempKeyBuff, from);
+
+            if (anchor <= midIdx) { // binaryFind output is always less than sorted Count; or NONE_NEXT
+                midIdx = -1; // midIdx is not in the scope of this scan (too high)
+            }
+            // otherwise (next > midIdx) means that midIdx is surely of one of the entries to be scanned,
+            // if not binaryFind will return midIdx or less
+
             // translate to be valid index, if anchor is head we know to stop the iteration
             anchor = (anchor == NONE_NEXT) ? entrySet.getHeadNextIndex() : anchor;
             stack.push(anchor);
             initNext(tempKeyBuff);
+            setLowerBoundChecks(ctx, to, toInclusive);
         }
 
         private void initNext(KeyBuffer keyBuff) {
@@ -921,6 +1026,12 @@ class Chunk<K, V> {
                     anchor -= 1;
                 }
             }
+            // midIdx can be only one of the anchors
+            if (needBoundCheckStatic && !needBoundCheckDynamic && anchor<=midIdx) {
+                // needBoundCheckDynamic false, but needBoundCheckStatic is true
+                // need to reset needBoundCheckDynamic to true when reaching the midIndex (or below)
+                needBoundCheckDynamic = true;
+            }
             stack.push(anchor);
         }
 
@@ -949,9 +1060,51 @@ class Chunk<K, V> {
         public int next(ThreadContext ctx) {
             int toReturn = next;
             advance(ctx.tempKey);
+            if (next != NONE_NEXT && needBoundCheckStatic) {
+                // check if suggested next index doesn't point on key out of bound
+                if (needBoundCheckDynamic) {
+                    readKeyFromEntryIndex(ctx.tempKey, next);
+                    if (tooLow(ctx.tempKey)) {
+                        next = NONE_NEXT;
+                    }
+                }
+            }
             return toReturn;
         }
 
+        private void setLowerBoundChecks(
+            ThreadContext ctx, K to, boolean toInclusive) {
+            this.to = to; // lower bound
+            this.toInclusive = toInclusive;
+
+            if (this.to != null && tooLow(minKey)) {
+                needBoundCheckStatic = true;
+                if (midIdx == 0 || midIdx == -1) {
+                    // first chunk where sortedCount is still 0
+                    // or midIdx is out of scope
+                    needBoundCheckDynamic = true;
+                } else {
+                    readKeyFromEntryIndex(ctx.tempKey, midIdx);
+                    if (tooLow(ctx.tempKey)) {
+                        needBoundCheckDynamic = true;
+                        // if midIdx is out of the scope of this scan (too high),
+                        // but bound check still needs to be done in this chunk,
+                        // it should be caught when setting the midIdx and midIdx should be -1
+                    }
+                }
+            } else {
+                needBoundCheckStatic = false;
+            }
+        }
+
+        private boolean tooLow(OakScopedReadBuffer key) {
+            if (to == null) {
+                return false;
+            }
+            int c = comparator.compareKeyAndSerializedKey(to, key);
+            // return true if to>key or if to==key and the scan was not inclusive
+            return c > 0 || (c == 0 && !toInclusive);
+        }
     }
 
     /**
