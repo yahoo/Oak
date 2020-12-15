@@ -755,6 +755,8 @@ class Chunk<K, V> {
         boolean hasNext();
 
         int next(ThreadContext ctx);
+
+        boolean isBoundCheckNeeded();
     }
 
     class AscendingIter implements ChunkIter {
@@ -819,6 +821,10 @@ class Chunk<K, V> {
             return toReturn;
         }
 
+        @Override public boolean isBoundCheckNeeded() {
+            return needBoundCheckDynamic;
+        }
+
         private int advanceNextIndex(final int entryIndex, ThreadContext ctx) {
             int next = entryIndex;
             while (next != NONE_NEXT && !entrySet.isValueRefValidAndNotDeleted(next)) {
@@ -829,17 +835,6 @@ class Chunk<K, V> {
                     needBoundCheckDynamic = true;
                 }
             }
-
-            if (next != NONE_NEXT && needBoundCheckStatic) {
-                // check if suggested next index doesn't point on key out of bound
-                if (needBoundCheckDynamic) {
-                    readKeyFromEntryIndex(ctx.tempKey, next);
-                    if (tooHigh(ctx.tempKey)) {
-                        next = NONE_NEXT;
-                    }
-                }
-            }
-
             return next;
         }
 
@@ -848,7 +843,7 @@ class Chunk<K, V> {
                 return false;
             }
             if (key == null) {
-                // we are on the last chunk and to is not null
+                // we are on the last chunk and 'to' is not null
                 return true;
             }
             int c = comparator.compareKeyAndSerializedKey(to, key);
@@ -874,14 +869,6 @@ class Chunk<K, V> {
                     readKeyFromEntryIndex(ctx.tempKey, midIdx);
                     if (tooHigh(ctx.tempKey)) {
                         needBoundCheckDynamic = true;
-
-                        // check if curent next already out of bound (if applicable)
-                        if (next != NONE_NEXT) {
-                            readKeyFromEntryIndex(ctx.tempKey, next);
-                            if (tooHigh(ctx.tempKey)) {
-                                next = NONE_NEXT;
-                            }
-                        }
                     }
                     // if midIdx is out of the scope of this scan (lower than the lower bound),
                     // but bound check still needs to be done in this chunk,
@@ -1069,16 +1056,11 @@ class Chunk<K, V> {
         public int next(ThreadContext ctx) {
             int toReturn = next;
             advance(ctx.tempKey);
-            if (next != NONE_NEXT && needBoundCheckStatic) {
-                // check if suggested next index doesn't point on key out of bound
-                if (needBoundCheckDynamic) {
-                    readKeyFromEntryIndex(ctx.tempKey, next);
-                    if (tooLow(ctx.tempKey)) {
-                        next = NONE_NEXT;
-                    }
-                }
-            }
             return toReturn;
+        }
+
+        @Override public boolean isBoundCheckNeeded() {
+            return needBoundCheckDynamic;
         }
 
         private void setLowerBoundChecks(
