@@ -1006,8 +1006,6 @@ class InternalOakMap<K, V> {
         private boolean hiInclusive;
         /* direction */
         private final boolean isDescending;
-        /* do we need to check the boundaries when advancing */
-        private final boolean needBoundCheck;
 
         /**
          * the next node to return from next();
@@ -1031,13 +1029,12 @@ class InternalOakMap<K, V> {
             this.hi = hi;
             this.hiInclusive = hiInclusive;
             this.isDescending = isDescending;
-            this.needBoundCheck = (hi != null && !isDescending) || (lo != null && isDescending);
             this.ctx = new ThreadContext(keysMemoryManager, valuesMemoryManager);
             initState(isDescending, lo, loInclusive, hi, hiInclusive);
 
         }
 
-        boolean tooLow(OakScopedReadBuffer key) {
+        private boolean tooLow(OakScopedReadBuffer key) {
             if (lo == null) {
                 return false;
             }
@@ -1045,7 +1042,7 @@ class InternalOakMap<K, V> {
             return c > 0 || (c == 0 && !loInclusive);
         }
 
-        boolean tooHigh(OakScopedReadBuffer key) {
+        private boolean tooHigh(OakScopedReadBuffer key) {
             if (hi == null) {
                 return false;
             }
