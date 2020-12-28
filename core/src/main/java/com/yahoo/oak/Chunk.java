@@ -720,32 +720,39 @@ class Chunk<K, V> {
     /********************************************************************************************/
     /*--------------------------------- Iterators Constructors ---------------------------------*/
 
-    // Ascending iterator from the beginning of the chunk.
-    // The upper bound given by parameter key "to" might not be in this chunk
-    // thisChunkUpperBoundKey - is the minimal key of the next chunk,
-    // all current and future keys of this chunk are less than thisChunkUpperBoundKey
+    /**
+     * Ascending iterator from the beginning of the chunk. The upper bound given by parameter
+     * key "to" might not be in this chunk thisChunkUpperBoundKey - is the minimal key of the next chunk,
+     * all current and future keys of this chunk are less than thisChunkUpperBoundKey
+     */
     AscendingIter ascendingIter(ThreadContext ctx, K to, boolean toInclusive,
         OakScopedReadBuffer thisChunkUpperBoundKey) {
         return new AscendingIter(ctx, to, toInclusive, thisChunkUpperBoundKey);
     }
 
-    // Ascending iterator from key "from" given as parameter.
-    // The upper bound given by parameter key "to" might not be in this chunk
-    // thisChunkUpperBoundKey - is the minimal key of the next chunk,
-    // all current and future keys of this chunk are less than thisChunkUpperBoundKey
+    /**
+     * Ascending iterator from key "from" given as parameter.
+     * The upper bound given by parameter key "to" might not be in this chunk
+     * thisChunkUpperBoundKey - is the minimal key of the next chunk,
+     * all current and future keys of this chunk are less than thisChunkUpperBoundKey
+     */
     AscendingIter ascendingIter(ThreadContext ctx, K from, boolean fromInclusive, K to,
         boolean toInclusive, OakScopedReadBuffer thisChunkUpperBoundKey) {
         return new AscendingIter(ctx, from, fromInclusive, to, toInclusive, thisChunkUpperBoundKey);
     }
 
-    // Descending iterator from the end of the chunk.
-    // The lower bound given by parameter key "to" might not be in this chunk
+    /**
+     * Descending iterator from the end of the chunk.
+     * The lower bound given by parameter key "to" might not be in this chunk
+     */
     DescendingIter descendingIter(ThreadContext ctx, K to, boolean toInclusive) {
         return new DescendingIter(ctx, to, toInclusive);
     }
 
-    // Descending iterator from key "from" given as parameter.
-    // The lower bound given by parameter key "to" might not be in this chunk
+    /**
+     * Descending iterator from key "from" given as parameter.
+     * The lower bound given by parameter key "to" might not be in this chunk
+     */
     DescendingIter descendingIter(ThreadContext ctx, K from, boolean fromInclusive, K to,
         boolean toInclusive) {
         return new DescendingIter(ctx, from, fromInclusive, to, toInclusive);
@@ -754,49 +761,63 @@ class Chunk<K, V> {
     /********************************************************************************************/
     /*------ Base Class for Chunk Iterators (keeps all the common fields and methods) ----------*/
 
+    // specifier whether the end boundary check needs to be performed on the current scan output
+    enum IterEndBoundCheck {
+        NEVER_END_BOUNDRY_CHECK,
+        MID_END_BOUNDRY_CHECK,
+        ALWAYS_END_BOUNDARY_CHECK
+    }
+
     abstract class ChunkIter {
         protected int next;         // index of the next entry to be returned
-        protected K to;             // stop bound key, or null if no stop bound
-        protected boolean toInclusive;  // inclusion flag for "to"
+        protected K endBound;       // stop bound key, or null if no stop bound
+        protected boolean endBoundInclusive;  // inclusion flag for "to"
 
-        protected boolean needBoundCheckStatic = false; // to check the stop boundaries somewhere in this chunk?
-        protected boolean needBoundCheckDynamic = false; // to check the boundaries on each advancing?
+        protected IterEndBoundCheck isEndBoundCheckNeeded = IterEndBoundCheck.NEVER_END_BOUNDRY_CHECK;
         protected int midIdx = sortedCount.get()/2; // approximately index of the middle key in the chunk
 
         abstract boolean hasNext();
 
+        /** Returns the index of the entry that should be returned next by the iterator.
+         ** NONE_NEXT is returned when iterator came to its end.
+         **/
         abstract int next(ThreadContext ctx);
 
-        abstract boolean isBoundCheckNeeded();
+        boolean isBoundCheckNeeded() {
+            return isEndBoundCheckNeeded == IterEndBoundCheck.ALWAYS_END_BOUNDARY_CHECK;
+        };
 
-        abstract boolean afterStop(OakScopedReadBuffer boundKey);
+        /* Checks if the given 'boundKey' key is beyond the scope of the given scan,
+        ** meaning that scan is near to its end.
+        ** For descending scan it is the low key, for ascending scan it is the high.
+        **/
+        abstract boolean isKeyOutOfEndBound(OakScopedReadBuffer boundKey);
 
-        protected void setStopCheckThreshold(
+        protected void setIsEndBoundCheckNeeded(
             ThreadContext ctx, K to, boolean toInclusive, OakScopedReadBuffer boundKey) {
-            this.to = to;
-            this.toInclusive = toInclusive;
+            this.endBound = to;
+            this.endBoundInclusive = toInclusive;
 
-            if (this.to == null || !afterStop(boundKey)) {
-                // needBoundCheckStatic and needBoundCheckDynamic are false by default
+            if (this.endBound == null || !isKeyOutOfEndBound(boundKey)) {
+                // isEndBoundCheckNeeded is NEVER_END_BOUNDRY_CHECK by default
                 return;
             }
 
-            // generally there is a need for the boundary check, but maybe delay it to the middle of the chunk
-            needBoundCheckStatic = true;
+            // generally there is a need for the boundary check, but maybe delay it to the middle
+            // of the chunk. isEndBoundCheckNeeded value can still be changed
+            isEndBoundCheckNeeded = IterEndBoundCheck.ALWAYS_END_BOUNDARY_CHECK;
 
-            if (midIdx == 0 || midIdx == -1) {
-                // first chunk where sortedCount is still 0 or midIdx is out of scope
-                needBoundCheckDynamic = true; // didn't succeed to delay the check
-                // if midIdx is out of the scope of this scan (lower than the lower bound),
-                // but bound check still needs to be done in this chunk,
-                // it is caught when traversing to the lower bound and midIdx is set to -1
-            } else {
+            if (midIdx != 0 && midIdx != -1) {
+                // midIdx==0 if this is the initial chunk (sortedCount == 0) or midIdx is out of scope
+                // midIdx==-1 if midIdx is out of the scope of this scan (lies before the start of the scan),
+                // it is caught when traversing to the start bound and midIdx is set to -1
+
                 // is the key in the middle index already above the upper limit to stop on?
                 readKeyFromEntryIndex(ctx.tempKey, midIdx);
-                if (afterStop(ctx.tempKey)) {
-                    needBoundCheckDynamic = true;
+                if (!isKeyOutOfEndBound(ctx.tempKey)) {
+                    isEndBoundCheckNeeded = IterEndBoundCheck.MID_END_BOUNDRY_CHECK;
                 }
-                // otherwise needBoundCheckDynamic = false and we can start checking only after midIdx
+                // otherwise didn't succeed to delay the check
             }
         }
     }
@@ -809,7 +830,7 @@ class Chunk<K, V> {
             OakScopedReadBuffer upperBoundKey) {
             next = entrySet.getHeadNextIndex();
             next = advanceNextIndexNoBound(next, ctx);
-            setStopCheckThreshold(ctx, to, toInclusive, upperBoundKey);
+            setIsEndBoundCheckNeeded(ctx, to, toInclusive, upperBoundKey);
         }
 
         AscendingIter(ThreadContext ctx, K from, boolean fromInclusive, K to, boolean toInclusive,
@@ -837,15 +858,15 @@ class Chunk<K, V> {
             }
             // the setting of the stop bound check should know if midIdx is not in the scope of this scan
             // (too low); So setUpperBoundThreshold can be invoked only after 'next' is defined
-            setStopCheckThreshold(ctx, to, toInclusive, upperBoundKey);
+            setIsEndBoundCheckNeeded(ctx, to, toInclusive, upperBoundKey);
         }
 
         private void advance(ThreadContext ctx) {
             next = entrySet.getNextEntryIndex(next);
-            // if no need for stop boundary check on this chunk (needBoundCheckStatic == false)
-            // or if we already know that it is needed to check stop boundaries (needBoundCheckDynamic== true)
+            // if no need for end boundary check on this chunk (IterEndBoundCheck.NEVER_END_BOUNDRY_CHECK)
+            // or if already known that it is needed to end stop boundaries (IterEndBoundCheck.ALWAYS_END_BOUNDRY_CHECK)
             // advance next without additional checks
-            if (!needBoundCheckStatic || needBoundCheckDynamic) {
+            if (isEndBoundCheckNeeded != IterEndBoundCheck.MID_END_BOUNDRY_CHECK) {
                 advanceNextIndexNoBound(next, ctx);
             } else {
                 next = advanceNextIndex(next, ctx);
@@ -864,19 +885,14 @@ class Chunk<K, V> {
             return toReturn;
         }
 
-        @Override
-        public boolean isBoundCheckNeeded() {
-            return needBoundCheckDynamic;
-        }
-
         private int advanceNextIndex(final int entryIndex, ThreadContext ctx) {
             int next = entryIndex;
             while (next != NONE_NEXT && !entrySet.isValueRefValidAndNotDeleted(next)) {
                 next = entrySet.getNextEntryIndex(next);
-                if (needBoundCheckStatic && !needBoundCheckDynamic && next==midIdx) {
-                    // needBoundCheckDynamic false, but needBoundCheckStatic is true
-                    // need to reset needBoundCheckDynamic to true when reaching the midIndex
-                    needBoundCheckDynamic = true;
+                if (isEndBoundCheckNeeded==IterEndBoundCheck.MID_END_BOUNDRY_CHECK && next==midIdx) {
+                    // update isEndBoundCheckNeeded to ALWAYS_END_BOUNDRY_CHECK
+                    // when reaching the midIndex
+                    isEndBoundCheckNeeded = IterEndBoundCheck.ALWAYS_END_BOUNDARY_CHECK;
                 }
             }
             return next;
@@ -891,17 +907,17 @@ class Chunk<K, V> {
         }
 
         @Override
-        protected boolean afterStop(OakScopedReadBuffer key) {
-            if (to == null) {
+        protected boolean isKeyOutOfEndBound(OakScopedReadBuffer key) {
+            if (endBound == null) {
                 return false;
             }
             if (key == null) {
                 // we are on the last chunk and 'to' is not null
                 return true;
             }
-            int c = comparator.compareKeyAndSerializedKey(to, key);
-            // return true if to<key or to==key and the scan was not fromInclusive
-            return c < 0 || (c == 0 && !toInclusive);
+            int c = comparator.compareKeyAndSerializedKey(endBound, key);
+            // return true if endBound<key or endBound==key and the scan was not endBoundInclusive
+            return c < 0 || (c == 0 && !endBoundInclusive);
         }
     }
 
@@ -911,11 +927,11 @@ class Chunk<K, V> {
         private final IntStack stack;
         private final K from;
         private boolean fromInclusive;
-        private final int skipEntriesForBiggerStack = (maxItems/10); // 1 is the lowest possible value
+        private final int skipEntriesForBiggerStack = Math.max(1, maxItems / 10); // 1 is the lowest possible value
 
         DescendingIter(ThreadContext ctx, K to, boolean toInclusive) {
             KeyBuffer tempKeyBuff = ctx.tempKey;
-            setStopCheckThreshold(ctx, to, toInclusive, minKey);
+            setIsEndBoundCheckNeeded(ctx, to, toInclusive, minKey);
             from = null;
             stack = new IntStack(entrySet.getLastEntryIndex());
             int sortedCnt = sortedCount.get();
@@ -943,7 +959,7 @@ class Chunk<K, V> {
             anchor = (anchor == NONE_NEXT) ? entrySet.getHeadNextIndex() : anchor;
             stack.push(anchor);
             initNext(tempKeyBuff);
-            setStopCheckThreshold(ctx, to, toInclusive, minKey);
+            setIsEndBoundCheckNeeded(ctx, to, toInclusive, minKey);
         }
 
         private void initNext(KeyBuffer keyBuff) {
@@ -1039,10 +1055,10 @@ class Chunk<K, V> {
                 }
             }
             // midIdx can be only one of the anchors
-            if (needBoundCheckStatic && !needBoundCheckDynamic && anchor<=midIdx) {
-                // needBoundCheckDynamic false, but needBoundCheckStatic is true
-                // need to reset needBoundCheckDynamic to true when reaching the midIndex (or below)
-                needBoundCheckDynamic = true;
+            if (isEndBoundCheckNeeded==IterEndBoundCheck.MID_END_BOUNDRY_CHECK && anchor<=midIdx) {
+                // update isEndBoundCheckNeeded to ALWAYS_END_BOUNDRY_CHECK
+                // when reaching the midIndex as an anchor
+                isEndBoundCheckNeeded = IterEndBoundCheck.ALWAYS_END_BOUNDARY_CHECK;
             }
             stack.push(anchor);
         }
@@ -1076,18 +1092,13 @@ class Chunk<K, V> {
         }
 
         @Override
-        public boolean isBoundCheckNeeded() {
-            return needBoundCheckDynamic;
-        }
-
-        @Override
-        protected boolean afterStop(OakScopedReadBuffer key) {
-            if (to == null) {
+        protected boolean isKeyOutOfEndBound(OakScopedReadBuffer key) {
+            if (endBound == null) {
                 return false;
             }
-            int c = comparator.compareKeyAndSerializedKey(to, key);
-            // return true if to>key or if to==key and the scan was not fromInclusive
-            return c > 0 || (c == 0 && !toInclusive);
+            int c = comparator.compareKeyAndSerializedKey(endBound, key);
+            // return true if endBound>key or if endBound==key and the scan was not endBoundInclusive
+            return c > 0 || (c == 0 && !endBoundInclusive);
         }
     }
 
