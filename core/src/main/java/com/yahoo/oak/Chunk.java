@@ -717,67 +717,160 @@ class Chunk<K, V> {
     }
 
 
-    /*-------------- Iterators --------------*/
+    /********************************************************************************************/
+    /*--------------------------------- Iterators Constructors ---------------------------------*/
 
-    AscendingIter ascendingIter() {
-        return new AscendingIter();
+    /**
+     * Ascending iterator from the beginning of the chunk. The end boundary is given by parameter
+     * key "to" might not be in this chunk. Parameter nextChunkMinKey - is the minimal key of the
+     * next chunk, all current and future keys of this chunk are less than nextChunkMinKey
+     */
+    AscendingIter ascendingIter(ThreadContext ctx, K to, boolean toInclusive,
+        OakScopedReadBuffer nextChunkMinKey) {
+        return new AscendingIter(ctx, to, toInclusive, nextChunkMinKey);
     }
 
-    AscendingIter ascendingIter(ThreadContext ctx, K from, boolean inclusive) {
-        return new AscendingIter(ctx, from, inclusive);
+    /**
+     * Ascending iterator from key "from" given as parameter.
+     * The end boundary is given by parameter key "to", but it might not be in this chunk.
+     * Parameter nextChunkMinKey - is the minimal key of the next chunk,
+     * all current and future keys of this chunk are less than nextChunkMinKey
+     */
+    AscendingIter ascendingIter(ThreadContext ctx, K from, boolean fromInclusive, K to,
+        boolean toInclusive, OakScopedReadBuffer nextChunkMinKey) {
+        return new AscendingIter(ctx, from, fromInclusive, to, toInclusive, nextChunkMinKey);
     }
 
-    DescendingIter descendingIter(ThreadContext ctx) {
-        return new DescendingIter(ctx);
+    /**
+     * Descending iterator from the end of the chunk.
+     * The lower bound given by parameter key "to" might not be in this chunk
+     */
+    DescendingIter descendingIter(ThreadContext ctx, K to, boolean toInclusive) {
+        return new DescendingIter(ctx, to, toInclusive);
     }
 
-    DescendingIter descendingIter(ThreadContext ctx, K from, boolean inclusive) {
-        return new DescendingIter(ctx, from, inclusive);
+    /**
+     * Descending iterator from key "from" given as parameter.
+     * The lower bound given by parameter key "to" might not be in this chunk
+     */
+    DescendingIter descendingIter(ThreadContext ctx, K from, boolean fromInclusive, K to,
+        boolean toInclusive) {
+        return new DescendingIter(ctx, from, fromInclusive, to, toInclusive);
     }
 
-    private int advanceNextIndex(final int entryIndex) {
-        int next = entryIndex;
-        while (next != NONE_NEXT && !entrySet.isValueRefValidAndNotDeleted(next)) {
-            next = entrySet.getNextEntryIndex(next);
+    /********************************************************************************************/
+    /*------ Base Class for Chunk Iterators (keeps all the common fields and methods) ----------*/
+
+    // specifier whether the end boundary check needs to be performed on the current scan output
+    enum IterEndBoundCheck {
+        NEVER_END_BOUNDRY_CHECK,
+        MID_END_BOUNDRY_CHECK,
+        ALWAYS_END_BOUNDARY_CHECK
+    }
+
+    abstract class ChunkIter {
+        protected int next;         // index of the next entry to be returned
+        protected K endBound;       // stop bound key, or null if no stop bound
+        protected boolean endBoundInclusive;  // inclusion flag for "to"
+
+        protected IterEndBoundCheck isEndBoundCheckNeeded = IterEndBoundCheck.NEVER_END_BOUNDRY_CHECK;
+        protected int midIdx = sortedCount.get()/2; // approximately index of the middle key in the chunk
+
+        abstract boolean hasNext();
+
+        /** Returns the index of the entry that should be returned next by the iterator.
+         ** NONE_NEXT is returned when iterator came to its end.
+         **/
+        abstract int next(ThreadContext ctx);
+
+        boolean isBoundCheckNeeded() {
+            return isEndBoundCheckNeeded == IterEndBoundCheck.ALWAYS_END_BOUNDARY_CHECK;
+        };
+
+        /* Checks if the given 'boundKey' key is beyond the scope of the given scan,
+        ** meaning that scan is near to its end.
+        ** For descending scan it is the low key, for ascending scan it is the high.
+        **/
+        abstract boolean isKeyOutOfEndBound(OakScopedReadBuffer boundKey);
+
+        protected void setIsEndBoundCheckNeeded(
+            ThreadContext ctx, K to, boolean toInclusive, OakScopedReadBuffer chunkBoundaryKey) {
+            this.endBound = to;
+            this.endBoundInclusive = toInclusive;
+
+            if (this.endBound == null || !isKeyOutOfEndBound(chunkBoundaryKey)) {
+                // isEndBoundCheckNeeded is NEVER_END_BOUNDRY_CHECK by default
+                return;
+            }
+
+            // generally there is a need for the boundary check, but maybe delay it to the middle
+            // of the chunk. isEndBoundCheckNeeded value can still be changed
+            isEndBoundCheckNeeded = IterEndBoundCheck.ALWAYS_END_BOUNDARY_CHECK;
+
+            if (midIdx != 0 && midIdx != -1) {
+                // midIdx==0 if this is the initial chunk (sortedCount == 0) or midIdx is out of scope
+                // midIdx==-1 if midIdx is out of the scope of this scan (lies before the start of the scan),
+                // it is caught when traversing to the start bound and midIdx is set to -1
+
+                // is the key in the middle index already above the upper limit to stop on?
+                readKeyFromEntryIndex(ctx.tempKey, midIdx);
+                if (!isKeyOutOfEndBound(ctx.tempKey)) {
+                    isEndBoundCheckNeeded = IterEndBoundCheck.MID_END_BOUNDRY_CHECK;
+                }
+                // otherwise didn't succeed to delay the check
+            }
         }
-        return next;
     }
 
-    interface ChunkIter {
-        boolean hasNext();
+    /********************************************************************************************/
+    /*------------------------------- Iterators Implementations --------------------------------*/
+    class AscendingIter extends ChunkIter {
 
-        int next(ThreadContext ctx);
-    }
-
-    class AscendingIter implements ChunkIter {
-
-        private int next;
-
-        AscendingIter() {
+        AscendingIter(ThreadContext ctx, K to, boolean toInclusive,
+            OakScopedReadBuffer nextChunkMinKey) {
             next = entrySet.getHeadNextIndex();
-            next = advanceNextIndex(next);
+            next = advanceNextIndexNoBound(next, ctx);
+            setIsEndBoundCheckNeeded(ctx, to, toInclusive, nextChunkMinKey);
         }
 
-        AscendingIter(ThreadContext ctx, K from, boolean inclusive) {
+        AscendingIter(ThreadContext ctx, K from, boolean fromInclusive, K to, boolean toInclusive,
+            OakScopedReadBuffer nextChunkMinKey) {
             KeyBuffer tempKeyBuff = ctx.tempKey;
             next = binaryFind(tempKeyBuff, from);
+
+            if (next >= midIdx) { // binaryFind output is always less than sortedCount; or NONE_NEXT (0)
+                midIdx = -1; // midIdx is not in the scope of this scan (too low)
+            }
+            // otherwise (next < midIdx) means that midIdx is surely of one of the entries to be scanned,
+            // if not binaryFind will return midIdx or higher
+
             next = (next == NONE_NEXT) ? entrySet.getHeadNextIndex() : entrySet.getNextEntryIndex(next);
             int compare = -1;
             if (next != NONE_NEXT) {
                 compare = compareKeyAndEntryIndex(tempKeyBuff, from, next);
             }
             while (next != NONE_NEXT &&
-                    (compare > 0 || (compare >= 0 && !inclusive) || !entrySet.isValueRefValidAndNotDeleted(next))) {
+                    (compare > 0 || (compare >= 0 && !fromInclusive) || !entrySet.isValueRefValidAndNotDeleted(next))) {
                 next = entrySet.getNextEntryIndex(next);
                 if (next != NONE_NEXT) {
                     compare = compareKeyAndEntryIndex(tempKeyBuff, from, next);
                 }
             }
+            // the setting of the stop bound check should know if midIdx is not in the scope of this scan
+            // (too low); So setUpperBoundThreshold can be invoked only after 'next' is defined
+            setIsEndBoundCheckNeeded(ctx, to, toInclusive, nextChunkMinKey);
         }
 
-        private void advance() {
+        private void advance(ThreadContext ctx) {
             next = entrySet.getNextEntryIndex(next);
-            next = advanceNextIndex(next);
+            // if no need for end boundary check on this chunk (IterEndBoundCheck.NEVER_END_BOUNDRY_CHECK)
+            // or if already known that it is needed to end stop boundaries (IterEndBoundCheck.ALWAYS_END_BOUNDRY_CHECK)
+            // advance next without additional checks
+            if (isEndBoundCheckNeeded != IterEndBoundCheck.MID_END_BOUNDRY_CHECK) {
+                advanceNextIndexNoBound(next, ctx);
+            } else {
+                next = advanceNextIndex(next, ctx);
+            }
         }
 
         @Override
@@ -788,25 +881,57 @@ class Chunk<K, V> {
         @Override
         public int next(ThreadContext ctx) {
             int toReturn = next;
-            advance();
+            advance(ctx);
             return toReturn;
+        }
+
+        private int advanceNextIndex(final int entryIndex, ThreadContext ctx) {
+            int next = entryIndex;
+            while (next != NONE_NEXT && !entrySet.isValueRefValidAndNotDeleted(next)) {
+                next = entrySet.getNextEntryIndex(next);
+                if (isEndBoundCheckNeeded==IterEndBoundCheck.MID_END_BOUNDRY_CHECK && next==midIdx) {
+                    // update isEndBoundCheckNeeded to ALWAYS_END_BOUNDRY_CHECK
+                    // when reaching the midIndex
+                    isEndBoundCheckNeeded = IterEndBoundCheck.ALWAYS_END_BOUNDARY_CHECK;
+                }
+            }
+            return next;
+        }
+
+        private int advanceNextIndexNoBound(final int entryIndex, ThreadContext ctx) {
+            int next = entryIndex;
+            while (next != NONE_NEXT && !entrySet.isValueRefValidAndNotDeleted(next)) {
+                next = entrySet.getNextEntryIndex(next);
+            }
+            return next;
+        }
+
+        @Override
+        protected boolean isKeyOutOfEndBound(OakScopedReadBuffer key) {
+            if (endBound == null) {
+                return false;
+            }
+            if (key == null) {
+                // we are on the last chunk and 'to' is not null
+                return true;
+            }
+            int c = comparator.compareKeyAndSerializedKey(endBound, key);
+            // return true if endBound<key or endBound==key and the scan was not endBoundInclusive
+            return c < 0 || (c == 0 && !endBoundInclusive);
         }
     }
 
-    class DescendingIter implements ChunkIter {
-
-        private int next;
+    class DescendingIter extends ChunkIter {
         private int anchor;
         private int prevAnchor;
         private final IntStack stack;
         private final K from;
-        private boolean inclusive;
+        private boolean fromInclusive;
+        private final int skipEntriesForBiggerStack = Math.max(1, maxItems / 10); // 1 is the lowest possible value
 
-        static final int SKIP_ENTRIES_FOR_BIGGER_STACK = 1; // 1 is the lowest possible value
-
-        DescendingIter(ThreadContext ctx) {
+        DescendingIter(ThreadContext ctx, K to, boolean toInclusive) {
             KeyBuffer tempKeyBuff = ctx.tempKey;
-
+            setIsEndBoundCheckNeeded(ctx, to, toInclusive, minKey);
             from = null;
             stack = new IntStack(entrySet.getLastEntryIndex());
             int sortedCnt = sortedCount.get();
@@ -816,17 +941,25 @@ class Chunk<K, V> {
             initNext(tempKeyBuff);
         }
 
-        DescendingIter(ThreadContext ctx, K from, boolean inclusive) {
+        DescendingIter(ThreadContext ctx, K from, boolean fromInclusive, K to, boolean toInclusive) {
             KeyBuffer tempKeyBuff = ctx.tempKey;
 
             this.from = from;
-            this.inclusive = inclusive;
+            this.fromInclusive = fromInclusive;
             stack = new IntStack(entrySet.getLastEntryIndex());
             anchor = binaryFind(tempKeyBuff, from);
+
+            if (anchor <= midIdx) { // binaryFind output is always less than sorted Count; or NONE_NEXT
+                midIdx = -1; // midIdx is not in the scope of this scan (too high)
+            }
+            // otherwise (next > midIdx) means that midIdx is surely of one of the entries to be scanned,
+            // if not binaryFind will return midIdx or less
+
             // translate to be valid index, if anchor is head we know to stop the iteration
             anchor = (anchor == NONE_NEXT) ? entrySet.getHeadNextIndex() : anchor;
             stack.push(anchor);
             initNext(tempKeyBuff);
+            setIsEndBoundCheckNeeded(ctx, to, toInclusive, minKey);
         }
 
         private void initNext(KeyBuffer keyBuff) {
@@ -886,10 +1019,10 @@ class Chunk<K, V> {
                 pushToStack(!firstTimeInvocation);
             } else {
                 if (firstTimeInvocation) {
-                    final int threshold = inclusive ? -1 : 0;
+                    final int threshold = fromInclusive ? -1 : 0;
                     // This is equivalent to continue while:
-                    //         when inclusive: CMP >= 0
-                    //     when non-inclusive: CMP > 0
+                    //         when fromInclusive: CMP >= 0
+                    //     when non-fromInclusive: CMP > 0
                     while (next != NONE_NEXT && compareKeyAndEntryIndex(tempKeyBuff, from, next) > threshold) {
                         stack.push(next);
                         next = entrySet.getNextEntryIndex(next);
@@ -913,13 +1046,20 @@ class Chunk<K, V> {
             } else if (anchor == 1) { // cannot get below the first index
                 anchor = entrySet.getHeadNextIndex();
             } else {
-                if ((anchor - SKIP_ENTRIES_FOR_BIGGER_STACK) > 1) {
+                if ((anchor - skipEntriesForBiggerStack) > 1) {
                     // try to skip more then one backward step at a time
                     // if it shows better performance
-                    anchor -= SKIP_ENTRIES_FOR_BIGGER_STACK;
+                    anchor -= skipEntriesForBiggerStack;
+                    // when bypassing the midIdx we miss some opportunities to avoid boundary check
                 } else {
                     anchor -= 1;
                 }
+            }
+            // midIdx can be only one of the anchors
+            if (isEndBoundCheckNeeded==IterEndBoundCheck.MID_END_BOUNDRY_CHECK && anchor<=midIdx) {
+                // update isEndBoundCheckNeeded to ALWAYS_END_BOUNDRY_CHECK
+                // when reaching the midIndex as an anchor
+                isEndBoundCheckNeeded = IterEndBoundCheck.ALWAYS_END_BOUNDARY_CHECK;
             }
             stack.push(anchor);
         }
@@ -952,6 +1092,15 @@ class Chunk<K, V> {
             return toReturn;
         }
 
+        @Override
+        protected boolean isKeyOutOfEndBound(OakScopedReadBuffer key) {
+            if (endBound == null) {
+                return false;
+            }
+            int c = comparator.compareKeyAndSerializedKey(endBound, key);
+            // return true if endBound>key or if endBound==key and the scan was not endBoundInclusive
+            return c > 0 || (c == 0 && !endBoundInclusive);
+        }
     }
 
     /**

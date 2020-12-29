@@ -906,8 +906,8 @@ class InternalOakMap<K, V> {
         ThreadContext ctx = getThreadContext();
 
         Chunk<K, V> c = lowerChunkEntry.getValue();
-        /* Iterate chunk to find prev(key) */
-        Chunk.AscendingIter chunkIter = c.ascendingIter();
+        /* Iterate chunk to find prev(key), no upper limit */
+        Chunk.AscendingIter chunkIter = c.ascendingIter(ctx, null, false, null);
         int prevIndex = chunkIter.next(ctx);
 
         while (chunkIter.hasNext()) {
@@ -1006,8 +1006,6 @@ class InternalOakMap<K, V> {
         private boolean hiInclusive;
         /* direction */
         private final boolean isDescending;
-        /* do we need to check the boundaries when advancing */
-        private final boolean needBoundCheck;
 
         /**
          * the next node to return from next();
@@ -1031,13 +1029,12 @@ class InternalOakMap<K, V> {
             this.hi = hi;
             this.hiInclusive = hiInclusive;
             this.isDescending = isDescending;
-            this.needBoundCheck = (hi != null && !isDescending) || (lo != null && isDescending);
             this.ctx = new ThreadContext(keysMemoryManager, valuesMemoryManager);
             initState(isDescending, lo, loInclusive, hi, hiInclusive);
 
         }
 
-        boolean tooLow(OakScopedReadBuffer key) {
+        private boolean tooLow(OakScopedReadBuffer key) {
             if (lo == null) {
                 return false;
             }
@@ -1045,7 +1042,7 @@ class InternalOakMap<K, V> {
             return c > 0 || (c == 0 && !loInclusive);
         }
 
-        boolean tooHigh(OakScopedReadBuffer key) {
+        private boolean tooHigh(OakScopedReadBuffer key) {
             if (hi == null) {
                 return false;
             }
@@ -1054,7 +1051,7 @@ class InternalOakMap<K, V> {
         }
 
 
-        boolean inBounds(OakScopedReadBuffer key) {
+        private boolean inBounds(OakScopedReadBuffer key) {
             if (!isDescending) {
                 return !tooHigh(key);
             } else {
@@ -1113,7 +1110,7 @@ class InternalOakMap<K, V> {
                 // build the entry context that sets key references and does not check for value validity.
                 ctx.initEntryContext(curIndex);
 
-                if (!needBoundCheck) {
+                if (!state.chunkIter.isBoundCheckNeeded()) {
                     c.readKey(ctx);
                 } else {
                     // If we checked the boundary, than we already read the current key into ctx.tempKey
@@ -1156,7 +1153,7 @@ class InternalOakMap<K, V> {
                 final int curIndex = state.getIndex();
 
                 if (key != null) {
-                    if (!needBoundCheck) {
+                    if (!state.chunkIter.isBoundCheckNeeded()) {
                         validState = c.readKeyFromEntryIndex(key.getInternalScopedReadBuffer(), curIndex);
                         assert validState;
                     } else {
@@ -1186,10 +1183,14 @@ class InternalOakMap<K, V> {
                     nextChunk = skiplist.floorEntry(lowerBound).getValue();
                 } else {
                     nextChunk = skiplist.firstEntry().getValue();
+                    // need to iterate from the beginning of the chunk till the end
                 }
                 if (nextChunk != null) {
+                    OakScopedReadBuffer upperBoundKeyForChunk = getNextChunkMinKey(nextChunk);
                     nextChunkIter = lowerBound != null ?
-                            nextChunk.ascendingIter(ctx, lowerBound, lowerInclusive) : nextChunk.ascendingIter();
+                        nextChunk.ascendingIter(ctx, lowerBound, lowerInclusive, upperBound, upperInclusive,
+                            upperBoundKeyForChunk)
+                        : nextChunk.ascendingIter(ctx, upperBound, upperInclusive, upperBoundKeyForChunk);
                 } else {
                     state = null;
                     return;
@@ -1199,7 +1200,8 @@ class InternalOakMap<K, V> {
                         : skiplist.lastEntry().getValue();
                 if (nextChunk != null) {
                     nextChunkIter = upperBound != null ?
-                            nextChunk.descendingIter(ctx, upperBound, upperInclusive) : nextChunk.descendingIter(ctx);
+                            nextChunk.descendingIter(ctx, upperBound, upperInclusive, lowerBound, lowerInclusive)
+                        : nextChunk.descendingIter(ctx, lowerBound, lowerInclusive);
                 } else {
                     state = null;
                     return;
@@ -1226,10 +1228,28 @@ class InternalOakMap<K, V> {
 
         private Chunk.ChunkIter getChunkIter(Chunk<K, V> current) {
             if (!isDescending) {
-                return current.ascendingIter();
+                OakScopedReadBuffer upperBoundKeyForChunk = getNextChunkMinKey(current);
+                return current.ascendingIter(ctx, hi, hiInclusive, upperBoundKeyForChunk);
             } else {
-                return current.descendingIter(ctx);
+                return current.descendingIter(ctx, lo, loInclusive);
             }
+        }
+
+        private OakScopedReadBuffer getNextChunkMinKey(Chunk<K, V> c) {
+            OakScopedReadBuffer upperBoundKeyForChunk = null;
+            if (hi != null) {
+                // need to check upper bound for this ascending scan,
+                // but does the next chunk includes the upper bound?
+                Chunk nextNextChunk = c.next.getReference();
+                // checking the min key of the next to next chunk, in order to avoid search
+                // for the maximal key on next chunk. The minKey of the next
+                // chunk is higher than the max key of the current chunk, therefore it can
+                // only be unnecessary check for boundaries, but not correctness fault.
+                if (nextNextChunk != null) {
+                    upperBoundKeyForChunk = nextNextChunk.minKey;
+                }
+            }
+            return upperBoundKeyForChunk;
         }
 
         private void advanceState() {
@@ -1252,7 +1272,7 @@ class InternalOakMap<K, V> {
 
             // The boundary check is costly and need to be performed only when required,
             // meaning not on the full scan.
-            if (needBoundCheck) {
+            if (chunkIter.isBoundCheckNeeded()) {
                 chunk.readKeyFromEntryIndex(ctx.tempKey, nextIndex);
                 if (!inBounds(ctx.tempKey)) {
                     state = null;
