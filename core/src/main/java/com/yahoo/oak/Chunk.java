@@ -721,24 +721,24 @@ class Chunk<K, V> {
     /*--------------------------------- Iterators Constructors ---------------------------------*/
 
     /**
-     * Ascending iterator from the beginning of the chunk. The upper bound given by parameter
-     * key "to" might not be in this chunk thisChunkUpperBoundKey - is the minimal key of the next chunk,
-     * all current and future keys of this chunk are less than thisChunkUpperBoundKey
+     * Ascending iterator from the beginning of the chunk. The end boundary is given by parameter
+     * key "to" might not be in this chunk. Parameter nextChunkMinKey - is the minimal key of the
+     * next chunk, all current and future keys of this chunk are less than nextChunkMinKey
      */
     AscendingIter ascendingIter(ThreadContext ctx, K to, boolean toInclusive,
-        OakScopedReadBuffer thisChunkUpperBoundKey) {
-        return new AscendingIter(ctx, to, toInclusive, thisChunkUpperBoundKey);
+        OakScopedReadBuffer nextChunkMinKey) {
+        return new AscendingIter(ctx, to, toInclusive, nextChunkMinKey);
     }
 
     /**
      * Ascending iterator from key "from" given as parameter.
-     * The upper bound given by parameter key "to" might not be in this chunk
-     * thisChunkUpperBoundKey - is the minimal key of the next chunk,
-     * all current and future keys of this chunk are less than thisChunkUpperBoundKey
+     * The end boundary is given by parameter key "to", but it might not be in this chunk.
+     * Parameter nextChunkMinKey - is the minimal key of the next chunk,
+     * all current and future keys of this chunk are less than nextChunkMinKey
      */
     AscendingIter ascendingIter(ThreadContext ctx, K from, boolean fromInclusive, K to,
-        boolean toInclusive, OakScopedReadBuffer thisChunkUpperBoundKey) {
-        return new AscendingIter(ctx, from, fromInclusive, to, toInclusive, thisChunkUpperBoundKey);
+        boolean toInclusive, OakScopedReadBuffer nextChunkMinKey) {
+        return new AscendingIter(ctx, from, fromInclusive, to, toInclusive, nextChunkMinKey);
     }
 
     /**
@@ -794,11 +794,11 @@ class Chunk<K, V> {
         abstract boolean isKeyOutOfEndBound(OakScopedReadBuffer boundKey);
 
         protected void setIsEndBoundCheckNeeded(
-            ThreadContext ctx, K to, boolean toInclusive, OakScopedReadBuffer boundKey) {
+            ThreadContext ctx, K to, boolean toInclusive, OakScopedReadBuffer chunkBoundaryKey) {
             this.endBound = to;
             this.endBoundInclusive = toInclusive;
 
-            if (this.endBound == null || !isKeyOutOfEndBound(boundKey)) {
+            if (this.endBound == null || !isKeyOutOfEndBound(chunkBoundaryKey)) {
                 // isEndBoundCheckNeeded is NEVER_END_BOUNDRY_CHECK by default
                 return;
             }
@@ -827,14 +827,14 @@ class Chunk<K, V> {
     class AscendingIter extends ChunkIter {
 
         AscendingIter(ThreadContext ctx, K to, boolean toInclusive,
-            OakScopedReadBuffer upperBoundKey) {
+            OakScopedReadBuffer nextChunkMinKey) {
             next = entrySet.getHeadNextIndex();
             next = advanceNextIndexNoBound(next, ctx);
-            setIsEndBoundCheckNeeded(ctx, to, toInclusive, upperBoundKey);
+            setIsEndBoundCheckNeeded(ctx, to, toInclusive, nextChunkMinKey);
         }
 
         AscendingIter(ThreadContext ctx, K from, boolean fromInclusive, K to, boolean toInclusive,
-            OakScopedReadBuffer upperBoundKey) {
+            OakScopedReadBuffer nextChunkMinKey) {
             KeyBuffer tempKeyBuff = ctx.tempKey;
             next = binaryFind(tempKeyBuff, from);
 
@@ -858,7 +858,7 @@ class Chunk<K, V> {
             }
             // the setting of the stop bound check should know if midIdx is not in the scope of this scan
             // (too low); So setUpperBoundThreshold can be invoked only after 'next' is defined
-            setIsEndBoundCheckNeeded(ctx, to, toInclusive, upperBoundKey);
+            setIsEndBoundCheckNeeded(ctx, to, toInclusive, nextChunkMinKey);
         }
 
         private void advance(ThreadContext ctx) {
@@ -1050,6 +1050,7 @@ class Chunk<K, V> {
                     // try to skip more then one backward step at a time
                     // if it shows better performance
                     anchor -= skipEntriesForBiggerStack;
+                    // when bypassing the midIdx we miss some opportunities to avoid boundary check
                 } else {
                     anchor -= 1;
                 }
