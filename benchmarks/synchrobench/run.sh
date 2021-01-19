@@ -22,6 +22,7 @@ declare -A scenarios=(
   ["4e-entryStreamSet-ascend"]="--buffer -c --stream-iteration"
   ["4f-entrySet-descend"]="--buffer -c -a 100"
   ["4f-entryStreamSet-descend"]="--buffer -c -a 100 --stream-iteration"
+  ["not-random-put"]="-a 0 -u 100 --inc"
 )
 
 declare -A benchmarks=(
@@ -124,13 +125,18 @@ benchClassPrefix="com.yahoo.oak"
 ############################################################################
 # Override default arguments
 ############################################################################
-while getopts o:j:d:i:w:s:t:e:b:g:m:l:r:v opt; do
+while getopts o:j:d:i:w:s:t:e:h:b:g:m:l:r:v opt; do
   case ${opt} in
   o) output=$OPTARG ;;
   j) java=$OPTARG ;;
   d) duration=$((OPTARG * 1000)) ;;
   i) iterations=$OPTARG ;;
   w) warmup=$OPTARG ;;
+  h)
+    for bench in ${!heap_limit[*]}; do
+      heap_limit[${bench}]=$OPTARG
+    done
+    ;;
   l)
     for bench in ${!direct_limit[*]}; do
       direct_limit[${bench}]=$OPTARG

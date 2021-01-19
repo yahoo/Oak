@@ -40,7 +40,7 @@ final class BlocksPool implements BlocksProvider, Closeable {
     private static final long HIGH_RESERVED_SIZE_BYTES = 4L * GB;
 
     // The default size of a single memory block to be allocated at once.
-    static final int DEFAULT_BLOCK_SIZE_BYTES = 256 * (int) MB;
+    static final int DEFAULT_BLOCK_SIZE_BYTES = 128 * (int) MB;
 
     /**
      * The block size in bytes that is used by this pool.
