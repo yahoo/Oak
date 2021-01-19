@@ -22,7 +22,7 @@ declare -A scenarios=(
   ["4e-entryStreamSet-ascend"]="--buffer -c --stream-iteration"
   ["4f-entrySet-descend"]="--buffer -c -a 100"
   ["4f-entryStreamSet-descend"]="--buffer -c -a 100 --stream-iteration"
-  ["not-random-put"]="-a 0 -u 100 --inc"
+  ["not-random-put"]="-a 0 -u 100 --inc" #sequential puts, doesn't need to be part of the regression
 )
 
 declare -A benchmarks=(
