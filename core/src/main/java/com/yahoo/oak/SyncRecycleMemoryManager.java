@@ -11,10 +11,10 @@ import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicInteger;
 
-class NativeMemoryManager implements MemoryManager {
+class SyncRecycleMemoryManager implements MemoryManager {
     static final int RELEASE_LIST_LIMIT = 1024;
-    private static final NativeMemoryManagerHeader HEADER =
-        new NativeMemoryManagerHeader(); // for off-heap header operations
+    private static final SyncRecycleMMHeader HEADER =
+        new SyncRecycleMMHeader(); // for off-heap header operations
     private static final int VERS_INIT_VALUE = 1;
     private static final int OFF_HEAP_HEADER_SIZE = 12; /* Bytes */
     private final ThreadIndexCalculator threadIndexCalculator;
@@ -25,12 +25,12 @@ class NativeMemoryManager implements MemoryManager {
     /*
      * The VALUE_RC reference codec encodes the reference (with memory manager abilities) of the values
      * into a single long primitive (64 bit).
-     * For encoding details please take a look on ReferenceCodecMM
+     * For encoding details please take a look on ReferenceCodecSyncRecycle
      *
      */
-    private final ReferenceCodecMM rcmm;
+    private final ReferenceCodecSyncRecycle rcmm;
 
-    NativeMemoryManager(BlockMemoryAllocator allocator) {
+    SyncRecycleMemoryManager(BlockMemoryAllocator allocator) {
         this.threadIndexCalculator = ThreadIndexCalculator.newInstance();
         this.releaseLists = new CopyOnWriteArrayList<>();
         for (int i = 0; i < ThreadIndexCalculator.MAX_THREADS; i++) {
@@ -38,7 +38,7 @@ class NativeMemoryManager implements MemoryManager {
         }
         globalVersionNumber = new AtomicInteger(VERS_INIT_VALUE);
         this.allocator = allocator;
-        rcmm = new ReferenceCodecMM(BlocksPool.getInstance().blockSize(), allocator);
+        rcmm = new ReferenceCodecSyncRecycle(BlocksPool.getInstance().blockSize(), allocator);
     }
 
     @Override
@@ -189,7 +189,7 @@ class NativeMemoryManager implements MemoryManager {
         // the version takes specific number of bits (including delete bit)
         // version increasing needs to restart once the maximal number of bits is reached
         int curVer = globalVersionNumber.get();
-        if (curVer == ReferenceCodecMM.LAST_VALID_VERSION) {
+        if (curVer == ReferenceCodecSyncRecycle.LAST_VALID_VERSION) {
             globalVersionNumber.compareAndSet(curVer, VERS_INIT_VALUE);
         } else {
             globalVersionNumber.compareAndSet(curVer, curVer+1);

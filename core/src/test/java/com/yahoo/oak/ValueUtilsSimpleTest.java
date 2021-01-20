@@ -21,9 +21,10 @@ public class ValueUtilsSimpleTest {
 
     @Before
     public void init() {
-        NativeMemoryManager nativeMemoryManager = new NativeMemoryManager(new NativeMemoryAllocator(128));
-        s = nativeMemoryManager.getEmptySlice();
-        nativeMemoryManager.allocate(s, 16, false);
+        SyncRecycleMemoryManager syncRecycleMemoryManager =
+            new SyncRecycleMemoryManager(new NativeMemoryAllocator(128));
+        s = syncRecycleMemoryManager.getEmptySlice();
+        syncRecycleMemoryManager.allocate(s, 16, false);
         s.getByteBuffer().putInt(s.getOffset(), 1);
     }
 

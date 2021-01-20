@@ -12,14 +12,14 @@ import org.junit.Test;
 
 import java.nio.ByteBuffer;
 
-public class NoFreeMemoryManagerTest {
+public class SeqExpandMemoryManagerTest {
 
-    private NoFreeMemoryManager noFreeMemoryManager;
+    private SeqExpandMemoryManager seqExpandMemoryManager;
 
     @Before
     public void setUp() {
         BlockMemoryAllocator keysMemoryAllocator = new NativeMemoryAllocator(128);
-        noFreeMemoryManager = new NoFreeMemoryManager(keysMemoryAllocator);
+        seqExpandMemoryManager = new SeqExpandMemoryManager(keysMemoryAllocator);
     }
 
     @Test
@@ -27,12 +27,12 @@ public class NoFreeMemoryManagerTest {
         Slice s = new Slice();
         ByteBuffer bb;
 
-        noFreeMemoryManager.allocate(s, 4, false);
+        seqExpandMemoryManager.allocate(s, 4, false);
         Assert.assertEquals(4, s.getAllocatedLength());
-        Assert.assertEquals(4, noFreeMemoryManager.allocated());
+        Assert.assertEquals(4, seqExpandMemoryManager.allocated());
 
-        noFreeMemoryManager.allocate(s, 4, false);
+        seqExpandMemoryManager.allocate(s, 4, false);
         Assert.assertEquals(4, s.getAllocatedLength());
-        Assert.assertEquals(8, noFreeMemoryManager.allocated());
+        Assert.assertEquals(8, seqExpandMemoryManager.allocated());
     }
 }

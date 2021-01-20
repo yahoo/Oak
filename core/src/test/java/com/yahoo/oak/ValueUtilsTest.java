@@ -15,8 +15,8 @@ import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CyclicBarrier;
 
 public class ValueUtilsTest {
-    private NativeMemoryManager valuesMemoryManager;
-    private NoFreeMemoryManager keysMemoryManager;
+    private SyncRecycleMemoryManager valuesMemoryManager;
+    private SeqExpandMemoryManager keysMemoryManager;
     private final ValueUtils valueOperator = new ValueUtilsImpl();
     private ThreadContext ctx;
     private ValueBuffer s;
@@ -24,8 +24,8 @@ public class ValueUtilsTest {
     @Before
     public void init() {
         NativeMemoryAllocator allocator = new NativeMemoryAllocator(128);
-        valuesMemoryManager = new NativeMemoryManager(allocator);
-        keysMemoryManager = new NoFreeMemoryManager(allocator);
+        valuesMemoryManager = new SyncRecycleMemoryManager(allocator);
+        keysMemoryManager = new SeqExpandMemoryManager(allocator);
         ctx = new ThreadContext(keysMemoryManager, valuesMemoryManager);
         s = ctx.value;
         valuesMemoryManager.allocate(s.getSlice(), Integer.BYTES*3, false);

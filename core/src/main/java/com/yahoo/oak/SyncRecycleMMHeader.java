@@ -8,10 +8,10 @@ package com.yahoo.oak;
 
 import sun.misc.Unsafe;
 
-class NativeMemoryManagerHeader {
+class SyncRecycleMMHeader {
 
     /*
-    * Long NativeMemoryManagerHeader: int version + int lock
+    * Long SyncRecycleMMHeader: int version + int lock
     * 0...  ...31 | 32...                  ...61| 62 63
     *  version    |   lock: current_readers#    | lock state
     *

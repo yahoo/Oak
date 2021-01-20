@@ -31,7 +31,7 @@ public class NativeMemoryAllocatorTest {
                 (valueCount * (VALUE_SIZE_AFTER_SERIALIZATION + VALUE_MEMORY_MANAGER.getHeaderSize()));
     }
 
-    private static final MemoryManager VALUE_MEMORY_MANAGER = new NativeMemoryManager(null);
+    private static final MemoryManager VALUE_MEMORY_MANAGER = new SyncRecycleMemoryManager(null);
 
     Slice allocate(NativeMemoryAllocator allocator, int size) {
         Slice s = new Slice();

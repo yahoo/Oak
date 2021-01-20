@@ -7,7 +7,7 @@
 package com.yahoo.oak;
 
 
-class NoFreeMemoryManager implements MemoryManager {
+class SeqExpandMemoryManager implements MemoryManager {
     private final BlockMemoryAllocator allocator;
 
     /*
@@ -27,12 +27,12 @@ class NoFreeMemoryManager implements MemoryManager {
      * Note: these limitations will change for different block sizes.
      *
      */
-    private final ReferenceCodecDirect rcd;
+    private final ReferenceCodecSeqExpand rcd;
 
-    NoFreeMemoryManager(BlockMemoryAllocator memoryAllocator) {
+    SeqExpandMemoryManager(BlockMemoryAllocator memoryAllocator) {
         assert memoryAllocator != null;
         this.allocator = memoryAllocator;
-        rcd = new ReferenceCodecDirect(
+        rcd = new ReferenceCodecSeqExpand(
             BlocksPool.getInstance().blockSize(), BlocksPool.getInstance().blockSize(), memoryAllocator);
     }
 

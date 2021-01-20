@@ -98,8 +98,8 @@ public class OakMapBuilder<K, V> {
             this.memoryAllocator = new NativeMemoryAllocator(memoryCapacity);
         }
 
-        MemoryManager valuesMemoryManager = new NativeMemoryManager(memoryAllocator);
-        MemoryManager keysMemoryManager = new NoFreeMemoryManager(memoryAllocator);
+        MemoryManager valuesMemoryManager = new SyncRecycleMemoryManager(memoryAllocator);
+        MemoryManager keysMemoryManager = new SeqExpandMemoryManager(memoryAllocator);
         if (comparator == null) {
             throw new IllegalStateException("Must provide a non-null comparator to build the OakMap");
         }

@@ -17,8 +17,8 @@ class ValueUtilsImpl implements ValueUtils {
 
     private static Unsafe unsafe = UnsafeUtils.unsafe;
 
-    private static final NativeMemoryManagerHeader HEADER =
-        new NativeMemoryManagerHeader(); //To be moved to Memory Manager
+    private static final SyncRecycleMMHeader HEADER =
+        new SyncRecycleMMHeader(); //To be moved to Memory Manager
 
 
     private static boolean cas(Slice s, int expectedLock, int newLock, int version) {
@@ -39,7 +39,7 @@ class ValueUtilsImpl implements ValueUtils {
         return HEADER.getLockState(s);
     }
 
-    private void setLockState(Slice s, NativeMemoryManagerHeader.LockStates state) {
+    private void setLockState(Slice s, SyncRecycleMMHeader.LockStates state) {
         HEADER.setLockState(s, state);
     }
 
@@ -99,7 +99,7 @@ class ValueUtilsImpl implements ValueUtils {
             return ValueResult.RETRY;
         }
         // can not release the old slice or mark it moved, before the new one is updated!
-        setLockState(ctx.value.s, NativeMemoryManagerHeader.LockStates.MOVED);
+        setLockState(ctx.value.s, SyncRecycleMMHeader.LockStates.MOVED);
         // currently the slices which value was moved aren't going to be released, to keep the MOVED mark
         // TODO: deal with the reallocation of the moved memory
 
@@ -154,7 +154,7 @@ class ValueUtilsImpl implements ValueUtils {
                 return ctx.result.withFlag(ValueResult.FALSE);
             }
             // both values match so the value is marked as deleted. No need for a CAS since a write lock is exclusive
-            setLockState(ctx.value.s, NativeMemoryManagerHeader.LockStates.DELETED);
+            setLockState(ctx.value.s, SyncRecycleMMHeader.LockStates.DELETED);
             // delete the value in the entry happens next and the slice will be released as part of it
             // slice can be released only after the entry is marked appropriately
             return ctx.result.withValue(v);
@@ -206,7 +206,7 @@ class ValueUtilsImpl implements ValueUtils {
     public ValueResult lockRead(Slice s) {
         int lockState;
         final int version = s.getVersion();
-        assert version > ReferenceCodecMM.INVALID_VERSION : "In locking for read the version was: " + version;
+        assert version > ReferenceCodecSyncRecycle.INVALID_VERSION : "In locking for read the version was: " + version;
         do {
             int oldVersion = getOffHeapVersion(s);
             if (oldVersion != version) {
@@ -216,10 +216,10 @@ class ValueUtilsImpl implements ValueUtils {
             if (oldVersion != getOffHeapVersion(s)) {
                 return ValueResult.RETRY;
             }
-            if (lockState == NativeMemoryManagerHeader.LockStates.DELETED.value) {
+            if (lockState == SyncRecycleMMHeader.LockStates.DELETED.value) {
                 return ValueResult.FALSE;
             }
-            if (lockState == NativeMemoryManagerHeader.LockStates.MOVED.value) {
+            if (lockState == SyncRecycleMMHeader.LockStates.MOVED.value) {
                 return ValueResult.RETRY;
             }
             lockState &= ~LOCK_STATE_MASK;
@@ -231,10 +231,10 @@ class ValueUtilsImpl implements ValueUtils {
     public ValueResult unlockRead(Slice s) {
         int lockState;
         final int version = s.getVersion();
-        assert version > ReferenceCodecMM.INVALID_VERSION;
+        assert version > ReferenceCodecSyncRecycle.INVALID_VERSION;
         do {
             lockState = getLockState(s);
-            assert lockState > NativeMemoryManagerHeader.LockStates.MOVED.value;
+            assert lockState > SyncRecycleMMHeader.LockStates.MOVED.value;
             lockState &= ~LOCK_STATE_MASK;
         } while (!cas(s, lockState, lockState - (1 << LOCK_STATE_SHIFT), version));
         return ValueResult.TRUE;
@@ -243,7 +243,7 @@ class ValueUtilsImpl implements ValueUtils {
     @Override
     public ValueResult lockWrite(Slice s) {
         final int version = s.getVersion();
-        assert version > ReferenceCodecMM.INVALID_VERSION;
+        assert version > ReferenceCodecSyncRecycle.INVALID_VERSION;
         do {
             int oldVersion = getOffHeapVersion(s);
             if (oldVersion != version) {
@@ -253,27 +253,27 @@ class ValueUtilsImpl implements ValueUtils {
             if (oldVersion != getOffHeapVersion(s)) {
                 return ValueResult.RETRY;
             }
-            if (lockState == NativeMemoryManagerHeader.LockStates.DELETED.value) {
+            if (lockState == SyncRecycleMMHeader.LockStates.DELETED.value) {
                 return ValueResult.FALSE;
             }
-            if (lockState == NativeMemoryManagerHeader.LockStates.MOVED.value) {
+            if (lockState == SyncRecycleMMHeader.LockStates.MOVED.value) {
                 return ValueResult.RETRY;
             }
-        } while (!cas(s, NativeMemoryManagerHeader.LockStates.FREE.value,
-            NativeMemoryManagerHeader.LockStates.LOCKED.value, version));
+        } while (!cas(s, SyncRecycleMMHeader.LockStates.FREE.value,
+            SyncRecycleMMHeader.LockStates.LOCKED.value, version));
         return ValueResult.TRUE;
     }
 
     @Override
     public ValueResult unlockWrite(Slice s) {
-        setLockState(s, NativeMemoryManagerHeader.LockStates.FREE);
+        setLockState(s, SyncRecycleMMHeader.LockStates.FREE);
         return ValueResult.TRUE;
     }
 
     @Override
     public ValueResult deleteValue(Slice s) {
         final int version = s.getVersion();
-        assert version > ReferenceCodecMM.INVALID_VERSION;
+        assert version > ReferenceCodecSyncRecycle.INVALID_VERSION;
         do {
             int oldVersion = getOffHeapVersion(s);
             if (oldVersion != version) {
@@ -283,14 +283,14 @@ class ValueUtilsImpl implements ValueUtils {
             if (oldVersion != getOffHeapVersion(s)) {
                 return ValueResult.RETRY;
             }
-            if (lockState == NativeMemoryManagerHeader.LockStates.DELETED.value) {
+            if (lockState == SyncRecycleMMHeader.LockStates.DELETED.value) {
                 return ValueResult.FALSE;
             }
-            if (lockState == NativeMemoryManagerHeader.LockStates.MOVED.value) {
+            if (lockState == SyncRecycleMMHeader.LockStates.MOVED.value) {
                 return ValueResult.RETRY;
             }
-        } while (!cas(s, NativeMemoryManagerHeader.LockStates.FREE.value,
-            NativeMemoryManagerHeader.LockStates.DELETED.value, version));
+        } while (!cas(s, SyncRecycleMMHeader.LockStates.FREE.value,
+            SyncRecycleMMHeader.LockStates.DELETED.value, version));
         return ValueResult.TRUE;
     }
 
@@ -305,10 +305,10 @@ class ValueUtilsImpl implements ValueUtils {
         if (oldVersion != getOffHeapVersion(s)) {
             return ValueResult.RETRY;
         }
-        if (lockState == NativeMemoryManagerHeader.LockStates.MOVED.value) {
+        if (lockState == SyncRecycleMMHeader.LockStates.MOVED.value) {
             return ValueResult.RETRY;
         }
-        if (lockState == NativeMemoryManagerHeader.LockStates.DELETED.value) {
+        if (lockState == SyncRecycleMMHeader.LockStates.DELETED.value) {
             return ValueResult.TRUE;
         }
         return ValueResult.FALSE;
