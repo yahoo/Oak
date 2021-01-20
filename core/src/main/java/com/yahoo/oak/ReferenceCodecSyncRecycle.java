@@ -17,7 +17,7 @@ package com.yahoo.oak;
  * All these parameters may be squashed together into one long for easy representation.
  * Using different number of bits for each parameter may incur different limitations on their sizes.
  */
-class ReferenceCodecMM extends ReferenceCodec{
+class ReferenceCodecSyncRecycle extends ReferenceCodec{
 
     public  static final int    INVALID_VERSION = 0;
     private static final long   INVALID_MM_REFERENCE = 0;
@@ -42,9 +42,9 @@ class ReferenceCodecMM extends ReferenceCodec{
      * @param allocator
      *
      */
-    ReferenceCodecMM(long blockSize, BlockMemoryAllocator allocator) {
-        super(BITS_FOR_MAXIMUM_RAM - ReferenceCodecDirect.requiredBits(blockSize),
-            ReferenceCodecDirect.requiredBits(blockSize), INVALID_BIT_SIZE);
+    ReferenceCodecSyncRecycle(long blockSize, BlockMemoryAllocator allocator) {
+        super(BITS_FOR_MAXIMUM_RAM - ReferenceCodecSeqExpand.requiredBits(blockSize),
+            ReferenceCodecSeqExpand.requiredBits(blockSize), INVALID_BIT_SIZE);
         // and the rest goes for version (currently 22 bits)
     }
 

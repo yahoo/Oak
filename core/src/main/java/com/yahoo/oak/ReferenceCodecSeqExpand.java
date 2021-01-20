@@ -16,7 +16,7 @@ package com.yahoo.oak;
  * Using different number of bits for each parameter may incur different limitations on their sizes.
  *
  * Number of bits used for BlockID + offset gives the size of the memory that can be referenced
- * with ReferenceCodecDirect.
+ * with ReferenceCodecSeqExpand.
  *
  * If block size is 256MB = 2^28 --> takes 28 bits
  * Then BlockID+offset have 36 bits for their representation.
@@ -37,7 +37,7 @@ package com.yahoo.oak;
  * From that, we can derive that the maximal number of 1K items that can be allocated is ~128 million (2^26).
  * Note: these limitations will change for different block sizes. */
 
-class ReferenceCodecDirect extends ReferenceCodec {
+class ReferenceCodecSeqExpand extends ReferenceCodec {
     private static final long INVALID_DIRECT_REFERENCE = 0;
     /**
      * Initialize the codec with size block-size and value length limits.
@@ -47,7 +47,7 @@ class ReferenceCodecDirect extends ReferenceCodec {
      * @param lengthSizeLimit    an upper limit on the data length (exclusive)
      * @param allocator
      */
-    ReferenceCodecDirect(long offsetSizeLimit, long lengthSizeLimit, BlockMemoryAllocator allocator) {
+    ReferenceCodecSeqExpand(long offsetSizeLimit, long lengthSizeLimit, BlockMemoryAllocator allocator) {
         super(INVALID_BIT_SIZE, // bits# to represent block id are calculated upon other parameters
             requiredBits(offsetSizeLimit),   // bits# to represent offset
             requiredBits(lengthSizeLimit)  // bits# to represent length
