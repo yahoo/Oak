@@ -65,13 +65,13 @@ class Chunk<K, V> {
      * The caller should set the creator and min-key before returning the Chunk to the user.
      */
     private Chunk(int maxItems, AtomicInteger externalSize, MemoryManager vMM, MemoryManager kMM,
-        OakComparator<K> comparator, OakSerializer<K> keySerializer, OakSerializer<V> valueSerializer,
-        ValueUtils valueOperator) {
+        OakComparator<K> comparator, OakSerializer<K> keySerializer,
+        OakSerializer<V> valueSerializer) {
         this.maxItems = maxItems;
         this.externalSize = externalSize;
         this.comparator = comparator;
         this.entrySet =
-            new EntrySet<>(vMM, kMM, maxItems, keySerializer, valueSerializer, valueOperator);
+            new EntrySet<>(vMM, kMM, maxItems, keySerializer, valueSerializer);
         // if not zero, sorted count keeps the entry index of the last
         // subsequent and ordered entry in the entries array
         this.sortedCount = new AtomicInteger(0);
@@ -88,10 +88,10 @@ class Chunk<K, V> {
      * This constructor is only used when creating the first chunk (without a creator).
      */
     Chunk(K minKey, int maxItems, AtomicInteger externalSize, MemoryManager vMM, MemoryManager kMM,
-        OakComparator<K> comparator, OakSerializer<K> keySerializer, OakSerializer<V> valueSerializer,
-        ValueUtils valueOperator) {
+        OakComparator<K> comparator, OakSerializer<K> keySerializer,
+        OakSerializer<V> valueSerializer) {
 
-        this(maxItems, externalSize, vMM, kMM, comparator, keySerializer, valueSerializer, valueOperator);
+        this(maxItems, externalSize, vMM, kMM, comparator, keySerializer, valueSerializer);
         entrySet.allocateKey(minKey, this.minKey);
     }
 
@@ -103,8 +103,7 @@ class Chunk<K, V> {
         Chunk<K, V> child =
             new Chunk<>(maxItems, externalSize,
                 entrySet.valuesMemoryManager, entrySet.keysMemoryManager,
-                comparator, entrySet.keySerializer, entrySet.valueSerializer,
-                entrySet.valOffHeapOperator);
+                comparator, entrySet.keySerializer, entrySet.valueSerializer);
         child.creator.set(this);
         child.state.set(State.INFANT);
         child.minKey.copyFrom(this.minKey);
@@ -118,8 +117,7 @@ class Chunk<K, V> {
     Chunk<K, V> createNextChild(KeyBuffer minKey) {
         Chunk<K, V> child = new Chunk<>(maxItems, externalSize,
             entrySet.valuesMemoryManager, entrySet.keysMemoryManager,
-            comparator, entrySet.keySerializer, entrySet.valueSerializer,
-            entrySet.valOffHeapOperator);
+            comparator, entrySet.keySerializer, entrySet.valueSerializer);
         child.creator.set(this);
         child.state.set(State.INFANT);
         entrySet.duplicateKey(minKey, child.minKey);

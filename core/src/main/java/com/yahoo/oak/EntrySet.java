@@ -110,19 +110,17 @@ class EntrySet<K, V> {
     final OakSerializer<K> keySerializer;
     final OakSerializer<V> valueSerializer;
 
-    final ValueUtils valOffHeapOperator; // is used for any value off-heap metadata access
-
     /*----------------- Constructor -------------------*/
 
     /**
      * Create a new EntrySet
-     *  @param vMM   for values off-heap allocations and releases
+     * @param vMM   for values off-heap allocations and releases
      * @param kMM off-heap allocations and releases for keys
      * @param entriesCapacity how many entries should this EntrySet keep at maximum
      * @param keySerializer   used to serialize the key when written to off-heap
      */
     EntrySet(MemoryManager vMM, MemoryManager kMM, int entriesCapacity, OakSerializer<K> keySerializer,
-        OakSerializer<V> valueSerializer, ValueUtils valOffHeapOperator) {
+        OakSerializer<V> valueSerializer) {
         this.valuesMemoryManager = vMM;
         this.keysMemoryManager = kMM;
         this.entries = new long[entriesCapacity * FIELDS + HEAD_NEXT_INDEX_SIZE];
@@ -131,7 +129,6 @@ class EntrySet<K, V> {
         this.entriesCapacity = entriesCapacity;
         this.keySerializer = keySerializer;
         this.valueSerializer = valueSerializer;
-        this.valOffHeapOperator = valOffHeapOperator;
     }
 
     enum ValueState {
@@ -371,7 +368,7 @@ class EntrySet<K, V> {
     void readValue(ThreadContext ctx) {
         readValue(ctx.value, ctx.entryIndex);
         ctx.valueState = getValueState(ctx.value);
-        assert valuesMemoryManager.isReferenceConsistent(ctx.value.getSlice().reference);
+        assert valuesMemoryManager.isReferenceConsistent(ctx.value.getSlice().getReference());
     }
 
     /**
@@ -385,19 +382,19 @@ class EntrySet<K, V> {
         //   remove: (1)off-heap delete bit, (2)reference deleted
         //   middle state: off-heap header marked deleted, but valid reference
 
-        if (!valuesMemoryManager.isReferenceValid(value.getSlice().reference)) {
+        if (!valuesMemoryManager.isReferenceValid(value.getSlice().getReference())) {
             // if there is no value associated with given key,
             // thebvalue of this entry was never yet allocated
             return ValueState.UNKNOWN;
         }
 
-        if (valuesMemoryManager.isReferenceDeleted(value.getSlice().reference)) {
+        if (valuesMemoryManager.isReferenceDeleted(value.getSlice().getReference())) {
             // if value is valid the reference can still be deleted
             return  ValueState.DELETED;
         }
 
         // value reference is valid, just need to check if off-heap is marked deleted
-        ValueUtils.ValueResult result = valOffHeapOperator.isValueDeleted(value.getSlice());
+        ValueUtils.ValueResult result = value.getSlice().isDeleted();
 
         // If result == TRUE, there is a deleted value associated with the given key
         // If result == RETRY, we ignore it, since it will be discovered later down the line as well
@@ -540,7 +537,7 @@ class EntrySet<K, V> {
      * is responsible to call it inside the publish/unpublish scope.
      */
     boolean deleteValueFinish(ThreadContext ctx) {
-        if (valuesMemoryManager.isReferenceDeleted(ctx.value.getSlice().reference)) {
+        if (valuesMemoryManager.isReferenceDeleted(ctx.value.getSlice().getReference())) {
             return false; // value reference in the slice is marked deleted
         }
 
@@ -611,7 +608,7 @@ class EntrySet<K, V> {
         if (!isAllocatedAndNotDeleted) {
             return true;
         }
-        return valOffHeapOperator.isValueDeleted(tempValue.getSlice()) != ValueUtils.ValueResult.FALSE;
+        return tempValue.getSlice().isDeleted() != ValueUtils.ValueResult.FALSE;
     }
 
 
@@ -652,7 +649,7 @@ class EntrySet<K, V> {
             return true;
         }
 
-        assert valuesMemoryManager.isReferenceConsistent(tempValue.getSlice().reference);
+        assert valuesMemoryManager.isReferenceConsistent(tempValue.getSlice().getReference());
 
         // ARRAY COPY: using next as the base of the entry
         // copy both the key and the value references and integer for future use => 5 integers via array copy

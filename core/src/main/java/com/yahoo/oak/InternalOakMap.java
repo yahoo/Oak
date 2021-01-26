@@ -79,7 +79,7 @@ class InternalOakMap<K, V> {
         this.skiplist = new ConcurrentSkipListMap<>(mixedKeyComparator);
 
         Chunk<K, V> head = new Chunk<>(minKey, chunkMaxItems, this.size, vMM, kMM, this.comparator,
-                keySerializer, valueSerializer, valueOperator);
+                keySerializer, valueSerializer);
         this.skiplist.put(head.minKey, head);    // add first chunk (head) into skiplist
         this.head = new AtomicReference<>(head);
         this.valueOperator = valueOperator;
@@ -440,8 +440,7 @@ class InternalOakMap<K, V> {
             if (ctx.isValueValid()) {
                 // there is a value and it is not deleted
                 Result res = valueOperator.exchange(c, ctx, value, transformer, valueSerializer,
-                    valuesMemoryManager,
-                        this);
+                    this);
                 if (res.operationResult == ValueUtils.ValueResult.TRUE) {
                     return (V) res.value;
                 }
@@ -647,8 +646,7 @@ class InternalOakMap<K, V> {
                 // before we marked the value reference as deleted. We have the previous value saved in v.
                 return transformer == null ? ctx.result.withFlag(ValueUtils.ValueResult.TRUE) : ctx.result.withValue(v);
             } else {
-                Result removeResult = valueOperator.remove(ctx, valuesMemoryManager,
-                        oldValue, transformer);
+                Result removeResult = valueOperator.remove(ctx, oldValue, transformer);
                 if (removeResult.operationResult == ValueUtils.ValueResult.FALSE) {
                     // we didn't succeed to remove the value: it didn't contain oldValue, or was already marked
                     // as deleted by someone else)
@@ -866,7 +864,7 @@ class InternalOakMap<K, V> {
 
             // will return null if the value is deleted
             Result result = valueOperator.exchange(c, ctx, value, valueDeserializeTransformer, valueSerializer,
-                valuesMemoryManager, this);
+                this);
             if (result.operationResult != ValueUtils.ValueResult.RETRY) {
                 return (V) result.value;
             }
@@ -886,7 +884,7 @@ class InternalOakMap<K, V> {
             }
 
             ValueUtils.ValueResult res = valueOperator.compareExchange(c, ctx, oldValue, newValue,
-                    valueDeserializeTransformer, valueSerializer, valuesMemoryManager, this);
+                    valueDeserializeTransformer, valueSerializer, this);
             if (res == ValueUtils.ValueResult.RETRY) {
                 continue;
             }
@@ -1405,7 +1403,7 @@ class InternalOakMap<K, V> {
 
         public T next() {
             advance(true);
-            ValueUtils.ValueResult res = valueOperator.lockRead(ctx.value.s);
+            ValueUtils.ValueResult res = ctx.value.s.lockRead();
             if (res == ValueUtils.ValueResult.FALSE) {
                 return next();
             } else if (res == ValueUtils.ValueResult.RETRY) {
@@ -1414,7 +1412,7 @@ class InternalOakMap<K, V> {
                     if (!isSuccessful) {
                         return next();
                     }
-                    res = valueOperator.lockRead(ctx.value.s);
+                    res = ctx.value.s.lockRead();
                 } while (res != ValueUtils.ValueResult.TRUE);
             }
 
@@ -1422,7 +1420,7 @@ class InternalOakMap<K, V> {
                     new AbstractMap.SimpleEntry<>(ctx.key, ctx.value);
 
             T transformation = transformer.apply(entry);
-            valueOperator.unlockRead(ctx.value.s);
+            ctx.value.s.unlockRead();
             return transformation;
         }
     }

@@ -14,67 +14,7 @@ interface ValueUtils {
         TRUE, FALSE, RETRY
     }
 
-    /**
-     * Acquires a read lock
-     *
-     * @param s the value's off-heap Slice object
-     * @return {@code TRUE} if the read lock was acquires successfully
-     * {@code FALSE} if the value is marked as deleted
-     * {@code RETRY} if the value was moved, or the version of the off-heap value does not match {@code version}.
-     */
-    ValueResult lockRead(Slice s);
-
-    /**
-     * Releases a read lock
-     *
-     * @param s the value's off-heap Slice object
-     * @return {@code TRUE} if the read lock was released successfully
-     * {@code FALSE} if the value is marked as deleted
-     * {@code RETRY} if the value was moved, or the version of the off-heap value does not match {@code version}.
-     */
-    ValueResult unlockRead(Slice s);
-
-    /**
-     * Acquires a write lock
-     *
-     * @param s the value's off-heap Slice object
-     * @return {@code TRUE} if the write lock was acquires successfully
-     * {@code FALSE} if the value is marked as deleted
-     * {@code RETRY} if the value was moved, or the version of the off-heap value does not match {@code version}.
-     */
-    ValueResult lockWrite(Slice s);
-
-    /**
-     * Releases a write lock
-     * Since a write lock is exclusive (unlike read lock), there is no way for the version to change, so no need to
-     * pass it.
-     *
-     * @param s the value's off-heap Slice object
-     * @return {@code TRUE} if the write lock was released successfully
-     * {@code FALSE} if the value is marked as deleted
-     * {@code RETRY} if the value was moved, or the version of the off-heap value does not match {@code version}.
-     */
-    ValueResult unlockWrite(Slice s);
-
-    /**
-     * Marks the value pointed by {@code s} as deleted only if the version of that value matches {@code version}.
-     *
-     * @param s the value's off-heap Slice object
-     * @return {@code TRUE} if the value was marked successfully
-     * {@code FALSE} if the value is already marked as deleted
-     * {@code RETRY} if the value was moved, or the version of the off-heap value does not match {@code version}.
-     */
-    ValueResult deleteValue(Slice s);
-
-    /**
-     * @param s the value's off-heap Slice object
-     * @return {@code TRUE} if the value is marked
-     * {@code FALSE} if the value is not marked
-     * {@code RETRY} if the value was moved, or the version of the off-heap value does not match {@code version}.
-     */
-    ValueResult isValueDeleted(Slice s);
-
-    /* ==================== More complex methods on off-heap values ==================== */
+    /* ==================== Methods for operating on existing off-heap values ==================== */
 
     /**
      * Used to try and read a value off-heap
@@ -91,7 +31,7 @@ interface ValueUtils {
     <T> Result transform(Result result, ValueBuffer value, OakTransformer<T> transformer);
 
     /**
-     * @see #exchange(Chunk, ThreadContext, Object, OakTransformer, OakSerializer, MemoryManager, InternalOakMap)
+     * @see #exchange(Chunk, ThreadContext, Object, OakTransformer, OakSerializer, InternalOakMap)
      * Does not return the value previously written off-heap
      */
     <V> ValueResult put(Chunk<?, V> chunk, ThreadContext ctx, V newVal, OakSerializer<V> serializer,
@@ -109,19 +49,17 @@ interface ValueUtils {
     /**
      * Marks a value as deleted and frees its slice (whether the header is freed or not is implementation dependant).
      *
+     * @param <V>           the type of the value
      * @param ctx           has the entry index and its value to be remove
-     * @param memoryManager the memory manager to which the slice is returned to
      * @param oldValue      in case of a conditional remove, this is the value to which the actual value is compared to
      * @param transformer   value deserializer
-     * @param <V>           the type of the value
      * @return {@code TRUE} if the value was removed successfully,
      * {@code FALSE} if the value is already deleted, or if it does not equal to {@code oldValue}
      * {@code RETRY} if the value was moved, or the version of the off-heap value does not match {@code version}.
      * In case of success, the value of the returned Result is the value which was written in the off-heap before the
      * removal (if {@code transformer} is not null), otherwise, it is {@code null}.
      */
-    <V> Result remove(ThreadContext ctx, MemoryManager memoryManager, V oldValue,
-                      OakTransformer<V> transformer);
+    <V> Result remove(ThreadContext ctx, V oldValue, OakTransformer<V> transformer);
 
     /**
      * Replaces the value written in the Slice referenced by {@code ctx} with {@code value}.
@@ -134,7 +72,6 @@ interface ValueUtils {
      * @param value                       the new value to write
      * @param valueDeserializeTransformer used to read the previous value
      * @param serializer                  value serializer to write {@code newValue}
-     * @param memoryManager               the memory manager to free a slice with is not needed after the value moved
      * @param internalOakMap
      * @return {@code TRUE} if the value was written off-heap successfully
      * {@code FALSE} if the value is deleted (cannot be overwritten)
@@ -144,7 +81,7 @@ interface ValueUtils {
      * was written before the exchange.
      */
     <V> Result exchange(Chunk<?, V> chunk, ThreadContext ctx, V value, OakTransformer<V> valueDeserializeTransformer,
-                        OakSerializer<V> serializer, MemoryManager memoryManager, InternalOakMap internalOakMap);
+        OakSerializer<V> serializer, InternalOakMap internalOakMap);
 
     /**
      * @param expected       the old value to which we compare the current value
@@ -153,9 +90,8 @@ interface ValueUtils {
      * {@code FAILURE} if the value is deleted or if the actual value referenced in {@code ctx} does not equal to
      * {@code expected}
      * {@code RETRY} for the same reasons as exchange
-     * @see #exchange(Chunk, ThreadContext, Object, OakTransformer, OakSerializer, MemoryManager, InternalOakMap)
+     * @see #exchange(Chunk, ThreadContext, Object, OakTransformer, OakSerializer, InternalOakMap)
      */
     <V> ValueResult compareExchange(Chunk<?, V> chunk, ThreadContext ctx, V expected, V value,
-                                    OakTransformer<V> valueDeserializeTransformer, OakSerializer<V> serializer,
-                                    MemoryManager memoryManager, InternalOakMap internalOakMap);
+        OakTransformer<V> valueDeserializeTransformer, OakSerializer<V> serializer, InternalOakMap internalOakMap);
 }

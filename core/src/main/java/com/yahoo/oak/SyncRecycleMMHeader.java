@@ -36,57 +36,181 @@ class SyncRecycleMMHeader {
     private static final int LOCK_SIZE = 4;
     private static final int LOCK_OFFSET = VERSION_SIZE;
 
-    private static final int LENGTH_OFFSET = LOCK_OFFSET+LOCK_SIZE;
+    private static final int LOCK_STATE_MASK = 0x3;
+    private static final int LOCK_STATE_SHIFT = 2;
+
+    private static final int LENGTH_OFFSET = VERSION_SIZE+LOCK_SIZE;
 
     private static Unsafe unsafe = UnsafeUtils.unsafe;
 
 
-    private static int getInt(Slice s, int headerOffsetInBytes) {
-        return unsafe.getInt(s.getMetadataAddress() + headerOffsetInBytes);
+    private static int getInt(long headerAddress, int intOffsetInBytes) {
+        return unsafe.getInt(headerAddress + intOffsetInBytes);
     }
 
-    private static void putInt(Slice s, int headerOffsetInBytes, int value) {
-        unsafe.putInt(s.getMetadataAddress() + headerOffsetInBytes, value);
+    private static void putInt(long headerAddress, int intOffsetInBytes, int value) {
+        unsafe.putInt(headerAddress + intOffsetInBytes, value);
     }
 
-    void setVersion(Slice s) {
-        putInt(s, VERSION_OFFSET, s.getVersion());
+    private void setOffHeapVersion(long headerAddress, int offHeapVersion) {
+        putInt(headerAddress, VERSION_OFFSET, offHeapVersion);
     }
 
-    int getVersion(Slice s) {
-        return getInt(s, VERSION_OFFSET);
+    int getOffHeapVersion(long headerAddress) {
+        return getInt(headerAddress, VERSION_OFFSET);
     }
 
-    int getLockState(Slice s) {
-        return getInt(s, LOCK_OFFSET);
+    private int getLockState(long headerAddress) {
+        return getInt(headerAddress, LOCK_OFFSET);
     }
 
-    void setLockState(Slice s, LockStates state) {
-        putInt(s, LOCK_OFFSET, state.value);
+    private void setLockState(long headerAddress, LockStates state) {
+        putInt(headerAddress, LOCK_OFFSET, state.value);
     }
 
-    int getLength(Slice s) {
-        return getInt(s, LENGTH_OFFSET);
+    int getDataLength(long headerAddress) {
+        return getInt(headerAddress, LENGTH_OFFSET);
     }
 
-    void setLength(Slice s, int length) {
-        putInt(s, LENGTH_OFFSET, length);
+    private void setDataLength(long headerAddress, int length) {
+        putInt(headerAddress, LENGTH_OFFSET, length);
     }
 
-    private void initHeader(Slice s, LockStates state, int dataLength) {
-        setVersion(s);
-        setLockState(s, state);
-        setLength(s, dataLength);
+    private void initHeader(long headerAddress, LockStates state, int dataLength, int version) {
+        setOffHeapVersion(headerAddress, version);
+        setLockState(headerAddress, state);
+        setDataLength(headerAddress, dataLength);
     }
 
-
-    void initHeader(Slice s, int dataLength) {
-        initHeader(s, LockStates.FREE, dataLength);
+    void initHeader(long headerAddress, int dataLength, int version) {
+        initHeader(headerAddress, LockStates.FREE, dataLength, version);
     }
 
-
-    void initLockedHeader(Slice s, int dataLength) {
-        initHeader(s, LockStates.LOCKED, dataLength);
+    void initLockedHeader(long headerAddress, int dataLength, int version) {
+        initHeader(headerAddress, LockStates.LOCKED, dataLength, version);
     }
 
+    /*---------------- Locking Implementation ----------------*/
+
+    private static boolean cas(long headerAddress, int expectedLock, int newLock, int version) {
+        // Since the writing is done directly to the memory, the endianness of the memory is important here.
+        // Therefore, we make sure that the values are read and written correctly.
+        long expected = UnsafeUtils.intsToLong(version, expectedLock);
+        long value = UnsafeUtils.intsToLong(version, newLock);
+        return unsafe.compareAndSwapLong(null, headerAddress, expected, value);
+    }
+
+    ValueUtils.ValueResult lockRead(final int onHeapVersion, long headerAddress) {
+        int lockState;
+        assert onHeapVersion > ReferenceCodecSyncRecycle.INVALID_VERSION
+            : "In locking for read the version was: " + onHeapVersion;
+        do {
+            int offHeapVersion = getOffHeapVersion(headerAddress);
+            if (offHeapVersion != onHeapVersion) {
+                return ValueUtils.ValueResult.RETRY;
+            }
+            lockState = getLockState(headerAddress);
+            if (offHeapVersion != getOffHeapVersion(headerAddress)) {
+                return ValueUtils.ValueResult.RETRY;
+            }
+            if (lockState == LockStates.DELETED.value) {
+                return ValueUtils.ValueResult.FALSE;
+            }
+            if (lockState == LockStates.MOVED.value) {
+                return ValueUtils.ValueResult.RETRY;
+            }
+            lockState &= ~LOCK_STATE_MASK;
+        } while (!cas(headerAddress, lockState, lockState + (1 << LOCK_STATE_SHIFT), onHeapVersion));
+        return ValueUtils.ValueResult.TRUE;
+    }
+
+    ValueUtils.ValueResult unlockRead(final int onHeapVersion, long headerAddress) {
+        int lockState;
+        assert onHeapVersion > ReferenceCodecSyncRecycle.INVALID_VERSION;
+        do {
+            lockState = getLockState(headerAddress);
+            assert lockState > LockStates.MOVED.value;
+            lockState &= ~LOCK_STATE_MASK;
+        } while (!cas(headerAddress, lockState, lockState - (1 << LOCK_STATE_SHIFT), onHeapVersion));
+        return ValueUtils.ValueResult.TRUE;
+    }
+
+    ValueUtils.ValueResult lockWrite(final int onHeapVersion, long headerAddress) {
+        assert onHeapVersion > ReferenceCodecSyncRecycle.INVALID_VERSION;
+        do {
+            int oldVersion = getOffHeapVersion(headerAddress);
+            if (oldVersion != onHeapVersion) {
+                return ValueUtils.ValueResult.RETRY;
+            }
+            int lockState = getLockState(headerAddress);
+            if (oldVersion != getOffHeapVersion(headerAddress)) {
+                return ValueUtils.ValueResult.RETRY;
+            }
+            if (lockState == LockStates.DELETED.value) {
+                return ValueUtils.ValueResult.FALSE;
+            }
+            if (lockState == LockStates.MOVED.value) {
+                return ValueUtils.ValueResult.RETRY;
+            }
+        } while (!cas(headerAddress, LockStates.FREE.value, LockStates.LOCKED.value, onHeapVersion));
+        return ValueUtils.ValueResult.TRUE;
+    }
+
+    ValueUtils.ValueResult unlockWrite(final int onHeapVersion, long headerAddress) {
+        int lockState = getLockState(headerAddress);
+        assert (lockState == LockStates.LOCKED.value)
+            && (onHeapVersion == getOffHeapVersion(headerAddress));
+        // use CAS and not just write so potential waiting reads can proceed immediately
+        cas(headerAddress, lockState, LockStates.FREE.value, onHeapVersion);
+        return ValueUtils.ValueResult.TRUE;
+    }
+
+    ValueUtils.ValueResult logicalDelete(final int onHeapVersion, long headerAddress) {
+        assert onHeapVersion > ReferenceCodecSyncRecycle.INVALID_VERSION;
+        do {
+            int oldVersion = getOffHeapVersion(headerAddress);
+            if (oldVersion != onHeapVersion) {
+                return ValueUtils.ValueResult.RETRY;
+            }
+            int lockState = getLockState(headerAddress);
+            if (oldVersion != getOffHeapVersion(headerAddress)) {
+                return ValueUtils.ValueResult.RETRY;
+            }
+            if (lockState == LockStates.DELETED.value) {
+                return ValueUtils.ValueResult.FALSE;
+            }
+            if (lockState == LockStates.MOVED.value) {
+                return ValueUtils.ValueResult.RETRY;
+            }
+        } while (!cas(headerAddress, LockStates.FREE.value, LockStates.DELETED.value, onHeapVersion));
+        return ValueUtils.ValueResult.TRUE;
+    }
+
+    ValueUtils.ValueResult isLogicallyDeleted(final int onHeapVersion, long headerAddress) {
+        int oldVersion = getOffHeapVersion(headerAddress);
+        if (oldVersion != onHeapVersion) {
+            return ValueUtils.ValueResult.RETRY;
+        }
+        int lockState = getLockState(headerAddress);
+        if (oldVersion != getOffHeapVersion(headerAddress)) {
+            return ValueUtils.ValueResult.RETRY;
+        }
+        if (lockState == LockStates.MOVED.value) {
+            return ValueUtils.ValueResult.RETRY;
+        }
+        if (lockState == LockStates.DELETED.value) {
+            return ValueUtils.ValueResult.TRUE;
+        }
+        return ValueUtils.ValueResult.FALSE;
+    }
+
+    void markAsMoved(long headerAddress) {
+        assert getLockState(headerAddress) == LockStates.LOCKED.value;
+        setLockState(headerAddress, LockStates.MOVED);
+    }
+
+    void markAsDeleted(long headerAddress) {
+        assert getLockState(headerAddress) == LockStates.LOCKED.value;
+        setLockState(headerAddress, LockStates.DELETED);
+    }
 }

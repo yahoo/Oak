@@ -22,13 +22,14 @@ class Slice implements OakUnsafeDirectBuffer, Comparable<Slice> {
      * An allocated off-heap cut might have reserved space for meta-data, i.e., a header.
      * The header size is defined externally by memory-manager at the slice construction.
      */
-    protected final int headerSize;
+    private final int headerSize;
+    private final SyncRecycleMMHeader header;
 
     /** The fields describing the associated off-heap cut, they are set when slice is not empty **/
-    protected long reference;
+    private long reference;
     private final long invalidReferenceValue; // used for invalidation
-    protected int blockID = NativeMemoryAllocator.INVALID_BLOCK_ID;
-    protected int offset  = UNDEFINED_LENGTH_OR_OFFSET;
+    private int blockID = NativeMemoryAllocator.INVALID_BLOCK_ID;
+    private int offset  = UNDEFINED_LENGTH_OR_OFFSET;
 
     // The entire length of the off-heap cut, including the header!
     protected int length = UNDEFINED_LENGTH_OR_OFFSET;
@@ -43,22 +44,23 @@ class Slice implements OakUnsafeDirectBuffer, Comparable<Slice> {
      * Constructors
      * ------------------------------------------------------------------------------------*/
     // Should be used only by Memory Manager (within Memory Manager package)
-    Slice(int headerSize, long invalidReferenceValue) {
+    Slice(int headerSize, long invalidReferenceValue, SyncRecycleMMHeader header) {
         this.headerSize = headerSize;
         this.invalidReferenceValue = invalidReferenceValue;
+        this.header = header;
         invalidate();
     }
 
     // Should be used only for testing
     @VisibleForTesting
     Slice() {
-        this(0, 0);
+        this(0, 0, null);
     }
 
     // Used to duplicate the allocation state. Does not duplicate the underlying memory buffer itself.
     // Should be used when ThreadContext's internal Slice needs to be exported to the user.
     Slice getDuplicatedSlice() {
-        Slice newSlice = new Slice(this.headerSize, this.invalidReferenceValue);
+        Slice newSlice = new Slice(this.headerSize, this.invalidReferenceValue, this.header);
         newSlice.copyFrom(this);
         return newSlice;
     }
@@ -171,7 +173,7 @@ class Slice implements OakUnsafeDirectBuffer, Comparable<Slice> {
         this.associated = true;
     }
 
-    void setDataLength(int length) {
+    private void setDataLength(int length) {
         // the length kept in header is the length of the data only!
         // add header size
         this.length = length + headerSize;
@@ -207,7 +209,7 @@ class Slice implements OakUnsafeDirectBuffer, Comparable<Slice> {
     int getAllocatedLength() {
         assert associated;
         if (length == UNDEFINED_LENGTH_OR_OFFSET) {
-            ValueUtilsImpl.setLengthFromOffHeap(this);
+            setDataLength(header.getDataLength(getMetadataAddress()));
         }
         return length;
     }
@@ -241,7 +243,7 @@ class Slice implements OakUnsafeDirectBuffer, Comparable<Slice> {
     @Override
     public int getLength() {
         if (length == UNDEFINED_LENGTH_OR_OFFSET) {
-            ValueUtilsImpl.setLengthFromOffHeap(this);
+            setDataLength(header.getDataLength(getMetadataAddress()));
         }
         return length - headerSize;
     }
@@ -276,5 +278,99 @@ class Slice implements OakUnsafeDirectBuffer, Comparable<Slice> {
             return cmp;
         }
         return Integer.compare(this.offset, o.offset);
+    }
+
+    /*-------------- Off-heap header operations: locking and logical delete --------------*/
+
+    /**
+     * Acquires a read lock
+     *
+     * @return {@code TRUE} if the read lock was acquires successfully
+     * {@code FALSE} if the header/off-heap-cut is marked as deleted
+     * {@code RETRY} if the header/off-heap-cut was moved, or the version of the off-heap header
+     * does not match {@code version}.
+     */
+    ValueUtils.ValueResult lockRead(){
+        assert version != ReferenceCodecSyncRecycle.INVALID_VERSION;
+        return header.lockRead(version, getMetadataAddress());
+    }
+
+    /**
+     * Releases a read lock
+     *
+     * @return {@code TRUE} if the read lock was released successfully
+     * {@code FALSE} if the value is marked as deleted
+     * {@code RETRY} if the value was moved, or the version of the off-heap value does not match {@code version}.
+     */
+    ValueUtils.ValueResult unlockRead(){
+        assert version != ReferenceCodecSyncRecycle.INVALID_VERSION;
+        return header.unlockRead(version, getMetadataAddress());
+    }
+
+    /**
+     * Acquires a write lock
+     *
+     * @return {@code TRUE} if the write lock was acquires successfully
+     * {@code FALSE} if the value is marked as deleted
+     * {@code RETRY} if the value was moved, or the version of the off-heap value does not match {@code version}.
+     */
+    ValueUtils.ValueResult lockWrite(){
+        assert version != ReferenceCodecSyncRecycle.INVALID_VERSION;
+        return header.lockWrite(version, getMetadataAddress());
+    }
+
+    /**
+     * Releases a write lock
+     *
+     * @return {@code TRUE} if the write lock was released successfully
+     * {@code FALSE} if the value is marked as deleted
+     * {@code RETRY} if the value was moved, or the version of the off-heap value does not match {@code version}.
+     */
+    ValueUtils.ValueResult unlockWrite(){
+        assert version != ReferenceCodecSyncRecycle.INVALID_VERSION;
+        return header.unlockWrite(version, getMetadataAddress());
+    }
+
+    /**
+     * Marks the associated off-heap cut as deleted only if the version of that value matches {@code version}.
+     *
+     * @return {@code TRUE} if the value was marked successfully
+     * {@code FALSE} if the value is already marked as deleted
+     * {@code RETRY} if the value was moved, or the version of the off-heap value does not match {@code version}.
+     */
+    ValueUtils.ValueResult logicalDelete(){
+        assert version != ReferenceCodecSyncRecycle.INVALID_VERSION;
+        return header.logicalDelete(version, getMetadataAddress());
+    }
+
+    /**
+     * Is the associated off-heap cut marked as logically deleted
+     *
+     * @return {@code TRUE} if the value is marked
+     * {@code FALSE} if the value is not marked
+     * {@code RETRY} if the value was moved, or the version of the off-heap value does not match {@code version}.
+     */
+    ValueUtils.ValueResult isDeleted(){
+        assert version != ReferenceCodecSyncRecycle.INVALID_VERSION;
+        return header.isLogicallyDeleted(version, getMetadataAddress());
+    }
+
+    /**
+     * Marks the header of the associated off-heap cut as moved, just write (without CAS)
+     * The write lock must be held (asserted inside the header)
+     */
+    void markAsMoved() {
+        assert associated;
+        header.markAsMoved(getMetadataAddress());
+    }
+
+    /**
+     * Marks the header of the associated off-heap cut as deleted, just write (without CAS)
+     * The write lock must be held (asserted inside the header).
+     * It is similar to logicalDelete() but used when locking and marking don't happen in one CAS
+     */
+    void markAsDeleted() {
+        assert associated;
+        header.markAsDeleted(getMetadataAddress());
     }
 }
