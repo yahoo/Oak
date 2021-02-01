@@ -35,7 +35,7 @@ interface ValueUtils {
      * Does not return the value previously written off-heap
      */
     <V> ValueResult put(Chunk<?, V> chunk, ThreadContext ctx, V newVal, OakSerializer<V> serializer,
-                        MemoryManager memoryManager, InternalOakMap internalOakMap);
+        InternalOakMap internalOakMap);
 
     /**
      * @param value    the value's off-heap Slice object

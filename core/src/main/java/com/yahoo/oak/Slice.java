@@ -32,7 +32,7 @@ class Slice implements OakUnsafeDirectBuffer, Comparable<Slice> {
     private int offset  = UNDEFINED_LENGTH_OR_OFFSET;
 
     // The entire length of the off-heap cut, including the header!
-    protected int length = UNDEFINED_LENGTH_OR_OFFSET;
+    private int length = UNDEFINED_LENGTH_OR_OFFSET;
     private int version;    // Allocation time version
     private ByteBuffer buffer = null;
 
@@ -173,10 +173,13 @@ class Slice implements OakUnsafeDirectBuffer, Comparable<Slice> {
         this.associated = true;
     }
 
-    private void setDataLength(int length) {
-        // the length kept in header is the length of the data only!
-        // add header size
-        this.length = length + headerSize;
+    // the method has no effect if length is already set
+    protected void prefetchDataLength() {
+        if (length == UNDEFINED_LENGTH_OR_OFFSET) {
+            // the length kept in header is the length of the data only!
+            // add header size
+            this.length = header.getDataLength(getMetadataAddress()) + headerSize;
+        }
     }
 
     // simple setter, frequently internally used, to save code duplication
@@ -208,9 +211,8 @@ class Slice implements OakUnsafeDirectBuffer, Comparable<Slice> {
 
     int getAllocatedLength() {
         assert associated;
-        if (length == UNDEFINED_LENGTH_OR_OFFSET) {
-            setDataLength(header.getDataLength(getMetadataAddress()));
-        }
+        // prefetchDataLength() prefetches the length from header only if Slice's length is undefined
+        prefetchDataLength();
         return length;
     }
 
@@ -242,9 +244,8 @@ class Slice implements OakUnsafeDirectBuffer, Comparable<Slice> {
 
     @Override
     public int getLength() {
-        if (length == UNDEFINED_LENGTH_OR_OFFSET) {
-            setDataLength(header.getDataLength(getMetadataAddress()));
-        }
+        // prefetchDataLength() prefetches the length from header only if Slice's length is undefined
+        prefetchDataLength();
         return length - headerSize;
     }
 

@@ -28,7 +28,7 @@ class ValueUtilsImpl implements ValueUtils {
 
     @Override
     public <V> ValueResult put(Chunk<?, V> chunk, ThreadContext ctx, V newVal, OakSerializer<V> serializer,
-                               MemoryManager memoryManager, InternalOakMap internalOakMap) {
+        InternalOakMap internalOakMap) {
         ValueResult result = ctx.value.s.lockWrite();
         if (result != ValueResult.TRUE) {
             return result;

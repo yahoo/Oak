@@ -158,7 +158,7 @@ public class ValueUtilsTest {
             public int calculateSize(Integer object) {
                 return 0;
             }
-        }, valuesMemoryManager, null));
+        }, null));
         Assert.assertEquals(randomValues[0], getInt(0));
         Assert.assertEquals(randomValues[1], getInt(4));
         Assert.assertEquals(randomValues[2], getInt(8));
@@ -181,7 +181,7 @@ public class ValueUtilsTest {
             public int calculateSize(Integer object) {
                 return 0;
             }
-        }, valuesMemoryManager, null);
+        }, null);
     }
 
     @Test(expected = IndexOutOfBoundsException.class)
@@ -201,7 +201,7 @@ public class ValueUtilsTest {
             public int calculateSize(Integer object) {
                 return 0;
             }
-        }, valuesMemoryManager, null);
+        }, null);
     }
 
     @Test
@@ -235,7 +235,7 @@ public class ValueUtilsTest {
                 public int calculateSize(Integer object) {
                     return 0;
                 }
-            }, valuesMemoryManager, null);
+            }, null);
         });
         s.getSlice().lockRead();
         putter.start();
@@ -289,7 +289,7 @@ public class ValueUtilsTest {
                 public int calculateSize(Integer object) {
                     return 0;
                 }
-            }, valuesMemoryManager, null);
+            }, null);
         });
         s.getSlice().lockWrite();
         putter.start();
@@ -310,14 +310,14 @@ public class ValueUtilsTest {
     public void cannotPutInDeletedValueTest() {
         s.getSlice().logicalDelete();
         Assert.assertEquals(ValueUtils.ValueResult.FALSE, valueOperator.put(null, ctx, null, null,
-            valuesMemoryManager, null));
+            null));
     }
 
     @Test
     public void cannotPutToValueOfDifferentVersionTest() {
         s.getSlice().associateMMAllocation(2, -1);
         Assert.assertEquals(ValueUtils.ValueResult.RETRY, valueOperator.put(null, ctx, null, null,
-            valuesMemoryManager, null));
+            null));
     }
 
     @Test

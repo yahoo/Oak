@@ -155,16 +155,14 @@ class SyncRecycleMemoryManager implements MemoryManager {
         if (existing) {
             HEADER.initLockedHeader(s.getMetadataAddress(), size, allocationVersion);
         } else {
-            HEADER.initHeader(s.getMetadataAddress(), size, allocationVersion);
+            HEADER.initFreeHeader(s.getMetadataAddress(), size, allocationVersion);
         }
         assert HEADER.getOffHeapVersion(s.getMetadataAddress()) == allocationVersion;
     }
 
     @Override
     public void release(Slice s) {
-        if (s.length == Slice.UNDEFINED_LENGTH_OR_OFFSET) {
-            s.getLength(); // this will set the length from off-heap header, if needed
-        }
+        s.prefetchDataLength(); // this will set the length from off-heap header, if needed
         int idx = threadIndexCalculator.getIndex();
         List<Slice> myReleaseList = this.releaseLists.get(idx);
         // ensure the length of the slice is always set

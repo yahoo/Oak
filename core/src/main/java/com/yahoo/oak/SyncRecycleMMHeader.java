@@ -82,7 +82,7 @@ class SyncRecycleMMHeader {
         setDataLength(headerAddress, dataLength);
     }
 
-    void initHeader(long headerAddress, int dataLength, int version) {
+    void initFreeHeader(long headerAddress, int dataLength, int version) {
         initHeader(headerAddress, LockStates.FREE, dataLength, version);
     }
 
