@@ -131,7 +131,7 @@ class SeqExpandMemoryManager implements MemoryManager {
 
     @Override
     public Slice getEmptySlice() {
-        return new Slice(0, rcd.getInvalidReference());
+        return new Slice(0, rcd.getInvalidReference(), null);
     }
 
     @Override public int getHeaderSize() {

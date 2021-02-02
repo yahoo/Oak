@@ -17,7 +17,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 public class ValueUtilsSimpleTest {
     private Slice s;
-    private final ValueUtils valueOperator = new ValueUtilsImpl();
 
     @Before
     public void init() {
@@ -30,26 +29,26 @@ public class ValueUtilsSimpleTest {
 
     @Test
     public void testCannotReadLockDeleted() {
-        Assert.assertEquals(ValueUtils.ValueResult.TRUE, valueOperator.deleteValue(s));
-        Assert.assertEquals(ValueUtils.ValueResult.FALSE, valueOperator.lockRead(s));
+        Assert.assertEquals(ValueUtils.ValueResult.TRUE, s.logicalDelete());
+        Assert.assertEquals(ValueUtils.ValueResult.FALSE, s.lockRead());
     }
 
     @Test
     public void testCannotWriteLockDeleted() {
-        Assert.assertEquals(ValueUtils.ValueResult.TRUE, valueOperator.deleteValue(s));
-        Assert.assertEquals(ValueUtils.ValueResult.FALSE, valueOperator.lockWrite(s));
+        Assert.assertEquals(ValueUtils.ValueResult.TRUE, s.logicalDelete());
+        Assert.assertEquals(ValueUtils.ValueResult.FALSE, s.lockWrite());
     }
 
     @Test
     public void testCannotDeletedMultipleTimes() {
-        Assert.assertEquals(ValueUtils.ValueResult.TRUE, valueOperator.deleteValue(s));
-        Assert.assertEquals(ValueUtils.ValueResult.FALSE, valueOperator.deleteValue(s));
+        Assert.assertEquals(ValueUtils.ValueResult.TRUE, s.logicalDelete());
+        Assert.assertEquals(ValueUtils.ValueResult.FALSE, s.lockWrite());
     }
 
     @Test
     public void testCanReadLockMultipleTimes() {
         for (int i = 0; i < 10000; i++) {
-            Assert.assertEquals(ValueUtils.ValueResult.TRUE, valueOperator.lockRead(s));
+            Assert.assertEquals(ValueUtils.ValueResult.TRUE, s.lockRead());
         }
     }
 
@@ -63,7 +62,7 @@ public class ValueUtilsSimpleTest {
             } catch (InterruptedException | BrokenBarrierException e) {
                 e.printStackTrace();
             }
-            Assert.assertEquals(ValueUtils.ValueResult.TRUE, valueOperator.lockWrite(s));
+            Assert.assertEquals(ValueUtils.ValueResult.TRUE, s.lockWrite());
             Assert.assertEquals(2, flag.get());
         });
         Thread reader = new Thread(() -> {
@@ -72,11 +71,11 @@ public class ValueUtilsSimpleTest {
             } catch (InterruptedException | BrokenBarrierException e) {
                 e.printStackTrace();
             }
-            Assert.assertEquals(ValueUtils.ValueResult.TRUE, valueOperator.lockRead(s));
+            Assert.assertEquals(ValueUtils.ValueResult.TRUE, s.lockRead());
             flag.incrementAndGet();
-            valueOperator.unlockRead(s);
+            s.unlockRead();
         });
-        Assert.assertEquals(ValueUtils.ValueResult.TRUE, valueOperator.lockRead(s));
+        Assert.assertEquals(ValueUtils.ValueResult.TRUE, s.lockRead());
         writer.start();
         reader.start();
         try {
@@ -86,7 +85,7 @@ public class ValueUtilsSimpleTest {
         }
         Thread.sleep(2000);
         flag.incrementAndGet();
-        valueOperator.unlockRead(s);
+        s.unlockRead();
         reader.join();
         writer.join();
     }
@@ -101,7 +100,7 @@ public class ValueUtilsSimpleTest {
             } catch (InterruptedException | BrokenBarrierException e) {
                 e.printStackTrace();
             }
-            Assert.assertEquals(ValueUtils.ValueResult.TRUE, valueOperator.deleteValue(s));
+            Assert.assertEquals(ValueUtils.ValueResult.TRUE, s.logicalDelete());
             Assert.assertEquals(2, flag.get());
         });
         Thread reader = new Thread(() -> {
@@ -110,11 +109,11 @@ public class ValueUtilsSimpleTest {
             } catch (InterruptedException | BrokenBarrierException e) {
                 e.printStackTrace();
             }
-            Assert.assertEquals(ValueUtils.ValueResult.TRUE, valueOperator.lockRead(s));
+            Assert.assertEquals(ValueUtils.ValueResult.TRUE, s.lockRead());
             flag.incrementAndGet();
-            valueOperator.unlockRead(s);
+            s.unlockRead();
         });
-        Assert.assertEquals(ValueUtils.ValueResult.TRUE, valueOperator.lockRead(s));
+        Assert.assertEquals(ValueUtils.ValueResult.TRUE, s.lockRead());
         deleter.start();
         reader.start();
         try {
@@ -124,7 +123,7 @@ public class ValueUtilsSimpleTest {
         }
         Thread.sleep(2000);
         flag.incrementAndGet();
-        valueOperator.unlockRead(s);
+        s.unlockRead();
         reader.join();
         deleter.join();
     }
@@ -139,10 +138,10 @@ public class ValueUtilsSimpleTest {
             } catch (InterruptedException | BrokenBarrierException e) {
                 e.printStackTrace();
             }
-            Assert.assertEquals(ValueUtils.ValueResult.TRUE, valueOperator.lockRead(s));
+            Assert.assertEquals(ValueUtils.ValueResult.TRUE, s.lockRead());
             Assert.assertTrue(flag.get());
         });
-        Assert.assertEquals(ValueUtils.ValueResult.TRUE, valueOperator.lockWrite(s));
+        Assert.assertEquals(ValueUtils.ValueResult.TRUE, s.lockWrite());
         reader.start();
         try {
             barrier.await();
@@ -151,7 +150,7 @@ public class ValueUtilsSimpleTest {
         }
         Thread.sleep(2000);
         flag.set(true);
-        valueOperator.unlockWrite(s);
+        s.unlockWrite();
         reader.join();
     }
 
@@ -165,10 +164,10 @@ public class ValueUtilsSimpleTest {
             } catch (InterruptedException | BrokenBarrierException e) {
                 e.printStackTrace();
             }
-            Assert.assertEquals(ValueUtils.ValueResult.TRUE, valueOperator.lockWrite(s));
+            Assert.assertEquals(ValueUtils.ValueResult.TRUE, s.lockWrite());
             Assert.assertTrue(flag.get());
         });
-        Assert.assertEquals(ValueUtils.ValueResult.TRUE, valueOperator.lockWrite(s));
+        Assert.assertEquals(ValueUtils.ValueResult.TRUE, s.lockWrite());
         writer.start();
         try {
             barrier.await();
@@ -177,7 +176,7 @@ public class ValueUtilsSimpleTest {
         }
         Thread.sleep(2000);
         flag.set(true);
-        valueOperator.unlockWrite(s);
+        s.unlockWrite();
         writer.join();
     }
 
@@ -191,10 +190,10 @@ public class ValueUtilsSimpleTest {
             } catch (InterruptedException | BrokenBarrierException e) {
                 e.printStackTrace();
             }
-            Assert.assertEquals(ValueUtils.ValueResult.TRUE, valueOperator.deleteValue(s));
+            Assert.assertEquals(ValueUtils.ValueResult.TRUE, s.logicalDelete());
             Assert.assertTrue(flag.get());
         });
-        Assert.assertEquals(ValueUtils.ValueResult.TRUE, valueOperator.lockWrite(s));
+        Assert.assertEquals(ValueUtils.ValueResult.TRUE, s.lockWrite());
         deleter.start();
         try {
             barrier.await();
@@ -203,25 +202,25 @@ public class ValueUtilsSimpleTest {
         }
         Thread.sleep(2000);
         flag.set(true);
-        valueOperator.unlockWrite(s);
+        s.unlockWrite();
         deleter.join();
     }
 
     @Test
     public void testCannotReadLockDifferentVersion() {
         s.associateMMAllocation(2, -1);
-        Assert.assertEquals(ValueUtils.ValueResult.RETRY, valueOperator.lockRead(s));
+        Assert.assertEquals(ValueUtils.ValueResult.RETRY, s.lockRead());
     }
 
     @Test
     public void testCannotWriteLockDifferentVersion() {
         s.associateMMAllocation(2, -1);
-        Assert.assertEquals(ValueUtils.ValueResult.RETRY, valueOperator.lockWrite(s));
+        Assert.assertEquals(ValueUtils.ValueResult.RETRY, s.lockWrite());
     }
 
     @Test
     public void testCannotDeletedDifferentVersion() {
         s.associateMMAllocation(2, -1);
-        Assert.assertEquals(ValueUtils.ValueResult.RETRY, valueOperator.deleteValue(s));
+        Assert.assertEquals(ValueUtils.ValueResult.RETRY, s.logicalDelete());
     }
 }

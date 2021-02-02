@@ -76,7 +76,7 @@ public class ValueUtilsTest {
             Assert.assertEquals(ValueUtils.ValueResult.TRUE, result.operationResult);
             Assert.assertEquals(randomValue, ((Integer) result.value).intValue());
         });
-        Assert.assertEquals(ValueUtils.ValueResult.TRUE, valueOperator.lockWrite(s.getSlice()));
+        Assert.assertEquals(ValueUtils.ValueResult.TRUE, s.getSlice().lockWrite());
         transformer.start();
         try {
             barrier.await();
@@ -85,7 +85,7 @@ public class ValueUtilsTest {
         }
         Thread.sleep(2000);
         putInt(4, randomValue);
-        valueOperator.unlockWrite(s.getSlice());
+        s.getSlice().unlockWrite();
         transformer.join();
     }
 
@@ -122,7 +122,7 @@ public class ValueUtilsTest {
 
     @Test
     public void cannotTransformDeletedTest() {
-        valueOperator.deleteValue(s.getSlice());
+        s.getSlice().logicalDelete();
         Result result = valueOperator.transform(new Result(), s, byteBuffer -> byteBuffer.getInt(0));
         Assert.assertEquals(ValueUtils.ValueResult.FALSE, result.operationResult);
     }
@@ -158,7 +158,7 @@ public class ValueUtilsTest {
             public int calculateSize(Integer object) {
                 return 0;
             }
-        }, valuesMemoryManager, null));
+        }, null));
         Assert.assertEquals(randomValues[0], getInt(0));
         Assert.assertEquals(randomValues[1], getInt(4));
         Assert.assertEquals(randomValues[2], getInt(8));
@@ -181,7 +181,7 @@ public class ValueUtilsTest {
             public int calculateSize(Integer object) {
                 return 0;
             }
-        }, valuesMemoryManager, null);
+        }, null);
     }
 
     @Test(expected = IndexOutOfBoundsException.class)
@@ -201,7 +201,7 @@ public class ValueUtilsTest {
             public int calculateSize(Integer object) {
                 return 0;
             }
-        }, valuesMemoryManager, null);
+        }, null);
     }
 
     @Test
@@ -235,9 +235,9 @@ public class ValueUtilsTest {
                 public int calculateSize(Integer object) {
                     return 0;
                 }
-            }, valuesMemoryManager, null);
+            }, null);
         });
-        valueOperator.lockRead(s.getSlice());
+        s.getSlice().lockRead();
         putter.start();
         try {
             barrier.await();
@@ -248,7 +248,7 @@ public class ValueUtilsTest {
         int a = getInt(0);
         int b = getInt(4);
         int c = getInt(8);
-        valueOperator.unlockRead(s.getSlice());
+        s.getSlice().unlockRead();
         putter.join();
         Assert.assertNotEquals(randomValues[0], a);
         Assert.assertNotEquals(randomValues[1], b);
@@ -289,9 +289,9 @@ public class ValueUtilsTest {
                 public int calculateSize(Integer object) {
                     return 0;
                 }
-            }, valuesMemoryManager, null);
+            }, null);
         });
-        valueOperator.lockWrite(s.getSlice());
+        s.getSlice().lockWrite();
         putter.start();
         try {
             barrier.await();
@@ -302,22 +302,22 @@ public class ValueUtilsTest {
         putInt(0, randomValues[0]);
         putInt(4, randomValues[1]);
         putInt(8, randomValues[2]);
-        valueOperator.unlockWrite(s.getSlice());
+        s.getSlice().unlockWrite();
         putter.join();
     }
 
     @Test
     public void cannotPutInDeletedValueTest() {
-        valueOperator.deleteValue(s.getSlice());
+        s.getSlice().logicalDelete();
         Assert.assertEquals(ValueUtils.ValueResult.FALSE, valueOperator.put(null, ctx, null, null,
-            valuesMemoryManager, null));
+            null));
     }
 
     @Test
     public void cannotPutToValueOfDifferentVersionTest() {
         s.getSlice().associateMMAllocation(2, -1);
         Assert.assertEquals(ValueUtils.ValueResult.RETRY, valueOperator.put(null, ctx, null, null,
-            valuesMemoryManager, null));
+            null));
     }
 
     @Test
@@ -367,7 +367,7 @@ public class ValueUtilsTest {
                 }
             });
         });
-        valueOperator.lockRead(s.getSlice());
+        s.getSlice().lockRead();
         computer.start();
         try {
             barrier.await();
@@ -379,7 +379,7 @@ public class ValueUtilsTest {
         for (int i = 0; i < 3; i++) {
             results[i] = getInt(i * 4);
         }
-        valueOperator.unlockRead(s.getSlice());
+        s.getSlice().unlockRead();
         computer.join();
         Assert.assertArrayEquals(randomValues, results);
     }
@@ -407,7 +407,7 @@ public class ValueUtilsTest {
                 }
             });
         });
-        valueOperator.lockWrite(s.getSlice());
+        s.getSlice().lockWrite();
         computer.start();
         try {
             barrier.await();
@@ -418,7 +418,7 @@ public class ValueUtilsTest {
         for (int i = 0; i < 12; i += 4) {
             putInt(i, getInt(i) + 1);
         }
-        valueOperator.unlockWrite(s.getSlice());
+        s.getSlice().unlockWrite();
         computer.join();
         Assert.assertNotEquals(randomValues[0], getInt(0));
         Assert.assertNotEquals(randomValues[1], getInt(4));
@@ -427,7 +427,7 @@ public class ValueUtilsTest {
 
     @Test
     public void cannotComputeDeletedValueTest() {
-        valueOperator.deleteValue(s.getSlice());
+        s.getSlice().logicalDelete();
         Assert.assertEquals(ValueUtils.ValueResult.FALSE, valueOperator.compute(s, oakWBuffer -> {
         }));
     }

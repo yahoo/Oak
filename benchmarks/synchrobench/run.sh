@@ -40,7 +40,7 @@ declare -A heap_limit=(
 declare -A direct_limit=(
   ["oak"]="24g"
   ["offheap-list"]="24g"
-  ["skip-list"]="0g"
+  ["skip-list"]="1m" #when running CSLM some off-heap memory is still required to unrelated java.util.zip.ZipFile
 )
 
 declare -A gc_cmd_args=(

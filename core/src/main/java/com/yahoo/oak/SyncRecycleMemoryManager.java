@@ -120,7 +120,7 @@ class SyncRecycleMemoryManager implements MemoryManager {
 
     @Override
     public Slice getEmptySlice() {
-        return new Slice(OFF_HEAP_HEADER_SIZE, rcmm.getInvalidReference());
+        return new Slice(OFF_HEAP_HEADER_SIZE, rcmm.getInvalidReference(), HEADER);
     }
 
     @VisibleForTesting
@@ -153,18 +153,16 @@ class SyncRecycleMemoryManager implements MemoryManager {
         //      initializing the header's lock to be free
         // for value being moved (existing): initialize the lock to be locked
         if (existing) {
-            HEADER.initLockedHeader(s, size);
+            HEADER.initLockedHeader(s.getMetadataAddress(), size, allocationVersion);
         } else {
-            HEADER.initHeader(s, size);
+            HEADER.initFreeHeader(s.getMetadataAddress(), size, allocationVersion);
         }
-        assert HEADER.getVersion(s) == allocationVersion;
+        assert HEADER.getOffHeapVersion(s.getMetadataAddress()) == allocationVersion;
     }
 
     @Override
     public void release(Slice s) {
-        if (s.length == Slice.UNDEFINED_LENGTH_OR_OFFSET) {
-            ValueUtilsImpl.setLengthFromOffHeap(s);
-        }
+        s.prefetchDataLength(); // this will set the length from off-heap header, if needed
         int idx = threadIndexCalculator.getIndex();
         List<Slice> myReleaseList = this.releaseLists.get(idx);
         // ensure the length of the slice is always set
