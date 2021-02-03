@@ -32,5 +32,5 @@ public class Parameters {
 
 	public static KeyDist keyDistribution = KeyDist.RANDOM;
 
-    static String benchClassName = "com.yahoo.oak.synchrobench.maps.OakMap";
+	static String benchClassName = "com.yahoo.oak.synchrobench.maps.OakMap";
 }

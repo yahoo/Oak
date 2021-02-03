@@ -196,6 +196,7 @@ public class Test {
         }
 
         System.out.println(); // Extra line space
+        System.out.println("Keys distribution " + Parameters.keyDistribution);
         System.out.println(message);
         System.out.format("      Heap Total: %.4f GB\n",  heapSize / gb);
         System.out.format("      Heap Usage: %.4f GB\n", (heapSize - heapFreeSize) / gb);
