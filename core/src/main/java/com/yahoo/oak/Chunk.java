@@ -476,6 +476,8 @@ class Chunk<K, V> {
                             // compare with sorted count key, if inserting the "if-statement",
                             // the sorted count key is less or equal to the key just inserted
                             this.sortedCount.compareAndSet(sortedCount, (sortedCount + 1));
+                            System.out.print(" <Sorted count changed from " + (sortedCount-1)
+                                + " to " + sortedCount + "> ");
                         }
                     }
                 }
