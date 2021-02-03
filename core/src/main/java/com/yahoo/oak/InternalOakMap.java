@@ -39,6 +39,7 @@ class InternalOakMap<K, V> {
     private final AtomicInteger referenceCount = new AtomicInteger(1);
     private final ValueUtils valueOperator;
     static final int MAX_RETRIES = 1024;
+    int iii = 100;
 
     /*-------------- Constructors --------------*/
 
@@ -428,6 +429,11 @@ class InternalOakMap<K, V> {
     V put(K key, V value, OakTransformer<V> transformer) {
         if (key == null || value == null) {
             throw new NullPointerException();
+        }
+
+        if (iii > 0) {
+            System.out.print(">" + key + " ");
+            iii--;
         }
 
         ThreadContext ctx = getThreadContext();
