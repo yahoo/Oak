@@ -48,6 +48,21 @@ public class OakMyBufferTest {
         }
     }
 
+
+    @Test
+    public void testIncreasePut() {
+        Integer v =  0;
+        for (long i = 1000000; i > 0; ) {
+            v++;
+            MyBuffer key = new MyBuffer(Parameters.keySize);
+            key.buffer.putInt(0, v);
+            MyBuffer val = new MyBuffer(Parameters.valSize);
+            val.buffer.putInt(0, v);
+            oakBench.putOak(key, val);
+            i--;
+        }
+    }
+
     @Test
     public void testPutMinimal() {
         MyBuffer key = new MyBuffer(Parameters.keySize);
