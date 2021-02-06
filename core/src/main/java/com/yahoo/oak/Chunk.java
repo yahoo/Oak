@@ -480,7 +480,10 @@ class Chunk<K, V> {
                         } else {
                             System.out.print(" SC: ");
                             entrySet.keySerializer.deserialize(tempKeyBuff);
-                            System.out.print(" . ");
+                            entrySet.readKey(tempKeyBuff, ei);
+                            System.out.print(" EI: ");
+                            entrySet.keySerializer.deserialize(tempKeyBuff);
+                            System.out.print(" | ");
                         }
                     }
                 }
