@@ -478,6 +478,8 @@ class Chunk<K, V> {
                             this.sortedCount.compareAndSet(sortedCount, (sortedCount + 1));
                             System.out.print(" * ");
                         } else {
+                            System.out.print(" SC: ");
+                            entrySet.keySerializer.deserialize(tempKeyBuff);
                             System.out.print(" . ");
                         }
                     }

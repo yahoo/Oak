@@ -63,6 +63,8 @@ public class MyBuffer implements Comparable<MyBuffer> {
 
         MyBuffer ret = new MyBuffer(capacity);
         OakIntBufferSerializer.copyBuffer(inputBuffer, inputPos, capacity / Integer.BYTES, ret.buffer, DATA_POS);
+        int i = ret.buffer.getInt(0);
+        System.out.print("I: " + i);
         return ret;
     }
 
