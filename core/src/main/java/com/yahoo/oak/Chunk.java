@@ -483,7 +483,7 @@ class Chunk<K, V> {
                             entrySet.readKey(tempKeyBuff, ei);
                             System.out.print(" EI: ");
                             entrySet.keySerializer.deserialize(tempKeyBuff);
-                            System.out.print(" | ");
+                            System.out.print(" || ");
                         }
                     }
                 }
