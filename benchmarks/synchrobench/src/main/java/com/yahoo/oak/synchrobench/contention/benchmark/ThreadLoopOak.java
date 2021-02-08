@@ -95,7 +95,8 @@ public class ThreadLoopOak implements Runnable {
 
         MyBuffer key = new MyBuffer(Parameters.keySize);
 
-        Integer newInt = -1;
+        Integer newInt = (Parameters.keyDistribution == Parameters.KeyDist.RANDOM) ? -1 : Parameters.size;
+
         while (!stop) {
             newInt = (Parameters.keyDistribution == Parameters.KeyDist.RANDOM) ? rand.nextInt(Parameters.range) :
                     newInt + 1;

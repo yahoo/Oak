@@ -102,9 +102,11 @@ public class Test {
 
         long operations = 0;
         final Random localRand = s_random.get();
+        int v = 0;
 
         for (long i = size; i > 0; ) {
-            int v = localRand.nextInt(range);
+            v = (Parameters.keyDistribution == Parameters.KeyDist.INCREASING)
+                ? v+1 : localRand.nextInt(range);
 
             MyBuffer key = new MyBuffer(Parameters.keySize);
             key.buffer.putInt(0, v);
