@@ -4,7 +4,7 @@ First, thanks for taking the time to contribute to our project! Anyone is welcom
 
 ## Code of Conduct
 
-By participating in this project, you agree to abide by the [Oath Code of Conduct](Code-of-Conduct.md). Everyone is welcome to submit a pull request or open an issue to improve the documentation, add improvements, or report bugs.
+We encourage inclusive and professional interactions on our project. We welcome everyone to open an issue, improve the documentation, report bug or ssubmit a pull request. By participating in this project, you agree to abide by the [Verizon Media Code of Conduct](Code-of-Conduct.md). If you feel there is a conduct issue related to this project, please raise it per the Code of Conduct process and we will address it.
 
 ## How to Ask a Question
 
@@ -17,10 +17,17 @@ If you simply have a question that needs an answer, [create an issue](https://he
 If you encounter any bugs while using this software, or want to request a new feature or enhancement, feel free to [create an issue](https://help.github.com/articles/creating-an-issue/) to report it, make sure you add a label to indicate what type of issue it is.
 
 ### Contribute Code
-Pull requests are welcome for bug fixes. If you want to implement something new, please [request a feature first](#report-a-bug-or-request-a-feature) so we can discuss it.
+Pull requests are welcome for bug fixes. If you want to implement something new, please [request a feature first](#report-a-bug-or-request-a-feature) so we can discuss it together.
+
+Creating a Pull Request Please follow best practices for creating git commits.
+
+When your code is ready to be submitted, submit a pull request to begin the code review process.
+
+We only seek to accept code that you are authorized to contribute to the project. We have added a pull request template on our projects so that your contributions are made with the following confirmation:
+
+> I confirm that this contribution is made under the terms of the license found in the root directory of this repository's source tree and that I have the authority necessary to make this contribution on behalf of its copyright owner.
 
 #### Creating a Pull Request
-Before you submit any code, we need you to agree to our [Contributor License Agreement](https://yahoocla.herokuapp.com/); this ensures we can continue to protect your contributions under an open source license well into the future.
 
 Please follow [best practices](https://github.com/trein/dev-best-practices/wiki/Git-Commit-Best-Practices) for creating git commits.
 
