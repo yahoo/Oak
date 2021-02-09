@@ -91,7 +91,7 @@ public class ThreadLoopOak implements Runnable {
 
         boolean change = Parameters.change;
         int scanLength = 10000;
-        int i = 150;
+
 
         MyBuffer key = new MyBuffer(Parameters.keySize);
 
@@ -120,10 +120,6 @@ public class ThreadLoopOak implements Runnable {
                 newKey.buffer.putInt(0, newInt);
                 newVal.buffer.putInt(0, newInt);
                 if (!change) {
-                    if (i>0) {
-                        System.out.print(newInt + " ");
-                        i--;
-                    }
                     bench.putOak(newKey, newVal);
                     numAdd++;
                 } else {

@@ -39,7 +39,6 @@ class InternalOakMap<K, V> {
     private final AtomicInteger referenceCount = new AtomicInteger(1);
     private final ValueUtils valueOperator;
     static final int MAX_RETRIES = 1024;
-    int iii = 100;
 
     /*-------------- Constructors --------------*/
 

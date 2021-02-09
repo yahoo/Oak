@@ -476,14 +476,6 @@ class Chunk<K, V> {
                             // compare with sorted count key, if inserting the "if-statement",
                             // the sorted count key is less or equal to the key just inserted
                             this.sortedCount.compareAndSet(sortedCount, (sortedCount + 1));
-                            System.out.print(" * ");
-                        } else {
-                            System.out.print(" SC: ");
-                            entrySet.keySerializer.deserialize(tempKeyBuff);
-                            entrySet.readKey(tempKeyBuff, ei);
-                            System.out.print(" EI: ");
-                            entrySet.keySerializer.deserialize(tempKeyBuff);
-                            System.out.print(" || ");
                         }
                     }
                 }
