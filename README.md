@@ -174,10 +174,10 @@ Their interfaces are:
 <pre>
 Buffer                    Access      Usage
 ------------------------  ----------  ------------------------------
-<a href="./core/src/main/java/com/oath/oak/OakBuffer.java" title="OakBuffer">OakBuffer</a>                 read-only   base class for all the buffers
-├── <a href="./core/src/main/java/com/oath/oak/OakScopedReadBuffer.java" title="OakScopedReadBuffer">OakScopedReadBuffer</a>   read-only   attached to a specific scope
-├── <a href="./core/src/main/java/com/oath/oak/OakScopedWriteBuffer.java" title="OakScopedWriteBuffer">OakScopedWriteBuffer</a>  read/write  attached to a specific scope
-└── <a href="./core/src/main/java/com/oath/oak/OakUnscopedBuffer.java" title="OakUnscopedBuffer">OakUnscopedBuffer</a>     read-only   can be used in any scope
+<a href="./core/src/main/java/com/yahoo/oak/OakBuffer.java" title="OakBuffer">OakBuffer</a>                 read-only   base class for all the buffers
+├── <a href="./core/src/main/java/com/yahoo/oak/OakScopedReadBuffer.java" title="OakScopedReadBuffer">OakScopedReadBuffer</a>   read-only   attached to a specific scope
+├── <a href="./core/src/main/java/com/yahoo/oak/OakScopedWriteBuffer.java" title="OakScopedWriteBuffer">OakScopedWriteBuffer</a>  read/write  attached to a specific scope
+└── <a href="./core/src/main/java/com/yahoo/oak/OakUnscopedBuffer.java" title="OakUnscopedBuffer">OakUnscopedBuffer</a>     read-only   can be used in any scope
 </pre>
 
 These buffers may represent either a key or a value.
