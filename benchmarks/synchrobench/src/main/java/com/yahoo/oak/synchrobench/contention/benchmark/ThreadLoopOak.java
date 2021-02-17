@@ -95,7 +95,10 @@ public class ThreadLoopOak implements Runnable {
 
         MyBuffer key = new MyBuffer(Parameters.keySize);
 
-        Integer newInt = (Parameters.keyDistribution == Parameters.KeyDist.RANDOM) ? -1 : Parameters.size;
+        // for the key distribution INCREASING we want to continue the increasing integers sequence,
+        // started in the initial filling of the map
+        // for the key distribution RANDOM the below value will be overwritten anyway
+        Integer newInt = Parameters.size;
 
         while (!stop) {
             newInt = (Parameters.keyDistribution == Parameters.KeyDist.RANDOM) ? rand.nextInt(Parameters.range) :
