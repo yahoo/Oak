@@ -54,7 +54,7 @@ public class OakMap<K, V> extends AbstractMap<K, V> implements AutoCloseable, Co
         this.keysMemoryManager = kMM;
         this.comparator = oakComparator;
         this.internalOakMap = new InternalOakMap<>(minKey, keySerializer, valueSerializer, oakComparator,
-                this.valuesMemoryManager, kMM, chunkMaxItems, new ValueUtilsImpl());
+                this.valuesMemoryManager, kMM, chunkMaxItems, new ValueUtils());
 
         this.fromKey = null;
         this.fromInclusive = false;
