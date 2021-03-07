@@ -92,7 +92,7 @@ class NativeMemoryAllocator implements BlockMemoryAllocator {
                 if (stats != null) {
                     stats.reclaim(size);
                 }
-                s.copyFrom(bestFit);
+                s.copyForAllocation(bestFit);
                 return true;
             }
         }

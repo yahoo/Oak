@@ -57,6 +57,7 @@ class SyncRecycleMemoryManager implements MemoryManager {
     }
 
     /**
+     * Information from reference to slice
      * @param s         the memory slice to update with the info decoded from the reference
      * @param reference the reference to decode
      * @return true if the given allocation reference is valid, otherwise the slice is invalidated
@@ -120,7 +121,7 @@ class SyncRecycleMemoryManager implements MemoryManager {
 
     @Override
     public Slice getEmptySlice() {
-        return new Slice(OFF_HEAP_HEADER_SIZE, rcmm.getInvalidReference(), HEADER);
+        return new SliceSyncRecycle(OFF_HEAP_HEADER_SIZE, HEADER);
     }
 
     @VisibleForTesting

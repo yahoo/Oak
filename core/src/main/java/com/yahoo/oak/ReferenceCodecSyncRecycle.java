@@ -7,8 +7,8 @@
 package com.yahoo.oak;
 
 /**
- * A reference that is involved in memory management is composed of 3 parameters:
- * block ID, offset and version.
+ * A reference that is involved in synchronized and recycling memory management is composed of
+ * 3 parameters:block ID, offset and version.
  *
  * 0...            ...42 | 43... ...63
  * block ID   |  offset  | version
@@ -61,7 +61,7 @@ class ReferenceCodecSyncRecycle extends ReferenceCodec{
 
     @Override
     protected long getThird(Slice s) {
-        int ver = s.getVersion();
+        int ver = ((SliceSyncRecycle) s).getVersion(); // other ideas?
         return (long) ver;
     }
 
@@ -85,7 +85,7 @@ class ReferenceCodecSyncRecycle extends ReferenceCodec{
 
     @Override
     protected void setAll(Slice s, long blockID, long offset, long version, long reference) {
-        s.associateReferenceDecodingNative(
+        s.associateReferenceDecoding(
             (int) blockID, (int) offset, (int) version, reference);
     }
 
@@ -116,7 +116,7 @@ class ReferenceCodecSyncRecycle extends ReferenceCodec{
             (reference & REFERENCE_DELETE_BIT_MASK) == INVALID_MM_REFERENCE );
     }
 
-    long getInvalidReference() {
+    static long getInvalidReference() {
         return INVALID_MM_REFERENCE;
     }
 }
