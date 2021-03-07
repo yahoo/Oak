@@ -7,8 +7,8 @@
 package com.yahoo.oak;
 
 /**
- * A direct reference doesn't impose any memory manager related actions upon any access.
- * A direct reference is composed of 3 parameters:
+ * A Sequential-Expanding reference doesn't impose any memory manager related actions upon any access.
+ * A Sequential-Expanding reference is composed of 3 parameters:
  *
  * block ID (first), offset (second) and length (third)
  *
@@ -23,11 +23,12 @@ package com.yahoo.oak;
  * Total memory 64GB
  *
  *
- * The direct reference codec encodes the reference of the unmanaged slices into a single long primitive (64 bit).
- * For the default block size (256MB), we need 28 bits to encode the offset
+ * The Sequential-Expanding reference codec encodes the reference of the Sequential-Expanding slices
+ * into a single long primitive (64 bit).
+ * For example, for the block size 256MB, we need 28 bits to encode the offset
  * and additional 28 bits to encode the length.
  * So, the remaining 8 bits can encode the block id, which will limit the maximal number of blocks to 256.
- * Thus, the key/value reference encoding when using the default block size (256MB) will be as follows:
+ * Thus, the key/value reference encoding when using this block size (256MB) will be as follows:
  *
  *    LSB                                       MSB
  *     |     offset     |     length     | block |
@@ -38,7 +39,7 @@ package com.yahoo.oak;
  * Note: these limitations will change for different block sizes. */
 
 class ReferenceCodecSeqExpand extends ReferenceCodec {
-    private static final long INVALID_DIRECT_REFERENCE = 0;
+    private static final long INVALID_SEQ_EXP_REFERENCE = 0;
     /**
      * Initialize the codec with size block-size and value length limits.
      * These limits will inflict a limit on the maximal number of blocks (the remaining bits).
@@ -86,7 +87,7 @@ class ReferenceCodecSeqExpand extends ReferenceCodec {
 
     @Override
     protected void setAll(Slice s, long blockID, long offset, long length, long reference) {
-        s.associateReferenceDecodingNoFree((int) blockID, (int) offset, (int) length, reference);
+        s.associateReferenceDecoding((int) blockID, (int) offset, (int) length, reference);
     }
 
     @Override
@@ -101,10 +102,10 @@ class ReferenceCodecSeqExpand extends ReferenceCodec {
 
     @Override
     boolean isReferenceValid(long reference) {
-        return reference != INVALID_DIRECT_REFERENCE;
+        return reference != INVALID_SEQ_EXP_REFERENCE;
     }
 
-    long getInvalidReference() {
-        return INVALID_DIRECT_REFERENCE;
+    static long getInvalidReference() {
+        return INVALID_SEQ_EXP_REFERENCE;
     }
 }
