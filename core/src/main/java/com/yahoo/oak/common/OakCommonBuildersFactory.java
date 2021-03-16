@@ -26,6 +26,7 @@ public class OakCommonBuildersFactory {
 
     public static final OakComparator<Integer> DEFAULT_INT_COMPARATOR = new OakIntComparator();
     public static final OakSerializer<Integer> DEFAULT_INT_SERIALIZER = new OakIntSerializer();
+    private static final String EMPTY_STRING = "";
 
     public static OakMapBuilder<Integer, Integer> getDefaultIntBuilder() {
         return new OakMapBuilder<>(
@@ -42,7 +43,7 @@ public class OakCommonBuildersFactory {
 
     public static OakMapBuilder<String, String> getDefaultStringBuilder() {
         return new OakMapBuilder<>(
-                DEFAULT_STRING_COMPARATOR, DEFAULT_STRING_SERIALIZER, DEFAULT_STRING_SERIALIZER, "");
+                DEFAULT_STRING_COMPARATOR, DEFAULT_STRING_SERIALIZER, DEFAULT_STRING_SERIALIZER, EMPTY_STRING);
     }
 
 

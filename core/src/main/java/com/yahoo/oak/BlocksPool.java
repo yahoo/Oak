@@ -7,6 +7,7 @@
 package com.yahoo.oak;
 
 import java.io.Closeable;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
 /**
@@ -18,6 +19,9 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 final class BlocksPool implements BlocksProvider, Closeable {
 
     private static BlocksPool instance = null;
+    private static final String SINGLETON_KEY = "SINGLETON";
+    // keep the reference as ConcurrentHashMap to prevent assignment of non-confirming computeIf___ map instances
+    private static final ConcurrentHashMap<String, BlocksPool> SINGLETON_MAP = new ConcurrentHashMap<>(1);
     private final ConcurrentLinkedQueue<Block> blocks = new ConcurrentLinkedQueue<>();
 
     // TODO change the following constants to be configurable
@@ -78,23 +82,23 @@ final class BlocksPool implements BlocksProvider, Closeable {
      */
     static BlocksPool getInstance() {
         if (instance == null) {
-            synchronized (BlocksPool.class) { // can be easily changed to lock-free
-                if (instance == null) {
-                    instance = new BlocksPool();
-                }
-            }
+            instance = SINGLETON_MAP.computeIfAbsent(SINGLETON_KEY, k -> new BlocksPool());
         }
         return instance;
     }
 
     // used only in OakNativeMemoryAllocatorTest.java
-    static void setBlockSize(int blockSize) {
-        synchronized (BlocksPool.class) { // can be easily changed to lock-free
-            if (instance != null) {
-                instance.close();
+    // do not use in actual production code
+    static void setBlockSize(final int blockSize) {
+        instance = SINGLETON_MAP.computeIfAbsent(SINGLETON_KEY, (k) -> new BlocksPool(blockSize));
+        instance = SINGLETON_MAP.computeIfPresent(SINGLETON_KEY, (k, v) -> {
+            if (v.blockSize() != blockSize) {
+                v.close();
+                return new BlocksPool(blockSize);
+            } else {
+                return v;
             }
-            instance = new BlocksPool(blockSize);
-        }
+        });
     }
 
     /**
@@ -102,13 +106,9 @@ final class BlocksPool implements BlocksProvider, Closeable {
      * @param preferredBlockSizeBytes the preferred block size
      * @return true if the preferred block size matches the current instance
      */
-    static boolean preferBlockSize(int preferredBlockSizeBytes) {
+    static boolean preferBlockSize(final int preferredBlockSizeBytes) {
         if (instance == null) {
-            synchronized (BlocksPool.class) { // can be easily changed to lock-free
-                if (instance == null) {
-                    instance = new BlocksPool(preferredBlockSizeBytes);
-                }
-            }
+            instance = SINGLETON_MAP.computeIfAbsent(SINGLETON_KEY, (k) -> new BlocksPool(preferredBlockSizeBytes));
         }
 
         return instance.blockSizeBytes == preferredBlockSizeBytes;
@@ -127,12 +127,11 @@ final class BlocksPool implements BlocksProvider, Closeable {
     public Block getBlock() {
         Block b = null;
         while (b == null) {
-            boolean noMoreBlocks = blocks.isEmpty();
-            if (!noMoreBlocks) {
+            if (!blocks.isEmpty()) { // check is a optimization guess. unreliable
                 b = blocks.poll();
             }
 
-            if (noMoreBlocks || b == null) {
+            if (b == null) {
                 synchronized (BlocksPool.class) { // can be easily changed to lock-free
                     if (blocks.isEmpty()) {
                         alloc(newAllocBlocks);
@@ -145,7 +144,8 @@ final class BlocksPool implements BlocksProvider, Closeable {
 
     /**
      * Returns a single Block to the Pool, decreases the Pool if needed
-     * Assumes block is not used by any concurrent thread, otherwise thread-safe
+     * Assumes block is not used by any concurrent thread, otherwise thread-safe.
+     * Expects newAllocBlocks <= lowReservedBlocks for expected behavior to avoid greedily releasing blocks.
      */
     @Override
     public void returnBlock(Block b) {
@@ -169,7 +169,10 @@ final class BlocksPool implements BlocksProvider, Closeable {
     @Override
     public void close() {
         while (!blocks.isEmpty()) {
-            blocks.poll().clean();
+            final Block b = blocks.poll();
+            if (b != null) { // to avoid NPE when the pool is used by anothr thread
+                b.clean();
+            }
         }
     }
 
