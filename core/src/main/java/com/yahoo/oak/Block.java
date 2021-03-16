@@ -22,7 +22,7 @@ class Block {
 
     Block(long capacity) {
         assert capacity > 0;
-        assert capacity <= Integer.MAX_VALUE; // This is exactly 2GB
+        assert capacity <= Integer.MAX_VALUE; // This is exactly 2GiB
         this.capacity = (int) capacity;
         this.id = NativeMemoryAllocator.INVALID_BLOCK_ID;
         // Pay attention in allocateDirect the data is *zero'd out*
@@ -38,21 +38,20 @@ class Block {
     // The returned buffer doesn't have all zero bytes.
     boolean allocate(Slice s, int size) {
         assert size >= 0; // avoid negative size
-        int now = 0;
-        boolean invalid = false;
-        synchronized (allocated) { // this is suboptimal, will optimize
-            // long to manage integer overflow or use AtomicLong for single getAndAdd for valid scenario
-            long next = 0L + allocated.get() + size;
-            if (next > this.capacity) {
-                invalid = true; // use flag instead of exception to reduce time spent inside synchronized block
-            } else {
-                now = allocated.getAndAdd(size);
-            }
+        long next = 0;
+        boolean updated = false;
+
+        // update if capacity can accommodate requested size. use long to avoid integer overflow
+        while (!updated && (next = ((long) allocated.get()) + size) <= this.capacity) {
+            // compareAndSet manages value change as atomic transaction
+            updated = allocated.compareAndSet((int) (next - size), (int) next);
         }
-        if (invalid) {
+
+        if (!updated) {
             throw new OakOutOfMemoryException(String.format("Block %d is out of memory", id));
         }
-        s.associateBlockAllocation(id, now, size, buffer);
+
+        s.associateBlockAllocation(id, (int) (next - size), size, buffer);
         return true;
     }
 

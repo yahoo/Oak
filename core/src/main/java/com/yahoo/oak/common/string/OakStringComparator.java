@@ -17,17 +17,14 @@ public class OakStringComparator implements OakComparator<String> {
     }
 
     @Override
-    public int compareSerializedKeys(final OakScopedReadBuffer serializedKey1,
-        final OakScopedReadBuffer serializedKey2) {
+    public int compareSerializedKeys(OakScopedReadBuffer serializedKey1, OakScopedReadBuffer serializedKey2) {
         final int size1 = serializedKey1.getInt(0);
         final int size2 = serializedKey2.getInt(0);
         final int minSize = Math.min(size1, size2);
 
         for (int i = 0; i < minSize; i++) {
-            final int index = Integer.BYTES + (i * Character.BYTES);
-            final char c1 = serializedKey1.getChar(index);
-            final char c2 = serializedKey2.getChar(index);
-            // the comparison assumes characters are in BMP
+            char c1 = serializedKey1.getChar(Integer.BYTES + i * Character.BYTES);
+            char c2 = serializedKey2.getChar(Integer.BYTES + i * Character.BYTES);
             int compare = Character.compare(c1, c2);
             if (compare != 0) {
                 return compare;
