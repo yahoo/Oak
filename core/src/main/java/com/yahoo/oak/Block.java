@@ -37,21 +37,20 @@ class Block {
     // Block manages its linear allocation. Thread safe.
     // The returned buffer doesn't have all zero bytes.
     boolean allocate(Slice s, int size) {
-        assert size >= 0; // avoid negative size
-        long next = 0;
-        boolean updated = false;
+        assert size > 0;
 
-        // update if capacity can accommodate requested size. use long to avoid integer overflow
-        while (!updated && (next = ((long) allocated.get()) + size) <= this.capacity) {
-            // compareAndSet manages value change as atomic transaction
-            updated = allocated.compareAndSet((int) (next - size), (int) next);
-        }
+        int current;
+        long next;
+        do {
+            current = allocated.get();
+            next = (long) current + size;  // use long to avoid integer overflow
+        } while (next <= this.capacity && !allocated.compareAndSet(current, (int) next));
 
-        if (!updated) {
+        if (next > this.capacity) {
             throw new OakOutOfMemoryException(String.format("Block %d is out of memory", id));
         }
 
-        s.associateBlockAllocation(id, (int) (next - size), size, buffer);
+        s.associateBlockAllocation(id, current, size, buffer);
         return true;
     }
 
