@@ -23,8 +23,9 @@ public class OakStringComparator implements OakComparator<String> {
         final int minSize = Math.min(size1, size2);
 
         for (int i = 0; i < minSize; i++) {
-            char c1 = serializedKey1.getChar(Integer.BYTES + i * Character.BYTES);
-            char c2 = serializedKey2.getChar(Integer.BYTES + i * Character.BYTES);
+            int index = Integer.BYTES + i * Character.BYTES;
+            char c1 = serializedKey1.getChar(index);
+            char c2 = serializedKey2.getChar(index);
             int compare = Character.compare(c1, c2);
             if (compare != 0) {
                 return compare;

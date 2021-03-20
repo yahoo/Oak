@@ -43,8 +43,9 @@ public class OakIntBufferComparator implements OakComparator<ByteBuffer> {
         int minSize = Math.min(size1, size2);
 
         for (int i = 0; i < minSize; i++) {
-            int i1 = buff1.getInt(pos1 + Integer.BYTES * i);
-            int i2 = buff2.getInt(pos2 + Integer.BYTES * i);
+            int offset = Integer.BYTES * i;
+            int i1 = buff1.getInt(pos1 + offset);
+            int i2 = buff2.getInt(pos2 + offset);
             int compare = Integer.compare(i1, i2);
             if (compare != 0) {
                 return compare;
