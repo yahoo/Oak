@@ -47,7 +47,9 @@ public interface OakUnsafeDirectBuffer {
      *
      * @return the underlying ByteBuffer.
      */
-    ByteBuffer getByteBuffer();
+    default ByteBuffer getByteBuffer() {
+        throw new RuntimeException();
+    }
 
     /**
      * @return the data offset inside the underlying ByteBuffer.

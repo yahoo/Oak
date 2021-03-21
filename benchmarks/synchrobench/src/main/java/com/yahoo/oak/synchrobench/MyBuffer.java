@@ -10,11 +10,13 @@ import com.yahoo.oak.OakComparator;
 import com.yahoo.oak.OakScopedReadBuffer;
 import com.yahoo.oak.OakSerializer;
 import com.yahoo.oak.OakUnsafeDirectBuffer;
+import com.yahoo.oak.UnsafeUtils;
 import com.yahoo.oak.OakScopedWriteBuffer;
 import com.yahoo.oak.common.intbuffer.OakIntBufferComparator;
 import com.yahoo.oak.common.intbuffer.OakIntBufferSerializer;
 
 import java.nio.ByteBuffer;
+import java.util.function.IntPredicate;
 
 public class MyBuffer implements Comparable<MyBuffer> {
 
@@ -37,32 +39,27 @@ public class MyBuffer implements Comparable<MyBuffer> {
         return compareBuffers(this, o);
     }
 
-    public static void serialize(MyBuffer inputBuffer, OakUnsafeDirectBuffer targetBuffer) {
-        serialize(inputBuffer, targetBuffer.getByteBuffer(), targetBuffer.getOffset());
+    public static void serialize(MyBuffer inputBuffer, OakScopedWriteBuffer targetBuffer) {
+        serialize(inputBuffer, targetBuffer.getAddress());
     }
 
-    public static void serialize(MyBuffer inputBuffer, ByteBuffer targetBuffer, int targetPos) {
+    public static void serialize(MyBuffer inputBuffer, long address) {
         // In the serialized buffer, the first integer signifies the size.
-        targetBuffer.putInt(targetPos, inputBuffer.capacity);
-        // Thus, the data position starts after the first integer.
-        targetPos += Integer.BYTES;
-
+        UnsafeUtils.getUnsafe().putInt(address, inputBuffer.capacity);    
         OakIntBufferSerializer.copyBuffer(inputBuffer.buffer, DATA_POS, inputBuffer.capacity / Integer.BYTES,
-                targetBuffer, targetPos);
+                address + Integer.BYTES);
     }
 
-    public static MyBuffer deserialize(OakUnsafeDirectBuffer inputBuffer) {
-        return deserialize(inputBuffer.getByteBuffer(), inputBuffer.getOffset());
+    public static MyBuffer deserialize(OakScopedReadBuffer inputBuffer) {
+        return deserialize(inputBuffer.getAddress());
     }
 
-    public static MyBuffer deserialize(ByteBuffer inputBuffer, int inputPos) {
+    public static MyBuffer deserialize(long address) {
         // In the serialized buffer, the first integer signifies the size.
-        int capacity = inputBuffer.getInt(inputPos);
+        int capacity = UnsafeUtils.getUnsafe().getInt(address);
         // Thus, the data position starts after the first integer.
-        inputPos += Integer.BYTES;
-
         MyBuffer ret = new MyBuffer(capacity);
-        OakIntBufferSerializer.copyBuffer(inputBuffer, inputPos, capacity / Integer.BYTES, ret.buffer, DATA_POS);
+        OakIntBufferSerializer.copyBuffer(address + Integer.BYTES, capacity / Integer.BYTES, ret.buffer, DATA_POS);
         return ret;
     }
 
@@ -70,37 +67,28 @@ public class MyBuffer implements Comparable<MyBuffer> {
         return OakIntBufferComparator.compare(buff1, pos1, cap1 / Integer.BYTES,
                 buff2, pos2, cap2 / Integer.BYTES);
     }
-
-    public static int compareBuffers(OakUnsafeDirectBuffer buffer1, OakUnsafeDirectBuffer buffer2) {
-        ByteBuffer buf1 = buffer1.getByteBuffer();
-        ByteBuffer buf2 = buffer2.getByteBuffer();
-
-        int pos1 = buffer1.getOffset();
-        int pos2 = buffer2.getOffset();
-
-        // In the serialized buffer, the first integer signifies the size.
-        int cap1 = buf1.getInt(pos1);
-        int cap2 = buf2.getInt(pos2);
-
-        // Thus, the data position starts after the first integer.
-        pos1 += Integer.BYTES;
-        pos2 += Integer.BYTES;
-
-        return compareBuffers(buf1, pos1, cap1, buf2, pos2, cap2);
+    
+    public static int compareBuffers(ByteBuffer buff1, int pos1, int cap1, long buff2, int cap2) {
+        return OakIntBufferComparator.compare(buff1, pos1, cap1 / Integer.BYTES, buff2, cap2 / Integer.BYTES);
+    }
+    
+    public static int compareBuffers(long buff1, int cap1, long buff2, int cap2) {
+        return OakIntBufferComparator.compare(buff1, cap1 / Integer.BYTES, buff2, cap2 / Integer.BYTES);
     }
 
-    public static int compareBuffers(MyBuffer key1, OakUnsafeDirectBuffer buffer2) {
-        ByteBuffer buf2 = buffer2.getByteBuffer();
+    public static int compareBuffers(OakScopedReadBuffer buffer1, OakScopedReadBuffer buffer2) {
+    	long address1 = buffer1.getAddress();
+    	int cap1 = UnsafeUtils.getUnsafe().getInt( address1);
+    	long address2 = buffer2.getAddress();
+    	int cap2 = UnsafeUtils.getUnsafe().getInt( address2);
+        return compareBuffers(address1 + Integer.BYTES, cap1, address2+ Integer.BYTES, cap2);
+    }
 
-        int pos2 = buffer2.getOffset();
-
+    public static int compareBuffers(MyBuffer key1, OakScopedReadBuffer buffer2) {
         // In the serialized buffer, the first integer signifies the size.
-        int cap2 = buf2.getInt(pos2);
-
-        // Thus, the data position starts after the first integer.
-        pos2 += Integer.BYTES;
-
-        return compareBuffers(key1.buffer, DATA_POS, key1.capacity, buf2, pos2, cap2);
+    	long address = buffer2.getAddress();
+    	int cap2 = UnsafeUtils.getUnsafe().getInt( address);
+        return compareBuffers(key1.buffer, DATA_POS, key1.capacity, address + Integer.BYTES, cap2);
     }
 
     public static int compareBuffers(MyBuffer key1, MyBuffer key2) {
@@ -111,12 +99,12 @@ public class MyBuffer implements Comparable<MyBuffer> {
 
         @Override
         public void serialize(MyBuffer key, OakScopedWriteBuffer targetBuffer) {
-            MyBuffer.serialize(key, (OakUnsafeDirectBuffer) targetBuffer);
+            MyBuffer.serialize(key, targetBuffer);
         }
 
         @Override
         public MyBuffer deserialize(OakScopedReadBuffer serializedKey) {
-            return MyBuffer.deserialize((OakUnsafeDirectBuffer) serializedKey);
+            return MyBuffer.deserialize(serializedKey);
         }
 
         @Override
@@ -133,12 +121,12 @@ public class MyBuffer implements Comparable<MyBuffer> {
 
         @Override
         public int compareSerializedKeys(OakScopedReadBuffer serializedKey1, OakScopedReadBuffer serializedKey2) {
-            return compareBuffers((OakUnsafeDirectBuffer) serializedKey1, (OakUnsafeDirectBuffer) serializedKey2);
+            return compareBuffers( serializedKey1,  serializedKey2);
         }
 
         @Override
         public int compareKeyAndSerializedKey(MyBuffer key, OakScopedReadBuffer serializedKey) {
-            return compareBuffers(key, (OakUnsafeDirectBuffer) serializedKey);
+            return compareBuffers(key,  serializedKey);
         }
     };
 }

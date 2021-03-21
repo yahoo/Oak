@@ -6,6 +6,8 @@
 
 package com.yahoo.oak;
 
+import java.lang.reflect.Field;
+import java.nio.Buffer;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 
@@ -40,7 +42,7 @@ class UnscopedBuffer<B extends ScopedReadBuffer> implements OakUnscopedBuffer, O
     B getInternalScopedReadBuffer() {
         return internalScopedReadBuffer;
     }
-
+    
     @Override
     public int capacity() {
         return internalScopedReadBuffer.capacity();
@@ -122,9 +124,10 @@ class UnscopedBuffer<B extends ScopedReadBuffer> implements OakUnscopedBuffer, O
 
     @Override
     public ByteBuffer getByteBuffer() {
-        return internalScopedReadBuffer.getByteBuffer();
+        return wrapAddress(internalScopedReadBuffer.getAddress(), internalScopedReadBuffer.getNativeCapacity());
     }
-
+    
+    
     @Override
     public int getOffset() {
         return internalScopedReadBuffer.getOffset();
@@ -138,5 +141,31 @@ class UnscopedBuffer<B extends ScopedReadBuffer> implements OakUnscopedBuffer, O
     @Override
     public long getAddress() {
         return internalScopedReadBuffer.getAddress();
+    }
+    
+    /*-------------- Wrapping address with bytebuffer --------------*/
+    private static final Field ADDRESS;
+    private static final Field CAPACITY;
+    static {
+        try {
+            ADDRESS = Buffer.class.getDeclaredField("address");
+            CAPACITY = Buffer.class.getDeclaredField("capacity");
+            ADDRESS.setAccessible(true);
+            CAPACITY.setAccessible(true);
+        } catch (NoSuchFieldException e) {
+            throw new AssertionError(e);
+        }
+    }
+
+    private ByteBuffer wrapAddress(long memAddress, int capacity) {
+        ByteBuffer bb = ByteBuffer.allocateDirect(0);
+        try {
+            ADDRESS.setLong(bb, memAddress);
+            CAPACITY.setInt(bb, capacity);
+            bb.clear();
+        } catch (IllegalAccessException e) {
+            throw new AssertionError(e);
+        }
+        return bb;
     }
 }

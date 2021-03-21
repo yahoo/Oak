@@ -6,15 +6,11 @@
 
 package com.yahoo.oak;
 
-import sun.misc.Cleaner;
-
-import java.lang.reflect.Field;
-import java.nio.ByteBuffer;
 import java.util.concurrent.atomic.AtomicLong;
 
 class Block {
 
-    private final ByteBuffer buffer;
+    private final long memAddress;
 
     private final int capacity;
     private final AtomicLong allocated = new AtomicLong(0);
@@ -27,7 +23,8 @@ class Block {
         this.id = NativeMemoryAllocator.INVALID_BLOCK_ID;
         // Pay attention in allocateDirect the data is *zero'd out*
         // which has an overhead in clearing and you end up touching every page
-        this.buffer = ByteBuffer.allocateDirect(this.capacity);
+        this.memAddress = UnsafeUtils.unsafe.allocateMemory(this.capacity);
+
     }
 
     void setID(int id) {
@@ -45,7 +42,7 @@ class Block {
         if (now + size > this.capacity) {
             throw new OakOutOfMemoryException(String.format("Block %d is out of memory", id));
         }
-        s.associateBlockAllocation(id, (int) now, size, buffer);
+        s.associateBlockAllocation(id, (int) now, size, memAddress, capacity);
         return true;
     }
 
@@ -64,26 +61,11 @@ class Block {
 
     // releasing the memory back to the OS, freeing the block, an opposite of allocation, not thread safe
     void clean() {
-        Field cleanerField = null;
-        try {
-            cleanerField = buffer.getClass().getDeclaredField("cleaner");
-        } catch (NoSuchFieldException e) {
-            e.printStackTrace();
-        }
-        assert cleanerField != null;
-        cleanerField.setAccessible(true);
-        Cleaner cleaner = null;
-        try {
-            cleaner = (Cleaner) cleanerField.get(buffer);
-        } catch (IllegalAccessException e) {
-            e.printStackTrace();
-        }
-        assert cleaner != null;
-        cleaner.clean();
+        UnsafeUtils.unsafe.freeMemory(memAddress);
     }
 
-    ByteBuffer getBuffer() {
-        return buffer;
+    long getmemAdress() {
+        return memAddress;
     }
 
     // how many bytes a block may include, regardless allocated/free

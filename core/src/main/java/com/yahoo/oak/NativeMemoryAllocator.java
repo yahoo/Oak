@@ -193,7 +193,7 @@ class NativeMemoryAllocator implements BlockMemoryAllocator {
         assert blockID > NativeMemoryAllocator.INVALID_BLOCK_ID :
                 String.format("Invalid block-id: %s", s);
         Block b = blocksArray[blockID];
-        s.setBuffer(b.getBuffer());
+        s.setBuffer(b.getmemAdress(), b.getCapacity());
     }
 
     // used only for testing
