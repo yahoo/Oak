@@ -12,15 +12,17 @@ import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
-import java.util.ArrayList;
 import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 public class OffHeapOakTest {
     private OakMap<Integer, Integer> oak;
     private static final int NUM_THREADS = 31;
-    private ArrayList<Thread> threads;
+    private  ExecutorService executor;
     private CountDownLatch latch;
     private int maxItemsPerChunk = 248;
     private Exception threadException;
@@ -31,7 +33,7 @@ public class OffHeapOakTest {
                 .setChunkMaxItems(maxItemsPerChunk);
         oak = builder.build();
         latch = new CountDownLatch(1);
-        threads = new ArrayList<>(NUM_THREADS);
+        executor = Executors.newFixedThreadPool(NUM_THREADS);
         threadException = null;
     }
 
@@ -44,16 +46,23 @@ public class OffHeapOakTest {
     @Test//(timeout = 15000)
     public void testThreads() throws InterruptedException {
         for (int i = 0; i < NUM_THREADS; i++) {
-            Thread thread = new Thread(new RunThreads(latch));
-            threads.add(thread);
-            thread.start();
+            executor.execute(new RunThreads(latch));
         }
 
         latch.countDown();
 
-        for (int i = 0; i < NUM_THREADS; i++) {
-            threads.get(i).join();
+
+        executor.shutdown();
+        try {
+            if (!executor.awaitTermination(15000, TimeUnit.MILLISECONDS)) {
+                executor.shutdownNow();
+                Assert.fail("should have done all the tasks in time");
+            }
+        } catch (InterruptedException e) {
+            executor.shutdownNow();
+            Assert.fail("failed to run all the tasks in the executor service");
         }
+
         Assert.assertNull(threadException);
 
         for (Integer i = 0; i < 6 * maxItemsPerChunk; i++) {

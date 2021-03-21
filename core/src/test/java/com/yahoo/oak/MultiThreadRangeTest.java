@@ -12,16 +12,19 @@ import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
-import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.Random;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 public class MultiThreadRangeTest {
 
     private OakMap<Integer, Integer> oak;
     private static final int NUM_THREADS = 31;
-    private ArrayList<Thread> threads;
+    private ExecutorService executor;
+
     private CountDownLatch latch;
     private static final int MAX_ITEMS_PER_CHUNK = 2048;
 
@@ -31,7 +34,8 @@ public class MultiThreadRangeTest {
                 .setChunkMaxItems(MAX_ITEMS_PER_CHUNK);
         oak = builder.build();
         latch = new CountDownLatch(1);
-        threads = new ArrayList<>(NUM_THREADS);
+        executor = Executors.newFixedThreadPool(NUM_THREADS);
+
     }
 
     @After
@@ -69,7 +73,7 @@ public class MultiThreadRangeTest {
     @Test
     public void testRange() throws InterruptedException {
         for (int i = 0; i < NUM_THREADS; i++) {
-            threads.add(new Thread(new MultiThreadRangeTest.RunThreads(latch)));
+            executor.execute(new MultiThreadRangeTest.RunThreads(latch));
         }
 
         // fill
@@ -81,12 +85,17 @@ public class MultiThreadRangeTest {
             }
         }
 
-        for (int i = 0; i < NUM_THREADS; i++) {
-            threads.get(i).start();
-        }
         latch.countDown();
-        for (int i = 0; i < NUM_THREADS; i++) {
-            threads.get(i).join();
+
+        executor.shutdown();
+        try {
+            if (!executor.awaitTermination(60, TimeUnit.SECONDS)) {
+                executor.shutdownNow();
+                Assert.fail("should have done all the tasks in time");
+            }
+        } catch (InterruptedException e) {
+            executor.shutdownNow();
+            Assert.fail("failed to run all the tasks in the executor service");
         }
 
         int size = 0;

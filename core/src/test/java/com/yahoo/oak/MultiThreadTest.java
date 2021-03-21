@@ -13,19 +13,22 @@ import org.junit.Before;
 import org.junit.Test;
 
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
 import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
 public class MultiThreadTest {
 
     private OakMap<Integer, Integer> oak;
     private static final int NUM_THREADS = 31;
-    private ArrayList<Thread> threads;
+    private ExecutorService executor;
+
     private CountDownLatch latch;
     private static final int MAX_ITEMS_PER_CHUNK = 2048;
 
@@ -36,7 +39,7 @@ public class MultiThreadTest {
                 .setChunkMaxItems(MAX_ITEMS_PER_CHUNK);
         oak = builder.build();
         latch = new CountDownLatch(1);
-        threads = new ArrayList<>(NUM_THREADS);
+        executor = Executors.newFixedThreadPool(NUM_THREADS);
     }
 
     @After
@@ -158,15 +161,21 @@ public class MultiThreadTest {
     @Test
     public void testThreads() throws InterruptedException {
         for (int i = 0; i < NUM_THREADS; i++) {
-            threads.add(new Thread(new MultiThreadTest.RunThreads(latch)));
-        }
-        for (int i = 0; i < NUM_THREADS; i++) {
-            threads.get(i).start();
+            executor.execute(new MultiThreadTest.RunThreads(latch));
         }
         latch.countDown();
-        for (int i = 0; i < NUM_THREADS; i++) {
-            threads.get(i).join();
+
+        executor.shutdown();
+        try {
+            if (!executor.awaitTermination(60, TimeUnit.SECONDS)) {
+                executor.shutdownNow();
+                Assert.fail("should have done all the tasks in time");
+            }
+        } catch (InterruptedException e) {
+            executor.shutdownNow();
+            Assert.fail("failed to run all the tasks in the executor service");
         }
+
         for (Integer i = (int) Math.round(0.5 * MAX_ITEMS_PER_CHUNK); i < 2 * MAX_ITEMS_PER_CHUNK; i++) {
             Integer value = oak.get(i);
             Assert.assertEquals(i, value);
@@ -299,14 +308,19 @@ public class MultiThreadTest {
         CyclicBarrier barrier = new CyclicBarrier(NUM_THREADS);
 
         for (int i = 0; i < NUM_THREADS; i++) {
-            threads.add(new Thread(new MultiThreadTest.RunThreadsDescend(latch, barrier)));
-        }
-        for (int i = 0; i < NUM_THREADS; i++) {
-            threads.get(i).start();
+            executor.execute(new MultiThreadTest.RunThreadsDescend(latch, barrier));
         }
         latch.countDown();
-        for (int i = 0; i < NUM_THREADS; i++) {
-            threads.get(i).join();
+
+        executor.shutdown();
+        try {
+            if (!executor.awaitTermination(60, TimeUnit.SECONDS)) {
+                executor.shutdownNow();
+                Assert.fail("should have done all the tasks in time");
+            }
+        } catch (InterruptedException e) {
+            executor.shutdownNow();
+            Assert.fail("failed to run all the tasks in the executor service");
         }
 
         for (Integer i = 0; i < 2 * MAX_ITEMS_PER_CHUNK; i++) {

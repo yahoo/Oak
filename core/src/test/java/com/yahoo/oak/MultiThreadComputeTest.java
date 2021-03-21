@@ -12,15 +12,17 @@ import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
-import java.util.ArrayList;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
 public class MultiThreadComputeTest {
 
     private OakMap<Integer, Integer> oak;
     private static final int NUM_THREADS = 31;
-    private ArrayList<Thread> threads;
+    private ExecutorService executor;
     private CountDownLatch latch;
     private Consumer<OakScopedWriteBuffer> computer;
     private Consumer<OakScopedWriteBuffer> emptyComputer;
@@ -32,13 +34,12 @@ public class MultiThreadComputeTest {
                 .setChunkMaxItems(MAX_ITEMS_PER_CHUNK);
         oak = builder.build();
         latch = new CountDownLatch(1);
-        threads = new ArrayList<>(NUM_THREADS);
+        executor = Executors.newFixedThreadPool(NUM_THREADS);
         computer = oakWBuffer -> {
             if (oakWBuffer.getInt(0) == 0) {
                 oakWBuffer.putInt(0, 1);
             }
         };
-
         emptyComputer = oakWBuffer -> {
         };
     }
@@ -135,14 +136,20 @@ public class MultiThreadComputeTest {
     @Test
     public void testThreadsCompute() throws InterruptedException {
         for (int i = 0; i < NUM_THREADS; i++) {
-            threads.add(new Thread(new MultiThreadComputeTest.RunThreads(latch)));
+            executor.execute(new MultiThreadComputeTest.RunThreads(latch));
         }
-        for (int i = 0; i < NUM_THREADS; i++) {
-            threads.get(i).start();
-        }
+
         latch.countDown();
-        for (int i = 0; i < NUM_THREADS; i++) {
-            threads.get(i).join();
+
+        executor.shutdown();
+        try {
+            if (!executor.awaitTermination(60, TimeUnit.SECONDS)) {
+                executor.shutdownNow();
+                Assert.fail("should have done all the tasks in time");
+            }
+        } catch (InterruptedException e) {
+            executor.shutdownNow();
+            Assert.fail("failed to run all the tasks in the executor service");
         }
         for (Integer i = 0; i < MAX_ITEMS_PER_CHUNK; i++) {
             Integer value = oak.get(i);

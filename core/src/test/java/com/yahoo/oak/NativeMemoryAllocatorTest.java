@@ -19,6 +19,9 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Random;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -59,17 +62,22 @@ public class NativeMemoryAllocatorTest {
         NativeMemoryAllocator allocator = new NativeMemoryAllocator(capacity, mockProvider);
 
         int numAllocators = 10;
-        ArrayList<Thread> threads = new ArrayList<>();
+        ExecutorService executor = Executors.newFixedThreadPool(numAllocators);
+
 
         for (int i = 0; i < numAllocators; i++) {
-            Thread fn = new Thread(() -> allocate(allocator, allocationSize));
-            threads.add(fn);
+            executor.execute(()->allocate(allocator, allocationSize));
         }
-        for (int i = 0; i < numAllocators; i++) {
-            threads.get(i).start();
-        }
-        for (int i = 0; i < numAllocators; i++) {
-            threads.get(i).join();
+
+        executor.shutdown();
+        try {
+            if (!executor.awaitTermination(60, TimeUnit.SECONDS)) {
+                executor.shutdownNow();
+                Assert.fail("should have done all the tasks in time");
+            }
+        } catch (InterruptedException e) {
+            executor.shutdownNow();
+            Assert.fail("failed to run all the tasks in the executor service");
         }
 
         Assert.assertEquals(numAllocators * allocationSize, allocator.allocated());

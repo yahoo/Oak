@@ -8,12 +8,15 @@ package com.yahoo.oak;
 
 import com.yahoo.oak.common.OakCommonBuildersFactory;
 import org.junit.Assert;
+import org.junit.Before;
 import org.junit.Test;
 
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
 import java.util.Random;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
 public class ComputeTest {
@@ -26,10 +29,18 @@ public class ComputeTest {
     private static int keySize = 10;
     private static int valSize = Math.round(5 * K);
     private static int numOfEntries;
+    ExecutorService executor;
 
 
-    private static ArrayList<Thread> threads = new ArrayList<>(NUM_THREADS);
-    private static CountDownLatch latch = new CountDownLatch(1);
+    private CountDownLatch latch;
+
+
+
+    @Before
+    public void setup() {
+        executor = Executors.newFixedThreadPool(NUM_THREADS);
+        latch = new CountDownLatch(1);
+    }
 
     private static Consumer<OakScopedWriteBuffer> computer = oakWBuffer -> {
         if (oakWBuffer.getInt(0) == oakWBuffer.getInt(Integer.BYTES * keySize)) {
@@ -105,7 +116,7 @@ public class ComputeTest {
 
 
         for (int i = 0; i < NUM_THREADS; i++) {
-            threads.add(new Thread(new RunThreads(latch)));
+            executor.execute(new RunThreads(latch));
         }
 
         for (int i = 0; i < (int) Math.round(numOfEntries * 0.5); i++) {
@@ -116,14 +127,18 @@ public class ComputeTest {
             oak.zc().putIfAbsent(key, val);
         }
 
-        for (int i = 0; i < NUM_THREADS; i++) {
-            threads.get(i).start();
-        }
-
         latch.countDown();
 
-        for (int i = 0; i < NUM_THREADS; i++) {
-            threads.get(i).join();
+        executor.shutdown();
+        try {
+            executor.shutdown();
+            if (!executor.awaitTermination(10, TimeUnit.SECONDS)) {
+                executor.shutdownNow();
+                Assert.fail("should have done all the tasks in time");
+            }
+        } catch (InterruptedException e) {
+            executor.shutdownNow();
+            Assert.fail("failed to run all the tasks in the executor service");
         }
 
         for (int i = 0; i < numOfEntries; i++) {

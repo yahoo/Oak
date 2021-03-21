@@ -12,10 +12,12 @@ import org.junit.Before;
 import org.junit.Ignore;
 import org.junit.Test;
 
-import java.util.ArrayList;
 import java.util.Random;
 import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -25,7 +27,8 @@ public class ConcurrentPutRemoveTest {
     private static final int NUM_THREADS = 1;
     private static final int K = 1024;
     private static final int NUM_OF_ENTRIES = 10 * K;
-    private ArrayList<Thread> threads;
+    private ExecutorService executor;
+
     private AtomicBoolean stop;
     private AtomicInteger[] status;
     private CyclicBarrier barrier;
@@ -36,7 +39,7 @@ public class ConcurrentPutRemoveTest {
         oak = builder.build();
         barrier = new CyclicBarrier(NUM_THREADS + 1);
         stop = new AtomicBoolean(false);
-        threads = new ArrayList<>(NUM_THREADS);
+        executor = Executors.newFixedThreadPool(NUM_THREADS);
         status = new AtomicInteger[NUM_OF_ENTRIES];
         for (int i = 0; i < status.length; i++) {
             status[i] = new AtomicInteger(0);
@@ -79,7 +82,7 @@ public class ConcurrentPutRemoveTest {
     @Test
     public void testMain() throws InterruptedException {
         for (int i = 0; i < NUM_THREADS; i++) {
-            threads.add(new Thread(new RunThread()));
+            executor.execute(new RunThread());
         }
         Random r = new Random();
         for (int i = 0; i < (int) Math.round(NUM_OF_ENTRIES * 0.5); ) {
@@ -100,22 +103,26 @@ public class ConcurrentPutRemoveTest {
             }
         }
 
-        for (int i = 0; i < NUM_THREADS; i++) {
-            threads.get(i).start();
-        }
-
         try {
             barrier.await();
         } catch (InterruptedException | BrokenBarrierException e) {
             e.printStackTrace();
+            Assert.fail("got unexpected exception");
         }
 
         Thread.sleep(DURATION);
 
         stop.set(true);
 
-        for (int i = 0; i < NUM_THREADS; i++) {
-            threads.get(i).join();
+        executor.shutdown();
+        try {
+            if (!executor.awaitTermination(60, TimeUnit.SECONDS)) {
+                executor.shutdownNow();
+                Assert.fail("should have done all the tasks in time");
+            }
+        } catch (InterruptedException e) {
+            executor.shutdownNow();
+            Assert.fail("failed to run all the tasks in the executor service");
         }
 
         for (int i = 0; i < NUM_OF_ENTRIES; i++) {
