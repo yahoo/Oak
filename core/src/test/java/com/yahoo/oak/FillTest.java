@@ -8,16 +8,21 @@ package com.yahoo.oak;
 
 import com.yahoo.oak.common.OakCommonBuildersFactory;
 import com.yahoo.oak.common.integer.OakIntSerializer;
+import com.yahoo.oak.test_utils.ExecutorUtils;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Random;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
-
+import java.util.concurrent.TimeoutException;
 public class FillTest {
 
     private static final int NUM_THREADS = 1;
@@ -28,7 +33,7 @@ public class FillTest {
     private static final int KEY_SIZE = 10;
     private static final int VALUE_SIZE = Math.round(5 * K);
     private static final int NUM_OF_ENTRIES = 100;
-
+    private  long timeLimitInMs=TimeUnit.MILLISECONDS.convert(60, TimeUnit.SECONDS);
     private static CountDownLatch latch;
     private static ExecutorService executor;
 
@@ -89,7 +94,7 @@ public class FillTest {
     }
 
     @Test
-    public void testMain() throws InterruptedException {
+    public void testMain() throws InterruptedException, TimeoutException, ExecutionException {
 
         OakMapBuilder<Integer, Integer> builder = OakCommonBuildersFactory.getDefaultIntBuilder()
             .setChunkMaxItems(2048)
@@ -98,9 +103,9 @@ public class FillTest {
 
         oak = builder.build();
 
-
+        List<Future<?>> tasks=new ArrayList<>();
         for (int i = 0; i < NUM_THREADS; i++) {
-            executor.execute(new RunThreads(latch));
+            tasks.add(executor.submit(new RunThreads(latch))) ;
         }
 
         for (int i = 0; i < (int) Math.round(NUM_OF_ENTRIES * 0.5); i++) {
@@ -111,16 +116,7 @@ public class FillTest {
 
         latch.countDown();
 
-        executor.shutdown();
-        try {
-            if (!executor.awaitTermination(60, TimeUnit.SECONDS)) {
-                executor.shutdownNow();
-                Assert.fail("should have done all the tasks in time");
-            }
-        } catch (InterruptedException e) {
-            executor.shutdownNow();
-            Assert.fail("failed to run all the tasks in the executor service");
-        }
+        ExecutorUtils.shutdownTaskPool(executor, tasks, timeLimitInMs);
 
 
         long stopTime = System.currentTimeMillis();
@@ -129,7 +125,6 @@ public class FillTest {
             Integer val = oak.get(i);
             Assert.assertEquals(i, val);
         }
-
         long elapsedTime = stopTime - startTime;
         oak.close();
 

@@ -7,17 +7,23 @@
 package com.yahoo.oak;
 
 import com.yahoo.oak.common.OakCommonBuildersFactory;
+import com.yahoo.oak.test_utils.ExecutorUtils;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
+import java.util.ArrayList;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Random;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 public class MultiThreadRangeTest {
 
@@ -27,6 +33,8 @@ public class MultiThreadRangeTest {
 
     private CountDownLatch latch;
     private static final int MAX_ITEMS_PER_CHUNK = 2048;
+    private  long timeLimitInMs=TimeUnit.MILLISECONDS.convert(60, TimeUnit.SECONDS);
+
 
     @Before
     public void init() {
@@ -71,9 +79,11 @@ public class MultiThreadRangeTest {
     }
 
     @Test
-    public void testRange() throws InterruptedException {
+    public void testRange() throws InterruptedException, TimeoutException, ExecutionException {
+
+        List<Future<?>> tasks=new ArrayList<>();
         for (int i = 0; i < NUM_THREADS; i++) {
-            executor.execute(new MultiThreadRangeTest.RunThreads(latch));
+            tasks.add(executor.submit(new MultiThreadRangeTest.RunThreads(latch))) ;
         }
 
         // fill
@@ -87,16 +97,7 @@ public class MultiThreadRangeTest {
 
         latch.countDown();
 
-        executor.shutdown();
-        try {
-            if (!executor.awaitTermination(60, TimeUnit.SECONDS)) {
-                executor.shutdownNow();
-                Assert.fail("should have done all the tasks in time");
-            }
-        } catch (InterruptedException e) {
-            executor.shutdownNow();
-            Assert.fail("failed to run all the tasks in the executor service");
-        }
+        ExecutorUtils.shutdownTaskPool(executor, tasks, timeLimitInMs);
 
         int size = 0;
         for (Integer i = 0; i < 10 * MAX_ITEMS_PER_CHUNK; i++) {

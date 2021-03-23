@@ -8,6 +8,7 @@ package com.yahoo.oak;
 
 import com.yahoo.oak.common.OakCommonBuildersFactory;
 import com.yahoo.oak.common.integer.OakIntSerializer;
+import com.yahoo.oak.test_utils.ExecutorUtils;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -19,15 +20,19 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Random;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 public class NativeMemoryAllocatorTest {
     static final int VALUE_SIZE_AFTER_SERIALIZATION = 4 * 1024 * 1024;
     static final int KEYS_SIZE_AFTER_SERIALIZATION = Integer.BYTES;
+    private  long timeLimitInMs=TimeUnit.MILLISECONDS.convert(60, TimeUnit.SECONDS);
 
     static int calcExpectedSize(int keyCount, int valueCount) {
         return (keyCount * KEYS_SIZE_AFTER_SERIALIZATION) +
@@ -43,7 +48,7 @@ public class NativeMemoryAllocatorTest {
     }
 
     @Test
-    public void allocateContention() throws InterruptedException {
+    public void allocateContention() throws InterruptedException, TimeoutException, ExecutionException {
         Random random = new Random();
         long capacity = 100;
         int blockSize = 8;
@@ -65,20 +70,12 @@ public class NativeMemoryAllocatorTest {
         ExecutorService executor = Executors.newFixedThreadPool(numAllocators);
 
 
+        List<Future<?>> tasks=new ArrayList<>();
         for (int i = 0; i < numAllocators; i++) {
-            executor.execute(()->allocate(allocator, allocationSize));
+            tasks.add(executor.submit(()->allocate(allocator, allocationSize)));
         }
 
-        executor.shutdown();
-        try {
-            if (!executor.awaitTermination(60, TimeUnit.SECONDS)) {
-                executor.shutdownNow();
-                Assert.fail("should have done all the tasks in time");
-            }
-        } catch (InterruptedException e) {
-            executor.shutdownNow();
-            Assert.fail("failed to run all the tasks in the executor service");
-        }
+        ExecutorUtils.shutdownTaskPool(executor, tasks, timeLimitInMs);
 
         Assert.assertEquals(numAllocators * allocationSize, allocator.allocated());
         Assert.assertEquals(numAllocators / buffersPerBlock, blocks.size());

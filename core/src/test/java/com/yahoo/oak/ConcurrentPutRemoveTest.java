@@ -7,17 +7,24 @@
 package com.yahoo.oak;
 
 import com.yahoo.oak.common.OakCommonBuildersFactory;
+import com.yahoo.oak.test_utils.ExecutorUtils;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Ignore;
 import org.junit.Test;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Random;
 import java.util.concurrent.BrokenBarrierException;
+import java.util.concurrent.Callable;
 import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -28,6 +35,7 @@ public class ConcurrentPutRemoveTest {
     private static final int K = 1024;
     private static final int NUM_OF_ENTRIES = 10 * K;
     private ExecutorService executor;
+    private long timeLimitInMs=TimeUnit.MILLISECONDS.convert(10, TimeUnit.SECONDS);
 
     private AtomicBoolean stop;
     private AtomicInteger[] status;
@@ -46,14 +54,10 @@ public class ConcurrentPutRemoveTest {
         }
     }
 
-    class RunThread extends Thread {
-        @Override
-        public void run() {
-            try {
-                barrier.await();
-            } catch (InterruptedException | BrokenBarrierException e) {
-                e.printStackTrace();
-            }
+    class RunThread implements Callable<Void> {
+        public Void call() throws BrokenBarrierException, InterruptedException {
+            barrier.await();
+
 
             Random r = new Random();
 
@@ -75,14 +79,16 @@ public class ConcurrentPutRemoveTest {
                 status[i].addAndGet(puts[i]);
                 status[i].addAndGet(-removes[i]);
             }
+            return null;
         }
     }
 
     @Ignore
     @Test
-    public void testMain() throws InterruptedException {
+    public void testMain() throws InterruptedException, TimeoutException, ExecutionException, BrokenBarrierException {
+        List<Future<?>> tasks=new ArrayList<>();
         for (int i = 0; i < NUM_THREADS; i++) {
-            executor.execute(new RunThread());
+            tasks.add(executor.submit(new RunThread())) ;
         }
         Random r = new Random();
         for (int i = 0; i < (int) Math.round(NUM_OF_ENTRIES * 0.5); ) {
@@ -102,28 +108,13 @@ public class ConcurrentPutRemoveTest {
                 Assert.assertNotNull(oak.get(i));
             }
         }
-
-        try {
-            barrier.await();
-        } catch (InterruptedException | BrokenBarrierException e) {
-            e.printStackTrace();
-            Assert.fail("got unexpected exception");
-        }
+        barrier.await();
 
         Thread.sleep(DURATION);
 
         stop.set(true);
 
-        executor.shutdown();
-        try {
-            if (!executor.awaitTermination(60, TimeUnit.SECONDS)) {
-                executor.shutdownNow();
-                Assert.fail("should have done all the tasks in time");
-            }
-        } catch (InterruptedException e) {
-            executor.shutdownNow();
-            Assert.fail("failed to run all the tasks in the executor service");
-        }
+        ExecutorUtils.shutdownTaskPool(executor, tasks, timeLimitInMs);
 
         for (int i = 0; i < NUM_OF_ENTRIES; i++) {
             int old = status[i].get();

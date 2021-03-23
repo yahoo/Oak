@@ -7,15 +7,21 @@
 package com.yahoo.oak;
 
 import com.yahoo.oak.common.OakCommonBuildersFactory;
+import com.yahoo.oak.test_utils.ExecutorUtils;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.function.Consumer;
 
 public class MultiThreadComputeTest {
@@ -27,6 +33,7 @@ public class MultiThreadComputeTest {
     private Consumer<OakScopedWriteBuffer> computer;
     private Consumer<OakScopedWriteBuffer> emptyComputer;
     private static final int MAX_ITEMS_PER_CHUNK = 1024;
+    private long timeLimitInMs=TimeUnit.MILLISECONDS.convert(60, TimeUnit.SECONDS);
 
     @Before
     public void init() {
@@ -134,23 +141,18 @@ public class MultiThreadComputeTest {
     }
 
     @Test
-    public void testThreadsCompute() throws InterruptedException {
+    public void testThreadsCompute() throws InterruptedException, TimeoutException, ExecutionException {
+
+        List<Future<?>> tasks=new ArrayList<>();
         for (int i = 0; i < NUM_THREADS; i++) {
-            executor.execute(new MultiThreadComputeTest.RunThreads(latch));
+            tasks.add(executor.submit(new MultiThreadComputeTest.RunThreads(latch))) ;
         }
 
         latch.countDown();
 
-        executor.shutdown();
-        try {
-            if (!executor.awaitTermination(60, TimeUnit.SECONDS)) {
-                executor.shutdownNow();
-                Assert.fail("should have done all the tasks in time");
-            }
-        } catch (InterruptedException e) {
-            executor.shutdownNow();
-            Assert.fail("failed to run all the tasks in the executor service");
-        }
+        ExecutorUtils.shutdownTaskPool(executor, tasks, timeLimitInMs);
+
+
         for (Integer i = 0; i < MAX_ITEMS_PER_CHUNK; i++) {
             Integer value = oak.get(i);
             Assert.assertNotNull(value);

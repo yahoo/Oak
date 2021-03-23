@@ -4,20 +4,28 @@
  * Please see LICENSE file in the project root for terms.
  */
 
+
 package com.yahoo.oak;
 
 import com.yahoo.oak.common.OakCommonBuildersFactory;
+import com.yahoo.oak.test_utils.ExecutorUtils;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Random;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.function.Consumer;
+
 
 public class ComputeTest {
 
@@ -29,6 +37,7 @@ public class ComputeTest {
     private static int keySize = 10;
     private static int valSize = Math.round(5 * K);
     private static int numOfEntries;
+    private final long timeLimitInMs=TimeUnit.MILLISECONDS.convert(60, TimeUnit.SECONDS);
     ExecutorService executor;
 
 
@@ -97,7 +106,7 @@ public class ComputeTest {
     }
 
     @Test
-    public void testMain() throws InterruptedException {
+    public void testMain() throws InterruptedException, TimeoutException, ExecutionException {
         ByteBuffer minKey = ByteBuffer.allocate(keySize * Integer.BYTES);
         minKey.position(0);
         for (int i = 0; i < keySize; i++) {
@@ -114,9 +123,9 @@ public class ComputeTest {
 
         numOfEntries = 100;
 
-
+        List<Future<?>> tasks=new ArrayList<>();
         for (int i = 0; i < NUM_THREADS; i++) {
-            executor.execute(new RunThreads(latch));
+            tasks.add(executor.submit(new RunThreads(latch))) ;
         }
 
         for (int i = 0; i < (int) Math.round(numOfEntries * 0.5); i++) {
@@ -128,18 +137,7 @@ public class ComputeTest {
         }
 
         latch.countDown();
-
-        executor.shutdown();
-        try {
-            executor.shutdown();
-            if (!executor.awaitTermination(10, TimeUnit.SECONDS)) {
-                executor.shutdownNow();
-                Assert.fail("should have done all the tasks in time");
-            }
-        } catch (InterruptedException e) {
-            executor.shutdownNow();
-            Assert.fail("failed to run all the tasks in the executor service");
-        }
+        ExecutorUtils.shutdownTaskPool(executor, tasks, timeLimitInMs);
 
         for (int i = 0; i < numOfEntries; i++) {
             ByteBuffer key = ByteBuffer.allocate(keySize * Integer.BYTES);
