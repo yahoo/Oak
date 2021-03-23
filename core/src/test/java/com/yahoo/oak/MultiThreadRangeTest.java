@@ -36,7 +36,6 @@ public class MultiThreadRangeTest {
     private static final int MAX_ITEMS_PER_CHUNK = 2048;
     private  long timeLimitInMs=TimeUnit.MILLISECONDS.convert(60, TimeUnit.SECONDS);
 
-
     @Before
     public void init() {
         OakMapBuilder<Integer, Integer>builder = OakCommonBuildersFactory.getDefaultIntBuilder()
