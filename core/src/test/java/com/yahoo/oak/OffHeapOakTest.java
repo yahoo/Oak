@@ -30,9 +30,9 @@ public class OffHeapOakTest {
     private static final int NUM_THREADS = 31;
     private  ExecutorService executor;
     private CountDownLatch latch;
-    private int maxItemsPerChunk = 248;
+    private final int maxItemsPerChunk = 248;
     private Exception threadException;
-    private  long timeLimitInMs=TimeUnit.MILLISECONDS.convert(15000, TimeUnit.MILLISECONDS);
+    private final long timeLimitInMs=TimeUnit.MILLISECONDS.convert(15000, TimeUnit.MILLISECONDS);
 
     @Before
     public void init() {

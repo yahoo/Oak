@@ -34,7 +34,7 @@ public class FillTest {
     private static final int KEY_SIZE = 10;
     private static final int VALUE_SIZE = Math.round(5 * K);
     private static final int NUM_OF_ENTRIES = 100;
-    private  long timeLimitInMs=TimeUnit.MILLISECONDS.convert(60, TimeUnit.SECONDS);
+    private final long timeLimitInMs=TimeUnit.MILLISECONDS.convert(60, TimeUnit.SECONDS);
     private  CountDownLatch latch;
     private  ExecutorService executor;
 

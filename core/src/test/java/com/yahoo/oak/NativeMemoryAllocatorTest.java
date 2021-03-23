@@ -32,7 +32,7 @@ import java.util.stream.IntStream;
 public class NativeMemoryAllocatorTest {
     static final int VALUE_SIZE_AFTER_SERIALIZATION = 4 * 1024 * 1024;
     static final int KEYS_SIZE_AFTER_SERIALIZATION = Integer.BYTES;
-    private  long timeLimitInMs=TimeUnit.MILLISECONDS.convert(60, TimeUnit.SECONDS);
+    private final long timeLimitInMs=TimeUnit.MILLISECONDS.convert(60, TimeUnit.SECONDS);
 
     static int calcExpectedSize(int keyCount, int valueCount) {
         return (keyCount * KEYS_SIZE_AFTER_SERIALIZATION) +
