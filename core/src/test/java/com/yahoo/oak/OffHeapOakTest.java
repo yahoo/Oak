@@ -52,11 +52,6 @@ public class OffHeapOakTest {
 
     @Test//(timeout = 15000)
     public void testThreads() throws InterruptedException, TimeoutException, ExecutionException {
-        for (int i = 0; i < NUM_THREADS; i++) {
-            executor.execute(new RunThreads(latch));
-        }
-
-
         List<Future<?>> tasks=new ArrayList<>();
         for (int i = 0; i < NUM_THREADS; i++) {
             tasks.add(executor.submit(new RunThreads(latch)));

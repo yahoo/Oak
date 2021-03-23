@@ -55,7 +55,7 @@ public class MultiThreadTest {
         oak.close();
     }
 
-    class RunThreads implements Runnable {
+    class RunThreads implements Callable {
         CountDownLatch latch;
 
         RunThreads(CountDownLatch latch) {
@@ -63,13 +63,8 @@ public class MultiThreadTest {
         }
 
         @Override
-        public void run() {
-            try {
-                latch.await();
-            } catch (InterruptedException e) {
-                e.printStackTrace();
-            }
-
+        public Void call() throws InterruptedException {
+            latch.await();
             Integer value;
 
             for (Integer i = 0; i < (int) Math.round(0.5 * MAX_ITEMS_PER_CHUNK); i++) {
@@ -161,8 +156,7 @@ public class MultiThreadTest {
                 bb1.flip();
                 oak.zc().putIfAbsent(i, i + 1);
             }
-
-
+            return null;
         }
     }
 

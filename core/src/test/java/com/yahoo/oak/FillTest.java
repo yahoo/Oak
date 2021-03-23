@@ -16,6 +16,7 @@ import org.junit.Test;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
+import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
@@ -44,7 +45,7 @@ public class FillTest {
         executor = Executors.newFixedThreadPool(NUM_THREADS);
 
     }
-    static class RunThreads implements Runnable {
+    static class RunThreads implements Callable<Void> {
         CountDownLatch latch;
 
         RunThreads(CountDownLatch latch) {
@@ -52,13 +53,8 @@ public class FillTest {
         }
 
         @Override
-        public void run() {
-            try {
-                latch.await();
-            } catch (InterruptedException e) {
-                e.printStackTrace();
-            }
-
+        public Void call() throws InterruptedException {
+            latch.await();
             Random r = new Random();
 
             int id = (int) Thread.currentThread().getId() % ThreadIndexCalculator.MAX_THREADS;
@@ -90,6 +86,7 @@ public class FillTest {
                 Assert.assertNotEquals(oak.get(i), null);
             }
 
+            return null;
         }
     }
 

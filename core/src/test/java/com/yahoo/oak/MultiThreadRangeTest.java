@@ -17,13 +17,7 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Random;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
+import java.util.concurrent.*;
 
 public class MultiThreadRangeTest {
 
@@ -51,7 +45,7 @@ public class MultiThreadRangeTest {
         oak.close();
     }
 
-    class RunThreads implements Runnable {
+    class RunThreads implements Callable<Void> {
         CountDownLatch latch;
 
         RunThreads(CountDownLatch latch) {
@@ -59,12 +53,8 @@ public class MultiThreadRangeTest {
         }
 
         @Override
-        public void run() {
-            try {
-                latch.await();
-            } catch (InterruptedException e) {
-                e.printStackTrace();
-            }
+        public Void call() throws InterruptedException {
+            latch.await();
 
             Integer from = 10 * MAX_ITEMS_PER_CHUNK;
             try (OakMap<Integer, Integer> tailMap = oak.tailMap(from, true)) {
@@ -75,6 +65,7 @@ public class MultiThreadRangeTest {
                     i++;
                 }
             }
+            return null;
         }
     }
 

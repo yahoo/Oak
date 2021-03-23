@@ -15,13 +15,7 @@ import org.junit.Test;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
+import java.util.concurrent.*;
 import java.util.function.Consumer;
 
 public class MultiThreadComputeTest {
@@ -56,7 +50,7 @@ public class MultiThreadComputeTest {
         oak.close();
     }
 
-    class RunThreads implements Runnable {
+    class RunThreads implements Callable<Void> {
         CountDownLatch latch;
 
         RunThreads(CountDownLatch latch) {
@@ -64,12 +58,8 @@ public class MultiThreadComputeTest {
         }
 
         @Override
-        public void run() {
-            try {
-                latch.await();
-            } catch (InterruptedException e) {
-                e.printStackTrace();
-            }
+        public Void call() throws InterruptedException {
+            latch.await();
 
             for (Integer i = 0; i < 4 * MAX_ITEMS_PER_CHUNK; i++) {
                 oak.zc().putIfAbsent(i, i);
@@ -137,6 +127,7 @@ public class MultiThreadComputeTest {
                 oak.zc().putIfAbsent(i, i);
             }
 
+            return null;
         }
     }
 
