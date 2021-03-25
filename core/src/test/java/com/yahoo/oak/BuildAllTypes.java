@@ -20,7 +20,9 @@ public class BuildAllTypes {
         OakFloatSerializer float_serializer = new OakFloatSerializer();
         OakIntComparator int_comparator = new OakIntComparator();
 
-        OakMapBuilder<Integer, Float> builder = new OakMapBuilder<Integer, Float>(int_comparator, int_serializer, float_serializer, Integer.MIN_VALUE)
+        OakMapBuilder<Integer, Float> builder = new 
+        OakMapBuilder<Integer, Float>(
+            int_comparator, int_serializer, float_serializer, Integer.MIN_VALUE)
             .setMemoryCapacity(MEBIBYTE); // 1MB in bytes
 
     OakMap<Integer,Float> oak = builder.build();
