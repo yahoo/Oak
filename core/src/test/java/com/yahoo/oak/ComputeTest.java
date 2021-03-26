@@ -40,8 +40,6 @@ public class ComputeTest {
     private static int numOfEntries;
     private final long timeLimitInMs=TimeUnit.MILLISECONDS.convert(60, TimeUnit.SECONDS);
     ExecutorService executor;
-
-
     private CountDownLatch latch;
 
 
