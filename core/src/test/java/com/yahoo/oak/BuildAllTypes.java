@@ -11,7 +11,6 @@ import com.yahoo.oak.common.floatnum.OakFloatSerializer;
 import com.yahoo.oak.common.integer.OakIntComparator;
 import com.yahoo.oak.common.integer.OakIntSerializer;
 import com.yahoo.oak.common.string.OakStringSerializer;
-
 import org.junit.Assert;
 import org.junit.Test;
 
