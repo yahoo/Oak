@@ -14,7 +14,7 @@ import com.yahoo.oak.common.string.OakStringSerializer;
 import org.junit.Assert;
 import org.junit.Test;
 
-public class BuildAllTypes {
+public class BuildAllTypesTest {
 
     private static final int MEBIBYTE = 1024 * 1024;
 
