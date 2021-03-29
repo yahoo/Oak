@@ -10,14 +10,14 @@ import sun.misc.Cleaner;
 
 import java.lang.reflect.Field;
 import java.nio.ByteBuffer;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 
 class Block {
 
     private final ByteBuffer buffer;
 
     private final int capacity;
-    private final AtomicInteger allocated = new AtomicInteger(0);
+    private final AtomicLong allocated = new AtomicLong(0);
     private int id; // placeholder might need to be set in the future
 
     Block(long capacity) {
@@ -36,21 +36,16 @@ class Block {
 
     // Block manages its linear allocation. Thread safe.
     // The returned buffer doesn't have all zero bytes.
-    boolean allocate(Slice s, int size) {
+    boolean allocate(Slice s, final int size) {
         assert size > 0;
-
-        int current;
-        long next;
-        do {
-            current = allocated.get();
-            next = (long) current + size;  // use long to avoid integer overflow
-        } while (next <= this.capacity && !allocated.compareAndSet(current, (int) next));
-
-        if (next > this.capacity) {
+        long now = allocated.get();
+        if (now + size <= this.capacity) { // check is only an optimization
+            now = allocated.getAndAdd(size);
+        }
+        if (now + size > this.capacity) {
             throw new OakOutOfMemoryException(String.format("Block %d is out of memory", id));
         }
-
-        s.associateBlockAllocation(id, current, size, buffer);
+        s.associateBlockAllocation(id, (int) now, size, buffer);
         return true;
     }
 
@@ -60,8 +55,10 @@ class Block {
         allocated.set(0);
     }
 
-    // return how many bytes are actually allocated for this block only, thread safe
-    long allocated() {
+    // return upperbound of bytes actually allocated for this block only, thread safe
+    // the returned value can be greater than the actual bytes allocated
+    // do not use this for exact comparison or any precise computation
+    long allocatedWithPossibleDelta() {
         return allocated.get();
     }
 
