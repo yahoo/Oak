@@ -39,7 +39,7 @@ package com.yahoo.oak;
  * Note: these limitations will change for different block sizes. */
 
 class ReferenceCodecSeqExpand extends ReferenceCodec {
-    private static final long INVALID_SEQ_EXP_REFERENCE = 0;
+    static final long INVALID_REFERENCE = 0;
     /**
      * Initialize the codec with size block-size and value length limits.
      * These limits will inflict a limit on the maximal number of blocks (the remaining bits).
@@ -102,10 +102,6 @@ class ReferenceCodecSeqExpand extends ReferenceCodec {
 
     @Override
     boolean isReferenceValid(long reference) {
-        return reference != INVALID_SEQ_EXP_REFERENCE;
-    }
-
-    static long getInvalidReference() {
-        return INVALID_SEQ_EXP_REFERENCE;
+        return reference != INVALID_REFERENCE;
     }
 }

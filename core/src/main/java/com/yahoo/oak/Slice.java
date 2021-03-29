@@ -26,7 +26,6 @@ abstract class Slice implements OakUnsafeDirectBuffer, Comparable<Slice> {
 
     // The entire length of the off-heap cut, including the header!
     protected int length = UNDEFINED_LENGTH_OR_OFFSET;
-    protected int version;    // Allocation time version
     protected ByteBuffer buffer = null;
 
     // true if slice is associated with an off-heap slice of memory
@@ -52,7 +51,14 @@ abstract class Slice implements OakUnsafeDirectBuffer, Comparable<Slice> {
      * Allocation info and metadata setters
      * ------------------------------------------------------------------------------------*/
     // Reset all not final fields to invalid state
-    abstract void invalidate();
+    void invalidate() {
+        blockID     = NativeMemoryAllocator.INVALID_BLOCK_ID;
+        reference   = ReferenceCodecSeqExpand.INVALID_REFERENCE;
+        length      = UNDEFINED_LENGTH_OR_OFFSET;
+        offset      = UNDEFINED_LENGTH_OR_OFFSET;
+        buffer      = null;
+        associated  = false;
+    }
 
     // initialize dummy for allocation
     void initializeLookupDummy(int l) {
@@ -61,7 +67,7 @@ abstract class Slice implements OakUnsafeDirectBuffer, Comparable<Slice> {
     }
 
     // Copy the block allocation information from another block allocation.
-    void copyForAllocation(Slice other) {
+    void copyAllocationInfoFrom(Slice other) {
         if (other == this) {
             // No need to do anything if the input is this object
             return;

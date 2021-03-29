@@ -19,8 +19,8 @@ package com.yahoo.oak;
  */
 class ReferenceCodecSyncRecycle extends ReferenceCodec{
 
-    public  static final int    INVALID_VERSION = 0;
-    private static final long   INVALID_MM_REFERENCE = 0;
+    static final int    INVALID_VERSION = 0;
+    static final long INVALID_REFERENCE = 0;
 
     // All Oak instances on one machine are expected to reference to no more than 4TB of RAM.
     // 4TB = 2^42 bytes
@@ -29,7 +29,7 @@ class ReferenceCodecSyncRecycle extends ReferenceCodec{
     private static final int    BITS_FOR_MAXIMUM_RAM = 42;
     private static final long   VERSION_DELETE_BIT_MASK = (1 << (Long.SIZE - BITS_FOR_MAXIMUM_RAM -1));
     private static final long   REFERENCE_DELETE_BIT_MASK
-        = (INVALID_MM_REFERENCE | (VERSION_DELETE_BIT_MASK << BITS_FOR_MAXIMUM_RAM));
+        = (INVALID_REFERENCE | (VERSION_DELETE_BIT_MASK << BITS_FOR_MAXIMUM_RAM));
 
     // number of allowed bits for version (-1 for delete bit) set to one
     static final int LAST_VALID_VERSION = (int) mask(Long.SIZE - BITS_FOR_MAXIMUM_RAM - 1);
@@ -62,17 +62,17 @@ class ReferenceCodecSyncRecycle extends ReferenceCodec{
     @Override
     protected long getThird(Slice s) {
         int ver = ((SliceSyncRecycle) s).getVersion(); // other ideas?
-        return (long) ver;
+        return ver;
     }
 
     @Override
     protected long getFirstForDelete(long reference) {
-        return INVALID_MM_REFERENCE;
+        return INVALID_REFERENCE;
     }
 
     @Override
     protected long getSecondForDelete(long reference) {
-        return INVALID_MM_REFERENCE;
+        return INVALID_REFERENCE;
     }
 
     @Override
@@ -80,7 +80,7 @@ class ReferenceCodecSyncRecycle extends ReferenceCodec{
         long v = getThird(reference);
         // The set the MSB (the left-most bit out of 22 is delete bit)
         v |= VERSION_DELETE_BIT_MASK;
-        return (INVALID_MM_REFERENCE | v);
+        return (INVALID_REFERENCE | v);
     }
 
     @Override
@@ -91,12 +91,12 @@ class ReferenceCodecSyncRecycle extends ReferenceCodec{
 
     @Override
     boolean isReferenceValid(long reference) {
-        return reference != INVALID_MM_REFERENCE;
+        return reference != INVALID_REFERENCE;
     }
 
     // invoked only within assert
     boolean isReferenceConsistent(long reference) {
-        if (reference == INVALID_MM_REFERENCE) {
+        if (reference == INVALID_REFERENCE) {
             return true;
         }
         if (isReferenceDeleted(reference)) {
@@ -108,15 +108,11 @@ class ReferenceCodecSyncRecycle extends ReferenceCodec{
 
     @Override
     boolean isReferenceDeleted(long reference) {
-        return ((reference & REFERENCE_DELETE_BIT_MASK) != INVALID_MM_REFERENCE );
+        return ((reference & REFERENCE_DELETE_BIT_MASK) != INVALID_REFERENCE);
     }
 
     boolean isReferenceValidAndNotDeleted(long reference) {
-        return (reference != INVALID_MM_REFERENCE &&
-            (reference & REFERENCE_DELETE_BIT_MASK) == INVALID_MM_REFERENCE );
-    }
-
-    static long getInvalidReference() {
-        return INVALID_MM_REFERENCE;
+        return (reference != INVALID_REFERENCE &&
+            (reference & REFERENCE_DELETE_BIT_MASK) == INVALID_REFERENCE);
     }
 }

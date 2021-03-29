@@ -106,7 +106,7 @@ class SeqExpandMemoryManager implements MemoryManager {
      */
     @Override
     public long getInvalidReference() {
-        return rcd.getInvalidReference();
+        return ReferenceCodecSeqExpand.INVALID_REFERENCE;
     }
 
     @Override
