@@ -195,12 +195,7 @@ public class MultiThreadTest {
 
         @Override
         public Void call() throws BrokenBarrierException, InterruptedException {
-            try {
-                latch.await();
-            } catch (InterruptedException e) {
-                e.printStackTrace();
-            }
-
+            latch.await();
             Integer i;
             Integer value = 1;
             Iterator<Integer> iter;
@@ -249,11 +244,7 @@ public class MultiThreadTest {
                 oak.zc().computeIfPresent(i, computer);
             }
 
-            try {
-                barrier.await();
-            } catch (InterruptedException | BrokenBarrierException e) {
-                e.printStackTrace();
-            }
+            barrier.await();
 
             for (i = 5 * MAX_ITEMS_PER_CHUNK; i < 6 * MAX_ITEMS_PER_CHUNK; i++) {
                 oak.zc().remove(i);
