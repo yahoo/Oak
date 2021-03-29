@@ -35,7 +35,7 @@ public class ConcurrentPutRemoveTest {
     private static final int K = 1024;
     private static final int NUM_OF_ENTRIES = 10 * K;
     private ExecutorService executor;
-    private final long timeLimitInMs=TimeUnit.MILLISECONDS.convert(10, TimeUnit.SECONDS);
+    private final long timeLimitInMs = TimeUnit.MILLISECONDS.convert(10, TimeUnit.SECONDS);
 
     private AtomicBoolean stop;
     private AtomicInteger[] status;

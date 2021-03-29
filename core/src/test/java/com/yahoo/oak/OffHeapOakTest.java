@@ -17,22 +17,16 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
+import java.util.concurrent.*;
 
 public class OffHeapOakTest {
     private OakMap<Integer, Integer> oak;
     private static final int NUM_THREADS = 31;
-    private  ExecutorService executor;
+    private ExecutorService executor;
     private CountDownLatch latch;
     private final int maxItemsPerChunk = 248;
     private Exception threadException;
-    private final long timeLimitInMs=TimeUnit.MILLISECONDS.convert(15000, TimeUnit.MILLISECONDS);
+    private final long timeLimitInMs = TimeUnit.MILLISECONDS.convert(15000, TimeUnit.MILLISECONDS);
 
     @Before
     public void init() {
@@ -52,7 +46,7 @@ public class OffHeapOakTest {
 
     @Test//(timeout = 15000)
     public void testThreads() throws InterruptedException, TimeoutException, ExecutionException {
-        List<Future<?>> tasks=new ArrayList<>();
+        List<Future<?>> tasks = new ArrayList<>();
         for (int i = 0; i < NUM_THREADS; i++) {
             tasks.add(executor.submit(new RunThreads(latch)));
         }
@@ -73,7 +67,7 @@ public class OffHeapOakTest {
         }
     }
 
-    class RunThreads implements Runnable {
+    class RunThreads implements Callable<Void> {
         CountDownLatch latch;
 
         RunThreads(CountDownLatch latch) {
@@ -81,22 +75,13 @@ public class OffHeapOakTest {
         }
 
         @Override
-        public void run() {
-            try {
-                runTest();
-            } catch (Exception e) {
-                e.printStackTrace();
-                threadException = e;
-            }
+        public Void call() throws InterruptedException {
+            runTest();
+            return null;
         }
 
-        private void runTest() {
-            try {
-                latch.await();
-            } catch (InterruptedException e) {
-                e.printStackTrace();
-            }
-
+        private void runTest() throws InterruptedException {
+            latch.await();
             try {
                 for (Map.Entry<Integer, Integer> entry : oak.entrySet()) {
                     if (entry == null) {

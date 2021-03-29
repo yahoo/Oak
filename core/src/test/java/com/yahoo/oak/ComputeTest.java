@@ -4,7 +4,6 @@
  * Please see LICENSE file in the project root for terms.
  */
 
-
 package com.yahoo.oak;
 
 import com.yahoo.oak.common.OakCommonBuildersFactory;
@@ -79,7 +78,6 @@ public class ComputeTest {
         public Void call() throws InterruptedException {
             latch.await();
 
-
             ByteBuffer myKey = ByteBuffer.allocate(KEY_SIZE * Integer.BYTES);
             ByteBuffer myVal = ByteBuffer.allocate(VAL_SIZE * Integer.BYTES);
 
@@ -119,7 +117,7 @@ public class ComputeTest {
 
         numOfEntries = 100;
 
-        List<Future<?>> tasks=new ArrayList<>();
+        List<Future<?>> tasks = new ArrayList<>();
         for (int i = 0; i < NUM_THREADS; i++) {
             tasks.add(executor.submit(new RunThreads(latch))) ;
         }

@@ -34,7 +34,7 @@ public class MultiThreadRangeTest {
 
     private CountDownLatch latch;
     private static final int MAX_ITEMS_PER_CHUNK = 2048;
-    private final long timeLimitInMs=TimeUnit.MILLISECONDS.convert(60, TimeUnit.SECONDS);
+    private final long timeLimitInMs = TimeUnit.MILLISECONDS.convert(60, TimeUnit.SECONDS);
 
     @Before
     public void init() {
@@ -43,7 +43,6 @@ public class MultiThreadRangeTest {
         oak = builder.build();
         latch = new CountDownLatch(1);
         executor = Executors.newFixedThreadPool(NUM_THREADS);
-
     }
 
     @After

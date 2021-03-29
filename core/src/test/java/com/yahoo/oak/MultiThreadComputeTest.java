@@ -34,7 +34,7 @@ public class MultiThreadComputeTest {
     private Consumer<OakScopedWriteBuffer> computer;
     private Consumer<OakScopedWriteBuffer> emptyComputer;
     private static final int MAX_ITEMS_PER_CHUNK = 1024;
-    private final long timeLimitInMs=TimeUnit.MILLISECONDS.convert(60, TimeUnit.SECONDS);
+    private final long timeLimitInMs = TimeUnit.MILLISECONDS.convert(60, TimeUnit.SECONDS);
 
     @Before
     public void init() {
@@ -149,7 +149,6 @@ public class MultiThreadComputeTest {
         latch.countDown();
 
         ExecutorUtils.shutdownTaskPool(executor, tasks, timeLimitInMs);
-
 
         for (Integer i = 0; i < MAX_ITEMS_PER_CHUNK; i++) {
             Integer value = oak.get(i);

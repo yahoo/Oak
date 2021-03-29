@@ -32,7 +32,7 @@ import java.util.stream.IntStream;
 public class NativeMemoryAllocatorTest {
     static final int VALUE_SIZE_AFTER_SERIALIZATION = 4 * 1024 * 1024;
     static final int KEYS_SIZE_AFTER_SERIALIZATION = Integer.BYTES;
-    private final long timeLimitInMs=TimeUnit.MILLISECONDS.convert(60, TimeUnit.SECONDS);
+    private final long timeLimitInMs = TimeUnit.MILLISECONDS.convert(60, TimeUnit.SECONDS);
 
     static int calcExpectedSize(int keyCount, int valueCount) {
         return (keyCount * KEYS_SIZE_AFTER_SERIALIZATION) +
@@ -70,9 +70,9 @@ public class NativeMemoryAllocatorTest {
         ExecutorService executor = Executors.newFixedThreadPool(numAllocators);
 
 
-        List<Future<?>> tasks=new ArrayList<>();
+        List<Future<?>> tasks = new ArrayList<>();
         for (int i = 0; i < numAllocators; i++) {
-            tasks.add(executor.submit(()->allocate(allocator, allocationSize)));
+            tasks.add(executor.submit(() -> allocate(allocator, allocationSize)));
         }
 
         ExecutorUtils.shutdownTaskPool(executor, tasks, timeLimitInMs);

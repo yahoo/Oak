@@ -34,10 +34,9 @@ public class FillTest {
     private static final int KEY_SIZE = 10;
     private static final int VALUE_SIZE = Math.round(5 * K);
     private static final int NUM_OF_ENTRIES = 100;
-    private final long timeLimitInMs=TimeUnit.MILLISECONDS.convert(60, TimeUnit.SECONDS);
+    private final long timeLimitInMs = TimeUnit.MILLISECONDS.convert(60, TimeUnit.SECONDS);
     private  CountDownLatch latch;
     private  ExecutorService executor;
-
 
     @Before
     public void setup() {
@@ -45,6 +44,7 @@ public class FillTest {
         executor = Executors.newFixedThreadPool(NUM_THREADS);
 
     }
+
     static class RunThreads implements Callable<Void> {
         CountDownLatch latch;
 
@@ -100,7 +100,7 @@ public class FillTest {
 
         oak = builder.build();
 
-        List<Future<?>> tasks=new ArrayList<>();
+        List<Future<?>> tasks = new ArrayList<>();
         for (int i = 0; i < NUM_THREADS; i++) {
             tasks.add(executor.submit(new RunThreads(latch))) ;
         }
@@ -114,7 +114,6 @@ public class FillTest {
         latch.countDown();
 
         ExecutorUtils.shutdownTaskPool(executor, tasks, timeLimitInMs);
-
 
         long stopTime = System.currentTimeMillis();
 

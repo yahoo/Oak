@@ -23,10 +23,10 @@ public class ExecutorUtils {
     /***
      * this function close the Executor thread pool  also wait for given tasks to complete upto given time limit
      * @param executor the thread pool to be closed
-     * @param pendingTasks list of tasks that are ruin
+     * @param pendingTasks list of tasks that need to end before the time limit
      * @param timeLimitInMs the time limit of the tasks to be done in milliseconds
      */
-    public static  void shutdownTaskPool(ExecutorService executor, List<Future<?>>pendingTasks, long timeLimitInMs)
+    public static void shutdownTaskPool(ExecutorService executor, List<Future<?>>pendingTasks, long timeLimitInMs)
             throws InterruptedException, ExecutionException, TimeoutException {
         try {
             executor.shutdown();
@@ -45,10 +45,7 @@ public class ExecutorUtils {
                 currentTime = Instant.now();
             } while (!pendingTasks.isEmpty() &&
                     Duration.between(startingTime, currentTime).toMillis() <= timeLimitInMs);
-        } catch (InterruptedException|ExecutionException|TimeoutException ex) {
-            ex.printStackTrace();
-            throw ex;
-        } finally {
+        }  finally {
             executor.shutdownNow();
         }
     }
