@@ -139,6 +139,7 @@ class SliceSeqExpand extends Slice {
     ValueUtils.ValueResult unlockRead(){
         return ValueUtils.ValueResult.TRUE;
     }
+
     /**
      * Acquires a write lock.
      * Sequential Slice doesn't support synchronization, therefore for this type of slice this is NOP.
@@ -202,4 +203,5 @@ class SliceSeqExpand extends Slice {
      * Expand-only Slice doesn't support deletion, therefore for this type of slice this is NOP.
      */
     void markAsDeleted() { }
+
 }
