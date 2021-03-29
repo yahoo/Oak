@@ -20,9 +20,7 @@ class SliceSyncRecycle extends Slice {
      */
     private final int headerSize;
     private final SyncRecycleMMHeader header;
-
-    private final long invalidReferenceValue; // used for invalidation
-
+    private int version;    // Allocation time version
 
     /* ------------------------------------------------------------------------------------
      * Constructors
@@ -31,7 +29,6 @@ class SliceSyncRecycle extends Slice {
     SliceSyncRecycle(int headerSize, SyncRecycleMMHeader header) {
         super();
         this.headerSize = headerSize;
-        this.invalidReferenceValue = ReferenceCodecSyncRecycle.getInvalidReference();
         this.header = header;
         invalidate();
     }
@@ -55,7 +52,8 @@ class SliceSyncRecycle extends Slice {
     // Reset all not final fields to invalid state
     void invalidate() {
         blockID     = NativeMemoryAllocator.INVALID_BLOCK_ID;
-        reference   = invalidReferenceValue;
+        reference   = ReferenceCodecSyncRecycle.INVALID_REFERENCE;
+        version     = ReferenceCodecSyncRecycle.INVALID_VERSION;
         length      = UNDEFINED_LENGTH_OR_OFFSET;
         offset      = UNDEFINED_LENGTH_OR_OFFSET;
         buffer      = null;
@@ -77,17 +75,10 @@ class SliceSyncRecycle extends Slice {
     // Copy the block allocation information from another block allocation.
     <T extends Slice> void copyFrom(T other) {
         if (other instanceof SliceSyncRecycle) { //TODO: any other ideas?
-            if (other == this) {
-                // No need to do anything if the input is this object
-                return;
-            }
-            this.blockID = other.blockID;
-            this.offset = other.offset;
-            this.length = other.length;
-            this.version = other.version;
-            this.buffer = other.buffer;
-            this.reference = other.reference;
-            this.associated = other.associated;
+            copyAllocationInfoFrom(other);
+            this.version = ((SliceSyncRecycle) other).version;
+            // if SliceSeqExpand gets new members (not included in allocation info)
+            // their copy needs to be added here
         } else {
             throw new IllegalStateException("Must provide SliceSyncRecycle other Slice");
         }

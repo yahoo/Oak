@@ -97,7 +97,7 @@ class SyncRecycleMemoryManager implements MemoryManager {
      */
     @Override
     public long getInvalidReference() {
-        return rcmm.getInvalidReference();
+        return ReferenceCodecSyncRecycle.INVALID_REFERENCE;
     }
 
     @Override

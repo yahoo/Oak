@@ -15,15 +15,12 @@ package com.yahoo.oak;
 class SliceSeqExpand extends Slice {
     static final int UNDEFINED_LENGTH_OR_OFFSET = -1;
 
-    private final long invalidReferenceValue; // used for invalidation
-
     /* ------------------------------------------------------------------------------------
      * Constructors
      * ------------------------------------------------------------------------------------*/
     // Should be used only by Memory Manager (within Memory Manager package)
     SliceSeqExpand() {
         super();
-        this.invalidReferenceValue = ReferenceCodecSeqExpand.getInvalidReference();
         invalidate();
     }
 
@@ -38,15 +35,6 @@ class SliceSeqExpand extends Slice {
     /* ------------------------------------------------------------------------------------
      * Allocation info and metadata setters
      * ------------------------------------------------------------------------------------*/
-    // Reset all not final fields to invalid state
-    void invalidate() {
-        blockID     = NativeMemoryAllocator.INVALID_BLOCK_ID;
-        reference   = invalidReferenceValue;
-        length      = UNDEFINED_LENGTH_OR_OFFSET;
-        offset      = UNDEFINED_LENGTH_OR_OFFSET;
-        buffer      = null;
-        associated  = false;
-    }
 
     /*
      * Updates everything that can be extracted with reference decoding of "SeqExpand" type,
@@ -64,16 +52,9 @@ class SliceSeqExpand extends Slice {
     // Copy the block allocation information from another block allocation.
     <T extends Slice> void copyFrom(T other){
         if (other instanceof SliceSeqExpand) { //TODO: any other ideas?
-            if (other == this) {
-                // No need to do anything if the input is this object
-                return;
-            }
-            this.blockID = other.blockID;
-            this.offset = other.offset;
-            this.length = other.length;
-            this.buffer = other.buffer;
-            this.reference = other.reference;
-            this.associated = other.associated;
+            copyAllocationInfoFrom(other);
+            // if SliceSeqExpand gets new members (not included in allocation info)
+            // their copy needs to be added here
         } else {
             throw new IllegalStateException("Must provide SliceSeqExpand other Slice");
         }
@@ -99,7 +80,6 @@ class SliceSeqExpand extends Slice {
 
     // the method has no effect for SliceSeqExpand
     protected void prefetchDataLength() {
-        return;
     }
 
     /* ------------------------------------------------------------------------------------
