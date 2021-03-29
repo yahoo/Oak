@@ -39,6 +39,8 @@ public class ExecutorUtils {
                     currentTime = Instant.now();
                     long timeToWait = Math.max(10,
                             timeLimitInMs - Duration.between(startingTime, currentTime).toMillis());
+                    //task.get will throw error if the task had an exception or if the timelimit passed
+                    // or if the thread got interrupted exception
                     task.get(timeToWait, TimeUnit.MILLISECONDS);
                     it.remove();
                 }
