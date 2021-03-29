@@ -116,7 +116,8 @@ class SliceSeqExpand extends Slice {
     /*-------------- Off-heap header operations: locking and logical delete --------------*/
 
     /**
-     * Acquires a read lock
+     * Acquires a read lock.
+     * Sequential Slice doesn't support synchronization, therefore for this type of slice this is NOP.
      *
      * @return {@code TRUE} if the read lock was acquires successfully
      * {@code FALSE} if the header/off-heap-cut is marked as deleted
@@ -124,51 +125,54 @@ class SliceSeqExpand extends Slice {
      * does not match {@code version}.
      */
     ValueUtils.ValueResult lockRead(){
-        throw new UnsupportedOperationException("Sequential Slice doesn't support synchronization");
+        return ValueUtils.ValueResult.TRUE;
     }
 
     /**
-     * Releases a read lock
+     * Releases a read lock.
+     * Sequential Slice doesn't support synchronization, therefore for this type of slice this is NOP.
      *
      * @return {@code TRUE} if the read lock was released successfully
      * {@code FALSE} if the value is marked as deleted
      * {@code RETRY} if the value was moved, or the version of the off-heap value does not match {@code version}.
      */
     ValueUtils.ValueResult unlockRead(){
-        throw new UnsupportedOperationException("Sequential Slice doesn't support synchronization");
+        return ValueUtils.ValueResult.TRUE;
     }
-
     /**
-     * Acquires a write lock
+     * Acquires a write lock.
+     * Sequential Slice doesn't support synchronization, therefore for this type of slice this is NOP.
      *
      * @return {@code TRUE} if the write lock was acquires successfully
      * {@code FALSE} if the value is marked as deleted
      * {@code RETRY} if the value was moved, or the version of the off-heap value does not match {@code version}.
      */
     ValueUtils.ValueResult lockWrite(){
-        throw new UnsupportedOperationException("Sequential Slice doesn't support synchronization");
+        return ValueUtils.ValueResult.TRUE;
     }
 
     /**
-     * Releases a write lock
+     * Releases a write lock.
+     * Sequential Slice doesn't support synchronization, therefore for this type of slice this is NOP.
      *
      * @return {@code TRUE} if the write lock was released successfully
      * {@code FALSE} if the value is marked as deleted
      * {@code RETRY} if the value was moved, or the version of the off-heap value does not match {@code version}.
      */
     ValueUtils.ValueResult unlockWrite(){
-        throw new UnsupportedOperationException("Sequential Slice doesn't support synchronization");
+        return ValueUtils.ValueResult.TRUE;
     }
 
     /**
      * Marks the associated off-heap cut as deleted only if the version of that value matches {@code version}.
+     * Expand-only Slice doesn't support deletion, therefore for this type of slice this is NOP.
      *
      * @return {@code TRUE} if the value was marked successfully
      * {@code FALSE} if the value is already marked as deleted
      * {@code RETRY} if the value was moved, or the version of the off-heap value does not match {@code version}.
      */
     ValueUtils.ValueResult logicalDelete(){
-        throw new UnsupportedOperationException("Expand-only Slice doesn't support deletion");
+        return ValueUtils.ValueResult.TRUE;
     }
 
     /**
@@ -185,17 +189,17 @@ class SliceSeqExpand extends Slice {
     /**
      * Marks the header of the associated off-heap cut as moved, just write (without CAS)
      * The write lock must be held (asserted inside the header)
+     *
+     * Expand-only Slice doesn't support move (for now), therefore for this type of slice this is NOP.
      */
-    void markAsMoved() {
-        throw new UnsupportedOperationException("Expand-only Slice doesn't support moving");
-    }
+    void markAsMoved() { }
 
     /**
      * Marks the header of the associated off-heap cut as deleted, just write (without CAS)
      * The write lock must be held (asserted inside the header).
      * It is similar to logicalDelete() but used when locking and marking don't happen in one CAS
+     *
+     * Expand-only Slice doesn't support deletion, therefore for this type of slice this is NOP.
      */
-    void markAsDeleted() {
-        throw new UnsupportedOperationException("Expand-only Slice doesn't support deletion");
-    }
+    void markAsDeleted() { }
 }
