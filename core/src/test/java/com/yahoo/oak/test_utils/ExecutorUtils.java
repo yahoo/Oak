@@ -26,7 +26,7 @@ public class ExecutorUtils {
      * @param pendingTasks list of tasks that are ruin
      * @param timeLimitInMs the time limit of the tasks to be done in milliseconds
      */
-    public  static  void shutdownTaskPool(ExecutorService executor, List<Future<?>>pendingTasks, long timeLimitInMs)
+    public static  void shutdownTaskPool(ExecutorService executor, List<Future<?>>pendingTasks, long timeLimitInMs)
             throws InterruptedException, ExecutionException, TimeoutException {
         try {
             executor.shutdown();
