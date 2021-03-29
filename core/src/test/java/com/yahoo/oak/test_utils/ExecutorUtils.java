@@ -31,7 +31,7 @@ public class ExecutorUtils {
         try {
             executor.shutdown();
             Instant startingTime = Instant.now();
-            Instant currentTime = null;
+            Instant currentTime;
             do {
                 Iterator<Future<?>> it = pendingTasks.iterator();
                 while (it.hasNext()) {
