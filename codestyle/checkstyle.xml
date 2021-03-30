@@ -161,6 +161,10 @@
              after the semicolon of an empty for iterator. -->
         <module name="WhitespaceAfter"/>
 
+        <!-- Checks that a token is surrounded by whitespace. Empty constructor, method, class, enum, interface, loop
+             bodies (blocks), lambdas of the form. -->
+        <module name="WhitespaceAround"/>
+
         <!-- ################################################################################
              Coding: https://checkstyle.sourceforge.io/config_coding.html
              ################################################################################ -->
