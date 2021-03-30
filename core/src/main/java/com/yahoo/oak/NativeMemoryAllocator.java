@@ -120,7 +120,7 @@ class NativeMemoryAllocator implements BlockMemoryAllocator {
                     // need to be thread-safe, so not many blocks are allocated
                     // locking is actually the most reasonable way of synchronization here
                     synchronized (this) {
-                        if (currentBlock.allocated() + size > currentBlock.getCapacity()) {
+                        if (currentBlock.allocatedWithPossibleDelta() + size > currentBlock.getCapacity()) {
                             allocateNewCurrentBlock();
                         }
                     }
