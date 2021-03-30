@@ -22,13 +22,15 @@ public class OakStringComparator implements OakComparator<String> {
         final int size2 = serializedKey2.getInt(0);
         final int minSize = Math.min(size1, size2);
 
+        int index = Integer.BYTES;
         for (int i = 0; i < minSize; i++) {
-            char c1 = serializedKey1.getChar(Integer.BYTES + i * Character.BYTES);
-            char c2 = serializedKey2.getChar(Integer.BYTES + i * Character.BYTES);
+            char c1 = serializedKey1.getChar(index);
+            char c2 = serializedKey2.getChar(index);
             int compare = Character.compare(c1, c2);
             if (compare != 0) {
                 return compare;
             }
+            index += Character.BYTES;
         }
 
         return size1 - size2;
@@ -40,13 +42,15 @@ public class OakStringComparator implements OakComparator<String> {
         final int size2 = serializedKey.getInt(0);
         final int minSize = Math.min(size1, size2);
 
+        int index = Integer.BYTES;
         for (int i = 0; i < minSize; i++) {
             char c1 = key.charAt(i);
-            char c2 = serializedKey.getChar(Integer.BYTES + i * Character.BYTES);
+            char c2 = serializedKey.getChar(index);
             int compare = Character.compare(c1, c2);
             if (compare != 0) {
                 return compare;
             }
+            index += Character.BYTES;
         }
 
         return size1 - size2;

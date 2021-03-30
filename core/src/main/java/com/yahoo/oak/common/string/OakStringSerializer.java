@@ -17,9 +17,11 @@ public class OakStringSerializer implements OakSerializer<String> {
         final int size = object.length();
 
         targetBuffer.putInt(0, size);
+        int index = Integer.BYTES;
         for (int i = 0; i < object.length(); i++) {
             char c = object.charAt(i);
-            targetBuffer.putChar(Integer.BYTES + i * Character.BYTES, c);
+            targetBuffer.putChar(index, c);
+            index += Character.BYTES;
         }
     }
 
@@ -28,9 +30,11 @@ public class OakStringSerializer implements OakSerializer<String> {
         final int size = byteBuffer.getInt(0);
 
         StringBuilder object = new StringBuilder(size);
+        int index = Integer.BYTES;
         for (int i = 0; i < size; i++) {
-            char c = byteBuffer.getChar(Integer.BYTES + i * Character.BYTES);
+            char c = byteBuffer.getChar(index);
             object.append(c);
+            index += Character.BYTES;
         }
         return object.toString();
     }

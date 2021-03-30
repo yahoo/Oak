@@ -52,8 +52,10 @@ public class OakCommonBuildersFactory {
 
     public static OakMapBuilder<ByteBuffer, ByteBuffer> getDefaultIntBufferBuilder(int keySize, int valueSize) {
         ByteBuffer minKey = ByteBuffer.allocate(keySize * Integer.BYTES);
+        int index = 0;
         for (int i = 0; i < keySize; i++) {
-            minKey.putInt(Integer.BYTES * i, Integer.MIN_VALUE);
+            minKey.putInt(index, Integer.MIN_VALUE);
+            index += Integer.BYTES;
         }
         minKey.position(0);
 

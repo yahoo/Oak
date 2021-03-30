@@ -47,9 +47,11 @@ public class OakIntBufferSerializer implements OakSerializer<ByteBuffer> {
     }
 
     public static void copyBuffer(ByteBuffer src, int srcPos, int srcSize, ByteBuffer dst, int dstPos) {
+        int offset = 0;
         for (int i = 0; i < srcSize; i++) {
-            int data = src.getInt(srcPos + Integer.BYTES * i);
-            dst.putInt(dstPos + Integer.BYTES * i, data);
+            int data = src.getInt(srcPos + offset);
+            dst.putInt(dstPos + offset, data);
+            offset += Integer.BYTES;
         }
     }
 }
