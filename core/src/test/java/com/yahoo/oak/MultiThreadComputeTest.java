@@ -7,24 +7,34 @@
 package com.yahoo.oak;
 
 import com.yahoo.oak.common.OakCommonBuildersFactory;
+import com.yahoo.oak.test_utils.ExecutorUtils;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
 import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.function.Consumer;
 
 public class MultiThreadComputeTest {
 
     private OakMap<Integer, Integer> oak;
     private static final int NUM_THREADS = 31;
-    private ArrayList<Thread> threads;
+    private ExecutorService executor;
     private CountDownLatch latch;
     private Consumer<OakScopedWriteBuffer> computer;
     private Consumer<OakScopedWriteBuffer> emptyComputer;
     private static final int MAX_ITEMS_PER_CHUNK = 1024;
+    private final long timeLimitInMs = TimeUnit.MILLISECONDS.convert(60, TimeUnit.SECONDS);
 
     @Before
     public void init() {
@@ -32,13 +42,12 @@ public class MultiThreadComputeTest {
                 .setChunkMaxItems(MAX_ITEMS_PER_CHUNK);
         oak = builder.build();
         latch = new CountDownLatch(1);
-        threads = new ArrayList<>(NUM_THREADS);
+        executor = Executors.newFixedThreadPool(NUM_THREADS);
         computer = oakWBuffer -> {
             if (oakWBuffer.getInt(0) == 0) {
                 oakWBuffer.putInt(0, 1);
             }
         };
-
         emptyComputer = oakWBuffer -> {
         };
     }
@@ -48,7 +57,7 @@ public class MultiThreadComputeTest {
         oak.close();
     }
 
-    class RunThreads implements Runnable {
+    class RunThreads implements Callable<Void> {
         CountDownLatch latch;
 
         RunThreads(CountDownLatch latch) {
@@ -56,12 +65,8 @@ public class MultiThreadComputeTest {
         }
 
         @Override
-        public void run() {
-            try {
-                latch.await();
-            } catch (InterruptedException e) {
-                e.printStackTrace();
-            }
+        public Void call() throws InterruptedException {
+            latch.await();
 
             for (Integer i = 0; i < 4 * MAX_ITEMS_PER_CHUNK; i++) {
                 oak.zc().putIfAbsent(i, i);
@@ -129,21 +134,22 @@ public class MultiThreadComputeTest {
                 oak.zc().putIfAbsent(i, i);
             }
 
+            return null;
         }
     }
 
     @Test
-    public void testThreadsCompute() throws InterruptedException {
+    public void testThreadsCompute() throws InterruptedException, TimeoutException, ExecutionException {
+
+        List<Future<?>> tasks=new ArrayList<>();
         for (int i = 0; i < NUM_THREADS; i++) {
-            threads.add(new Thread(new MultiThreadComputeTest.RunThreads(latch)));
+            tasks.add(executor.submit(new MultiThreadComputeTest.RunThreads(latch))) ;
         }
-        for (int i = 0; i < NUM_THREADS; i++) {
-            threads.get(i).start();
-        }
+
         latch.countDown();
-        for (int i = 0; i < NUM_THREADS; i++) {
-            threads.get(i).join();
-        }
+
+        ExecutorUtils.shutdownTaskPool(executor, tasks, timeLimitInMs);
+
         for (Integer i = 0; i < MAX_ITEMS_PER_CHUNK; i++) {
             Integer value = oak.get(i);
             Assert.assertNotNull(value);

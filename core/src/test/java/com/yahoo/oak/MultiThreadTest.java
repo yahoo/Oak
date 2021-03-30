@@ -7,6 +7,7 @@
 package com.yahoo.oak;
 
 import com.yahoo.oak.common.OakCommonBuildersFactory;
+import com.yahoo.oak.test_utils.ExecutorUtils;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -15,19 +16,29 @@ import org.junit.Test;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Iterator;
+import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.concurrent.BrokenBarrierException;
+import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.function.Consumer;
 
 public class MultiThreadTest {
 
     private OakMap<Integer, Integer> oak;
     private static final int NUM_THREADS = 31;
-    private ArrayList<Thread> threads;
+    private ExecutorService executor;
+
     private CountDownLatch latch;
     private static final int MAX_ITEMS_PER_CHUNK = 2048;
+    private final long timeLimitInMs = TimeUnit.MILLISECONDS.convert(60, TimeUnit.SECONDS);
 
 
     @Before
@@ -36,7 +47,7 @@ public class MultiThreadTest {
                 .setChunkMaxItems(MAX_ITEMS_PER_CHUNK);
         oak = builder.build();
         latch = new CountDownLatch(1);
-        threads = new ArrayList<>(NUM_THREADS);
+        executor = Executors.newFixedThreadPool(NUM_THREADS);
     }
 
     @After
@@ -44,7 +55,7 @@ public class MultiThreadTest {
         oak.close();
     }
 
-    class RunThreads implements Runnable {
+    class RunThreads implements Callable {
         CountDownLatch latch;
 
         RunThreads(CountDownLatch latch) {
@@ -52,13 +63,8 @@ public class MultiThreadTest {
         }
 
         @Override
-        public void run() {
-            try {
-                latch.await();
-            } catch (InterruptedException e) {
-                e.printStackTrace();
-            }
-
+        public Void call() throws InterruptedException {
+            latch.await();
             Integer value;
 
             for (Integer i = 0; i < (int) Math.round(0.5 * MAX_ITEMS_PER_CHUNK); i++) {
@@ -150,23 +156,20 @@ public class MultiThreadTest {
                 bb1.flip();
                 oak.zc().putIfAbsent(i, i + 1);
             }
-
-
+            return null;
         }
     }
 
     @Test
-    public void testThreads() throws InterruptedException {
+    public void testThreads() throws InterruptedException, TimeoutException, ExecutionException {
+
+        List<Future<?>> tasks=new ArrayList<>();
         for (int i = 0; i < NUM_THREADS; i++) {
-            threads.add(new Thread(new MultiThreadTest.RunThreads(latch)));
-        }
-        for (int i = 0; i < NUM_THREADS; i++) {
-            threads.get(i).start();
+            tasks.add(executor.submit(new MultiThreadTest.RunThreads(latch))) ;
         }
         latch.countDown();
-        for (int i = 0; i < NUM_THREADS; i++) {
-            threads.get(i).join();
-        }
+        ExecutorUtils.shutdownTaskPool(executor, tasks, timeLimitInMs);
+
         for (Integer i = (int) Math.round(0.5 * MAX_ITEMS_PER_CHUNK); i < 2 * MAX_ITEMS_PER_CHUNK; i++) {
             Integer value = oak.get(i);
             Assert.assertEquals(i, value);
@@ -181,7 +184,7 @@ public class MultiThreadTest {
         }
     }
 
-    class RunThreadsDescend implements Runnable {
+    class RunThreadsDescend implements Callable<Void> {
         CountDownLatch latch;
         CyclicBarrier barrier;
 
@@ -191,13 +194,8 @@ public class MultiThreadTest {
         }
 
         @Override
-        public void run() {
-            try {
-                latch.await();
-            } catch (InterruptedException e) {
-                e.printStackTrace();
-            }
-
+        public Void call() throws BrokenBarrierException, InterruptedException {
+            latch.await();
             Integer i;
             Integer value = 1;
             Iterator<Integer> iter;
@@ -224,11 +222,7 @@ public class MultiThreadTest {
                 Assert.assertEquals(0, value.intValue());
             }
 
-            try {
-                barrier.await();
-            } catch (InterruptedException | BrokenBarrierException e) {
-                e.printStackTrace();
-            }
+            barrier.await();
 
             for (i = 2 * MAX_ITEMS_PER_CHUNK; i < 3 * MAX_ITEMS_PER_CHUNK; i++) {
                 oak.zc().remove(i);
@@ -250,11 +244,7 @@ public class MultiThreadTest {
                 oak.zc().computeIfPresent(i, computer);
             }
 
-            try {
-                barrier.await();
-            } catch (InterruptedException | BrokenBarrierException e) {
-                e.printStackTrace();
-            }
+            barrier.await();
 
             for (i = 5 * MAX_ITEMS_PER_CHUNK; i < 6 * MAX_ITEMS_PER_CHUNK; i++) {
                 oak.zc().remove(i);
@@ -271,7 +261,6 @@ public class MultiThreadTest {
                     // due to concurrent deletions
                     System.out.println("There was an expected NoSuchElement exception:" + e);
                 }
-
 
             }
 
@@ -291,23 +280,21 @@ public class MultiThreadTest {
                 oak.zc().computeIfPresent(i, computer);
             }
 
+            return null;
         }
     }
 
     @Test
-    public void testThreadsDescend() throws InterruptedException {
+    public void testThreadsDescend() throws InterruptedException, TimeoutException, ExecutionException {
         CyclicBarrier barrier = new CyclicBarrier(NUM_THREADS);
 
+        List<Future<?>> tasks=new ArrayList<>();
         for (int i = 0; i < NUM_THREADS; i++) {
-            threads.add(new Thread(new MultiThreadTest.RunThreadsDescend(latch, barrier)));
-        }
-        for (int i = 0; i < NUM_THREADS; i++) {
-            threads.get(i).start();
+            tasks.add(executor.submit(new MultiThreadTest.RunThreadsDescend(latch, barrier))) ;
         }
         latch.countDown();
-        for (int i = 0; i < NUM_THREADS; i++) {
-            threads.get(i).join();
-        }
+
+        ExecutorUtils.shutdownTaskPool(executor, tasks, timeLimitInMs);
 
         for (Integer i = 0; i < 2 * MAX_ITEMS_PER_CHUNK; i++) {
             Integer value = oak.get(i);

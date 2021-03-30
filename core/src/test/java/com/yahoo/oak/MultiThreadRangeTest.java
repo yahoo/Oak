@@ -7,6 +7,7 @@
 package com.yahoo.oak;
 
 import com.yahoo.oak.common.OakCommonBuildersFactory;
+import com.yahoo.oak.test_utils.ExecutorUtils;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -14,16 +15,26 @@ import org.junit.Test;
 
 import java.util.ArrayList;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Random;
+import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 public class MultiThreadRangeTest {
 
     private OakMap<Integer, Integer> oak;
     private static final int NUM_THREADS = 31;
-    private ArrayList<Thread> threads;
+    private ExecutorService executor;
+
     private CountDownLatch latch;
     private static final int MAX_ITEMS_PER_CHUNK = 2048;
+    private final long timeLimitInMs = TimeUnit.MILLISECONDS.convert(60, TimeUnit.SECONDS);
 
     @Before
     public void init() {
@@ -31,7 +42,7 @@ public class MultiThreadRangeTest {
                 .setChunkMaxItems(MAX_ITEMS_PER_CHUNK);
         oak = builder.build();
         latch = new CountDownLatch(1);
-        threads = new ArrayList<>(NUM_THREADS);
+        executor = Executors.newFixedThreadPool(NUM_THREADS);
     }
 
     @After
@@ -39,7 +50,7 @@ public class MultiThreadRangeTest {
         oak.close();
     }
 
-    class RunThreads implements Runnable {
+    class RunThreads implements Callable<Void> {
         CountDownLatch latch;
 
         RunThreads(CountDownLatch latch) {
@@ -47,12 +58,8 @@ public class MultiThreadRangeTest {
         }
 
         @Override
-        public void run() {
-            try {
-                latch.await();
-            } catch (InterruptedException e) {
-                e.printStackTrace();
-            }
+        public Void call() throws InterruptedException {
+            latch.await();
 
             Integer from = 10 * MAX_ITEMS_PER_CHUNK;
             try (OakMap<Integer, Integer> tailMap = oak.tailMap(from, true)) {
@@ -63,13 +70,16 @@ public class MultiThreadRangeTest {
                     i++;
                 }
             }
+            return null;
         }
     }
 
     @Test
-    public void testRange() throws InterruptedException {
+    public void testRange() throws InterruptedException, TimeoutException, ExecutionException {
+
+        List<Future<?>> tasks=new ArrayList<>();
         for (int i = 0; i < NUM_THREADS; i++) {
-            threads.add(new Thread(new MultiThreadRangeTest.RunThreads(latch)));
+            tasks.add(executor.submit(new MultiThreadRangeTest.RunThreads(latch))) ;
         }
 
         // fill
@@ -81,13 +91,9 @@ public class MultiThreadRangeTest {
             }
         }
 
-        for (int i = 0; i < NUM_THREADS; i++) {
-            threads.get(i).start();
-        }
         latch.countDown();
-        for (int i = 0; i < NUM_THREADS; i++) {
-            threads.get(i).join();
-        }
+
+        ExecutorUtils.shutdownTaskPool(executor, tasks, timeLimitInMs);
 
         int size = 0;
         for (Integer i = 0; i < 10 * MAX_ITEMS_PER_CHUNK; i++) {

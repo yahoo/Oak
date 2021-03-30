@@ -7,23 +7,35 @@
 package com.yahoo.oak;
 
 import com.yahoo.oak.common.OakCommonBuildersFactory;
+import com.yahoo.oak.test_utils.ExecutorUtils;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
 import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
+import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+
+
 
 public class OffHeapOakTest {
     private OakMap<Integer, Integer> oak;
     private static final int NUM_THREADS = 31;
-    private ArrayList<Thread> threads;
+    private ExecutorService executor;
     private CountDownLatch latch;
-    private int maxItemsPerChunk = 248;
+    private final int maxItemsPerChunk = 248;
     private Exception threadException;
+    private final long timeLimitInMs = TimeUnit.MILLISECONDS.convert(15000, TimeUnit.MILLISECONDS);
 
     @Before
     public void init() {
@@ -31,7 +43,7 @@ public class OffHeapOakTest {
                 .setChunkMaxItems(maxItemsPerChunk);
         oak = builder.build();
         latch = new CountDownLatch(1);
-        threads = new ArrayList<>(NUM_THREADS);
+        executor = Executors.newFixedThreadPool(NUM_THREADS);
         threadException = null;
     }
 
@@ -42,18 +54,15 @@ public class OffHeapOakTest {
 
 
     @Test//(timeout = 15000)
-    public void testThreads() throws InterruptedException {
+    public void testThreads() throws InterruptedException, TimeoutException, ExecutionException {
+        List<Future<?>> tasks = new ArrayList<>();
         for (int i = 0; i < NUM_THREADS; i++) {
-            Thread thread = new Thread(new RunThreads(latch));
-            threads.add(thread);
-            thread.start();
+            tasks.add(executor.submit(new RunThreads(latch)));
         }
-
         latch.countDown();
 
-        for (int i = 0; i < NUM_THREADS; i++) {
-            threads.get(i).join();
-        }
+        ExecutorUtils.shutdownTaskPool(executor, tasks, timeLimitInMs);
+
         Assert.assertNull(threadException);
 
         for (Integer i = 0; i < 6 * maxItemsPerChunk; i++) {
@@ -66,7 +75,7 @@ public class OffHeapOakTest {
         }
     }
 
-    class RunThreads implements Runnable {
+    class RunThreads implements Callable<Void> {
         CountDownLatch latch;
 
         RunThreads(CountDownLatch latch) {
@@ -74,22 +83,13 @@ public class OffHeapOakTest {
         }
 
         @Override
-        public void run() {
-            try {
-                runTest();
-            } catch (Exception e) {
-                e.printStackTrace();
-                threadException = e;
-            }
+        public Void call() throws InterruptedException {
+            runTest();
+            return null;
         }
 
-        private void runTest() {
-            try {
-                latch.await();
-            } catch (InterruptedException e) {
-                e.printStackTrace();
-            }
-
+        private void runTest() throws InterruptedException {
+            latch.await();
             try {
                 for (Map.Entry<Integer, Integer> entry : oak.entrySet()) {
                     if (entry == null) {

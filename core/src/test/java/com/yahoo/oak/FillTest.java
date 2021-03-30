@@ -8,13 +8,22 @@ package com.yahoo.oak;
 
 import com.yahoo.oak.common.OakCommonBuildersFactory;
 import com.yahoo.oak.common.integer.OakIntSerializer;
+import com.yahoo.oak.test_utils.ExecutorUtils;
 import org.junit.Assert;
+import org.junit.Before;
 import org.junit.Test;
 
 import java.util.ArrayList;
+import java.util.List;
 import java.util.Random;
+import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
-
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 public class FillTest {
 
     private static final int NUM_THREADS = 1;
@@ -25,11 +34,18 @@ public class FillTest {
     private static final int KEY_SIZE = 10;
     private static final int VALUE_SIZE = Math.round(5 * K);
     private static final int NUM_OF_ENTRIES = 100;
+    private final long timeLimitInMs = TimeUnit.MILLISECONDS.convert(60, TimeUnit.SECONDS);
+    private  CountDownLatch latch;
+    private  ExecutorService executor;
 
-    private static ArrayList<Thread> threads = new ArrayList<>(NUM_THREADS);
-    private static CountDownLatch latch = new CountDownLatch(1);
+    @Before
+    public void setup() {
+        latch = new CountDownLatch(1);
+        executor = Executors.newFixedThreadPool(NUM_THREADS);
 
-    static class RunThreads implements Runnable {
+    }
+
+    static class RunThreads implements Callable<Void> {
         CountDownLatch latch;
 
         RunThreads(CountDownLatch latch) {
@@ -37,13 +53,8 @@ public class FillTest {
         }
 
         @Override
-        public void run() {
-            try {
-                latch.await();
-            } catch (InterruptedException e) {
-                e.printStackTrace();
-            }
-
+        public Void call() throws InterruptedException {
+            latch.await();
             Random r = new Random();
 
             int id = (int) Thread.currentThread().getId() % ThreadIndexCalculator.MAX_THREADS;
@@ -75,11 +86,12 @@ public class FillTest {
                 Assert.assertNotEquals(oak.get(i), null);
             }
 
+            return null;
         }
     }
 
     @Test
-    public void testMain() throws InterruptedException {
+    public void testMain() throws InterruptedException, TimeoutException, ExecutionException {
 
         OakMapBuilder<Integer, Integer> builder = OakCommonBuildersFactory.getDefaultIntBuilder()
             .setChunkMaxItems(2048)
@@ -88,26 +100,20 @@ public class FillTest {
 
         oak = builder.build();
 
-
+        List<Future<?>> tasks = new ArrayList<>();
         for (int i = 0; i < NUM_THREADS; i++) {
-            threads.add(new Thread(new RunThreads(latch)));
+            tasks.add(executor.submit(new RunThreads(latch))) ;
         }
 
         for (int i = 0; i < (int) Math.round(NUM_OF_ENTRIES * 0.5); i++) {
             oak.zc().putIfAbsent(i, i);
         }
 
-        for (int i = 0; i < NUM_THREADS; i++) {
-            threads.get(i).start();
-        }
-
         long startTime = System.currentTimeMillis();
 
         latch.countDown();
 
-        for (int i = 0; i < NUM_THREADS; i++) {
-            threads.get(i).join();
-        }
+        ExecutorUtils.shutdownTaskPool(executor, tasks, timeLimitInMs);
 
         long stopTime = System.currentTimeMillis();
 
@@ -115,7 +121,6 @@ public class FillTest {
             Integer val = oak.get(i);
             Assert.assertEquals(i, val);
         }
-
         long elapsedTime = stopTime - startTime;
         oak.close();
 
