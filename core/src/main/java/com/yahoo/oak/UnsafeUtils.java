@@ -10,7 +10,7 @@ import sun.misc.Unsafe;
 
 import java.lang.reflect.Constructor;
 
-public final class UnsafeUtils {
+final class UnsafeUtils {
 
     static Unsafe unsafe;
 
@@ -28,9 +28,6 @@ public final class UnsafeUtils {
     private UnsafeUtils() {
     }
     
-    public static Unsafe getUnsafe() {
-        return unsafe;
-    }
 
     static final long LONG_INT_MASK = (1L << Integer.SIZE) - 1L;
 

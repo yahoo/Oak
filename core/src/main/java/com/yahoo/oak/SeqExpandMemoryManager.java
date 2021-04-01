@@ -75,7 +75,7 @@ class SeqExpandMemoryManager implements MemoryManager {
             return true;
         }
         if (rcd.decode(s, reference)) {
-            allocator.readByteBuffer(s);
+            allocator.getSlicebaseAddress(s);
             return true;
         }
         return false;

@@ -6,6 +6,7 @@
 
 package com.yahoo.oak;
 
+import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 
 /**
@@ -92,18 +93,6 @@ class ScopedReadBuffer implements OakScopedReadBuffer, OakUnsafeDirectBuffer {
     }
 
     /** ------------------------------ OakUnsafeDirectBuffer ------------------------------ **/
-    /**
-     * Allows access to the underlying ByteBuffer of Oak.
-     * This buffer might contain data that is unrelated to the context in which this object was introduced.
-     * For example, it might contain internal Oak data and other user data.
-     * Thus, the developer should use getOffset() and getLength() to validate the data boundaries.
-     * Note 1: depending on the context (casting from OakScopedReadBuffer or OakScopedWriteBuffer), the buffer mode
-     * might be ready only.
-     * Note 2: the buffer internal state (e.g., byte order, position, limit and so on) should not be modified as this
-     * object might be shared and used elsewhere.
-     *
-     * @return the underlying ByteBuffer.
-     */
     
     /**
      * @return the data offset inside the underlying ByteBuffer.
@@ -118,20 +107,22 @@ class ScopedReadBuffer implements OakScopedReadBuffer, OakUnsafeDirectBuffer {
     @Override public int getLength() {
         return s.getLength();
     }
-    /** ------------------------------ OakUnsafeDirectBuffer ------------------------------ **/
 
     /**
-     * Allows access to the memory address of the underlying off-heap ByteBuffer of Oak.
+     * Allows access to the memory address of the OakUnsafeDirectBuffer of Oak.
      * The address will point to the beginning of the user data, but avoiding overflow is the developer responsibility.
      * Thus, the developer should use getLength() and access data only in this boundary.
-     * This is equivalent to ((DirectBuffer) b.getByteBuffer()).address() + b.getOffset()
      *
-     * @return the exact memory address of the underlying buffer in the position of the data.
+     * @return the exact memory address of the Buffer in the position of the data.
      */
     @Override public long getAddress() { //for both OakUnsafeDirectBuffer -- OakScopedReadBuffer
         return s.getAddress();
     }
     
+   //must never be called internally kept in here to beautify the interface
+    @Override public ByteBuffer getByteBuffer() { 
+        throw new RuntimeException(); 
+    }
     //used for wrapping address with bytebuffer for external use
     public int getNativeCapacity() {
         return s.getCapacity();

@@ -64,7 +64,7 @@ class Block {
         UnsafeUtils.unsafe.freeMemory(memAddress);
     }
 
-    long getmemAdress() {
+    long getMemAddress() {
         return memAddress;
     }
 

@@ -9,14 +9,11 @@ package com.yahoo.oak.synchrobench;
 import com.yahoo.oak.OakComparator;
 import com.yahoo.oak.OakScopedReadBuffer;
 import com.yahoo.oak.OakSerializer;
-import com.yahoo.oak.OakUnsafeDirectBuffer;
-import com.yahoo.oak.UnsafeUtils;
 import com.yahoo.oak.OakScopedWriteBuffer;
 import com.yahoo.oak.common.intbuffer.OakIntBufferComparator;
 import com.yahoo.oak.common.intbuffer.OakIntBufferSerializer;
 
 import java.nio.ByteBuffer;
-import java.util.function.IntPredicate;
 
 public class MyBuffer implements Comparable<MyBuffer> {
 
@@ -40,55 +37,45 @@ public class MyBuffer implements Comparable<MyBuffer> {
     }
 
     public static void serialize(MyBuffer inputBuffer, OakScopedWriteBuffer targetBuffer) {
-        serialize(inputBuffer, targetBuffer.getAddress());
-    }
-
-    public static void serialize(MyBuffer inputBuffer, long address) {
         // In the serialized buffer, the first integer signifies the size.
-        UnsafeUtils.getUnsafe().putInt(address, inputBuffer.capacity);    
+    	targetBuffer.putInt(0,  inputBuffer.capacity);
         OakIntBufferSerializer.copyBuffer(inputBuffer.buffer, DATA_POS, inputBuffer.capacity / Integer.BYTES,
-                address + Integer.BYTES);
+        		targetBuffer, Integer.BYTES);
     }
 
     public static MyBuffer deserialize(OakScopedReadBuffer inputBuffer) {
-        return deserialize(inputBuffer.getAddress());
-    }
-
-    public static MyBuffer deserialize(long address) {
-        // In the serialized buffer, the first integer signifies the size.
-        int capacity = UnsafeUtils.getUnsafe().getInt(address);
-        // Thus, the data position starts after the first integer.
+        int capacity = inputBuffer.getInt(0);
         MyBuffer ret = new MyBuffer(capacity);
-        OakIntBufferSerializer.copyBuffer(address + Integer.BYTES, capacity / Integer.BYTES, ret.buffer, DATA_POS);
+        OakIntBufferSerializer.copyBuffer(inputBuffer, Integer.BYTES, capacity / Integer.BYTES, ret.buffer, DATA_POS);
         return ret;
     }
+
 
     public static int compareBuffers(ByteBuffer buff1, int pos1, int cap1, ByteBuffer buff2, int pos2, int cap2) {
         return OakIntBufferComparator.compare(buff1, pos1, cap1 / Integer.BYTES,
                 buff2, pos2, cap2 / Integer.BYTES);
     }
-    
-    public static int compareBuffers(ByteBuffer buff1, int pos1, int cap1, long buff2, int cap2) {
-        return OakIntBufferComparator.compare(buff1, pos1, cap1 / Integer.BYTES, buff2, cap2 / Integer.BYTES);
+
+    public static int compareBuffers(ByteBuffer buff1, int pos1, int cap1, OakScopedReadBuffer buff2, int pos2, int cap2) {
+        return OakIntBufferComparator.compare(buff1, pos1, cap1 / Integer.BYTES,
+                buff2, pos2, cap2 / Integer.BYTES);
     }
     
-    public static int compareBuffers(long buff1, int cap1, long buff2, int cap2) {
-        return OakIntBufferComparator.compare(buff1, cap1 / Integer.BYTES, buff2, cap2 / Integer.BYTES);
+    public static int compareBuffers(OakScopedReadBuffer buff1, int pos1, int cap1, OakScopedReadBuffer buff2, int pos2, int cap2) {
+        return OakIntBufferComparator.compare(buff1, pos1, cap1 / Integer.BYTES, buff2, pos2, cap2 / Integer.BYTES);
     }
 
     public static int compareBuffers(OakScopedReadBuffer buffer1, OakScopedReadBuffer buffer2) {
-    	long address1 = buffer1.getAddress();
-    	int cap1 = UnsafeUtils.getUnsafe().getInt( address1);
-    	long address2 = buffer2.getAddress();
-    	int cap2 = UnsafeUtils.getUnsafe().getInt( address2);
-        return compareBuffers(address1 + Integer.BYTES, cap1, address2+ Integer.BYTES, cap2);
+        // In the serialized buffer, the first integer signifies the size.
+    	int cap1 = buffer1.getInt(0);
+    	int cap2 = buffer2.getInt(0);
+        return compareBuffers(buffer1, Integer.BYTES, cap1, buffer2, Integer.BYTES, cap2);
     }
 
     public static int compareBuffers(MyBuffer key1, OakScopedReadBuffer buffer2) {
         // In the serialized buffer, the first integer signifies the size.
-    	long address = buffer2.getAddress();
-    	int cap2 = UnsafeUtils.getUnsafe().getInt( address);
-        return compareBuffers(key1.buffer, DATA_POS, key1.capacity, address + Integer.BYTES, cap2);
+    	int cap2 = buffer2.getInt(0);
+        return compareBuffers(key1.buffer, DATA_POS, key1.capacity, buffer2, Integer.BYTES,  cap2);
     }
 
     public static int compareBuffers(MyBuffer key1, MyBuffer key2) {

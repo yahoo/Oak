@@ -6,6 +6,8 @@
 
 package com.yahoo.oak;
 
+import java.nio.ByteBuffer;
+
 // Slice represents an data about an off-heap cut: a portion of a bigger block,
 // which is part of the underlying managed off-heap memory.
 // Slice is allocated only via memory manager, and can be de-allocated later.
@@ -61,12 +63,6 @@ class Slice implements OakUnsafeDirectBuffer, Comparable<Slice> {
         return newSlice;
     }
 
-    // Used only in testing to make each slice reference different buffer object,
-    // but the same off-heap memory
-    @VisibleForTesting
-    void duplicateBuffer() {
-        memAddress = memAddress;
-    }
 
     /* ------------------------------------------------------------------------------------
      * Allocation info and metadata setters
@@ -145,7 +141,7 @@ class Slice implements OakUnsafeDirectBuffer, Comparable<Slice> {
 
     // Set the internal buffer.
     // This method should be used only within Memory Management package.
-    void setBuffer(long memAddress, int allocCap) {
+    void setAddress(long memAddress, int allocCap) {
         this.memAddress= memAddress;
         this.allocationCapacity = allocCap;
         assert memAddress != 0;
@@ -253,6 +249,12 @@ class Slice implements OakUnsafeDirectBuffer, Comparable<Slice> {
     @Override
     public String toString() {
         return String.format("Slice(blockID=%d, offset=%,d, length=%,d, version=%d)", blockID, offset, length, version);
+    }
+    
+    //must never be called internally kept in here to beautify the interface
+    @Override
+    public ByteBuffer getByteBuffer() { 
+        throw new RuntimeException(); 
     }
 
     /*-------------- Comparable<Slice> --------------*/

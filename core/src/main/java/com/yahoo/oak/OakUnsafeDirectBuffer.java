@@ -47,10 +47,7 @@ public interface OakUnsafeDirectBuffer {
      *
      * @return the underlying ByteBuffer.
      */
-    default ByteBuffer getByteBuffer() {
-        throw new RuntimeException();
-    }
-
+    ByteBuffer getByteBuffer(); //description change?
     /**
      * @return the data offset inside the underlying ByteBuffer.
      */
@@ -62,12 +59,11 @@ public interface OakUnsafeDirectBuffer {
     int getLength();
 
     /**
-     * Allows access to the memory address of the underlying off-heap ByteBuffer of Oak.
+     * Allows access to the memory address of the OakUnsafeDirectBuffer of Oak.
      * The address will point to the beginning of the user data, but avoiding overflow is the developer responsibility.
      * Thus, the developer should use getLength() and access data only in this boundary.
-     * This is equivalent to ((DirectBuffer) b.getByteBuffer()).address() + b.getOffset()
      *
-     * @return the exact memory address of the underlying buffer in the position of the data.
+     * @return the exact memory address of the Buffer in the position of the data.
      */
     long getAddress();
 

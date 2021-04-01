@@ -65,7 +65,7 @@ class SyncRecycleMemoryManager implements MemoryManager {
     public boolean decodeReference(Slice s, long reference) {
         // reference is set in the slice as part of decoding
         if (rcmm.decode(s, reference)) {
-            allocator.readByteBuffer(s);
+            allocator.getSlicebaseAddress(s);
             return true;
         }
         return false;
