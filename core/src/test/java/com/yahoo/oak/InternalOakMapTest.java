@@ -30,7 +30,7 @@ public class InternalOakMapTest {
 
         testMap = new InternalOakMap<>(Integer.MIN_VALUE, OakCommonBuildersFactory.DEFAULT_INT_SERIALIZER,
                 OakCommonBuildersFactory.DEFAULT_INT_SERIALIZER, OakCommonBuildersFactory.DEFAULT_INT_COMPARATOR,
-                memoryManager, seqExpandMemoryManager, chunkMaxItems, new ValueUtilsImpl());
+                memoryManager, seqExpandMemoryManager, chunkMaxItems, new ValueUtils());
     }
 
 
