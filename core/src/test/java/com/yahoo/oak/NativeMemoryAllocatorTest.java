@@ -42,7 +42,7 @@ public class NativeMemoryAllocatorTest {
     private static final MemoryManager VALUE_MEMORY_MANAGER = new SyncRecycleMemoryManager(null);
 
     Slice allocate(NativeMemoryAllocator allocator, int size) {
-        Slice s = new Slice();
+        Slice s = new SliceSyncRecycle();
         allocator.allocate(s, size);
         return s;
     }
@@ -294,7 +294,7 @@ public class NativeMemoryAllocatorTest {
         int[] sizes = new int[]{4, 16, 8, 32};
         List<Slice> allocated = Arrays.stream(sizes)
                 .mapToObj(curSize -> {
-                    Slice s = new Slice();
+                    Slice s = new SliceSyncRecycle();
                     allocator.allocate(s, curSize);
                     return s;
                 }).collect(Collectors.toList());

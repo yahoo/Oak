@@ -98,8 +98,8 @@ public class OffHeapList<K extends MyBuffer, V extends MyBuffer> implements Comp
         Cell prevValue = skipListMap.putIfAbsent(newCell, newCell);
 
         if (prevValue == null) {
-            ScopedReadBuffer keybb = new ScopedReadBuffer(new Slice());
-            ScopedReadBuffer valuebb = new ScopedReadBuffer(new Slice());
+            ScopedReadBuffer keybb = new ScopedReadBuffer(new SliceSyncRecycle());
+            ScopedReadBuffer valuebb = new ScopedReadBuffer(new SliceSyncRecycle());
             allocator.allocate(keybb.getSlice(), key.calculateSerializedSize());
             ScopedWriteBuffer.serialize(keybb.getSlice(), key, MyBuffer.DEFAULT_SERIALIZER);
             newCell.key.set(keybb);
@@ -110,7 +110,7 @@ public class OffHeapList<K extends MyBuffer, V extends MyBuffer> implements Comp
             }
         } else {
             if (prevValue.value.get() == null) {
-                ScopedReadBuffer valuebb = new ScopedReadBuffer(new Slice());
+                ScopedReadBuffer valuebb = new ScopedReadBuffer(new SliceSyncRecycle());
                 allocator.allocate(valuebb.getSlice(), value.calculateSerializedSize());
                 ScopedWriteBuffer.serialize(valuebb.getSlice(), value, MyBuffer.DEFAULT_SERIALIZER);
                 if (!prevValue.value.compareAndSet(null, valuebb)) {
@@ -132,8 +132,8 @@ public class OffHeapList<K extends MyBuffer, V extends MyBuffer> implements Comp
         newCell.key.set(key);
         Cell prevValue = skipListMap.putIfAbsent(newCell, newCell);
         if (prevValue == null) {
-            ScopedReadBuffer keybb = new ScopedReadBuffer(new Slice());
-            ScopedReadBuffer valuebb = new ScopedReadBuffer(new Slice());
+            ScopedReadBuffer keybb = new ScopedReadBuffer(new SliceSyncRecycle());
+            ScopedReadBuffer valuebb = new ScopedReadBuffer(new SliceSyncRecycle());
             allocator.allocate(keybb.getSlice(), key.calculateSerializedSize());
             ScopedWriteBuffer.serialize(keybb.getSlice(), key, MyBuffer.DEFAULT_SERIALIZER);
             newCell.key.set(keybb);
@@ -233,7 +233,7 @@ public class OffHeapList<K extends MyBuffer, V extends MyBuffer> implements Comp
             Cell prevValue = (Cell) prevValueO;
             // cell is in map but maybe not initialized yet
             if (prevValue.value.get() == null) {
-                ScopedReadBuffer valuebb = new ScopedReadBuffer(new Slice());
+                ScopedReadBuffer valuebb = new ScopedReadBuffer(new SliceSyncRecycle());
                 allocator.allocate(valuebb.getSlice(), value.calculateSerializedSize());
                 ScopedWriteBuffer.serialize(valuebb.getSlice(), value, MyBuffer.DEFAULT_SERIALIZER);
                 if (!prevValue.value.compareAndSet(null, valuebb)) {
@@ -260,8 +260,8 @@ public class OffHeapList<K extends MyBuffer, V extends MyBuffer> implements Comp
 
         // If we only added and didnt do any compute, still have to init cell
         if (retval.value.get() == null) {
-            ScopedReadBuffer keybb = new ScopedReadBuffer(new Slice());
-            ScopedReadBuffer valuebb = new ScopedReadBuffer(new Slice());
+            ScopedReadBuffer keybb = new ScopedReadBuffer(new SliceSyncRecycle());
+            ScopedReadBuffer valuebb = new ScopedReadBuffer(new SliceSyncRecycle());
             allocator.allocate(keybb.getSlice(), key.calculateSerializedSize());
             ScopedWriteBuffer.serialize(keybb.getSlice(), key, MyBuffer.DEFAULT_SERIALIZER);
             retval.key.set(keybb);

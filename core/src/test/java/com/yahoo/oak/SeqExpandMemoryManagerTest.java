@@ -24,7 +24,7 @@ public class SeqExpandMemoryManagerTest {
 
     @Test
     public void allocate() {
-        Slice s = new Slice();
+        Slice s = new SliceSeqExpand();
         ByteBuffer bb;
 
         seqExpandMemoryManager.allocate(s, 4, false);

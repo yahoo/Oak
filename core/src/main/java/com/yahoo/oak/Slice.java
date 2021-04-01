@@ -6,59 +6,35 @@
 
 package com.yahoo.oak;
 
-// Slice represents an data about an off-heap cut: a portion of a bigger block,
-// which is part of the underlying managed off-heap memory.
+// An abstract Slice represents an data about an off-heap cut: a portion of a bigger block,
+// which is part of the underlying managed off-heap memory. Concrete implementation adapts
+// the abstract Slice to a specific memory manager.
 // Slice is allocated only via memory manager, and can be de-allocated later.
 // Slice can be either empty or associated with an off-heap cut,
 // which is the aforementioned portion of an off-heap memory.
-class Slice implements Comparable<Slice> {
+abstract class Slice implements Comparable<Slice> {
     static final int UNDEFINED_LENGTH_OR_OFFSET_OR_ADDRESS = -1;
 
-    /**
-     * An allocated off-heap cut might have reserved space for meta-data, i.e., a header.
-     * The header size is defined externally by memory-manager at the slice construction.
-     */
-    private final int headerSize;
-    private final SyncRecycleMMHeader header;
-
     /** The fields describing the associated off-heap cut, they are set when slice is not empty **/
-    private long reference;
-    private final long invalidReferenceValue; // used for invalidation
-    private int blockID = NativeMemoryAllocator.INVALID_BLOCK_ID;
-    private int offset  = UNDEFINED_LENGTH_OR_OFFSET_OR_ADDRESS;
+    protected long reference;
+    protected int blockID = NativeMemoryAllocator.INVALID_BLOCK_ID;
+    protected int offset  = UNDEFINED_LENGTH_OR_OFFSET_OR_ADDRESS;
 
     // The entire length of the off-heap cut, including the header!
-    private int length = UNDEFINED_LENGTH_OR_OFFSET_OR_ADDRESS;
-    private int version;    // Allocation time version
-    private long memAddress= UNDEFINED_LENGTH_OR_OFFSET_OR_ADDRESS;
+    protected int length = UNDEFINED_LENGTH_OR_OFFSET_OR_ADDRESS;
+    protected long memAddress= UNDEFINED_LENGTH_OR_OFFSET_OR_ADDRESS;
+
     // true if slice is associated with an off-heap slice of memory
     // if associated is false the Slice is empty
-    private boolean associated = false;
+    protected boolean associated = false;
 
     /* ------------------------------------------------------------------------------------
-     * Constructors
+     * No Constructors, only for concrete implementations
      * ------------------------------------------------------------------------------------*/
-    // Should be used only by Memory Manager (within Memory Manager package)
-    Slice(int headerSize, long invalidReferenceValue, SyncRecycleMMHeader header) {
-        this.headerSize = headerSize;
-        this.invalidReferenceValue = invalidReferenceValue;
-        this.header = header;
-        invalidate();
-    }
-
-    // Should be used only for testing
-    @VisibleForTesting
-    Slice() {
-        this(0, 0, null);
-    }
 
     // Used to duplicate the allocation state. Does not duplicate the underlying memory buffer itself.
     // Should be used when ThreadContext's internal Slice needs to be exported to the user.
-    Slice getDuplicatedSlice() {
-        Slice newSlice = new Slice(this.headerSize, this.invalidReferenceValue, this.header);
-        newSlice.copyFrom(this);
-        return newSlice;
-    }
+    abstract Slice getDuplicatedSlice();
 
 
     /* ------------------------------------------------------------------------------------
@@ -67,7 +43,7 @@ class Slice implements Comparable<Slice> {
     // Reset all not final fields to invalid state
     void invalidate() {
         blockID     = NativeMemoryAllocator.INVALID_BLOCK_ID;
-        reference   = invalidReferenceValue;
+        reference   = ReferenceCodecSeqExpand.INVALID_REFERENCE;
         length      = UNDEFINED_LENGTH_OR_OFFSET_OR_ADDRESS;
         offset      = UNDEFINED_LENGTH_OR_OFFSET_OR_ADDRESS;
         memAddress  = UNDEFINED_LENGTH_OR_OFFSET_OR_ADDRESS;
@@ -78,6 +54,20 @@ class Slice implements Comparable<Slice> {
     void initializeLookupDummy(int l) {
         invalidate();
         length = l;
+    }
+
+    // Copy the block allocation information from another block allocation.
+    void copyAllocationInfoFrom(Slice other) {
+        if (other == this) {
+            // No need to do anything if the input is this object
+            return;
+        }
+        this.blockID = other.blockID;
+        this.offset = other.offset;
+        this.length = other.length;
+        this.memAddress = other.memAddress;
+        this.reference = other.reference;
+        this.associated = other.associated;
     }
 
     /*
@@ -91,49 +81,17 @@ class Slice implements Comparable<Slice> {
         setBlockIdOffsetAndLength(blockID, offset, length);
         this.memAddress  = memAddress;
         this.associated = true;
-
-        // reference and (maybe) version are yet to be set by associateMMAllocation
+        // more Slice's properties are yet to be set by associateMMAllocation
     }
 
     /*
-     * Updates everything that can be extracted with reference decoding of "NoFree" type,
-     * including reference itself. The separation by reference decoding type is temporary!
-     * This is not the full setting of the association, therefore 'associated' flag remains false
+     * Updates everything that can be extracted with reference decoding,
+     * including reference itself. This is not the full setting of the association
      */
-    void associateReferenceDecodingNoFree(int blockID, int offset, int length, long reference) {
-        // length can remain undefined until requested, but if given length should include the header
-        assert length != UNDEFINED_LENGTH_OR_OFFSET_OR_ADDRESS && headerSize <= length;
-        setBlockIdOffsetAndLength(blockID, offset, length);
-        this.reference = reference;
-        associated   = false;
-    }
-
-    /*
-     * Updates everything that can be extracted with reference decoding of "Native" type,
-     * including reference itself. The separation by reference decoding type is temporary!
-     * This is not the full setting of the association, therefore 'associated' flag remains false
-     */
-    void associateReferenceDecodingNative(int blockID, int offset, int version, long reference) {
-        setBlockIdOffsetAndLength(blockID, offset, UNDEFINED_LENGTH_OR_OFFSET_OR_ADDRESS);
-        this.reference = reference;
-        this.version = version;
-        associated   = false;
-    }
+    abstract void associateReferenceDecoding(int blockID, int offset, int arg, long reference);
 
     // Copy the block allocation information from another block allocation.
-    void copyFrom(Slice other) {
-        if (other == this) {
-            // No need to do anything if the input is this object
-            return;
-        }
-        this.blockID = other.blockID;
-        this.offset = other.offset;
-        this.length = other.length;
-        this.version = other.version;
-        this.memAddress = other.memAddress;
-        this.reference = other.reference;
-        this.associated = other.associated;
-    }
+    abstract <T extends Slice> void copyFrom(T other);
 
     // Set the internal buffer.
     // This method should be used only within Memory Management package.
@@ -144,35 +102,21 @@ class Slice implements Comparable<Slice> {
     }
 
     /*
-     * Upon allocstion, sets everything related to memory management of an off-heap cut:
+     * Upon allocation, sets everything related to memory management of an off-heap cut:
      * a portion of a bigger block.
      * Used only within Memory Manager package.
      */
-    void associateMMAllocation(int version, long reference) {
-        this.version = version;
-        this.reference = reference;
-    }
+    abstract void associateMMAllocation(int version, long reference);
 
     // used only in case of iterations when the rest of the slice's data should remain the same
     // in this case once the offset is set the the slice is associated
-    void updateOnSameBlock(int offset, int length) {
-        this.offset = offset;
-        this.length = length;
-        assert memAddress != 0;
-        this.associated = true;
-    }
+    abstract void updateOnSameBlock(int offset, int length);
 
     // the method has no effect if length is already set
-    protected void prefetchDataLength() {
-        if (length == UNDEFINED_LENGTH_OR_OFFSET_OR_ADDRESS) {
-            // the length kept in header is the length of the data only!
-            // add header size
-            this.length = header.getDataLength(getMetadataAddress()) + headerSize;
-        }
-    }
+    protected abstract void prefetchDataLength();
 
     // simple setter, frequently internally used, to save code duplication
-    private void setBlockIdOffsetAndLength(int blockID, int offset, int length) {
+    protected void setBlockIdOffsetAndLength(int blockID, int offset, int length) {
         this.blockID = blockID;
         this.offset = offset;
         this.length = length;
@@ -198,42 +142,22 @@ class Slice implements Comparable<Slice> {
         return offset;
     }
 
-    int getAllocatedLength() {
-        assert associated;
-        // prefetchDataLength() prefetches the length from header only if Slice's length is undefined
-        prefetchDataLength();
-        return length;
-    }
+    abstract int getAllocatedLength();
 
     /* ------------------------------------------------------------------------------------
      * Metadata getters
      * ------------------------------------------------------------------------------------*/
-    int getVersion() {
-        return version;
-    }
-
     long getMetadataAddress() {
         assert associated;
         return memAddress+ offset;
     }
 
-    /*-------------- OakUnsafeDirectBuffer --------------*/  
+    public abstract int getLength();
 
-    public int getLength() {
-        // prefetchDataLength() prefetches the length from header only if Slice's length is undefined
-        prefetchDataLength();
-        return length - headerSize;
-    }
+    public abstract long getAddress();
 
-    public long getAddress() {
-        assert associated;
-        return memAddress + offset + headerSize;
-    }
+    public abstract String toString();
 
-    public String toString() {
-        return String.format("Slice(blockID=%d, offset=%,d, length=%,d, version=%d)", blockID, offset, length, version);
-    }
-    
     /*-------------- Comparable<Slice> --------------*/
 
     /**
@@ -266,10 +190,7 @@ class Slice implements Comparable<Slice> {
      * {@code RETRY} if the header/off-heap-cut was moved, or the version of the off-heap header
      * does not match {@code version}.
      */
-    ValueUtils.ValueResult lockRead(){
-        assert version != ReferenceCodecSyncRecycle.INVALID_VERSION;
-        return header.lockRead(version, getMetadataAddress());
-    }
+    abstract ValueUtils.ValueResult lockRead();
 
     /**
      * Releases a read lock
@@ -278,10 +199,7 @@ class Slice implements Comparable<Slice> {
      * {@code FALSE} if the value is marked as deleted
      * {@code RETRY} if the value was moved, or the version of the off-heap value does not match {@code version}.
      */
-    ValueUtils.ValueResult unlockRead(){
-        assert version != ReferenceCodecSyncRecycle.INVALID_VERSION;
-        return header.unlockRead(version, getMetadataAddress());
-    }
+    abstract ValueUtils.ValueResult unlockRead();
 
     /**
      * Acquires a write lock
@@ -290,10 +208,7 @@ class Slice implements Comparable<Slice> {
      * {@code FALSE} if the value is marked as deleted
      * {@code RETRY} if the value was moved, or the version of the off-heap value does not match {@code version}.
      */
-    ValueUtils.ValueResult lockWrite(){
-        assert version != ReferenceCodecSyncRecycle.INVALID_VERSION;
-        return header.lockWrite(version, getMetadataAddress());
-    }
+    abstract ValueUtils.ValueResult lockWrite();
 
     /**
      * Releases a write lock
@@ -302,10 +217,7 @@ class Slice implements Comparable<Slice> {
      * {@code FALSE} if the value is marked as deleted
      * {@code RETRY} if the value was moved, or the version of the off-heap value does not match {@code version}.
      */
-    ValueUtils.ValueResult unlockWrite(){
-        assert version != ReferenceCodecSyncRecycle.INVALID_VERSION;
-        return header.unlockWrite(version, getMetadataAddress());
-    }
+    abstract ValueUtils.ValueResult unlockWrite();
 
     /**
      * Marks the associated off-heap cut as deleted only if the version of that value matches {@code version}.
@@ -314,10 +226,7 @@ class Slice implements Comparable<Slice> {
      * {@code FALSE} if the value is already marked as deleted
      * {@code RETRY} if the value was moved, or the version of the off-heap value does not match {@code version}.
      */
-    ValueUtils.ValueResult logicalDelete(){
-        assert version != ReferenceCodecSyncRecycle.INVALID_VERSION;
-        return header.logicalDelete(version, getMetadataAddress());
-    }
+    abstract ValueUtils.ValueResult logicalDelete();
 
     /**
      * Is the associated off-heap cut marked as logically deleted
@@ -326,28 +235,19 @@ class Slice implements Comparable<Slice> {
      * {@code FALSE} if the value is not marked
      * {@code RETRY} if the value was moved, or the version of the off-heap value does not match {@code version}.
      */
-    ValueUtils.ValueResult isDeleted(){
-        assert version != ReferenceCodecSyncRecycle.INVALID_VERSION;
-        return header.isLogicallyDeleted(version, getMetadataAddress());
-    }
+    abstract ValueUtils.ValueResult isDeleted();
 
     /**
      * Marks the header of the associated off-heap cut as moved, just write (without CAS)
      * The write lock must be held (asserted inside the header)
      */
-    void markAsMoved() {
-        assert associated;
-        header.markAsMoved(getMetadataAddress());
-    }
+    abstract void markAsMoved();
 
     /**
      * Marks the header of the associated off-heap cut as deleted, just write (without CAS)
      * The write lock must be held (asserted inside the header).
      * It is similar to logicalDelete() but used when locking and marking don't happen in one CAS
      */
-    void markAsDeleted() {
-        assert associated;
-        header.markAsDeleted(getMetadataAddress());
-    }
-    
+
+    abstract void markAsDeleted();
 }

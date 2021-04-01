@@ -17,7 +17,7 @@ import java.util.concurrent.CyclicBarrier;
 public class ValueUtilsTest {
     private SyncRecycleMemoryManager valuesMemoryManager;
     private SeqExpandMemoryManager keysMemoryManager;
-    private final ValueUtils valueOperator = new ValueUtilsImpl();
+    private final ValueUtils valueOperator = new ValueUtils();
     private ThreadContext ctx;
     private ValueBuffer s;
 
