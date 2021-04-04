@@ -51,17 +51,17 @@ public class MyBuffer implements Comparable<MyBuffer> {
     }
 
 
-    public static int compareBuffers(ByteBuffer buff1, int pos1, int cap1, ByteBuffer buff2, int pos2, int cap2) {
+    private static int compareBuffers(ByteBuffer buff1, int pos1, int cap1, ByteBuffer buff2, int pos2, int cap2) {
         return OakIntBufferComparator.compare(buff1, pos1, cap1 / Integer.BYTES,
                 buff2, pos2, cap2 / Integer.BYTES);
     }
 
-    public static int compareBuffers(ByteBuffer buff1, int pos1, int cap1, OakScopedReadBuffer buff2, int pos2, int cap2) {
+    private static int compareBuffers(ByteBuffer buff1, int pos1, int cap1, OakScopedReadBuffer buff2, int pos2, int cap2) {
         return OakIntBufferComparator.compare(buff1, pos1, cap1 / Integer.BYTES,
                 buff2, pos2, cap2 / Integer.BYTES);
     }
     
-    public static int compareBuffers(OakScopedReadBuffer buff1, int pos1, int cap1, OakScopedReadBuffer buff2, int pos2, int cap2) {
+    private static int compareBuffers(OakScopedReadBuffer buff1, int pos1, int cap1, OakScopedReadBuffer buff2, int pos2, int cap2) {
         return OakIntBufferComparator.compare(buff1, pos1, cap1 / Integer.BYTES, buff2, pos2, cap2 / Integer.BYTES);
     }
 

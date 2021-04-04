@@ -23,7 +23,7 @@ class Block {
         this.id = NativeMemoryAllocator.INVALID_BLOCK_ID;
         // Pay attention in allocateDirect the data is *zero'd out*
         // which has an overhead in clearing and you end up touching every page
-        this.memAddress = UnsafeUtils.unsafe.allocateMemory(this.capacity);
+        this.memAddress = UnsafeUtils.allocateMemory(capacity);
 
     }
 
@@ -64,7 +64,7 @@ class Block {
         UnsafeUtils.unsafe.freeMemory(memAddress);
     }
 
-    long getMemAddress() {
+    long getStartMemAddress() {
         return memAddress;
     }
 

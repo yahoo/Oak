@@ -33,7 +33,6 @@ class Slice implements OakUnsafeDirectBuffer, Comparable<Slice> {
     private int length = UNDEFINED_LENGTH_OR_OFFSET;
     private int version;    // Allocation time version
     private long memAddress= 0;
-    private int allocationCapacity= 0;
     // true if slice is associated with an off-heap slice of memory
     // if associated is false the Slice is empty
     private boolean associated = false;
@@ -134,16 +133,14 @@ class Slice implements OakUnsafeDirectBuffer, Comparable<Slice> {
         this.length = other.length;
         this.version = other.version;
         this.memAddress = other.memAddress;
-        this.allocationCapacity = other.allocationCapacity;
         this.reference = other.reference;
         this.associated = other.associated;
     }
 
     // Set the internal buffer.
     // This method should be used only within Memory Management package.
-    void setAddress(long memAddress, int allocCap) {
+    void setAddress(long memAddress) {
         this.memAddress= memAddress;
-        this.allocationCapacity = allocCap;
         assert memAddress != 0;
         associated = true; // buffer is the final and the most important field for the slice validity
     }
@@ -220,10 +217,6 @@ class Slice implements OakUnsafeDirectBuffer, Comparable<Slice> {
     long getMetadataAddress() {
         assert associated;
         return memAddress+ offset;
-    }
-    
-    int getCapacity() {
-        return allocationCapacity;
     }
 
     /*-------------- OakUnsafeDirectBuffer --------------*/  

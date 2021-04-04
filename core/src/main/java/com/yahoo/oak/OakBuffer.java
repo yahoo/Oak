@@ -13,7 +13,7 @@ import java.nio.ByteOrder;
  * It mimic the standard interface of Java's ByteBuffer, for example, int getInt(int index), char getChar(int index),
  * capacity(), etc.
  */
-public interface OakBuffer {
+public interface    OakBuffer {
     
     /**
      * Returns this buffer's capacity.

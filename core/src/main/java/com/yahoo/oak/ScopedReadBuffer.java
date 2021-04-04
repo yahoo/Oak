@@ -123,9 +123,5 @@ class ScopedReadBuffer implements OakScopedReadBuffer, OakUnsafeDirectBuffer {
     @Override public ByteBuffer getByteBuffer() { 
         throw new RuntimeException(); 
     }
-    //used for wrapping address with bytebuffer for external use
-    public int getNativeCapacity() {
-        return s.getCapacity();
-    }
     
 }
