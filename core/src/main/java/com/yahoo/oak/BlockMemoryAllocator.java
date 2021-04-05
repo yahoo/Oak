@@ -29,7 +29,7 @@ interface BlockMemoryAllocator {
     long allocated();
 
     // Attaches the slice with its base address
-    void getSlicebaseAddress(Slice s);
+    void setSliceBlockAddress(Slice s);
 
     // Check if this Allocator was already closed
     boolean isClosed();

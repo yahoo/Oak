@@ -38,15 +38,19 @@ public class MyBuffer implements Comparable<MyBuffer> {
 
     public static void serialize(MyBuffer inputBuffer, OakScopedWriteBuffer targetBuffer) {
         // In the serialized buffer, the first integer signifies the size.
-    	targetBuffer.putInt(0,  inputBuffer.capacity);
+    	int targetPos  = 0;
+    	targetBuffer.putInt(targetPos,  inputBuffer.capacity);
+    	targetPos += Integer.BYTES;
         OakIntBufferSerializer.copyBuffer(inputBuffer.buffer, DATA_POS, inputBuffer.capacity / Integer.BYTES,
-        		targetBuffer, Integer.BYTES);
+        		targetBuffer, targetPos);
     }
 
     public static MyBuffer deserialize(OakScopedReadBuffer inputBuffer) {
-        int capacity = inputBuffer.getInt(0);
+    	int inputPos  = 0;
+    	int capacity = inputBuffer.getInt(inputPos);
+    	inputPos += Integer.BYTES;
         MyBuffer ret = new MyBuffer(capacity);
-        OakIntBufferSerializer.copyBuffer(inputBuffer, Integer.BYTES, capacity / Integer.BYTES, ret.buffer, DATA_POS);
+        OakIntBufferSerializer.copyBuffer(inputBuffer, inputPos, capacity / Integer.BYTES, ret.buffer, DATA_POS);
         return ret;
     }
 

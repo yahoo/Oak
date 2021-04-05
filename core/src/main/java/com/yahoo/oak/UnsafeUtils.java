@@ -9,6 +9,9 @@ package com.yahoo.oak;
 import sun.misc.Unsafe;
 
 import java.lang.reflect.Constructor;
+import java.lang.reflect.Field;
+import java.nio.Buffer;
+import java.nio.ByteBuffer;
 
 final class UnsafeUtils {
 
@@ -41,5 +44,31 @@ final class UnsafeUtils {
      */
     static long intsToLong(int i1, int i2) {
         return (i1 & LONG_INT_MASK) | (((long) i2) << Integer.SIZE);
+    }
+    
+    /*-------------- Wrapping address with bytebuffer --------------*/
+    private static final Field ADDRESS;
+    private static final Field CAPACITY;
+    static {
+        try {
+            ADDRESS = Buffer.class.getDeclaredField("address");
+            CAPACITY = Buffer.class.getDeclaredField("capacity");
+            ADDRESS.setAccessible(true);
+            CAPACITY.setAccessible(true);
+        } catch (NoSuchFieldException e) {
+            throw new AssertionError(e);
+        }
+    }
+
+    public static ByteBuffer wrapAddress(long memAddress, int capacity) {
+        ByteBuffer bb = ByteBuffer.allocateDirect(0);
+        try {
+            ADDRESS.setLong(bb, memAddress);
+            CAPACITY.setInt(bb, capacity);
+            bb.clear();
+        } catch (IllegalAccessException e) {
+            throw new AssertionError(e);
+        }
+        return bb;
     }
 }
