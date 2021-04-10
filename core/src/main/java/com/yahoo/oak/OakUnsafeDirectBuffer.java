@@ -36,7 +36,7 @@ import java.nio.ByteBuffer;
 public interface OakUnsafeDirectBuffer {
 
     /**
-     * Allows access to the underlying ByteBuffer of Oak.
+     * Wraps the underlying memory address with ByteBuffer. This method allows access to this ByteBuffer.
      * This buffer might contain data that is unrelated to the context in which this object was introduced.
      * For example, it might contain internal Oak data and other user data.
      * Thus, the developer should use getOffset() and getLength() to validate the data boundaries.
@@ -47,7 +47,8 @@ public interface OakUnsafeDirectBuffer {
      *
      * @return the underlying ByteBuffer.
      */
-    ByteBuffer getByteBuffer(); //description change?
+    ByteBuffer getByteBuffer();
+    
     /**
      * @return the data offset inside the underlying ByteBuffer.
      */

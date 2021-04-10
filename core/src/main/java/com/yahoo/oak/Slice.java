@@ -86,7 +86,7 @@ class Slice implements OakUnsafeDirectBuffer, Comparable<Slice> {
      * Sets everything related to allocation of an off-heap cut: a portion of a bigger block.
      * Turns empty slice to an associated slice upon allocation.
      */
-    void associateBlockAllocation(int blockID, int offset, int length, long memAddress, int allocCap){
+    void associateBlockAllocation(int blockID, int offset, int length, long memAddress){
         assert blockID != NativeMemoryAllocator.INVALID_BLOCK_ID
             && offset > UNDEFINED_LENGTH_OR_OFFSET && length > UNDEFINED_LENGTH_OR_OFFSET
             && memAddress != 0;

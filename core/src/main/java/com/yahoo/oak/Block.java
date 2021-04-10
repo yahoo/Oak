@@ -42,7 +42,7 @@ class Block {
         if (now + size > this.capacity) {
             throw new OakOutOfMemoryException(String.format("Block %d is out of memory", id));
         }
-        s.associateBlockAllocation(id, (int) now, size, memAddress, capacity);
+        s.associateBlockAllocation(id, (int) now, size, memAddress);
         return true;
     }
 
@@ -61,7 +61,7 @@ class Block {
 
     // releasing the memory back to the OS, freeing the block, an opposite of allocation, not thread safe
     void clean() {
-        UnsafeUtils.unsafe.freeMemory(memAddress);
+       // UnsafeUtils.unsafe.freeMemory(memAddress);
     }
 
     long getStartMemAddress() {
