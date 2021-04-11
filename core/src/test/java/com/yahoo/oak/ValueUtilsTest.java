@@ -32,11 +32,11 @@ public class ValueUtilsTest {
     }
 
     private void putInt(int index, int value) {
-        s.getSlice().getByteBuffer().putInt(s.getOffset() + index, value);
+        UnsafeUtils.unsafe.putInt(s.getAddress()+index, value);
     }
 
     private int getInt(int index) {
-        return s.getSlice().getByteBuffer().getInt(s.getOffset() + index);
+        return UnsafeUtils.unsafe.getInt(s.getAddress() + index);
     }
 
     @Test

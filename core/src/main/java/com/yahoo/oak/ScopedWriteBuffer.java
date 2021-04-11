@@ -68,49 +68,49 @@ final class ScopedWriteBuffer extends ScopedReadBuffer implements OakScopedWrite
     @Override
     public OakScopedWriteBuffer put(int index, byte value) {
         validateAccess();
-        s.getByteBuffer().put(getDataOffset(index), value);
+        UnsafeUtils.put(getDataAddress(index), value);
         return this;
     }
 
     @Override
     public OakScopedWriteBuffer putChar(int index, char value) {
         validateAccess();
-        s.getByteBuffer().putChar(getDataOffset(index), value);
+        UnsafeUtils.putChar(getDataAddress(index), value);
         return this;
     }
 
     @Override
     public OakScopedWriteBuffer putShort(int index, short value) {
         validateAccess();
-        s.getByteBuffer().putShort(getDataOffset(index), value);
+        UnsafeUtils.putShort(getDataAddress(index), value);
         return this;
     }
 
     @Override
     public OakScopedWriteBuffer putInt(int index, int value) {
         validateAccess();
-        s.getByteBuffer().putInt(getDataOffset(index), value);
+        UnsafeUtils.putInt(getDataAddress(index), value);
         return this;
     }
 
     @Override
     public OakScopedWriteBuffer putLong(int index, long value) {
         validateAccess();
-        s.getByteBuffer().putLong(getDataOffset(index), value);
+        UnsafeUtils.putLong(getDataAddress(index), value);
         return this;
     }
 
     @Override
     public OakScopedWriteBuffer putFloat(int index, float value) {
         validateAccess();
-        s.getByteBuffer().putFloat(getDataOffset(index), value);
+        UnsafeUtils.putFloat(getDataAddress(index), value);
         return this;
     }
 
     @Override
     public OakScopedWriteBuffer putDouble(int index, double value) {
         validateAccess();
-        s.getByteBuffer().putDouble(getDataOffset(index), value);
+        UnsafeUtils.unsafe.putDouble(getDataAddress(index), value);
         return this;
     }
 }

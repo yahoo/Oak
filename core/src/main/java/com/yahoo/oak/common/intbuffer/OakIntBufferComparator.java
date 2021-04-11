@@ -8,7 +8,6 @@ package com.yahoo.oak.common.intbuffer;
 
 import com.yahoo.oak.OakComparator;
 import com.yahoo.oak.OakScopedReadBuffer;
-import com.yahoo.oak.OakUnsafeDirectBuffer;
 
 import java.nio.ByteBuffer;
 
@@ -27,18 +26,48 @@ public class OakIntBufferComparator implements OakComparator<ByteBuffer> {
 
     @Override
     public int compareSerializedKeys(OakScopedReadBuffer serializedKey1, OakScopedReadBuffer serializedKey2) {
-        OakUnsafeDirectBuffer unsafeKey1 = (OakUnsafeDirectBuffer) serializedKey1;
-        OakUnsafeDirectBuffer unsafeKey2 = (OakUnsafeDirectBuffer) serializedKey2;
-        return compare(unsafeKey1.getByteBuffer(), unsafeKey1.getOffset(), size,
-                unsafeKey2.getByteBuffer(), unsafeKey2.getOffset(), size);
+        return compare(serializedKey1, 0, size, serializedKey2, 0, size);
     }
 
     @Override
     public int compareKeyAndSerializedKey(ByteBuffer key, OakScopedReadBuffer serializedKey) {
-        OakUnsafeDirectBuffer unsafeKey = (OakUnsafeDirectBuffer) serializedKey;
-        return compare(key, 0, size, unsafeKey.getByteBuffer(), unsafeKey.getOffset(), size);
+        return compare(key, 0, size, serializedKey, 0, size);
     }
 
+    public static int compare(OakScopedReadBuffer buff1, int pos1, int size1, 
+        OakScopedReadBuffer buff2, int pos2, int size2) {
+        
+        int minSize = Math.min(size1, size2);
+
+        for (int i = 0; i < minSize; i++) {
+            int i1 = buff1.getInt(pos1 + Integer.BYTES * i);
+            int i2 = buff2.getInt(pos2 + Integer.BYTES * i);
+            int compare = Integer.compare(i1, i2);
+            if (compare != 0) {
+                return compare;
+            }
+        }
+
+        return Integer.compare(size1, size2);
+    }
+    
+    public static int compare(ByteBuffer buff1, int pos1, int size1, OakScopedReadBuffer buff2, int pos2, int size2) {
+        final int minSize = Math.min(size1, size2);
+
+        int offset = 0;
+        for (int i = 0; i < minSize; i++) {
+            int i1 = buff1.getInt(pos1 + offset);
+            int i2 = buff2.getInt(pos2 + offset);
+            int compare = Integer.compare(i1, i2);
+            if (compare != 0) {
+                return compare;
+            }
+            offset += Integer.BYTES;
+        }
+
+        return Integer.compare(size1, size2);
+    }
+    
     public static int compare(ByteBuffer buff1, int pos1, int size1, ByteBuffer buff2, int pos2, int size2) {
         final int minSize = Math.min(size1, size2);
 

@@ -28,8 +28,8 @@ interface BlockMemoryAllocator {
     // Returns the memory allocation of this OakMap (this Allocator)
     long allocated();
 
-    // Read the buffer from an allocation object that its parameters are set: blockID, offset and length
-    void readByteBuffer(Slice s);
+    // Attaches the slice with its base address
+    void readMemoryAddress(Slice s);
 
     // Check if this Allocator was already closed
     boolean isClosed();

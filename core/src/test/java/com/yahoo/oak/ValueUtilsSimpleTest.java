@@ -24,7 +24,7 @@ public class ValueUtilsSimpleTest {
             new SyncRecycleMemoryManager(new NativeMemoryAllocator(128));
         s = syncRecycleMemoryManager.getEmptySlice();
         syncRecycleMemoryManager.allocate(s, 16, false);
-        s.getByteBuffer().putInt(s.getOffset(), 1);
+        UnsafeUtils.unsafe.putInt(s.getAddress(), 1);
     }
 
     @Test

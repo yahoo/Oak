@@ -7,7 +7,6 @@
 package com.yahoo.oak;
 
 import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
 
 /**
  * This is a generic class for key/value un-scoped buffers.
@@ -40,15 +39,10 @@ class UnscopedBuffer<B extends ScopedReadBuffer> implements OakUnscopedBuffer, O
     B getInternalScopedReadBuffer() {
         return internalScopedReadBuffer;
     }
-
+    
     @Override
     public int capacity() {
         return internalScopedReadBuffer.capacity();
-    }
-
-    @Override
-    public ByteOrder order() {
-        return internalScopedReadBuffer.order();
     }
 
     @Override
@@ -122,12 +116,7 @@ class UnscopedBuffer<B extends ScopedReadBuffer> implements OakUnscopedBuffer, O
 
     @Override
     public ByteBuffer getByteBuffer() {
-        return internalScopedReadBuffer.getByteBuffer();
-    }
-
-    @Override
-    public int getOffset() {
-        return internalScopedReadBuffer.getOffset();
+        return UnsafeUtils.wrapAddress(internalScopedReadBuffer.getAddress(), internalScopedReadBuffer.capacity());
     }
 
     @Override
@@ -137,6 +126,7 @@ class UnscopedBuffer<B extends ScopedReadBuffer> implements OakUnscopedBuffer, O
 
     @Override
     public long getAddress() {
-        return internalScopedReadBuffer.getAddress();
+        return internalScopedReadBuffer.getAddress() ;
     }
+  
 }

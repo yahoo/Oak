@@ -34,25 +34,17 @@ import java.nio.ByteBuffer;
  * </pre>
  */
 public interface OakUnsafeDirectBuffer {
-
     /**
-     * Allows access to the underlying ByteBuffer of Oak.
+     * Return the underlying memory address wrapped as a ByteBuffer.
      * This buffer might contain data that is unrelated to the context in which this object was introduced.
-     * For example, it might contain internal Oak data and other user data.
-     * Thus, the developer should use getOffset() and getLength() to validate the data boundaries.
      * Note 1: depending on the context (casting from OakScopedReadBuffer or OakScopedWriteBuffer), the buffer mode
      *         might be ready only.
      * Note 2: the buffer internal state (e.g., byte order, position, limit and so on) should not be modified as this
      *         object might be shared and used elsewhere.
      *
-     * @return the underlying ByteBuffer.
+     * @return the underlying memory address wrapped as a ByteBuffer.
      */
     ByteBuffer getByteBuffer();
-
-    /**
-     * @return the data offset inside the underlying ByteBuffer.
-     */
-    int getOffset();
 
     /**
      * @return the data length.
@@ -60,12 +52,11 @@ public interface OakUnsafeDirectBuffer {
     int getLength();
 
     /**
-     * Allows access to the memory address of the underlying off-heap ByteBuffer of Oak.
+     * Allows access to the memory address of the OakUnsafeDirectBuffer of Oak.
      * The address will point to the beginning of the user data, but avoiding overflow is the developer responsibility.
      * Thus, the developer should use getLength() and access data only in this boundary.
-     * This is equivalent to ((DirectBuffer) b.getByteBuffer()).address() + b.getOffset()
      *
-     * @return the exact memory address of the underlying buffer in the position of the data.
+     * @return the exact memory address of the Buffer in the position of the data.
      */
     long getAddress();
 

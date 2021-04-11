@@ -6,15 +6,12 @@
 
 package com.yahoo.oak;
 
-import java.nio.ByteOrder;
-
 /**
  * This buffer may represent either a key or a value for read access.
  * It mimic the standard interface of Java's ByteBuffer, for example, int getInt(int index), char getChar(int index),
  * capacity(), etc.
  */
 public interface OakBuffer {
-
     /**
      * Returns this buffer's capacity.
      *
@@ -32,17 +29,6 @@ public interface OakBuffer {
      *                                   or not smaller than the buffer's limit
      */
     byte get(int index);
-
-    /**
-     * Retrieves this buffer's byte order.
-     * <p> The byte order is used when reading or writing multibyte values, and
-     * when creating buffers that are views of this byte buffer.  The order of
-     * a newly-created byte buffer is always {@link ByteOrder#BIG_ENDIAN
-     * BIG_ENDIAN}.  </p>
-     *
-     * @return This buffer's byte order
-     */
-    ByteOrder order() throws NullPointerException;
 
     /**
      * Absolute <i>get</i> method for reading a char value.

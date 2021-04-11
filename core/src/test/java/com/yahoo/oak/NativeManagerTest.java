@@ -20,7 +20,6 @@ public class NativeManagerTest {
         for (int i = 0; i < SyncRecycleMemoryManager.RELEASE_LIST_LIMIT; i++) {
             allocatedSlices[i] = novaManager.getEmptySlice();
             novaManager.allocate(allocatedSlices[i], i + 5, false);
-            allocatedSlices[i].duplicateBuffer();
         }
         for (int i = 0; i < SyncRecycleMemoryManager.RELEASE_LIST_LIMIT; i++) {
             Assert.assertEquals(i + 5, allocatedSlices[i].getLength());

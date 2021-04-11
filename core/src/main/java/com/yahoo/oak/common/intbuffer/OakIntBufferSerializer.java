@@ -9,7 +9,6 @@ package com.yahoo.oak.common.intbuffer;
 import com.yahoo.oak.OakScopedReadBuffer;
 import com.yahoo.oak.OakScopedWriteBuffer;
 import com.yahoo.oak.OakSerializer;
-import com.yahoo.oak.OakUnsafeDirectBuffer;
 
 import java.nio.ByteBuffer;
 
@@ -23,16 +22,13 @@ public class OakIntBufferSerializer implements OakSerializer<ByteBuffer> {
 
     @Override
     public void serialize(ByteBuffer obj, OakScopedWriteBuffer targetBuffer) {
-        OakUnsafeDirectBuffer unsafeTarget = (OakUnsafeDirectBuffer) targetBuffer;
-        copyBuffer(obj, 0, size, unsafeTarget.getByteBuffer(), unsafeTarget.getOffset());
+        copyBuffer(obj, 0, size, targetBuffer, 0);
     }
 
     @Override
     public ByteBuffer deserialize(OakScopedReadBuffer byteBuffer) {
-        OakUnsafeDirectBuffer unsafeBuffer = (OakUnsafeDirectBuffer) byteBuffer;
-
         ByteBuffer ret = ByteBuffer.allocate(getSizeBytes());
-        copyBuffer(unsafeBuffer.getByteBuffer(), unsafeBuffer.getOffset(), size, ret, 0);
+        copyBuffer(byteBuffer, 0, size, ret, 0);
         ret.position(0);
         return ret;
     }
@@ -46,10 +42,19 @@ public class OakIntBufferSerializer implements OakSerializer<ByteBuffer> {
         return size * Integer.BYTES;
     }
 
-    public static void copyBuffer(ByteBuffer src, int srcPos, int srcSize, ByteBuffer dst, int dstPos) {
+    public static void copyBuffer(ByteBuffer src, int srcPos, int srcSize, OakScopedWriteBuffer dst, int dstPos) {
         int offset = 0;
         for (int i = 0; i < srcSize; i++) {
             int data = src.getInt(srcPos + offset);
+            dst.putInt(dstPos + offset, data);
+            offset += Integer.BYTES;
+        }
+    }
+    
+    public static void copyBuffer(OakScopedReadBuffer src, int srcPos, int srcSize, ByteBuffer dst, int dstPos) {
+        int offset = 0;
+        for (int i = 0; i < srcSize; i++) {
+            int data = src.getInt(srcPos + offset);       
             dst.putInt(dstPos + offset, data);
             offset += Integer.BYTES;
         }

@@ -7,7 +7,6 @@
 package com.yahoo.oak;
 
 import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
 
 /**
  * An instance of this buffer is only used when the read lock of the key/value referenced by it is already acquired.
@@ -25,12 +24,12 @@ class ScopedReadBuffer implements OakScopedReadBuffer, OakUnsafeDirectBuffer {
         this.s = other.s.getDuplicatedSlice();
     }
 
-    protected int getDataOffset(int index) {
+    protected long getDataAddress(int index) {
         if (index < 0 || index >= getLength()) {
             throw new IndexOutOfBoundsException(String.format("Index %s is out of bound (length: %s)",
                     index, getLength()));
         }
-        return s.getOffset() + index;
+        return s.getAddress() + index;
     }
 
     protected void invalidate() {
@@ -46,52 +45,49 @@ class ScopedReadBuffer implements OakScopedReadBuffer, OakUnsafeDirectBuffer {
     }
 
     /** ------------------------------ OakScopedReadBuffer ------------------------------ **/
+    
     @Override
     public int capacity() {
         return s.getLength();
     }
 
     @Override
-    public ByteOrder order() {
-        return s.getByteBuffer().order();
-    }
-
-    @Override
     public byte get(int index) {
-        return s.getByteBuffer().get(getDataOffset(index));
+        return UnsafeUtils.get(getDataAddress(index));
     }
 
     @Override
     public char getChar(int index) {
-        return s.getByteBuffer().getChar(getDataOffset(index));
+        return UnsafeUtils.getChar(getDataAddress(index));
     }
 
     @Override
     public short getShort(int index) {
-        return s.getByteBuffer().getShort(getDataOffset(index));
+        return UnsafeUtils.getShort(getDataAddress(index));
     }
 
     @Override
     public int getInt(int index) {
-        return s.getByteBuffer().getInt(getDataOffset(index));
+        return UnsafeUtils.getInt(getDataAddress(index));
     }
 
     @Override
     public long getLong(int index) {
-        return s.getByteBuffer().getLong(getDataOffset(index));
+        return UnsafeUtils.getLong(getDataAddress(index));
     }
 
     @Override
     public float getFloat(int index) {
-        return s.getByteBuffer().getFloat(getDataOffset(index));
+        return UnsafeUtils.getFloat(getDataAddress(index));
     }
 
     @Override
     public double getDouble(int index) {
-        return s.getByteBuffer().getDouble(getDataOffset(index));
+        return UnsafeUtils.getDouble(getDataAddress(index));
     }
 
     /** ------------------------------ OakUnsafeDirectBuffer ------------------------------ **/
+    
     /**
      * Allows access to the underlying ByteBuffer of Oak.
      * This buffer might contain data that is unrelated to the context in which this object was introduced.
@@ -104,15 +100,8 @@ class ScopedReadBuffer implements OakScopedReadBuffer, OakUnsafeDirectBuffer {
      *
      * @return the underlying ByteBuffer.
      */
-    @Override public ByteBuffer getByteBuffer() {
-        return s.getByteBuffer();
-    }
-
-    /**
-     * @return the data offset inside the underlying ByteBuffer.
-     */
-    @Override public int getOffset() {
-        return s.getOffset();
+    @Override public ByteBuffer getByteBuffer() { 
+        return UnsafeUtils.wrapAddress(s.getAddress(), capacity());
     }
 
     /**
@@ -123,12 +112,11 @@ class ScopedReadBuffer implements OakScopedReadBuffer, OakUnsafeDirectBuffer {
     }
 
     /**
-     * Allows access to the memory address of the underlying off-heap ByteBuffer of Oak.
+     * Allows access to the memory address of the OakUnsafeDirectBuffer of Oak.
      * The address will point to the beginning of the user data, but avoiding overflow is the developer responsibility.
      * Thus, the developer should use getLength() and access data only in this boundary.
-     * This is equivalent to ((DirectBuffer) b.getByteBuffer()).address() + b.getOffset()
      *
-     * @return the exact memory address of the underlying buffer in the position of the data.
+     * @return the exact memory address of the Buffer in the position of the data.
      */
     @Override public long getAddress() {
         return s.getAddress();
