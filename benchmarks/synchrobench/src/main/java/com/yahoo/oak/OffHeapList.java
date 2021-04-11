@@ -226,8 +226,7 @@ public class OffHeapList<K extends MyBuffer, V extends MyBuffer> implements Comp
         Consumer<OakScopedWriteBuffer> computeFunction = writeBuffer -> {
             OakUnsafeDirectBuffer buffer = (OakUnsafeDirectBuffer) writeBuffer;
             ByteBuffer buf = buffer.getByteBuffer();
-            int pos = buffer.getOffset();
-            buf.putLong(pos + 1, ~buf.getLong(pos + 1));
+            buf.putLong(1, ~buf.getLong(1));
         };
 
         BiFunction<Object, Cell, Cell> fun = (prevValueO, v) -> {

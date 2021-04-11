@@ -7,7 +7,6 @@
 package com.yahoo.oak;
 
 import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
 
 /**
  * An instance of this buffer is only used when the read lock of the key/value referenced by it is already acquired.
@@ -25,7 +24,7 @@ class ScopedReadBuffer implements OakScopedReadBuffer, OakUnsafeDirectBuffer {
         this.s = other.s.getDuplicatedSlice();
     }
 
-    protected long getDataOffset(int index) {
+    protected long getDataAddress(int index) {
         if (index < 0 || index >= getLength()) {
             throw new IndexOutOfBoundsException(String.format("Index %s is out of bound (length: %s)",
                     index, getLength()));
@@ -53,43 +52,38 @@ class ScopedReadBuffer implements OakScopedReadBuffer, OakUnsafeDirectBuffer {
     }
 
     @Override
-    public ByteOrder order() {
-        return s.getByteBuffer().order();
-    }
-
-    @Override
     public byte get(int index) {
-        return UnsafeUtils.unsafe.getByte(getDataOffset(index));
+        return UnsafeUtils.get(getDataAddress(index));
     }
 
     @Override
     public char getChar(int index) {
-        return UnsafeUtils.unsafe.getChar(getDataOffset(index));
+        return UnsafeUtils.getChar(getDataAddress(index));
     }
 
     @Override
     public short getShort(int index) {
-        return UnsafeUtils.unsafe.getShort(getDataOffset(index));
+        return UnsafeUtils.getShort(getDataAddress(index));
     }
 
     @Override
     public int getInt(int index) {
-        return UnsafeUtils.unsafe.getInt(getDataOffset(index));
+        return UnsafeUtils.getInt(getDataAddress(index));
     }
 
     @Override
     public long getLong(int index) {
-        return UnsafeUtils.unsafe.getLong(getDataOffset(index));
+        return UnsafeUtils.getLong(getDataAddress(index));
     }
 
     @Override
     public float getFloat(int index) {
-        return UnsafeUtils.unsafe.getFloat(getDataOffset(index));
+        return UnsafeUtils.getFloat(getDataAddress(index));
     }
 
     @Override
     public double getDouble(int index) {
-        return UnsafeUtils.unsafe.getDouble(getDataOffset(index));
+        return UnsafeUtils.getDouble(getDataAddress(index));
     }
 
     /** ------------------------------ OakUnsafeDirectBuffer ------------------------------ **/
@@ -109,13 +103,6 @@ class ScopedReadBuffer implements OakScopedReadBuffer, OakUnsafeDirectBuffer {
     @Override public ByteBuffer getByteBuffer() { 
         return UnsafeUtils.wrapAddress(s.getAddress(), capacity());
     }
-    
-    /**
-     * @return the data offset inside the underlying ByteBuffer.
-     */
-    @Override public int getOffset() {
-        return s.getOffset();
-    }
 
     /**
      * @return the data length.
@@ -131,7 +118,7 @@ class ScopedReadBuffer implements OakScopedReadBuffer, OakUnsafeDirectBuffer {
      *
      * @return the exact memory address of the Buffer in the position of the data.
      */
-    @Override public long getAddress() { //for both OakUnsafeDirectBuffer -- OakScopedReadBuffer
+    @Override public long getAddress() {
         return s.getAddress();
     }
 }

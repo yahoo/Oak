@@ -52,7 +52,7 @@ public class OakMyBufferTest {
     @Test
     public void testIncreasePut() {
         Integer v =  0;
-        for (v = 1; v < 10000; v++) {
+        for (v = 1; v < 100000; v++) {
             MyBuffer key = new MyBuffer(Parameters.keySize);
             key.buffer.putInt(0, v);
             MyBuffer val = new MyBuffer(Parameters.valSize);

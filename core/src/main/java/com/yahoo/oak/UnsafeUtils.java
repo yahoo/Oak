@@ -46,6 +46,67 @@ final class UnsafeUtils {
         return (i1 & LONG_INT_MASK) | (((long) i2) << Integer.SIZE);
     }
     
+    
+    
+    public static byte get(long address) {
+        return unsafe.getByte(address);
+    }
+
+    public static char getChar(long address) {
+        return unsafe.getChar(address);
+    }
+
+    public static short getShort(long address) {
+        return unsafe.getShort(address);
+    }
+
+    public static int getInt(long address) {
+        return unsafe.getInt(address);
+    }
+
+    public static long getLong(long address) {
+        return unsafe.getLong(address);
+    }
+
+    public static float getFloat(long address) {
+        return unsafe.getFloat(address);
+    }
+
+    public static double getDouble(long address) {
+        return unsafe.getDouble(address);
+    }
+
+    public static void put(long address, byte value) {
+        unsafe.putByte(address, value);
+    }
+
+    public static void putChar(long address, char value) {
+        unsafe.putChar(address, value);
+    }
+
+    public static void putShort(long address, short value) {
+        unsafe.putShort(address, value);
+    }
+
+    public static void putInt(long address, int value) {
+        unsafe.putInt(address, value);
+    }
+
+    public static void putLong(long address, long value) {
+        unsafe.putLong(address, value);
+    }
+
+    public static void putFloat(long address, float value) {
+        unsafe.putFloat(address, value);
+    }
+
+    public static void putDouble(long address, double value) {
+        unsafe.putDouble(address, value);
+    }
+    
+    
+    
+    
     /*-------------- Wrapping address with bytebuffer --------------*/
     private static final Field ADDRESS;
     private static final Field CAPACITY;

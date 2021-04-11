@@ -14,7 +14,7 @@ import java.nio.ByteBuffer;
 // Slice can be either empty or associated with an off-heap cut,
 // which is the aforementioned portion of an off-heap memory.
 class Slice implements OakUnsafeDirectBuffer, Comparable<Slice> {
-    static final int UNDEFINED_LENGTH_OR_OFFSET = -1;
+    static final int UNDEFINED_LENGTH_OR_OFFSET_OR_ADDRESS = -1;
 
     /**
      * An allocated off-heap cut might have reserved space for meta-data, i.e., a header.
@@ -27,12 +27,12 @@ class Slice implements OakUnsafeDirectBuffer, Comparable<Slice> {
     private long reference;
     private final long invalidReferenceValue; // used for invalidation
     private int blockID = NativeMemoryAllocator.INVALID_BLOCK_ID;
-    private int offset  = UNDEFINED_LENGTH_OR_OFFSET;
+    private int offset  = UNDEFINED_LENGTH_OR_OFFSET_OR_ADDRESS;
 
     // The entire length of the off-heap cut, including the header!
-    private int length = UNDEFINED_LENGTH_OR_OFFSET;
+    private int length = UNDEFINED_LENGTH_OR_OFFSET_OR_ADDRESS;
     private int version;    // Allocation time version
-    private long memAddress= 0;
+    private long memAddress= UNDEFINED_LENGTH_OR_OFFSET_OR_ADDRESS;
     // true if slice is associated with an off-heap slice of memory
     // if associated is false the Slice is empty
     private boolean associated = false;
@@ -70,9 +70,9 @@ class Slice implements OakUnsafeDirectBuffer, Comparable<Slice> {
     void invalidate() {
         blockID     = NativeMemoryAllocator.INVALID_BLOCK_ID;
         reference   = invalidReferenceValue;
-        length      = UNDEFINED_LENGTH_OR_OFFSET;
-        offset      = UNDEFINED_LENGTH_OR_OFFSET;
-        memAddress      = 0;
+        length      = UNDEFINED_LENGTH_OR_OFFSET_OR_ADDRESS;
+        offset      = UNDEFINED_LENGTH_OR_OFFSET_OR_ADDRESS;
+        memAddress  = UNDEFINED_LENGTH_OR_OFFSET_OR_ADDRESS;
         associated  = false;
     }
 
@@ -88,8 +88,8 @@ class Slice implements OakUnsafeDirectBuffer, Comparable<Slice> {
      */
     void associateBlockAllocation(int blockID, int offset, int length, long memAddress){
         assert blockID != NativeMemoryAllocator.INVALID_BLOCK_ID
-            && offset > UNDEFINED_LENGTH_OR_OFFSET && length > UNDEFINED_LENGTH_OR_OFFSET
-            && memAddress != 0;
+            && offset > UNDEFINED_LENGTH_OR_OFFSET_OR_ADDRESS && length > UNDEFINED_LENGTH_OR_OFFSET_OR_ADDRESS
+            && memAddress != UNDEFINED_LENGTH_OR_OFFSET_OR_ADDRESS;
         setBlockIdOffsetAndLength(blockID, offset, length);
         this.memAddress  = memAddress;
         this.associated = true;
@@ -104,7 +104,7 @@ class Slice implements OakUnsafeDirectBuffer, Comparable<Slice> {
      */
     void associateReferenceDecodingNoFree(int blockID, int offset, int length, long reference) {
         // length can remain undefined until requested, but if given length should include the header
-        assert length != UNDEFINED_LENGTH_OR_OFFSET && headerSize <= length;
+        assert length != UNDEFINED_LENGTH_OR_OFFSET_OR_ADDRESS && headerSize <= length;
         setBlockIdOffsetAndLength(blockID, offset, length);
         this.reference = reference;
         associated   = false;
@@ -116,7 +116,7 @@ class Slice implements OakUnsafeDirectBuffer, Comparable<Slice> {
      * This is not the full setting of the association, therefore 'associated' flag remains false
      */
     void associateReferenceDecodingNative(int blockID, int offset, int version, long reference) {
-        setBlockIdOffsetAndLength(blockID, offset, UNDEFINED_LENGTH_OR_OFFSET);
+        setBlockIdOffsetAndLength(blockID, offset, UNDEFINED_LENGTH_OR_OFFSET_OR_ADDRESS);
         this.reference = reference;
         this.version = version;
         associated   = false;
@@ -166,7 +166,7 @@ class Slice implements OakUnsafeDirectBuffer, Comparable<Slice> {
 
     // the method has no effect if length is already set
     protected void prefetchDataLength() {
-        if (length == UNDEFINED_LENGTH_OR_OFFSET) {
+        if (length == UNDEFINED_LENGTH_OR_OFFSET_OR_ADDRESS) {
             // the length kept in header is the length of the data only!
             // add header size
             this.length = header.getDataLength(getMetadataAddress()) + headerSize;
@@ -222,12 +222,6 @@ class Slice implements OakUnsafeDirectBuffer, Comparable<Slice> {
     /*-------------- OakUnsafeDirectBuffer --------------*/  
 
     @Override
-    public int getOffset() {
-        assert associated;
-        return offset + headerSize;
-    }
-
-    @Override
     public int getLength() {
         // prefetchDataLength() prefetches the length from header only if Slice's length is undefined
         prefetchDataLength();
@@ -236,7 +230,8 @@ class Slice implements OakUnsafeDirectBuffer, Comparable<Slice> {
 
     @Override
     public long getAddress() {
-        return memAddress + getOffset();
+        assert associated;
+        return memAddress + offset + headerSize;
     }
 
     @Override

@@ -186,7 +186,7 @@ class NativeMemoryAllocator implements BlockMemoryAllocator {
 
     // When some buffer need to be read from a random block
     @Override
-    public void setSliceBlockAddress(Slice s) {
+    public void readMemoryAddress(Slice s) {
         int blockID = s.getAllocatedBlockID();
         // Validates that the input block id is valid.
         // This check should be automatically eliminated by the compiler in production.
