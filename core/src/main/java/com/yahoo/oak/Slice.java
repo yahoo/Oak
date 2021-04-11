@@ -6,14 +6,12 @@
 
 package com.yahoo.oak;
 
-import java.nio.ByteBuffer;
-
 // Slice represents an data about an off-heap cut: a portion of a bigger block,
 // which is part of the underlying managed off-heap memory.
 // Slice is allocated only via memory manager, and can be de-allocated later.
 // Slice can be either empty or associated with an off-heap cut,
 // which is the aforementioned portion of an off-heap memory.
-class Slice implements OakUnsafeDirectBuffer, Comparable<Slice> {
+class Slice implements Comparable<Slice> {
     static final int UNDEFINED_LENGTH_OR_OFFSET_OR_ADDRESS = -1;
 
     /**
@@ -221,30 +219,21 @@ class Slice implements OakUnsafeDirectBuffer, Comparable<Slice> {
 
     /*-------------- OakUnsafeDirectBuffer --------------*/  
 
-    @Override
     public int getLength() {
         // prefetchDataLength() prefetches the length from header only if Slice's length is undefined
         prefetchDataLength();
         return length - headerSize;
     }
 
-    @Override
     public long getAddress() {
         assert associated;
         return memAddress + offset + headerSize;
     }
 
-    @Override
     public String toString() {
         return String.format("Slice(blockID=%d, offset=%,d, length=%,d, version=%d)", blockID, offset, length, version);
     }
     
-    //must never be called internally kept in here to beautify the interface
-    @Override
-    public ByteBuffer getByteBuffer() { 
-        throw new RuntimeException(); 
-    }
-
     /*-------------- Comparable<Slice> --------------*/
 
     /**
