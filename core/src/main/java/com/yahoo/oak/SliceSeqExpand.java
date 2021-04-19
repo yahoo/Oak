@@ -100,7 +100,8 @@ class SliceSeqExpand extends Slice {
         return length;
     }
 
-    @Override public long getAddress() {
+    @Override
+    public long getAddress() {
         return memAddress + offset;
     }
 

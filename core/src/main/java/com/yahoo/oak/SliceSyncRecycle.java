@@ -131,7 +131,8 @@ class SliceSyncRecycle extends Slice {
         return length - headerSize;
     }
 
-    @Override public long getAddress() {
+    @Override
+    public long getAddress() {
         return memAddress + offset + headerSize;
     }
 

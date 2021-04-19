@@ -248,6 +248,5 @@ abstract class Slice implements Comparable<Slice> {
      * The write lock must be held (asserted inside the header).
      * It is similar to logicalDelete() but used when locking and marking don't happen in one CAS
      */
-
     abstract void markAsDeleted();
 }
