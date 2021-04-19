@@ -15,8 +15,6 @@ import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CyclicBarrier;
 
 public class ValueUtilsTest {
-    private SyncRecycleMemoryManager valuesMemoryManager;
-    private SeqExpandMemoryManager keysMemoryManager;
     private final ValueUtils valueOperator = new ValueUtils();
     private ThreadContext ctx;
     private ValueBuffer s;
@@ -24,19 +22,19 @@ public class ValueUtilsTest {
     @Before
     public void init() {
         NativeMemoryAllocator allocator = new NativeMemoryAllocator(128);
-        valuesMemoryManager = new SyncRecycleMemoryManager(allocator);
-        keysMemoryManager = new SeqExpandMemoryManager(allocator);
+        SyncRecycleMemoryManager valuesMemoryManager = new SyncRecycleMemoryManager(allocator);
+        SeqExpandMemoryManager keysMemoryManager = new SeqExpandMemoryManager(allocator);
         ctx = new ThreadContext(keysMemoryManager, valuesMemoryManager);
         s = ctx.value;
-        valuesMemoryManager.allocate(s.getSlice(), Integer.BYTES*3, false);
+        valuesMemoryManager.allocate(s.getSlice(), Integer.BYTES * 3, false);
     }
 
     private void putInt(int index, int value) {
-        UnsafeUtils.unsafe.putInt(s.getAddress()+index, value);
+        UnsafeUtils.UNSAFE.putInt(s.getAddress() + index, value);
     }
 
     private int getInt(int index) {
-        return UnsafeUtils.unsafe.getInt(s.getAddress() + index);
+        return UnsafeUtils.UNSAFE.getInt(s.getAddress() + index);
     }
 
     @Test

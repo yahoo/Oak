@@ -35,8 +35,8 @@ import java.util.concurrent.TimeUnit;
 
 public class PutBenchmark {
 
-    static public final int KEY_SIZE_BYTES = 64;
-    static public final int VALUE_SIZE_BYTES = 64;
+    public static final int KEY_SIZE_BYTES = 64;
+    public static final int VALUE_SIZE_BYTES = 64;
 
     @State(Scope.Benchmark)
     public static class BenchmarkState {
@@ -73,11 +73,11 @@ public class PutBenchmark {
         public void setup() {
 
             rows = new ArrayList<>(numRows);
-            for(int i = 0; i< numRows; ++i) {
-                String key = String.format("%0$" + KEY_SIZE_BYTES/Character.BYTES +"s",
+            for (int i = 0; i < numRows; ++i) {
+                String key = String.format("%0$" + KEY_SIZE_BYTES / Character.BYTES + "s",
                         String.valueOf(i) + Thread.currentThread().getId());
 
-                String val = String.format("%0$-" + VALUE_SIZE_BYTES/Character.BYTES +"s",
+                String val = String.format("%0$-" + VALUE_SIZE_BYTES / Character.BYTES + "s",
                         String.valueOf(i) + Thread.currentThread().getId());
 
                 rows.add(new AbstractMap.SimpleImmutableEntry<>(key, val));
@@ -93,7 +93,7 @@ public class PutBenchmark {
     @Fork(value = 1)
     @Threads(8)
     @Benchmark
-    public void put(Blackhole blackhole,BenchmarkState state,ThreadState threadState) {
+    public void put(Blackhole blackhole, BenchmarkState state, ThreadState threadState) {
         for (int i = 0; i < threadState.numRows; ++i) {
             Map.Entry<String, String> pair = threadState.rows.get(i);
             state.oakMap.zc().put(pair.getKey(), pair.getValue());
@@ -108,7 +108,7 @@ public class PutBenchmark {
     @Fork(value = 1)
     @Threads(8)
     @Benchmark
-    public void putIfAbsent(Blackhole blackhole,BenchmarkState state,ThreadState threadState) {
+    public void putIfAbsent(Blackhole blackhole, BenchmarkState state, ThreadState threadState) {
         for (int i = 0; i < threadState.numRows; ++i) {
             Map.Entry<String, String> pair = threadState.rows.get(i);
             state.oakMap.zc().put(pair.getKey(), pair.getValue());

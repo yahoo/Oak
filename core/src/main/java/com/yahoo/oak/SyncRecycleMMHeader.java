@@ -6,8 +6,6 @@
 
 package com.yahoo.oak;
 
-import sun.misc.Unsafe;
-
 class SyncRecycleMMHeader {
 
     /*
@@ -39,17 +37,14 @@ class SyncRecycleMMHeader {
     private static final int LOCK_STATE_MASK = 0x3;
     private static final int LOCK_STATE_SHIFT = 2;
 
-    private static final int LENGTH_OFFSET = VERSION_SIZE+LOCK_SIZE;
-
-    private static Unsafe unsafe = UnsafeUtils.unsafe;
-
+    private static final int LENGTH_OFFSET = VERSION_SIZE + LOCK_SIZE;
 
     private static int getInt(long headerAddress, int intOffsetInBytes) {
-        return unsafe.getInt(headerAddress + intOffsetInBytes);
+        return UnsafeUtils.UNSAFE.getInt(headerAddress + intOffsetInBytes);
     }
 
     private static void putInt(long headerAddress, int intOffsetInBytes, int value) {
-        unsafe.putInt(headerAddress + intOffsetInBytes, value);
+        UnsafeUtils.UNSAFE.putInt(headerAddress + intOffsetInBytes, value);
     }
 
     private void setOffHeapVersion(long headerAddress, int offHeapVersion) {
@@ -97,7 +92,7 @@ class SyncRecycleMMHeader {
         // Therefore, we make sure that the values are read and written correctly.
         long expected = UnsafeUtils.intsToLong(version, expectedLock);
         long value = UnsafeUtils.intsToLong(version, newLock);
-        return unsafe.compareAndSwapLong(null, headerAddress, expected, value);
+        return UnsafeUtils.UNSAFE.compareAndSwapLong(null, headerAddress, expected, value);
     }
 
     ValueUtils.ValueResult lockRead(final int onHeapVersion, long headerAddress) {

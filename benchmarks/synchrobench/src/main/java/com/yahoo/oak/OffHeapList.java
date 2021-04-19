@@ -6,9 +6,9 @@
 
 package com.yahoo.oak;
 
+import com.yahoo.oak.synchrobench.MyBuffer;
 import com.yahoo.oak.synchrobench.contention.abstractions.CompositionalOakMap;
 import com.yahoo.oak.synchrobench.contention.benchmark.Parameters;
-import com.yahoo.oak.synchrobench.MyBuffer;
 
 import java.nio.ByteBuffer;
 import java.util.Comparator;
@@ -29,8 +29,7 @@ public class OffHeapList<K extends MyBuffer, V extends MyBuffer> implements Comp
 
     public OffHeapList() {
 
-        comparator = (o1, o2) ->
-        {
+        comparator = (o1, o2) -> {
             //TODO YONIGO - what if key gets dfeleted?
             if (o1 instanceof MyBuffer) {
 
@@ -78,7 +77,7 @@ public class OffHeapList<K extends MyBuffer, V extends MyBuffer> implements Comp
     @Override
     public boolean getOak(K key) {
         Cell value = skipListMap.get(key);
-        if (Parameters.zeroCopy) {
+        if (Parameters.confZeroCopy) {
             return value != null && value.value != null;
         } else {
             if (value != null && value.value != null) {
@@ -185,7 +184,7 @@ public class OffHeapList<K extends MyBuffer, V extends MyBuffer> implements Comp
             Map.Entry<Object, Cell> cell = iter.next();
             //only if cell is not null value is not deleted or not set yet.
             if (cell.getValue().value.get() != null) {
-                if (!Parameters.zeroCopy) {
+                if (!Parameters.confZeroCopy) {
                     MyBuffer des = MyBuffer.deserialize(cell.getValue().value.get());
                     //YONIGO - I just do this so that hopefully jvm doesnt optimize out the deserialize
                     if (des != null) {

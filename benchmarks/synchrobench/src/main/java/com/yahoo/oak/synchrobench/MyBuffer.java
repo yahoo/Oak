@@ -8,8 +8,8 @@ package com.yahoo.oak.synchrobench;
 
 import com.yahoo.oak.OakComparator;
 import com.yahoo.oak.OakScopedReadBuffer;
-import com.yahoo.oak.OakSerializer;
 import com.yahoo.oak.OakScopedWriteBuffer;
+import com.yahoo.oak.OakSerializer;
 import com.yahoo.oak.common.intbuffer.OakIntBufferComparator;
 import com.yahoo.oak.common.intbuffer.OakIntBufferSerializer;
 
@@ -17,7 +17,7 @@ import java.nio.ByteBuffer;
 
 public class MyBuffer implements Comparable<MyBuffer> {
 
-    private final static int DATA_POS = 0;
+    private static final int DATA_POS = 0;
 
     public final int capacity;
     public final ByteBuffer buffer;
@@ -38,17 +38,17 @@ public class MyBuffer implements Comparable<MyBuffer> {
 
     public static void serialize(MyBuffer inputBuffer, OakScopedWriteBuffer targetBuffer) {
         // In the serialized buffer, the first integer signifies the size.
-    	int targetPos  = 0;
-    	targetBuffer.putInt(targetPos,  inputBuffer.capacity);
-    	targetPos += Integer.BYTES;
+        int targetPos = 0;
+        targetBuffer.putInt(targetPos, inputBuffer.capacity);
+        targetPos += Integer.BYTES;
         OakIntBufferSerializer.copyBuffer(inputBuffer.buffer, DATA_POS, inputBuffer.capacity / Integer.BYTES,
-        		targetBuffer, targetPos);
+                targetBuffer, targetPos);
     }
 
     public static MyBuffer deserialize(OakScopedReadBuffer inputBuffer) {
-    	int inputPos  = 0;
-    	int capacity = inputBuffer.getInt(inputPos);
-    	inputPos += Integer.BYTES;
+        int inputPos = 0;
+        int capacity = inputBuffer.getInt(inputPos);
+        inputPos += Integer.BYTES;
         MyBuffer ret = new MyBuffer(capacity);
         OakIntBufferSerializer.copyBuffer(inputBuffer, inputPos, capacity / Integer.BYTES, ret.buffer, DATA_POS);
         return ret;
@@ -60,26 +60,28 @@ public class MyBuffer implements Comparable<MyBuffer> {
                 buff2, pos2, cap2 / Integer.BYTES);
     }
 
-    private static int compareBuffers(ByteBuffer buff1, int pos1, int cap1, OakScopedReadBuffer buff2, int pos2, int cap2) {
+    private static int compareBuffers(ByteBuffer buff1, int pos1, int cap1, OakScopedReadBuffer buff2,
+                                      int pos2, int cap2) {
         return OakIntBufferComparator.compare(buff1, pos1, cap1 / Integer.BYTES,
                 buff2, pos2, cap2 / Integer.BYTES);
     }
-    
-    private static int compareBuffers(OakScopedReadBuffer buff1, int pos1, int cap1, OakScopedReadBuffer buff2, int pos2, int cap2) {
+
+    private static int compareBuffers(OakScopedReadBuffer buff1, int pos1, int cap1, OakScopedReadBuffer buff2,
+                                      int pos2, int cap2) {
         return OakIntBufferComparator.compare(buff1, pos1, cap1 / Integer.BYTES, buff2, pos2, cap2 / Integer.BYTES);
     }
 
     public static int compareBuffers(OakScopedReadBuffer buffer1, OakScopedReadBuffer buffer2) {
         // In the serialized buffer, the first integer signifies the size.
-    	int cap1 = buffer1.getInt(0);
-    	int cap2 = buffer2.getInt(0);
+        int cap1 = buffer1.getInt(0);
+        int cap2 = buffer2.getInt(0);
         return compareBuffers(buffer1, Integer.BYTES, cap1, buffer2, Integer.BYTES, cap2);
     }
 
     public static int compareBuffers(MyBuffer key1, OakScopedReadBuffer buffer2) {
         // In the serialized buffer, the first integer signifies the size.
-    	int cap2 = buffer2.getInt(0);
-        return compareBuffers(key1.buffer, DATA_POS, key1.capacity, buffer2, Integer.BYTES,  cap2);
+        int cap2 = buffer2.getInt(0);
+        return compareBuffers(key1.buffer, DATA_POS, key1.capacity, buffer2, Integer.BYTES, cap2);
     }
 
     public static int compareBuffers(MyBuffer key1, MyBuffer key2) {
@@ -112,12 +114,12 @@ public class MyBuffer implements Comparable<MyBuffer> {
 
         @Override
         public int compareSerializedKeys(OakScopedReadBuffer serializedKey1, OakScopedReadBuffer serializedKey2) {
-            return compareBuffers( serializedKey1,  serializedKey2);
+            return compareBuffers(serializedKey1, serializedKey2);
         }
 
         @Override
         public int compareKeyAndSerializedKey(MyBuffer key, OakScopedReadBuffer serializedKey) {
-            return compareBuffers(key,  serializedKey);
+            return compareBuffers(key, serializedKey);
         }
     };
 }

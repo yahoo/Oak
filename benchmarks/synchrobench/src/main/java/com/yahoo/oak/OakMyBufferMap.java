@@ -6,9 +6,9 @@
 
 package com.yahoo.oak;
 
+import com.yahoo.oak.synchrobench.MyBuffer;
 import com.yahoo.oak.synchrobench.contention.abstractions.CompositionalOakMap;
 import com.yahoo.oak.synchrobench.contention.benchmark.Parameters;
-import com.yahoo.oak.synchrobench.MyBuffer;
 
 import java.util.Iterator;
 
@@ -23,7 +23,7 @@ public class OakMyBufferMap<K extends MyBuffer, V extends MyBuffer> implements C
 
     public OakMyBufferMap() {
         ma = new NativeMemoryAllocator(OAK_MAX_OFF_MEMORY);
-        if (Parameters.detailedStats) {
+        if (Parameters.confDetailedStats) {
             ma.collectStats();
         }
         minKey = new MyBuffer(Integer.BYTES);
@@ -42,7 +42,7 @@ public class OakMyBufferMap<K extends MyBuffer, V extends MyBuffer> implements C
 
     @Override
     public boolean getOak(K key) {
-        if (Parameters.zeroCopy) {
+        if (Parameters.confZeroCopy) {
             return oak.zc().get(key) != null;
         }
         return oak.get(key) != null;
@@ -60,7 +60,7 @@ public class OakMyBufferMap<K extends MyBuffer, V extends MyBuffer> implements C
 
     @Override
     public void removeOak(K key) {
-        if (Parameters.zeroCopy) {
+        if (Parameters.confZeroCopy) {
             oak.zc().remove(key);
         } else {
             oak.remove(key);
@@ -103,8 +103,8 @@ public class OakMyBufferMap<K extends MyBuffer, V extends MyBuffer> implements C
 
     private boolean createAndScanView(OakMap<MyBuffer, MyBuffer> subMap, int length) {
         Iterator iter;
-        if (Parameters.zeroCopy) {
-            if (Parameters.streamIteration) {
+        if (Parameters.confZeroCopy) {
+            if (Parameters.confStreamIteration) {
                 iter = subMap.zc().entryStreamSet().iterator();
             } else {
                 iter = subMap.zc().entrySet().iterator();
@@ -130,7 +130,7 @@ public class OakMyBufferMap<K extends MyBuffer, V extends MyBuffer> implements C
         oak.close();
 
         ma = new NativeMemoryAllocator(OAK_MAX_OFF_MEMORY);
-        if (Parameters.detailedStats) {
+        if (Parameters.confDetailedStats) {
             ma.collectStats();
         }
         minKey = new MyBuffer(Integer.BYTES);

@@ -6,8 +6,6 @@
 
 package com.yahoo.oak;
 
-import sun.misc.Unsafe;
-
 import java.util.EmptyStackException;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -38,7 +36,6 @@ class Chunk<K, V> {
 
     /*-------------- Members --------------*/
 
-    private static final Unsafe UNSAFE = UnsafeUtils.unsafe;
     KeyBuffer minKey;       // minimal key that can be put in this chunk
     AtomicMarkableReference<Chunk<K, V>> next;
     OakComparator<K> comparator;
@@ -668,7 +665,7 @@ class Chunk<K, V> {
         state.compareAndSet(State.INFANT, State.NORMAL);
         creator.set(null);
         // using fence so other puts can continue working immediately on this chunk
-        Chunk.UNSAFE.storeFence();
+        UnsafeUtils.UNSAFE.storeFence();
     }
 
     /**
@@ -762,7 +759,7 @@ class Chunk<K, V> {
     // specifier whether the end boundary check needs to be performed on the current scan output
     enum IterEndBoundCheck {
         NEVER_END_BOUNDRY_CHECK,
-        MID_END_BOUNDRY_CHECK,
+        MID_END_BOUNDARY_CHECK,
         ALWAYS_END_BOUNDARY_CHECK
     }
 
@@ -772,7 +769,7 @@ class Chunk<K, V> {
         protected boolean endBoundInclusive;  // inclusion flag for "to"
 
         protected IterEndBoundCheck isEndBoundCheckNeeded = IterEndBoundCheck.NEVER_END_BOUNDRY_CHECK;
-        protected int midIdx = sortedCount.get()/2; // approximately index of the middle key in the chunk
+        protected int midIdx = sortedCount.get() / 2; // approximately index of the middle key in the chunk
 
         abstract boolean hasNext();
 
@@ -813,7 +810,7 @@ class Chunk<K, V> {
                 // is the key in the middle index already above the upper limit to stop on?
                 readKeyFromEntryIndex(ctx.tempKey, midIdx);
                 if (!isKeyOutOfEndBound(ctx.tempKey)) {
-                    isEndBoundCheckNeeded = IterEndBoundCheck.MID_END_BOUNDRY_CHECK;
+                    isEndBoundCheckNeeded = IterEndBoundCheck.MID_END_BOUNDARY_CHECK;
                 }
                 // otherwise didn't succeed to delay the check
             }
@@ -864,7 +861,7 @@ class Chunk<K, V> {
             // if no need for end boundary check on this chunk (IterEndBoundCheck.NEVER_END_BOUNDRY_CHECK)
             // or if already known that it is needed to end stop boundaries (IterEndBoundCheck.ALWAYS_END_BOUNDRY_CHECK)
             // advance next without additional checks
-            if (isEndBoundCheckNeeded != IterEndBoundCheck.MID_END_BOUNDRY_CHECK) {
+            if (isEndBoundCheckNeeded != IterEndBoundCheck.MID_END_BOUNDARY_CHECK) {
                 advanceNextIndexNoBound(next, ctx);
             } else {
                 next = advanceNextIndex(next, ctx);
@@ -887,7 +884,7 @@ class Chunk<K, V> {
             int next = entryIndex;
             while (next != NONE_NEXT && !entrySet.isValueRefValidAndNotDeleted(next)) {
                 next = entrySet.getNextEntryIndex(next);
-                if (isEndBoundCheckNeeded==IterEndBoundCheck.MID_END_BOUNDRY_CHECK && next==midIdx) {
+                if (isEndBoundCheckNeeded == IterEndBoundCheck.MID_END_BOUNDARY_CHECK && next == midIdx) {
                     // update isEndBoundCheckNeeded to ALWAYS_END_BOUNDRY_CHECK
                     // when reaching the midIndex
                     isEndBoundCheckNeeded = IterEndBoundCheck.ALWAYS_END_BOUNDARY_CHECK;
@@ -1054,8 +1051,8 @@ class Chunk<K, V> {
                 }
             }
             // midIdx can be only one of the anchors
-            if (isEndBoundCheckNeeded==IterEndBoundCheck.MID_END_BOUNDRY_CHECK && anchor<=midIdx) {
-                // update isEndBoundCheckNeeded to ALWAYS_END_BOUNDRY_CHECK
+            if (isEndBoundCheckNeeded == IterEndBoundCheck.MID_END_BOUNDARY_CHECK && anchor <= midIdx) {
+                // update isEndBoundCheckNeeded to ALWAYS_END_BOUNDARY_CHECK
                 // when reaching the midIndex as an anchor
                 isEndBoundCheckNeeded = IterEndBoundCheck.ALWAYS_END_BOUNDARY_CHECK;
             }

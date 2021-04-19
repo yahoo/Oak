@@ -32,12 +32,12 @@ public class ByteBufferBenchmark {
     @State(Scope.Benchmark)
     public static class BenchmarkState {
 
-        @Param({"ONHEAP","OFFHEAP"})
+        @Param({"ONHEAP", "OFFHEAP"})
         String heap;
 
         ByteBuffer byteBuffer;
 
-        int bytes = 1024*1024*1024;
+        final int bytes = 1024 * 1024 * 1024;
 
         @Setup()
         public void setup() {
@@ -58,7 +58,7 @@ public class ByteBufferBenchmark {
     @Threads(1)
     @Benchmark
     public void put(Blackhole blackhole, BenchmarkState state) {
-        for (int i=0; i < state.bytes; ++i) {
+        for (int i = 0; i < state.bytes; ++i) {
             state.byteBuffer.put(i, (byte) i);
         }
     }
@@ -71,7 +71,7 @@ public class ByteBufferBenchmark {
     @Threads(1)
     @Benchmark
     public void get(Blackhole blackhole, BenchmarkState state) {
-        for (int i=0; i < state.bytes; ++i) {
+        for (int i = 0; i < state.bytes; ++i) {
             blackhole.consume(state.byteBuffer.get(i));
         }
     }

@@ -63,7 +63,7 @@ abstract class ReferenceCodec {
             this.firstBitSize = Long.SIZE - secondBitSize - thirdBitSize;
         }
 
-        assert (this.firstBitSize > 0 || this.secondBitSize > 0 || this.thirdBitSize > 0):
+        assert (this.firstBitSize > 0 || this.secondBitSize > 0 || this.thirdBitSize > 0) :
             String.format(
                 "Not enough bits to encode a reference: firstBitSizeLimit=%,d, secondBitSizeLimit=%,d.",
                 firstBitSizeLimit, secondBitSizeLimit);
@@ -170,7 +170,7 @@ abstract class ReferenceCodec {
      * @param reference the reference to decode
      * @return true if the allocation reference is valid
      */
-    boolean decode(final Slice s, final long reference){
+    boolean decode(final Slice s, final long reference) {
         if (!isReferenceValid(reference)) {
             s.invalidate();
             return false;

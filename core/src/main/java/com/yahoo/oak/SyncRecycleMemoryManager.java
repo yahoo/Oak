@@ -191,7 +191,7 @@ class SyncRecycleMemoryManager implements MemoryManager {
         if (curVer == ReferenceCodecSyncRecycle.LAST_VALID_VERSION) {
             globalVersionNumber.compareAndSet(curVer, VERS_INIT_VALUE);
         } else {
-            globalVersionNumber.compareAndSet(curVer, curVer+1);
+            globalVersionNumber.compareAndSet(curVer, curVer + 1);
         }
         // if CAS fails someone else updated the version, which is good enough
     }

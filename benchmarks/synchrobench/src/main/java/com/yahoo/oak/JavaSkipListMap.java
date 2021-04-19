@@ -6,8 +6,8 @@
 
 package com.yahoo.oak;
 
-import com.yahoo.oak.synchrobench.contention.abstractions.CompositionalOakMap;
 import com.yahoo.oak.synchrobench.MyBuffer;
+import com.yahoo.oak.synchrobench.contention.abstractions.CompositionalOakMap;
 
 import java.util.Iterator;
 import java.util.concurrent.ConcurrentSkipListMap;
@@ -49,7 +49,7 @@ public class JavaSkipListMap<K extends MyBuffer, V extends MyBuffer> implements 
     @Override
     public void putIfAbsentComputeIfPresentOak(K key, V value) {
 
-        skipListMap.merge(key, value, (old,v) -> {
+        skipListMap.merge(key, value, (old, v) -> {
             synchronized (old) {
                 old.buffer.putLong(1, ~old.buffer.getLong(1));
             }

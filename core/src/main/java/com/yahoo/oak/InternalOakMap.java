@@ -131,7 +131,7 @@ class InternalOakMap<K, V> {
     long memorySize() {
         if (valuesMemoryManager != keysMemoryManager) {
             // if two memory managers are not the same instance
-            return valuesMemoryManager.allocated()+keysMemoryManager.allocated();
+            return valuesMemoryManager.allocated() + keysMemoryManager.allocated();
         }
         return valuesMemoryManager.allocated();
     }

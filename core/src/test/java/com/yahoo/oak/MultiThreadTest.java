@@ -163,7 +163,7 @@ public class MultiThreadTest {
     @Test
     public void testThreads() throws InterruptedException, TimeoutException, ExecutionException {
 
-        List<Future<?>> tasks=new ArrayList<>();
+        List<Future<?>> tasks = new ArrayList<>();
         for (int i = 0; i < NUM_THREADS; i++) {
             tasks.add(executor.submit(new MultiThreadTest.RunThreads(latch))) ;
         }
@@ -288,7 +288,7 @@ public class MultiThreadTest {
     public void testThreadsDescend() throws InterruptedException, TimeoutException, ExecutionException {
         CyclicBarrier barrier = new CyclicBarrier(NUM_THREADS);
 
-        List<Future<?>> tasks=new ArrayList<>();
+        List<Future<?>> tasks = new ArrayList<>();
         for (int i = 0; i < NUM_THREADS; i++) {
             tasks.add(executor.submit(new MultiThreadTest.RunThreadsDescend(latch, barrier))) ;
         }

@@ -86,7 +86,7 @@ public class ConcurrentPutRemoveTest {
     @Ignore
     @Test
     public void testMain() throws InterruptedException, TimeoutException, ExecutionException, BrokenBarrierException {
-        List<Future<?>> tasks=new ArrayList<>();
+        List<Future<?>> tasks = new ArrayList<>();
         for (int i = 0; i < NUM_THREADS; i++) {
             tasks.add(executor.submit(new RunThread())) ;
         }

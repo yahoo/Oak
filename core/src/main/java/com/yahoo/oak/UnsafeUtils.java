@@ -15,14 +15,14 @@ import java.nio.ByteBuffer;
 
 final class UnsafeUtils {
 
-    static Unsafe unsafe;
+    static final Unsafe UNSAFE;
 
     // static constructor - access and create a new instance of Unsafe
     static {
         try {
             Constructor<Unsafe> unsafeConstructor = Unsafe.class.getDeclaredConstructor();
             unsafeConstructor.setAccessible(true);
-            unsafe = unsafeConstructor.newInstance();
+            UNSAFE = unsafeConstructor.newInstance();
         } catch (Exception ex) {
             throw new RuntimeException(ex);
         }
@@ -31,8 +31,8 @@ final class UnsafeUtils {
     private UnsafeUtils() {
     }
 
-    static long allocateMemory(long capacity ){
-        return UnsafeUtils.unsafe.allocateMemory(capacity);
+    static long allocateMemory(long capacity ) {
+        return UnsafeUtils.UNSAFE.allocateMemory(capacity);
     }
 
     static final long LONG_INT_MASK = (1L << Integer.SIZE) - 1L;
@@ -45,68 +45,64 @@ final class UnsafeUtils {
     static long intsToLong(int i1, int i2) {
         return (i1 & LONG_INT_MASK) | (((long) i2) << Integer.SIZE);
     }
-    
-    
-    
+
     public static byte get(long address) {
-        return unsafe.getByte(address);
+        return UNSAFE.getByte(address);
     }
 
     public static char getChar(long address) {
-        return unsafe.getChar(address);
+        return UNSAFE.getChar(address);
     }
 
     public static short getShort(long address) {
-        return unsafe.getShort(address);
+        return UNSAFE.getShort(address);
     }
 
     public static int getInt(long address) {
-        return unsafe.getInt(address);
+        return UNSAFE.getInt(address);
     }
 
     public static long getLong(long address) {
-        return unsafe.getLong(address);
+        return UNSAFE.getLong(address);
     }
 
     public static float getFloat(long address) {
-        return unsafe.getFloat(address);
+        return UNSAFE.getFloat(address);
     }
 
     public static double getDouble(long address) {
-        return unsafe.getDouble(address);
+        return UNSAFE.getDouble(address);
     }
 
     public static void put(long address, byte value) {
-        unsafe.putByte(address, value);
+        UNSAFE.putByte(address, value);
     }
 
     public static void putChar(long address, char value) {
-        unsafe.putChar(address, value);
+        UNSAFE.putChar(address, value);
     }
 
     public static void putShort(long address, short value) {
-        unsafe.putShort(address, value);
+        UNSAFE.putShort(address, value);
     }
 
     public static void putInt(long address, int value) {
-        unsafe.putInt(address, value);
+        UNSAFE.putInt(address, value);
     }
 
     public static void putLong(long address, long value) {
-        unsafe.putLong(address, value);
+        UNSAFE.putLong(address, value);
     }
 
     public static void putFloat(long address, float value) {
-        unsafe.putFloat(address, value);
+        UNSAFE.putFloat(address, value);
     }
 
     public static void putDouble(long address, double value) {
-        unsafe.putDouble(address, value);
+        UNSAFE.putDouble(address, value);
     }
     
-    
-    
-    
+
     /*-------------- Wrapping address with bytebuffer --------------*/
     private static final Field ADDRESS;
     private static final Field CAPACITY;

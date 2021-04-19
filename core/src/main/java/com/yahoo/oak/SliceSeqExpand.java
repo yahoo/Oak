@@ -6,12 +6,14 @@
 
 package com.yahoo.oak;
 
-// SliceSeqExpand represents an data about an off-heap cut: a portion of a bigger block,
-// which is part of the underlying managed off-heap memory, which is managed for sequential
-// access and without memory recycling.
-// SliceSeqExpand is allocated only via SeqExpandMemoryManager, and can be de-allocated later.
-// Any slice can be either empty or associated with an off-heap cut,
-// which is the aforementioned portion of an off-heap memory.
+/**
+ * SliceSeqExpand represents an data about an off-heap cut: a portion of a bigger block,
+ * which is part of the underlying managed off-heap memory, which is managed for sequential
+ * access and without memory recycling.
+ * SliceSeqExpand is allocated only via SeqExpandMemoryManager, and can be de-allocated later.
+ * Any slice can be either empty or associated with an off-heap cut,
+ * which is the aforementioned portion of an off-heap memory.
+ */
 class SliceSeqExpand extends Slice {
     static final int UNDEFINED_LENGTH_OR_OFFSET = -1;
 
@@ -41,7 +43,7 @@ class SliceSeqExpand extends Slice {
      * including reference itself.
      * This is not the full setting of the association, therefore 'associated' flag remains false
      */
-    void associateReferenceDecoding(int blockID, int offset, int length, long reference){
+    void associateReferenceDecoding(int blockID, int offset, int length, long reference) {
         // length can remain undefined until requested, but if given length should include the header
         assert length != UNDEFINED_LENGTH_OR_OFFSET;
         setBlockIdOffsetAndLength(blockID, offset, length);
@@ -50,7 +52,7 @@ class SliceSeqExpand extends Slice {
     }
 
     // Copy the block allocation information from another block allocation.
-    <T extends Slice> void copyFrom(T other){
+    <T extends Slice> void copyFrom(T other) {
         if (other instanceof SliceSeqExpand) { //TODO: any other ideas?
             copyAllocationInfoFrom(other);
             // if SliceSeqExpand gets new members (not included in allocation info)
@@ -122,7 +124,7 @@ class SliceSeqExpand extends Slice {
      * {@code RETRY} if the header/off-heap-cut was moved, or the version of the off-heap header
      * does not match {@code version}.
      */
-    ValueUtils.ValueResult lockRead(){
+    ValueUtils.ValueResult lockRead() {
         return ValueUtils.ValueResult.TRUE;
     }
 
@@ -134,7 +136,7 @@ class SliceSeqExpand extends Slice {
      * {@code FALSE} if the value is marked as deleted
      * {@code RETRY} if the value was moved, or the version of the off-heap value does not match {@code version}.
      */
-    ValueUtils.ValueResult unlockRead(){
+    ValueUtils.ValueResult unlockRead() {
         return ValueUtils.ValueResult.TRUE;
     }
 
@@ -146,7 +148,7 @@ class SliceSeqExpand extends Slice {
      * {@code FALSE} if the value is marked as deleted
      * {@code RETRY} if the value was moved, or the version of the off-heap value does not match {@code version}.
      */
-    ValueUtils.ValueResult lockWrite(){
+    ValueUtils.ValueResult lockWrite() {
         return ValueUtils.ValueResult.TRUE;
     }
 
@@ -158,7 +160,7 @@ class SliceSeqExpand extends Slice {
      * {@code FALSE} if the value is marked as deleted
      * {@code RETRY} if the value was moved, or the version of the off-heap value does not match {@code version}.
      */
-    ValueUtils.ValueResult unlockWrite(){
+    ValueUtils.ValueResult unlockWrite() {
         return ValueUtils.ValueResult.TRUE;
     }
 
@@ -170,7 +172,7 @@ class SliceSeqExpand extends Slice {
      * {@code FALSE} if the value is already marked as deleted
      * {@code RETRY} if the value was moved, or the version of the off-heap value does not match {@code version}.
      */
-    ValueUtils.ValueResult logicalDelete(){
+    ValueUtils.ValueResult logicalDelete() {
         return ValueUtils.ValueResult.TRUE;
     }
 
@@ -181,7 +183,7 @@ class SliceSeqExpand extends Slice {
      * {@code FALSE} if the value is not marked
      * {@code RETRY} if the value was moved, or the version of the off-heap value does not match {@code version}.
      */
-    ValueUtils.ValueResult isDeleted(){
+    ValueUtils.ValueResult isDeleted() {
         return ValueUtils.ValueResult.FALSE;
     }
 

@@ -22,7 +22,7 @@ abstract class Slice implements Comparable<Slice> {
 
     // The entire length of the off-heap cut, including the header!
     protected int length = UNDEFINED_LENGTH_OR_OFFSET_OR_ADDRESS;
-    protected long memAddress= UNDEFINED_LENGTH_OR_OFFSET_OR_ADDRESS;
+    protected long memAddress = UNDEFINED_LENGTH_OR_OFFSET_OR_ADDRESS;
 
     // true if slice is associated with an off-heap slice of memory
     // if associated is false the Slice is empty
@@ -35,7 +35,6 @@ abstract class Slice implements Comparable<Slice> {
     // Used to duplicate the allocation state. Does not duplicate the underlying memory buffer itself.
     // Should be used when ThreadContext's internal Slice needs to be exported to the user.
     abstract Slice getDuplicatedSlice();
-
 
     /* ------------------------------------------------------------------------------------
      * Allocation info and metadata setters
@@ -74,7 +73,7 @@ abstract class Slice implements Comparable<Slice> {
      * Sets everything related to allocation of an off-heap cut: a portion of a bigger block.
      * Turns empty slice to an associated slice upon allocation.
      */
-    void associateBlockAllocation(int blockID, int offset, int length, long memAddress){
+    void associateBlockAllocation(int blockID, int offset, int length, long memAddress) {
         assert blockID != NativeMemoryAllocator.INVALID_BLOCK_ID
             && offset > UNDEFINED_LENGTH_OR_OFFSET_OR_ADDRESS && length > UNDEFINED_LENGTH_OR_OFFSET_OR_ADDRESS
             && memAddress != UNDEFINED_LENGTH_OR_OFFSET_OR_ADDRESS;
@@ -96,7 +95,7 @@ abstract class Slice implements Comparable<Slice> {
     // Set the internal buffer.
     // This method should be used only within Memory Management package.
     void setAddress(long memAddress) {
-        this.memAddress= memAddress;
+        this.memAddress = memAddress;
         assert memAddress != 0;
         associated = true; // buffer is the final and the most important field for the slice validity
     }
@@ -149,7 +148,7 @@ abstract class Slice implements Comparable<Slice> {
      * ------------------------------------------------------------------------------------*/
     long getMetadataAddress() {
         assert associated;
-        return memAddress+ offset;
+        return memAddress + offset;
     }
 
     public abstract int getLength();
