@@ -61,9 +61,8 @@
             <!-- Allow final fields to be declared as public. -->
             <property name="allowPublicFinalFields" value="true"/>
 
-            <!-- Specify immutable classes canonical names.-->
-            <property name="publicMemberPattern"
-                      value="^conf.*$"/>
+            <!-- Specify pattern for public members that should be ignored. -->
+            <property name="publicMemberPattern" value="^conf.*$"/>
         </module>
 
         <!-- ################################################################################
