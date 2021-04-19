@@ -13,28 +13,23 @@ import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
-import java.util.ArrayList;
 import java.util.Iterator;
-import java.util.List;
 import java.util.Random;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
 public class MultiThreadRangeTest {
 
-    private OakMap<Integer, Integer> oak;
     private static final int NUM_THREADS = 31;
-    private ExecutorService executor;
+    private static final long TIME_LIMIT_IN_SECONDS = 60;
+    private static final int MAX_ITEMS_PER_CHUNK = 2048;
+
+    private OakMap<Integer, Integer> oak;
+    private ExecutorUtils executor;
 
     private CountDownLatch latch;
-    private static final int MAX_ITEMS_PER_CHUNK = 2048;
-    private final long timeLimitInMs = TimeUnit.MILLISECONDS.convert(60, TimeUnit.SECONDS);
 
     @Before
     public void init() {
@@ -42,11 +37,12 @@ public class MultiThreadRangeTest {
                 .setChunkMaxItems(MAX_ITEMS_PER_CHUNK);
         oak = builder.build();
         latch = new CountDownLatch(1);
-        executor = Executors.newFixedThreadPool(NUM_THREADS);
+        executor = new ExecutorUtils(NUM_THREADS);
     }
 
     @After
     public void finish() {
+        executor.shutdownNow();
         oak.close();
     }
 
@@ -63,7 +59,7 @@ public class MultiThreadRangeTest {
 
             Integer from = 10 * MAX_ITEMS_PER_CHUNK;
             try (OakMap<Integer, Integer> tailMap = oak.tailMap(from, true)) {
-                Iterator valIter = tailMap.values().iterator();
+                Iterator<Integer> valIter = tailMap.values().iterator();
                 int i = 0;
                 while (valIter.hasNext() && i < 100) {
                     valIter.next();
@@ -76,11 +72,7 @@ public class MultiThreadRangeTest {
 
     @Test
     public void testRange() throws InterruptedException, TimeoutException, ExecutionException {
-
-        List<Future<?>> tasks = new ArrayList<>();
-        for (int i = 0; i < NUM_THREADS; i++) {
-            tasks.add(executor.submit(new MultiThreadRangeTest.RunThreads(latch))) ;
-        }
+        executor.submitTasks(NUM_THREADS, i -> new MultiThreadRangeTest.RunThreads(latch));
 
         // fill
         Random r = new Random();
@@ -92,16 +84,14 @@ public class MultiThreadRangeTest {
         }
 
         latch.countDown();
-
-        ExecutorUtils.shutdownTaskPool(executor, tasks, timeLimitInMs);
+        executor.shutdown(TIME_LIMIT_IN_SECONDS);
 
         int size = 0;
-        for (Integer i = 0; i < 10 * MAX_ITEMS_PER_CHUNK; i++) {
+        for (int i = 0; i < 10 * MAX_ITEMS_PER_CHUNK; i++) {
             if (oak.get(i) != null) {
                 size++;
             }
         }
         Assert.assertEquals(5 * MAX_ITEMS_PER_CHUNK, size);
     }
-
 }

@@ -9,18 +9,43 @@ package com.yahoo.oak.test_utils;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
+import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.function.Function;
 
 
 public class ExecutorUtils {
 
-    /***
+    final ExecutorService executor;
+    final List<Future<?>> tasks = new ArrayList<>();
+
+    public ExecutorUtils(int numThreads) {
+        this.executor = Executors.newFixedThreadPool(numThreads);
+    }
+
+    public <T> void submitTasks(int numTasks, Function<Integer, Callable<T>> taskGenerator) {
+        for (int i = 0; i < numTasks; i++) {
+            tasks.add(executor.submit(taskGenerator.apply(i))) ;
+        }
+    }
+
+    public void shutdown(long timeLimitInSeconds) throws ExecutionException, InterruptedException, TimeoutException {
+        shutdownTaskPool(executor, tasks, TimeUnit.MILLISECONDS.convert(timeLimitInSeconds, TimeUnit.SECONDS));
+    }
+
+    public void shutdownNow() {
+        executor.shutdownNow();
+    }
+
+    /**
      * this function close the Executor thread pool  also wait for given tasks to complete upto given time limit
      * @param executor the thread pool to be closed
      * @param pendingTasks list of tasks that need to end before the time limit

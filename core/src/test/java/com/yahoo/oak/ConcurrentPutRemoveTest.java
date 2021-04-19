@@ -8,34 +8,32 @@ package com.yahoo.oak;
 
 import com.yahoo.oak.common.OakCommonBuildersFactory;
 import com.yahoo.oak.test_utils.ExecutorUtils;
+import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Ignore;
 import org.junit.Test;
 
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Random;
 import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class ConcurrentPutRemoveTest {
-    private static final long DURATION = 1000;
-    private OakMap<Integer, Integer> oak;
     private static final int NUM_THREADS = 1;
+    private static final long TIME_LIMIT_IN_SECONDS = 10;
+
+    private static final long DURATION = 1000;
+
     private static final int K = 1024;
     private static final int NUM_OF_ENTRIES = 10 * K;
-    private ExecutorService executor;
-    private final long timeLimitInMs = TimeUnit.MILLISECONDS.convert(10, TimeUnit.SECONDS);
+
+    private ExecutorUtils executor;
+    private OakMap<Integer, Integer> oak;
 
     private AtomicBoolean stop;
     private AtomicInteger[] status;
@@ -47,17 +45,21 @@ public class ConcurrentPutRemoveTest {
         oak = builder.build();
         barrier = new CyclicBarrier(NUM_THREADS + 1);
         stop = new AtomicBoolean(false);
-        executor = Executors.newFixedThreadPool(NUM_THREADS);
+        executor = new ExecutorUtils(NUM_THREADS);
         status = new AtomicInteger[NUM_OF_ENTRIES];
         for (int i = 0; i < status.length; i++) {
             status[i] = new AtomicInteger(0);
         }
     }
 
+    @After
+    public void tearDown() {
+        executor.shutdownNow();
+    }
+
     class RunThread implements Callable<Void> {
         public Void call() throws BrokenBarrierException, InterruptedException {
             barrier.await();
-
 
             Random r = new Random();
 
@@ -86,10 +88,7 @@ public class ConcurrentPutRemoveTest {
     @Ignore
     @Test
     public void testMain() throws InterruptedException, TimeoutException, ExecutionException, BrokenBarrierException {
-        List<Future<?>> tasks = new ArrayList<>();
-        for (int i = 0; i < NUM_THREADS; i++) {
-            tasks.add(executor.submit(new RunThread())) ;
-        }
+        executor.submitTasks(NUM_THREADS, i -> new RunThread());
         Random r = new Random();
         for (int i = 0; i < (int) Math.round(NUM_OF_ENTRIES * 0.5); ) {
             int key = r.nextInt(NUM_OF_ENTRIES);
@@ -111,10 +110,8 @@ public class ConcurrentPutRemoveTest {
         barrier.await();
 
         Thread.sleep(DURATION);
-
         stop.set(true);
-
-        ExecutorUtils.shutdownTaskPool(executor, tasks, timeLimitInMs);
+        executor.shutdown(TIME_LIMIT_IN_SECONDS);
 
         for (int i = 0; i < NUM_OF_ENTRIES; i++) {
             int old = status[i].get();
