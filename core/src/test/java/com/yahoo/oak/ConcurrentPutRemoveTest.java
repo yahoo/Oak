@@ -30,7 +30,7 @@ public class ConcurrentPutRemoveTest {
     private static final int K = 1024;
     private static final int NUM_OF_ENTRIES = 10 * K;
 
-    private ExecutorUtils executor;
+    private ExecutorUtils<Void> executor;
     private OakMap<Integer, Integer> oak;
 
     private AtomicBoolean stop;
@@ -43,7 +43,7 @@ public class ConcurrentPutRemoveTest {
         oak = builder.build();
         barrier = new CyclicBarrier(NUM_THREADS + 1);
         stop = new AtomicBoolean(false);
-        executor = new ExecutorUtils(NUM_THREADS);
+        executor = new ExecutorUtils<>(NUM_THREADS);
         status = new AtomicInteger[NUM_OF_ENTRIES];
         for (int i = 0; i < status.length; i++) {
             status[i] = new AtomicInteger(0);

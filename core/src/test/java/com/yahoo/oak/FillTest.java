@@ -31,12 +31,12 @@ public class FillTest {
 
     static OakMap<Integer, Integer> oak;
     private  CountDownLatch latch;
-    private  ExecutorUtils executor;
+    private  ExecutorUtils<Void> executor;
 
     @Before
     public void setup() {
         latch = new CountDownLatch(1);
-        executor = new ExecutorUtils(NUM_THREADS);
+        executor = new ExecutorUtils<>(NUM_THREADS);
     }
 
     @After

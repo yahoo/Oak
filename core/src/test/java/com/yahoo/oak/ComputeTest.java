@@ -33,12 +33,12 @@ public class ComputeTest {
 
     private static int numOfEntries;
 
-    ExecutorUtils executor;
+    ExecutorUtils<Void> executor;
     private CountDownLatch latch;
 
     @Before
     public void setup() {
-        executor = new ExecutorUtils(NUM_THREADS);
+        executor = new ExecutorUtils<>(NUM_THREADS);
         latch = new CountDownLatch(1);
     }
 

@@ -23,7 +23,7 @@ public class MultiThreadComputeTest {
     private static final int MAX_ITEMS_PER_CHUNK = 1024;
 
     private OakMap<Integer, Integer> oak;
-    private ExecutorUtils executor;
+    private ExecutorUtils<Void> executor;
 
     private CountDownLatch latch;
     private Consumer<OakScopedWriteBuffer> computer;
@@ -35,7 +35,7 @@ public class MultiThreadComputeTest {
                 .setChunkMaxItems(MAX_ITEMS_PER_CHUNK);
         oak = builder.build();
         latch = new CountDownLatch(1);
-        executor = new ExecutorUtils(NUM_THREADS);
+        executor = new ExecutorUtils<>(NUM_THREADS);
         computer = oakWBuffer -> {
             if (oakWBuffer.getInt(0) == 0) {
                 oakWBuffer.putInt(0, 1);

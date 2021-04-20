@@ -25,7 +25,7 @@ public class MultiThreadRangeTest {
     private static final int MAX_ITEMS_PER_CHUNK = 2048;
 
     private OakMap<Integer, Integer> oak;
-    private ExecutorUtils executor;
+    private ExecutorUtils<Void> executor;
 
     private CountDownLatch latch;
 
@@ -35,7 +35,7 @@ public class MultiThreadRangeTest {
                 .setChunkMaxItems(MAX_ITEMS_PER_CHUNK);
         oak = builder.build();
         latch = new CountDownLatch(1);
-        executor = new ExecutorUtils(NUM_THREADS);
+        executor = new ExecutorUtils<>(NUM_THREADS);
     }
 
     @After

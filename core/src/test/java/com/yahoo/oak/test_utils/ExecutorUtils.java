@@ -22,25 +22,25 @@ import java.util.concurrent.TimeoutException;
 import java.util.function.Function;
 
 
-public class ExecutorUtils {
+public class ExecutorUtils<T> {
 
     public static class ExecutionError extends Exception { }
 
     final ExecutorService executor;
-    final List<Future<?>> tasks = new ArrayList<>();
+    final List<Future<T>> tasks = new ArrayList<>();
 
     public ExecutorUtils(int numThreads) {
         this.executor = Executors.newFixedThreadPool(numThreads);
     }
 
-    public <T> void submitTasks(int numTasks, Function<Integer, Callable<T>> taskGenerator) {
+    public void submitTasks(int numTasks, Function<Integer, Callable<T>> taskGenerator) {
         for (int i = 0; i < numTasks; i++) {
             tasks.add(executor.submit(taskGenerator.apply(i)));
         }
     }
 
-    public void shutdown(long timeLimitInSeconds) throws ExecutionError {
-        shutdownTaskPool(executor, tasks, TimeUnit.MILLISECONDS.convert(timeLimitInSeconds, TimeUnit.SECONDS));
+    public ArrayList<T> shutdown(long timeLimitInSeconds) throws ExecutionError {
+        return shutdownTaskPool(executor, tasks, TimeUnit.MILLISECONDS.convert(timeLimitInSeconds, TimeUnit.SECONDS));
     }
 
     public void shutdownNow() {
@@ -58,16 +58,18 @@ public class ExecutorUtils {
      * @param pendingTasks  list of tasks that need to end before the time limit
      * @param timeLimitInMs the time limit of the tasks to be done in milliseconds
      */
-    public static void shutdownTaskPool(ExecutorService executor, List<Future<?>> pendingTasks, long timeLimitInMs)
-            throws ExecutionError {
+    public static <T> ArrayList<T> shutdownTaskPool(ExecutorService executor, List<Future<T>> pendingTasks,
+                                                    long timeLimitInMs) throws ExecutionError {
         ExecutionError error = null;
+        ArrayList<T> results = new ArrayList<>();
+
         try {
             executor.shutdown();
             Instant startingTime = Instant.now();
 
-            Iterator<Future<?>> it = pendingTasks.iterator();
+            Iterator<Future<T>> it = pendingTasks.iterator();
             while (it.hasNext()) {
-                Future<?> task = it.next();
+                Future<T> task = it.next();
                 long timeToWait = Math.max(1, timeLimitInMs - timeDiffMillis(startingTime));
 
                 // task.get() will throw an error if:
@@ -75,7 +77,8 @@ public class ExecutorUtils {
                 //  * if the thread got interrupted
                 //  * the timeToWait passed
                 try {
-                    task.get(timeToWait, TimeUnit.MILLISECONDS);
+                    T ret = task.get(timeToWait, TimeUnit.MILLISECONDS);
+                    results.add(ret);
                 } catch (InterruptedException | ExecutionException | TimeoutException e) {
                     if (error == null) {
                         error = new ExecutionError();
@@ -93,5 +96,7 @@ public class ExecutorUtils {
         } finally {
             executor.shutdownNow();
         }
+
+        return results;
     }
 }

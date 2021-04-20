@@ -30,11 +30,11 @@ public class NativeMemoryAllocatorTest {
     static final int VALUE_SIZE_AFTER_SERIALIZATION = 4 * 1024 * 1024;
     static final int KEYS_SIZE_AFTER_SERIALIZATION = Integer.BYTES;
 
-    private ExecutorUtils executor;
+    private ExecutorUtils<Slice> executor;
 
     @Before
     public void setup() {
-        executor = new ExecutorUtils(NUM_THREADS);
+        executor = new ExecutorUtils<>(NUM_THREADS);
     }
 
     @After
