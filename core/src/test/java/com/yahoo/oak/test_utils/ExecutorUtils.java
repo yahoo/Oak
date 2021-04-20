@@ -33,7 +33,7 @@ public class ExecutorUtils {
 
     public <T> void submitTasks(int numTasks, Function<Integer, Callable<T>> taskGenerator) {
         for (int i = 0; i < numTasks; i++) {
-            tasks.add(executor.submit(taskGenerator.apply(i))) ;
+            tasks.add(executor.submit(taskGenerator.apply(i)));
         }
     }
 
@@ -45,34 +45,41 @@ public class ExecutorUtils {
         executor.shutdownNow();
     }
 
+    private static long timeDiffMillis(Instant start) {
+        return Duration.between(start, Instant.now()).toMillis();
+    }
+
     /**
-     * this function close the Executor thread pool  also wait for given tasks to complete upto given time limit
-     * @param executor the thread pool to be closed
-     * @param pendingTasks list of tasks that need to end before the time limit
+     * Closes the Executor thread pool and wait for the tasks to complete for a specified time limit
+     *
+     * @param executor      the thread pool to be closed
+     * @param pendingTasks  list of tasks that need to end before the time limit
      * @param timeLimitInMs the time limit of the tasks to be done in milliseconds
      */
-    public static void shutdownTaskPool(ExecutorService executor, List<Future<?>>pendingTasks, long timeLimitInMs)
+    public static void shutdownTaskPool(ExecutorService executor, List<Future<?>> pendingTasks, long timeLimitInMs)
             throws InterruptedException, ExecutionException, TimeoutException {
         try {
             executor.shutdown();
             Instant startingTime = Instant.now();
-            Instant currentTime;
-            do {
+
+            while (!pendingTasks.isEmpty() && timeDiffMillis(startingTime) <= timeLimitInMs) {
                 Iterator<Future<?>> it = pendingTasks.iterator();
                 while (it.hasNext()) {
                     Future<?> task = it.next();
-                    currentTime = Instant.now();
-                    long timeToWait = Math.max(10,
-                            timeLimitInMs - Duration.between(startingTime, currentTime).toMillis());
-                    //task.get will throw error if the task had an exception or if the timelimit passed
-                    // or if the thread got interrupted exception
+                    long timeToWait = Math.max(1, timeLimitInMs - timeDiffMillis(startingTime));
+
+                    // task.get() will throw an error if:
+                    //  * the task had an exception
+                    //  * if the thread got interrupted
+                    //  * the timeToWait passed
                     task.get(timeToWait, TimeUnit.MILLISECONDS);
+
+                    // If no exception was thrown (i.e., the task was successful and finished in time),
+                    // we can remove it from the pendingTasks list.
                     it.remove();
                 }
-                currentTime = Instant.now();
-            } while (!pendingTasks.isEmpty() &&
-                    Duration.between(startingTime, currentTime).toMillis() <= timeLimitInMs);
-        }  finally {
+            }
+        } finally {
             executor.shutdownNow();
         }
     }
