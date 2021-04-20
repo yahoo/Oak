@@ -1,8 +1,13 @@
+/*
+ * Copyright 2020, Verizon Media.
+ * Licensed under the terms of the Apache 2.0 license.
+ * Please see LICENSE file in the project root for terms.
+ */
+
 package com.yahoo.oak.synchrobench.contention.benchmark;
 
-
-import com.yahoo.oak.synchrobench.contention.abstractions.CompositionalOakMap;
 import com.yahoo.oak.synchrobench.MyBuffer;
+import com.yahoo.oak.synchrobench.contention.abstractions.CompositionalOakMap;
 
 import java.lang.reflect.Method;
 import java.util.Random;
@@ -18,7 +23,7 @@ public class ThreadLoopOak implements Runnable {
     /**
      * The instance of the running benchmark
      */
-    public CompositionalOakMap<MyBuffer, MyBuffer> bench;
+    CompositionalOakMap<MyBuffer, MyBuffer> bench;
     /**
      * The stop flag, indicating whether the loop is over
      */
@@ -35,32 +40,32 @@ public class ThreadLoopOak implements Runnable {
     /**
      * The counters of the thread successful operations
      */
-    public long numAdd = 0;
-    public long numRemove = 0;
-    public long numAddAll = 0;
-    public long numRemoveAll = 0;
-    public long numSize = 0;
-    public long numContains = 0;
+    long numAdd = 0;
+    long numRemove = 0;
+    long numAddAll = 0;
+    long numRemoveAll = 0;
+    long numSize = 0;
+    long numContains = 0;
     /**
      * The counter of the false-returning operations
      */
-    public long failures = 0;
+    long failures = 0;
     /**
      * The counter of the thread operations
      */
-    public long total = 0;
+    long total = 0;
     /**
      * The counter of aborts
      */
-    public long aborts = 0;
+    long aborts = 0;
     /**
      * The random number
      */
     Random rand = new Random();
 
-    public long getCount;
-    public long nodesTraversed;
-    public long structMods;
+    long getCount;
+    long nodesTraversed;
+    long structMods;
 
     /**
      * The distribution of methods as an array of percentiles
@@ -77,10 +82,10 @@ public class ThreadLoopOak implements Runnable {
         this.bench = bench;
         this.methods = methods;
         /* initialize the method boundaries */
-        assert (Parameters.numWrites >= Parameters.numWriteAlls);
-        cdf[0] = 10 * Parameters.numWriteAlls;
-        cdf[1] = 10 * Parameters.numWrites;
-        cdf[2] = cdf[1] + 10 * Parameters.numSnapshots;
+        assert (Parameters.confNumWrites >= Parameters.confNumWriteAlls);
+        cdf[0] = 10 * Parameters.confNumWriteAlls;
+        cdf[1] = 10 * Parameters.confNumWrites;
+        cdf[2] = cdf[1] + 10 * Parameters.confNumSnapshots;
     }
 
     public void stopThread() {
@@ -89,20 +94,20 @@ public class ThreadLoopOak implements Runnable {
 
     public void run() {
 
-        boolean change = Parameters.change;
+        boolean change = Parameters.confChange;
         int scanLength = 10000;
 
 
-        MyBuffer key = new MyBuffer(Parameters.keySize);
+        MyBuffer key = new MyBuffer(Parameters.confKeySize);
 
         // for the key distribution INCREASING we want to continue the increasing integers sequence,
         // started in the initial filling of the map
         // for the key distribution RANDOM the below value will be overwritten anyway
-        Integer newInt = Parameters.size;
+        int newInt = Parameters.confSize;
 
         while (!stop) {
-            newInt = (Parameters.keyDistribution == Parameters.KeyDist.RANDOM) ? rand.nextInt(Parameters.range) :
-                    newInt + 1;
+            newInt = (Parameters.confKeyDistribution == Parameters.KeyDist.RANDOM) ?
+                    rand.nextInt(Parameters.confRange) : newInt + 1;
             key.buffer.putInt(0, newInt);
 
             int coin = rand.nextInt(1000);
@@ -118,8 +123,8 @@ public class ThreadLoopOak implements Runnable {
                     }
                 }
             } else if (coin < cdf[1]) { // -u
-                MyBuffer newKey = new MyBuffer(Parameters.keySize);
-                MyBuffer newVal = new MyBuffer(Parameters.valSize);
+                MyBuffer newKey = new MyBuffer(Parameters.confKeySize);
+                MyBuffer newVal = new MyBuffer(Parameters.confValSize);
                 newKey.buffer.putInt(0, newInt);
                 newVal.buffer.putInt(0, newInt);
                 if (!change) {
@@ -137,8 +142,8 @@ public class ThreadLoopOak implements Runnable {
                     bench.computeOak(key);
                     numSize++;
                 } else {
-                    MyBuffer newKey = new MyBuffer(Parameters.keySize);
-                    MyBuffer newVal = new MyBuffer(Parameters.valSize);
+                    MyBuffer newKey = new MyBuffer(Parameters.confKeySize);
+                    MyBuffer newVal = new MyBuffer(Parameters.confValSize);
                     newKey.buffer.putInt(0, newInt);
                     newVal.buffer.putInt(0, newInt);
                     bench.putIfAbsentComputeIfPresentOak(newKey, newVal);

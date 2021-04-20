@@ -6,11 +6,13 @@
 
 package com.yahoo.oak;
 
-// SliceSyncRecycle represents an data about an off-heap cut: a portion of a bigger block,
-// which is part of the underlying (recycling and synchronized) managed off-heap memory.
-// SliceSyncRecycle is allocated only via SyncRecycleMemoryManager, and can be de-allocated later.
-// Any slice can be either empty or associated with an off-heap cut,
-// which is the aforementioned portion of an off-heap memory.
+/**
+ * SliceSyncRecycle represents an data about an off-heap cut: a portion of a bigger block,
+ * which is part of the underlying (recycling and synchronized) managed off-heap memory.
+ * SliceSyncRecycle is allocated only via SyncRecycleMemoryManager, and can be de-allocated later.
+ * Any slice can be either empty or associated with an off-heap cut,
+ * which is the aforementioned portion of an off-heap memory.
+ */
 class SliceSyncRecycle extends Slice {
     static final int UNDEFINED_LENGTH_OR_OFFSET = -1;
 
@@ -152,7 +154,7 @@ class SliceSyncRecycle extends Slice {
      * {@code RETRY} if the header/off-heap-cut was moved, or the version of the off-heap header
      * does not match {@code version}.
      */
-    ValueUtils.ValueResult lockRead(){
+    ValueUtils.ValueResult lockRead() {
         assert version != ReferenceCodecSyncRecycle.INVALID_VERSION;
         return header.lockRead(version, getMetadataAddress());
     }
@@ -164,7 +166,7 @@ class SliceSyncRecycle extends Slice {
      * {@code FALSE} if the value is marked as deleted
      * {@code RETRY} if the value was moved, or the version of the off-heap value does not match {@code version}.
      */
-    ValueUtils.ValueResult unlockRead(){
+    ValueUtils.ValueResult unlockRead() {
         assert version != ReferenceCodecSyncRecycle.INVALID_VERSION;
         return header.unlockRead(version, getMetadataAddress());
     }
@@ -176,7 +178,7 @@ class SliceSyncRecycle extends Slice {
      * {@code FALSE} if the value is marked as deleted
      * {@code RETRY} if the value was moved, or the version of the off-heap value does not match {@code version}.
      */
-    ValueUtils.ValueResult lockWrite(){
+    ValueUtils.ValueResult lockWrite() {
         assert version != ReferenceCodecSyncRecycle.INVALID_VERSION;
         return header.lockWrite(version, getMetadataAddress());
     }
@@ -188,7 +190,7 @@ class SliceSyncRecycle extends Slice {
      * {@code FALSE} if the value is marked as deleted
      * {@code RETRY} if the value was moved, or the version of the off-heap value does not match {@code version}.
      */
-    ValueUtils.ValueResult unlockWrite(){
+    ValueUtils.ValueResult unlockWrite() {
         assert version != ReferenceCodecSyncRecycle.INVALID_VERSION;
         return header.unlockWrite(version, getMetadataAddress());
     }
@@ -200,7 +202,7 @@ class SliceSyncRecycle extends Slice {
      * {@code FALSE} if the value is already marked as deleted
      * {@code RETRY} if the value was moved, or the version of the off-heap value does not match {@code version}.
      */
-    ValueUtils.ValueResult logicalDelete(){
+    ValueUtils.ValueResult logicalDelete() {
         assert version != ReferenceCodecSyncRecycle.INVALID_VERSION;
         return header.logicalDelete(version, getMetadataAddress());
     }
@@ -212,7 +214,7 @@ class SliceSyncRecycle extends Slice {
      * {@code FALSE} if the value is not marked
      * {@code RETRY} if the value was moved, or the version of the off-heap value does not match {@code version}.
      */
-    ValueUtils.ValueResult isDeleted(){
+    ValueUtils.ValueResult isDeleted() {
         assert version != ReferenceCodecSyncRecycle.INVALID_VERSION;
         return header.isLogicallyDeleted(version, getMetadataAddress());
     }

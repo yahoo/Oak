@@ -77,7 +77,7 @@ public class MultiThreadRangeTest {
     @Test
     public void testRange() throws InterruptedException, TimeoutException, ExecutionException {
 
-        List<Future<?>> tasks=new ArrayList<>();
+        List<Future<?>> tasks = new ArrayList<>();
         for (int i = 0; i < NUM_THREADS; i++) {
             tasks.add(executor.submit(new MultiThreadRangeTest.RunThreads(latch))) ;
         }

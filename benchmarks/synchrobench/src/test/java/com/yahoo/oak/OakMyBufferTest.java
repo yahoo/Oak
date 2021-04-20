@@ -8,21 +8,20 @@ package com.yahoo.oak;
 
 import com.yahoo.oak.synchrobench.MyBuffer;
 import com.yahoo.oak.synchrobench.contention.benchmark.Parameters;
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
 import java.util.Random;
 
-import static org.junit.Assert.assertTrue;
-
 public class OakMyBufferTest {
 
     OakMyBufferMap<MyBuffer, MyBuffer> oakBench;
 
-    static final int size = 1000;
-    static final int range = 2048;
+    static final int SIZE = 1000;
+    static final int RANGE = 2048;
 
-    final private static ThreadLocal<Random> s_random = new ThreadLocal<Random>() {
+    private static final ThreadLocal<Random> S_RANDOM = new ThreadLocal<Random>() {
         @Override
         protected synchronized Random initialValue() {
             return new Random();
@@ -36,11 +35,11 @@ public class OakMyBufferTest {
 
     @Test
     public void testPut() {
-        for (long i = size; i > 0; ) {
-            Integer v = s_random.get().nextInt(range);
-            MyBuffer key = new MyBuffer(Parameters.keySize);
+        for (long i = SIZE; i > 0; ) {
+            int v = S_RANDOM.get().nextInt(RANGE);
+            MyBuffer key = new MyBuffer(Parameters.confKeySize);
             key.buffer.putInt(0, v);
-            MyBuffer val = new MyBuffer(Parameters.valSize);
+            MyBuffer val = new MyBuffer(Parameters.confValSize);
             val.buffer.putInt(0, v);
             if (oakBench.putIfAbsentOak(key, val)) {
                 i--;
@@ -51,11 +50,10 @@ public class OakMyBufferTest {
 
     @Test
     public void testIncreasePut() {
-        Integer v =  0;
-        for (v = 1; v < 100000; v++) {
-            MyBuffer key = new MyBuffer(Parameters.keySize);
+        for (int v = 1; v < 100000; v++) {
+            MyBuffer key = new MyBuffer(Parameters.confKeySize);
             key.buffer.putInt(0, v);
-            MyBuffer val = new MyBuffer(Parameters.valSize);
+            MyBuffer val = new MyBuffer(Parameters.confValSize);
             val.buffer.putInt(0, v);
             oakBench.putOak(key, val);
         }
@@ -63,11 +61,11 @@ public class OakMyBufferTest {
 
     @Test
     public void testPutMinimal() {
-        MyBuffer key = new MyBuffer(Parameters.keySize);
+        MyBuffer key = new MyBuffer(Parameters.confKeySize);
         key.buffer.putInt(0, Integer.MIN_VALUE);
-        MyBuffer val = new MyBuffer(Parameters.valSize);
+        MyBuffer val = new MyBuffer(Parameters.confValSize);
         val.buffer.putInt(0, Integer.MIN_VALUE);
         boolean success = oakBench.putIfAbsentOak(key, val);
-        assertTrue(success);
+        Assert.assertTrue(success);
     }
 }

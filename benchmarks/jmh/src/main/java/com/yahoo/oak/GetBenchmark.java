@@ -31,8 +31,8 @@ import java.util.concurrent.TimeUnit;
 
 public class GetBenchmark {
 
-    static public final int KEY_SIZE_BYTES = 64;
-    static public final int VALUE_SIZE_BYTES = 64;
+    public static final int KEY_SIZE_BYTES = 64;
+    public static final int VALUE_SIZE_BYTES = 64;
 
     @State(Scope.Benchmark)
     public static class BenchmarkState {
@@ -49,14 +49,14 @@ public class GetBenchmark {
             oakMap = builder.build();
 
             keys = new ArrayList<>(numRows);
-            for(int i = 0; i< numRows; ++i) {
-                String key = String.format("%0$" + KEY_SIZE_BYTES/Character.BYTES +"s",
+            for (int i = 0; i < numRows; ++i) {
+                String key = String.format("%0$" + KEY_SIZE_BYTES / Character.BYTES + "s",
                         String.valueOf(i));
 
-                String val = String.format("%0$-" + VALUE_SIZE_BYTES/Character.BYTES +"s",
+                String val = String.format("%0$-" + VALUE_SIZE_BYTES / Character.BYTES + "s",
                         String.valueOf(i));
 
-                oakMap.zc().put(key,val);
+                oakMap.zc().put(key, val);
                 keys.add(key);
             }
         }
@@ -75,7 +75,7 @@ public class GetBenchmark {
     @Fork(value = 1)
     @Threads(8)
     @Benchmark
-    public void get(Blackhole blackhole,BenchmarkState state,ThreadState threadState) {
+    public void get(Blackhole blackhole, BenchmarkState state, ThreadState threadState) {
         String key = state.keys.get(threadState.i++ % state.numRows);
         String val = state.oakMap.get(key);
         blackhole.consume(val);

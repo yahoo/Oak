@@ -60,6 +60,9 @@
             <property name="protectedAllowed" value="true"/>
             <!-- Allow final fields to be declared as public. -->
             <property name="allowPublicFinalFields" value="true"/>
+
+            <!-- Specify pattern for public members that should be ignored. -->
+            <property name="publicMemberPattern" value="^conf.*$"/>
         </module>
 
         <!-- ################################################################################
@@ -160,6 +163,10 @@
         <!-- Checks that a token is followed by whitespace, with the exception that it does not check for whitespace
              after the semicolon of an empty for iterator. -->
         <module name="WhitespaceAfter"/>
+
+        <!-- Checks that a token is surrounded by whitespace. Empty constructor, method, class, enum, interface, loop
+             bodies (blocks), lambdas of the form. -->
+        <module name="WhitespaceAround"/>
 
         <!-- ################################################################################
              Coding: https://checkstyle.sourceforge.io/config_coding.html

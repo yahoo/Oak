@@ -1,10 +1,16 @@
+/*
+ * Copyright 2020, Verizon Media.
+ * Licensed under the terms of the Apache 2.0 license.
+ * Please see LICENSE file in the project root for terms.
+ */
+
 package com.yahoo.oak.synchrobench.contention.benchmark;
 
 import com.yahoo.oak.OakMyBufferMap;
+import com.yahoo.oak.synchrobench.MyBuffer;
 import com.yahoo.oak.synchrobench.contention.abstractions.CompositionalMap;
 import com.yahoo.oak.synchrobench.contention.abstractions.CompositionalOakMap;
 import com.yahoo.oak.synchrobench.contention.abstractions.MaintenanceAlg;
-import com.yahoo.oak.synchrobench.MyBuffer;
 
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Method;
@@ -81,13 +87,13 @@ public class Test {
     private Method[] methods;
 
     private long nodesTraversed;
-    public long structMods;
+    private long structMods;
     private long getCount;
 
     /**
      * The thread-private PRNG
      */
-    final private static ThreadLocal<Random> s_random = new ThreadLocal<Random>() {
+    private static final ThreadLocal<Random> S_RANDOM = new ThreadLocal<Random>() {
         @Override
         protected synchronized Random initialValue() {
             return new Random();
@@ -101,16 +107,16 @@ public class Test {
         }
 
         long operations = 0;
-        final Random localRand = s_random.get();
+        final Random localRand = S_RANDOM.get();
         int v = 0;
 
         for (long i = size; i > 0; ) {
-            v = (Parameters.keyDistribution == Parameters.KeyDist.INCREASING)
-                ? v+1 : localRand.nextInt(range);
+            v = (Parameters.confKeyDistribution == Parameters.KeyDist.INCREASING)
+                    ? v + 1 : localRand.nextInt(range);
 
-            MyBuffer key = new MyBuffer(Parameters.keySize);
+            MyBuffer key = new MyBuffer(Parameters.confKeySize);
             key.buffer.putInt(0, v);
-            MyBuffer val = new MyBuffer(Parameters.valSize);
+            MyBuffer val = new MyBuffer(Parameters.confValSize);
             val.buffer.putInt(0, v);
             if (oakBench.putIfAbsentOak(key, val)) {
                 i--;
@@ -126,8 +132,7 @@ public class Test {
      * Instantiate abstraction
      */
     @SuppressWarnings("unchecked")
-    public void instanciateAbstraction(
-            String benchName) {
+    public void instanciateAbstraction(String benchName) {
         try {
             Class<CompositionalMap<Integer, Integer>> benchClass = (Class<CompositionalMap<Integer, Integer>>) Class
                     .forName(benchName);
@@ -155,9 +160,9 @@ public class Test {
     private void initThreads() throws InterruptedException {
         switch (benchType) {
             case OAKMAP:
-                threadLoopsOak = new ThreadLoopOak[Parameters.numThreads];
-                threads = new Thread[Parameters.numThreads];
-                for (short threadNum = 0; threadNum < Parameters.numThreads; threadNum++) {
+                threadLoopsOak = new ThreadLoopOak[Parameters.confNumThreads];
+                threads = new Thread[Parameters.confNumThreads];
+                for (short threadNum = 0; threadNum < Parameters.confNumThreads; threadNum++) {
                     threadLoopsOak[threadNum] = new ThreadLoopOak(threadNum, oakBench, methods);
                     threads[threadNum] = new Thread(threadLoopsOak[threadNum]);
                 }
@@ -179,9 +184,9 @@ public class Test {
             System.err.println("Cannot parse parameters.");
             e.printStackTrace();
         }
-        instanciateAbstraction(Parameters.benchClassName);
-        this.throughput = new double[Parameters.iterations];
-        this.totalSize = new int[Parameters.iterations];
+        instanciateAbstraction(Parameters.confBenchClassName);
+        this.throughput = new double[Parameters.confIterations];
+        this.totalSize = new int[Parameters.confIterations];
     }
 
     private void printHeapStats(String message) {
@@ -213,27 +218,32 @@ public class Test {
             throws InterruptedException {
         printHeapStats("Before initial fill");
         long startTime = System.currentTimeMillis();
-        long count = fill(Parameters.range, Parameters.size);
+        long count = fill(Parameters.confRange, Parameters.confSize);
         double initTime = ((double) (System.currentTimeMillis() - startTime)) / 1000.0;
         System.out.println("Initialization complete in (s) " + initTime + " operations " + count);
         printHeapStats("After initial fill, before benchmark");
 
 //        Thread.sleep(5000);
         startTime = System.currentTimeMillis();
-        for (Thread thread : threads)
+        for (Thread thread : threads) {
             thread.start();
+        }
+
         try {
             Thread.sleep(milliseconds);
         } finally {
             switch (benchType) {
                 case OAKMAP:
-                    for (ThreadLoopOak threadLoop : threadLoopsOak)
+                    for (ThreadLoopOak threadLoop : threadLoopsOak) {
                         threadLoop.stopThread();
+                    }
                     break;
             }
         }
-        for (Thread thread : threads)
+
+        for (Thread thread : threads) {
             thread.join();
+        }
 
         long endTime = System.currentTimeMillis();
         elapsedTime = ((double) (endTime - startTime)) / 1000.0;
@@ -254,17 +264,17 @@ public class Test {
         test.printParams();
 
         // warming up the JVM
-        if (Parameters.warmUp != 0) {
+        if (Parameters.confWarmUp != 0) {
             try {
                 test.initThreads();
             } catch (Exception e) {
                 System.err.println("Cannot launch operations.");
                 e.printStackTrace();
             }
-            test.execute(Parameters.warmUp * 1000, true);
+            test.execute(Parameters.confWarmUp * 1000, true);
             // give time to the JIT
             Thread.sleep(1000);
-            if (Parameters.detailedStats) {
+            if (Parameters.confDetailedStats) {
                 test.recordPreliminaryStats();
             }
             test.clear();
@@ -273,7 +283,7 @@ public class Test {
         }
 
         // running the bench
-        for (int i = 0; i < Parameters.iterations; i++) {
+        for (int i = 0; i < Parameters.confIterations; i++) {
             if (!firstIteration) {
                 // give time to the JIT
                 Thread.sleep(1000);
@@ -286,7 +296,7 @@ public class Test {
                 System.err.println("Cannot launch operations.");
                 e.printStackTrace();
             }
-            test.execute(Parameters.numMilliseconds, false);
+            test.execute(Parameters.confNumMilliseconds, false);
 
             if (test.oakBench instanceof MaintenanceAlg) {
                 ((MaintenanceAlg) test.oakBench).stopMaintenance();
@@ -295,7 +305,7 @@ public class Test {
             }
 
             test.printBasicStats();
-            if (Parameters.detailedStats) {
+            if (Parameters.confDetailedStats) {
                 test.printDetailedStats();
                 ((OakMyBufferMap) test.oakBench).printMemStats();
             }
@@ -304,7 +314,7 @@ public class Test {
             test.currentIteration++;
         }
 
-        if (Parameters.iterations > 1) {
+        if (Parameters.confIterations > 1) {
             test.printIterationStats();
         }
     }
@@ -328,69 +338,69 @@ public class Test {
                         System.exit(0);
                     case "--verbose":
                     case "-e":
-                        Parameters.detailedStats = true;
+                        Parameters.confDetailedStats = true;
                         break;
                     case "--change":
                     case "-c":
-                        Parameters.change = true;
+                        Parameters.confChange = true;
                         break;
                     case "--stream-iteration":
                     case "-si":
-                        Parameters.streamIteration = true;
+                        Parameters.confStreamIteration = true;
                         break;
                     case "--buffer":
-                        Parameters.zeroCopy = true;
+                        Parameters.confZeroCopy = true;
                         break;
                     case "--inc":
-                        Parameters.keyDistribution = Parameters.KeyDist.INCREASING;
+                        Parameters.confKeyDistribution = Parameters.KeyDist.INCREASING;
                         break;
                     case "--thread-nums":
                     case "-t":
-                        Parameters.numThreads = Integer.parseInt(args[argNumber++]);
+                        Parameters.confNumThreads = Integer.parseInt(args[argNumber++]);
                         break;
                     case "--duration":
                     case "-d":
-                        Parameters.numMilliseconds = Integer.parseInt(args[argNumber++]);
+                        Parameters.confNumMilliseconds = Integer.parseInt(args[argNumber++]);
                         break;
                     case "--updates":
                     case "-u":
-                        Parameters.numWrites = Integer.parseInt(args[argNumber++]);
+                        Parameters.confNumWrites = Integer.parseInt(args[argNumber++]);
                         break;
                     case "--writeAll":
                     case "-a":
-                        Parameters.numWriteAlls = Integer.parseInt(args[argNumber++]);
+                        Parameters.confNumWriteAlls = Integer.parseInt(args[argNumber++]);
                         break;
                     case "--snapshots":
                     case "-s":
-                        Parameters.numSnapshots = Integer.parseInt(args[argNumber++]);
+                        Parameters.confNumSnapshots = Integer.parseInt(args[argNumber++]);
                         break;
                     case "--size":
                     case "-i":
-                        Parameters.size = Integer.parseInt(args[argNumber++]);
+                        Parameters.confSize = Integer.parseInt(args[argNumber++]);
                         break;
                     case "--range":
                     case "-r":
-                        Parameters.range = Integer.parseInt(args[argNumber++]);
+                        Parameters.confRange = Integer.parseInt(args[argNumber++]);
                         break;
                     case "--Warmup":
                     case "-W":
-                        Parameters.warmUp = Integer.parseInt(args[argNumber++]);
+                        Parameters.confWarmUp = Integer.parseInt(args[argNumber++]);
                         break;
                     case "--benchmark":
                     case "-b":
-                        Parameters.benchClassName = args[argNumber++];
+                        Parameters.confBenchClassName = args[argNumber++];
                         break;
                     case "--iterations":
                     case "-n":
-                        Parameters.iterations = Integer.parseInt(args[argNumber++]);
+                        Parameters.confIterations = Integer.parseInt(args[argNumber++]);
                         break;
                     case "--keySize":
                     case "-k":
-                        Parameters.keySize = Integer.parseInt(args[argNumber++]);
+                        Parameters.confKeySize = Integer.parseInt(args[argNumber++]);
                         break;
                     case "--valSize":
                     case "-v":
-                        Parameters.valSize = Integer.parseInt(args[argNumber++]);
+                        Parameters.confValSize = Integer.parseInt(args[argNumber++]);
                         break;
                 }
             } catch (IndexOutOfBoundsException e) {
@@ -399,8 +409,8 @@ public class Test {
                 System.err.println("Number expected after option: " + currentArg + ". Ignoring...");
             }
         }
-        assert (Parameters.range >= Parameters.size);
-        if (Parameters.range != 2 * Parameters.size) {
+        assert (Parameters.confRange >= Parameters.confSize);
+        if (Parameters.confRange != 2 * Parameters.confSize) {
             System.err.println("Note that the value range is not twice the initial size, thus the size " +
                     "expectation varies at runtime.");
         }
@@ -414,8 +424,9 @@ public class Test {
      */
     private void printLine(char ch) {
         StringBuffer line = new StringBuffer(79);
-        for (int i = 0; i < 79; i++)
+        for (int i = 0; i < 79; i++) {
             line.append(ch);
+        }
         System.out.println(line);
     }
 
@@ -437,48 +448,7 @@ public class Test {
     private void printUsage() {
         String syntax = "Usage:\n"
                 + "java synchrobench.benchmark.Test [options] [-- stm-specific options]\n\n"
-                + "Options:\n"
-                + "\t-e            -- print detailed statistics (default: "
-                + Parameters.detailedStats
-                + ")\n"
-                + "\t-t thread-num -- set the number of threads (default: "
-                + Parameters.numThreads
-                + ")\n"
-                + "\t-d duration   -- set the length of the benchmark, in milliseconds (default: "
-                + Parameters.numMilliseconds
-                + ")\n"
-                + "\t-u updates    -- set the number of threads (default: "
-                + Parameters.numWrites
-                + ")\n"
-                + "\t-a writeAll   -- set the percentage of composite updates (default: "
-                + Parameters.numWriteAlls
-                + ")\n"
-                + "\t-s snapshot   -- set the percentage of composite read-only operations (default: "
-                + Parameters.numSnapshots
-                + ")\n"
-                + "\t-r range      -- set the element range (default: "
-                + Parameters.range
-                + ")\n"
-                + "\t-b benchmark  -- set the benchmark (default: "
-                + Parameters.benchClassName
-                + ")\n"
-                + "\t-i size       -- set the datastructure initial size (default: "
-                + Parameters.size
-                + ")\n"
-                + "\t-n iterations -- set the bench iterations in the same JVM (default: "
-                + Parameters.iterations
-                + ")\n"
-                + "\t-k keySize    -- set the size of the keys, in Bytes (default: "
-                + Parameters.keySize
-                + ")\n"
-                + "\t-v valSize    -- set the size of the values, in Bytes (default: "
-                + Parameters.valSize
-                + ")\n"
-                + "\t-c changeOp   -- change the operation (default: "
-                + Parameters.change
-                + ")\n"
-                + "\t-W warmup     -- set the JVM warmup length, in seconds (default: "
-                + Parameters.warmUp + ").";
+                + Parameters.asString();
         System.err.println(syntax);
     }
 
@@ -488,49 +458,49 @@ public class Test {
     private void printParams() {
         String params = "Benchmark parameters" + "\n" + "--------------------"
                 + "\n" + "  Detailed stats:          \t"
-                + (Parameters.detailedStats ? "enabled" : "disabled")
+                + (Parameters.confDetailedStats ? "enabled" : "disabled")
                 + "\n"
                 + "  Number of threads:       \t"
-                + Parameters.numThreads
+                + Parameters.confNumThreads
                 + "\n"
                 + "  Length:                  \t"
-                + Parameters.numMilliseconds
+                + Parameters.confNumMilliseconds
                 + " ms\n"
                 + "  Write ratio:             \t"
-                + Parameters.numWrites
+                + Parameters.confNumWrites
                 + " %\n"
                 + "  WriteAll ratio:          \t"
-                + Parameters.numWriteAlls
+                + Parameters.confNumWriteAlls
                 + " %\n"
                 + "  Snapshot ratio:          \t"
-                + Parameters.numSnapshots
+                + Parameters.confNumSnapshots
                 + " %\n"
                 + "  Size:                    \t"
-                + Parameters.size
+                + Parameters.confSize
                 + " elts\n"
                 + "  Range:                   \t"
-                + Parameters.range
+                + Parameters.confRange
                 + " elts\n"
                 + "  WarmUp:                  \t"
-                + Parameters.warmUp
+                + Parameters.confWarmUp
                 + " s\n"
                 + "  Iterations:              \t"
-                + Parameters.iterations
+                + Parameters.confIterations
                 + "\n"
                 + "  Key size:              \t"
-                + Parameters.keySize
+                + Parameters.confKeySize
                 + " Bytes\n"
                 + "  Val size:              \t"
-                + Parameters.valSize
+                + Parameters.confValSize
                 + " Bytes\n"
                 + "  Change:                \t"
-                + Parameters.change
+                + Parameters.confChange
                 + "\n"
                 + "  Buffer view:            \t"
-                + Parameters.zeroCopy
+                + Parameters.confZeroCopy
                 + "\n"
                 + "  Benchmark:               \t"
-                + Parameters.benchClassName;
+                + Parameters.confBenchClassName;
         System.out.println(params);
     }
 
@@ -538,7 +508,7 @@ public class Test {
      * Print the statistics on the standard output
      */
     private void printBasicStats() {
-        for (short threadNum = 0; threadNum < Parameters.numThreads; threadNum++) {
+        for (short threadNum = 0; threadNum < Parameters.confNumThreads; threadNum++) {
             switch (benchType) {
                 case OAKMAP:
                     numAdd += threadLoopsOak[threadNum].numAdd;
@@ -601,8 +571,8 @@ public class Test {
         switch (benchType) {
             case OAKMAP:
                 System.out.println("  Final size:              \t" + totalSize[currentIteration]);
-                if (Parameters.numWriteAlls == 0) {
-                    System.out.println("  Expected size:           \t" + (Parameters.size + numAdd - numRemove));
+                if (Parameters.confNumWriteAlls == 0) {
+                    System.out.println("  Expected size:           \t" + (Parameters.confSize + numAdd - numRemove));
                 }
                 break;
         }
@@ -653,7 +623,7 @@ public class Test {
      */
     public void resetStats() {
 
-        for (short threadNum = 0; threadNum < Parameters.numThreads; threadNum++) {
+        for (short threadNum = 0; threadNum < Parameters.confNumThreads; threadNum++) {
             switch (benchType) {
                 case OAKMAP:
                     threadLoopsOak[threadNum].numAdd = 0;
@@ -734,7 +704,6 @@ public class Test {
         numAbortsInvalidSnapshot = Statistics.getNumAbortsInvalidSnapshot();
         readSetSizeSum = Statistics.getSumReadSetSize();
         writeSetSizeSum = Statistics.getSumWriteSetSize();
-        ;
         statSize = Statistics.getStatSize();
         txDurationSum = Statistics.getSumCommitingTxTime();
         elasticReads = Statistics.getTotalElasticReads();
@@ -899,7 +868,7 @@ public class Test {
         System.out.println("Iteration statistics");
         printLine('-');
 
-        int n = Parameters.iterations;
+        int n = Parameters.confIterations;
         System.out.println("  Iterations:                 \t" + n);
         double sum = 0;
         int sizeSum = 0;

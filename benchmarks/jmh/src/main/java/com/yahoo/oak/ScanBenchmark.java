@@ -38,11 +38,10 @@ import java.util.concurrent.TimeUnit;
 @Fork(value = 1)
 @Threads(8)
 @State(Scope.Benchmark)
-public class ScanBenchmark
-{
+public class ScanBenchmark {
 
-    static public final int KEY_SIZE_BYTES = 4;
-    static public final int VALUE_SIZE_BYTES = 4;
+    public static final int KEY_SIZE_BYTES = 4;
+    public static final int VALUE_SIZE_BYTES = 4;
 
     private OakMap<String, String> oakMap;
 
@@ -54,11 +53,11 @@ public class ScanBenchmark
         OakMapBuilder<String, String> builder = OakCommonBuildersFactory.getDefaultStringBuilder();
         oakMap = builder.build();
 
-        for(int i = 0; i< numRows; ++i) {
-            String key = String.format("%0$" + KEY_SIZE_BYTES/Character.BYTES +"s",
+        for (int i = 0; i < numRows; ++i) {
+            String key = String.format("%0$" + KEY_SIZE_BYTES / Character.BYTES + "s",
                     String.valueOf(i) + Thread.currentThread().getId());
 
-            String val = String.format("%0$-" + VALUE_SIZE_BYTES/Character.BYTES +"s",
+            String val = String.format("%0$-" + VALUE_SIZE_BYTES / Character.BYTES + "s",
                     String.valueOf(i) + Thread.currentThread().getId());
 
             oakMap.zc().put(key, val);
@@ -83,7 +82,7 @@ public class ScanBenchmark
 
     @Benchmark
     public void bufferViewScan(Blackhole blackhole) {
-       Iterator<OakUnscopedBuffer> iterator = oakMap.zc().keySet().iterator();
+        Iterator<OakUnscopedBuffer> iterator = oakMap.zc().keySet().iterator();
         while (iterator.hasNext()) {
             OakUnscopedBuffer val = iterator.next();
             blackhole.consume(val);

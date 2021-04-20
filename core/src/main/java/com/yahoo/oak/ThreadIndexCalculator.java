@@ -51,7 +51,7 @@ final class ThreadIndexCalculator {
             }
         }
         int i = threadIdx * -1;
-        while (!UnsafeUtils.unsafe.compareAndSwapLong(indices,
+        while (!UnsafeUtils.UNSAFE.compareAndSwapLong(indices,
                 Unsafe.ARRAY_LONG_BASE_OFFSET + i * Unsafe.ARRAY_LONG_INDEX_SCALE, INVALID_THREAD_ID, tid)) {
             //TODO get out of loop sometime
             i = (i + 1) % MAX_THREADS;

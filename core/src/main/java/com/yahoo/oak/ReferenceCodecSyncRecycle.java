@@ -17,7 +17,7 @@ package com.yahoo.oak;
  * All these parameters may be squashed together into one long for easy representation.
  * Using different number of bits for each parameter may incur different limitations on their sizes.
  */
-class ReferenceCodecSyncRecycle extends ReferenceCodec{
+class ReferenceCodecSyncRecycle extends ReferenceCodec {
 
     static final int    INVALID_VERSION = 0;
     static final long INVALID_REFERENCE = 0;
@@ -26,10 +26,10 @@ class ReferenceCodecSyncRecycle extends ReferenceCodec{
     // 4TB = 2^42 bytes
     // blockIDBitSize + offsetBitSize = BITS_FOR_MAXIMUM_RAM
     // The number of bits required to represent such memory:
-    private static final int    BITS_FOR_MAXIMUM_RAM = 42;
-    private static final long   VERSION_DELETE_BIT_MASK = (1 << (Long.SIZE - BITS_FOR_MAXIMUM_RAM -1));
-    private static final long   REFERENCE_DELETE_BIT_MASK
-        = (INVALID_REFERENCE | (VERSION_DELETE_BIT_MASK << BITS_FOR_MAXIMUM_RAM));
+    private static final int BITS_FOR_MAXIMUM_RAM = 42;
+    private static final long VERSION_DELETE_BIT_MASK = (1 << (Long.SIZE - BITS_FOR_MAXIMUM_RAM - 1));
+    private static final long REFERENCE_DELETE_BIT_MASK
+            = (INVALID_REFERENCE | (VERSION_DELETE_BIT_MASK << BITS_FOR_MAXIMUM_RAM));
 
     // number of allowed bits for version (-1 for delete bit) set to one
     static final int LAST_VALID_VERSION = (int) mask(Long.SIZE - BITS_FOR_MAXIMUM_RAM - 1);
@@ -103,7 +103,7 @@ class ReferenceCodecSyncRecycle extends ReferenceCodec{
             return true;
         }
         int v = getThird(reference);
-        return (v!=INVALID_VERSION);
+        return (v != INVALID_VERSION);
     }
 
     @Override

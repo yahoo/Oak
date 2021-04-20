@@ -37,7 +37,7 @@ public class ComputeTest {
     private static final int KEY_SIZE = 10;
     private static final int VAL_SIZE = Math.round(5 * K);
     private static int numOfEntries;
-    private final long timeLimitInMs=TimeUnit.MILLISECONDS.convert(60, TimeUnit.SECONDS);
+    private final long timeLimitInMs = TimeUnit.MILLISECONDS.convert(60, TimeUnit.SECONDS);
     ExecutorService executor;
     private CountDownLatch latch;
 
@@ -113,7 +113,6 @@ public class ComputeTest {
                         .setChunkMaxItems(2048);
 
         oak = builder.build();
-
 
         numOfEntries = 100;
 

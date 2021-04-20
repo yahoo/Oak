@@ -93,7 +93,6 @@ class EntrySet<K, V> {
 
     private static final int FIELDS = 3;  // # of primitive fields in each item of entries array
 
-    private static final Unsafe UNSAFE = UnsafeUtils.unsafe;
     final MemoryManager valuesMemoryManager;
     final MemoryManager keysMemoryManager;
     private final long[] entries;    // array is initialized to 0 - this is important!
@@ -220,7 +219,7 @@ class EntrySet<K, V> {
      */
     private boolean casEntriesArrayLong(int longStartFieldIdx, OFFSET offset, long expectedLongValue,
                                         long newLongValue) {
-        return UNSAFE.compareAndSwapLong(entries,
+        return UnsafeUtils.UNSAFE.compareAndSwapLong(entries,
                 Unsafe.ARRAY_LONG_BASE_OFFSET + (longStartFieldIdx + offset.value) * Unsafe.ARRAY_LONG_INDEX_SCALE,
                 expectedLongValue, newLongValue);
     }
@@ -452,7 +451,7 @@ class EntrySet<K, V> {
         keysMemoryManager.allocate(dst.getSlice(), keySize, false);
 
         // We duplicate the buffer without instantiating a write buffer because the user is not involved.
-        UnsafeUtils.unsafe.copyMemory(src.getAddress(), dst.getAddress(), keySize);
+        UnsafeUtils.UNSAFE.copyMemory(src.getAddress(), dst.getAddress(), keySize);
     }
 
     /**
