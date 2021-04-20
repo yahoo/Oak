@@ -10,6 +10,17 @@
     <artifactId>oak</artifactId>
     <packaging>jar</packaging>
 
+    <properties>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <java.version>1.8</java.version>
+        <jacoco.it.execution.data.file>${project.build.directory}/coverage-reports/jacoco-it.exec</jacoco.it.execution.data.file>
+        <jacoco.ut.execution.data.file>${project.build.directory}/coverage-reports/jacoco-ut.exec</jacoco.ut.execution.data.file>
+        <jacoco.version>0.8.5</jacoco.version>
+        <skip.integration.tests>true</skip.integration.tests>
+        <skip.unit.tests>false</skip.unit.tests>
+    </properties>
+
+
     <build>
         <plugins>
             <plugin>
@@ -31,16 +42,27 @@
             <plugin>
                 <groupId>org.jacoco</groupId>
                 <artifactId>jacoco-maven-plugin</artifactId>
-                <version>0.8.5</version>
+                <version>${jacoco.version}</version>
                 <executions>
                     <execution>
-                        <id>prepare-agent</id>
-                        <phase>generate-resources</phase>
+                        <id>pre-unit-test</id>
                         <goals>
                             <goal>prepare-agent</goal>
                         </goals>
                         <configuration>
-                            <propertyName>jacocoArgLine</propertyName>
+                            <destFile>${jacoco.ut.execution.data.file}</destFile>
+                            <propertyName>surefireArgLine</propertyName>
+                        </configuration>
+                    </execution>
+                    <execution>
+                        <id>post-unit-test</id>
+                        <phase>test</phase>
+                        <goals>
+                            <goal>report</goal>
+                        </goals>
+                        <configuration>
+                            <dataFile>${jacoco.ut.execution.data.file}</dataFile>
+                            <outputDirectory>${project.reporting.outputDirectory}/jacoco-ut</outputDirectory>
                         </configuration>
                     </execution>
                 </executions>
@@ -52,7 +74,7 @@
                 <version>2.22.2</version>
                 <configuration>
                     <argLine>
-                        @{jacocoArgLine}
+                        @{surefireArgLine}
                         -XX:MaxDirectMemorySize=4g
                     </argLine>
                 </configuration>
