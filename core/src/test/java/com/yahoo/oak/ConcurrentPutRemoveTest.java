@@ -18,8 +18,6 @@ import java.util.Random;
 import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CyclicBarrier;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -87,7 +85,7 @@ public class ConcurrentPutRemoveTest {
 
     @Ignore
     @Test
-    public void testMain() throws InterruptedException, TimeoutException, ExecutionException, BrokenBarrierException {
+    public void testMain() throws InterruptedException, ExecutorUtils.ExecutionError, BrokenBarrierException {
         executor.submitTasks(NUM_THREADS, i -> new RunThread());
         Random r = new Random();
         for (int i = 0; i < (int) Math.round(NUM_OF_ENTRIES * 0.5); ) {

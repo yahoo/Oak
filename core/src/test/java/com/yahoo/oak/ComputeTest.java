@@ -17,8 +17,6 @@ import java.nio.ByteBuffer;
 import java.util.Random;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.TimeoutException;
 import java.util.function.Consumer;
 
 
@@ -100,7 +98,7 @@ public class ComputeTest {
     }
 
     @Test
-    public void testMain() throws InterruptedException, TimeoutException, ExecutionException {
+    public void testMain() throws ExecutorUtils.ExecutionError {
         ByteBuffer minKey = ByteBuffer.allocate(KEY_SIZE * Integer.BYTES);
         minKey.position(0);
         for (int i = 0; i < KEY_SIZE; i++) {

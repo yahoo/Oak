@@ -15,8 +15,6 @@ import org.junit.Test;
 
 import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.TimeoutException;
 import java.util.function.Consumer;
 
 public class MultiThreadComputeTest {
@@ -135,7 +133,7 @@ public class MultiThreadComputeTest {
     }
 
     @Test
-    public void testThreadsCompute() throws InterruptedException, TimeoutException, ExecutionException {
+    public void testThreadsCompute() throws ExecutorUtils.ExecutionError {
         executor.submitTasks(NUM_THREADS, i -> new MultiThreadComputeTest.RunThreads(latch));
         latch.countDown();
         executor.shutdown(TIME_LIMIT_IN_SECONDS);

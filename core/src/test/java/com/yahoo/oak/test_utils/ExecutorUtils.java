@@ -24,6 +24,8 @@ import java.util.function.Function;
 
 public class ExecutorUtils {
 
+    public static class ExecutionError extends Exception { }
+
     final ExecutorService executor;
     final List<Future<?>> tasks = new ArrayList<>();
 
@@ -37,7 +39,7 @@ public class ExecutorUtils {
         }
     }
 
-    public void shutdown(long timeLimitInSeconds) throws ExecutionException, InterruptedException, TimeoutException {
+    public void shutdown(long timeLimitInSeconds) throws ExecutionError {
         shutdownTaskPool(executor, tasks, TimeUnit.MILLISECONDS.convert(timeLimitInSeconds, TimeUnit.SECONDS));
     }
 
@@ -57,27 +59,36 @@ public class ExecutorUtils {
      * @param timeLimitInMs the time limit of the tasks to be done in milliseconds
      */
     public static void shutdownTaskPool(ExecutorService executor, List<Future<?>> pendingTasks, long timeLimitInMs)
-            throws InterruptedException, ExecutionException, TimeoutException {
+            throws ExecutionError {
+        ExecutionError error = null;
         try {
             executor.shutdown();
             Instant startingTime = Instant.now();
 
-            while (!pendingTasks.isEmpty() && timeDiffMillis(startingTime) <= timeLimitInMs) {
-                Iterator<Future<?>> it = pendingTasks.iterator();
-                while (it.hasNext()) {
-                    Future<?> task = it.next();
-                    long timeToWait = Math.max(1, timeLimitInMs - timeDiffMillis(startingTime));
+            Iterator<Future<?>> it = pendingTasks.iterator();
+            while (it.hasNext()) {
+                Future<?> task = it.next();
+                long timeToWait = Math.max(1, timeLimitInMs - timeDiffMillis(startingTime));
 
-                    // task.get() will throw an error if:
-                    //  * the task had an exception
-                    //  * if the thread got interrupted
-                    //  * the timeToWait passed
+                // task.get() will throw an error if:
+                //  * the task had an exception
+                //  * if the thread got interrupted
+                //  * the timeToWait passed
+                try {
                     task.get(timeToWait, TimeUnit.MILLISECONDS);
-
-                    // If no exception was thrown (i.e., the task was successful and finished in time),
-                    // we can remove it from the pendingTasks list.
-                    it.remove();
+                } catch (InterruptedException | ExecutionException | TimeoutException e) {
+                    if (error == null) {
+                        error = new ExecutionError();
+                    }
+                    error.addSuppressed(e);
                 }
+
+                // We can remove the task from the pendingTasks list as it already finished (either failed or succeed).
+                it.remove();
+            }
+
+            if (error != null) {
+                throw error;
             }
         } finally {
             executor.shutdownNow();

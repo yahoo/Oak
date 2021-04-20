@@ -20,8 +20,6 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Random;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -58,7 +56,7 @@ public class NativeMemoryAllocatorTest {
     }
 
     @Test
-    public void allocateContention() throws InterruptedException, TimeoutException, ExecutionException {
+    public void allocateContention() throws ExecutorUtils.ExecutionError {
         Random random = new Random();
         long capacity = 100;
         int blockSize = 8;

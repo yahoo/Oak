@@ -17,8 +17,6 @@ import java.util.Iterator;
 import java.util.Random;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.TimeoutException;
 
 public class MultiThreadRangeTest {
 
@@ -71,7 +69,7 @@ public class MultiThreadRangeTest {
     }
 
     @Test
-    public void testRange() throws InterruptedException, TimeoutException, ExecutionException {
+    public void testRange() throws ExecutorUtils.ExecutionError {
         executor.submitTasks(NUM_THREADS, i -> new MultiThreadRangeTest.RunThreads(latch));
 
         // fill

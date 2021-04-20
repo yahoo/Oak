@@ -17,8 +17,6 @@ import org.junit.Test;
 import java.util.Random;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.TimeoutException;
 
 public class FillTest {
 
@@ -92,7 +90,7 @@ public class FillTest {
     }
 
     @Test
-    public void testMain() throws InterruptedException, TimeoutException, ExecutionException {
+    public void testMain() throws ExecutorUtils.ExecutionError {
 
         OakMapBuilder<Integer, Integer> builder = OakCommonBuildersFactory.getDefaultIntBuilder()
             .setChunkMaxItems(2048)

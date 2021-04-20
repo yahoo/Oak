@@ -17,8 +17,6 @@ import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.TimeoutException;
 
 public class OffHeapOakTest {
     private static final int NUM_THREADS = 31;
@@ -49,7 +47,7 @@ public class OffHeapOakTest {
 
 
     @Test//(timeout = 15000)
-    public void testThreads() throws InterruptedException, TimeoutException, ExecutionException {
+    public void testThreads() throws ExecutorUtils.ExecutionError {
         executor.submitTasks(NUM_THREADS, i -> new RunThreads(latch));
         latch.countDown();
         executor.shutdown(TIME_LIMIT_IN_SECONDS);

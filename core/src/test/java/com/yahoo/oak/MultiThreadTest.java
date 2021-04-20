@@ -20,8 +20,6 @@ import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.TimeoutException;
 import java.util.function.Consumer;
 
 public class MultiThreadTest {
@@ -156,7 +154,7 @@ public class MultiThreadTest {
     }
 
     @Test
-    public void testThreads() throws InterruptedException, TimeoutException, ExecutionException {
+    public void testThreads() throws ExecutorUtils.ExecutionError {
         executor.submitTasks(NUM_THREADS, i -> new MultiThreadTest.RunThreads(latch));
         latch.countDown();
         executor.shutdown(TIME_LIMIT_IN_SECONDS);
@@ -276,7 +274,7 @@ public class MultiThreadTest {
     }
 
     @Test
-    public void testThreadsDescend() throws InterruptedException, TimeoutException, ExecutionException {
+    public void testThreadsDescend() throws ExecutorUtils.ExecutionError {
         CyclicBarrier barrier = new CyclicBarrier(NUM_THREADS);
 
         executor.submitTasks(NUM_THREADS, i -> new MultiThreadTest.RunThreadsDescend(latch, barrier));
