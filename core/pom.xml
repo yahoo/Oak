@@ -13,11 +13,9 @@
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <java.version>1.8</java.version>
-        <jacoco.it.execution.data.file>${project.build.directory}/coverage-reports/jacoco-it.exec</jacoco.it.execution.data.file>
-        <jacoco.ut.execution.data.file>${project.build.directory}/coverage-reports/jacoco-ut.exec</jacoco.ut.execution.data.file>
-        <jacoco.version>0.8.5</jacoco.version>
-        <skip.integration.tests>true</skip.integration.tests>
-        <skip.unit.tests>false</skip.unit.tests>
+        <jacoco.version>0.8.6</jacoco.version>
+        <jacoco.skip>true</jacoco.skip>
+        <jacocoArgLine/>
     </properties>
 
 
@@ -45,13 +43,12 @@
                 <version>${jacoco.version}</version>
                 <executions>
                     <execution>
-                        <id>pre-unit-test</id>
+                        <id>prepare-agent</id>
                         <goals>
                             <goal>prepare-agent</goal>
                         </goals>
                         <configuration>
-                            <destFile>${jacoco.ut.execution.data.file}</destFile>
-                            <propertyName>surefireArgLine</propertyName>
+                            <propertyName>jacocoArgLine</propertyName>
                         </configuration>
                     </execution>
                     <execution>
@@ -60,10 +57,6 @@
                         <goals>
                             <goal>report</goal>
                         </goals>
-                        <configuration>
-                            <dataFile>${jacoco.ut.execution.data.file}</dataFile>
-                            <outputDirectory>${project.reporting.outputDirectory}/jacoco-ut</outputDirectory>
-                        </configuration>
                     </execution>
                 </executions>
             </plugin>
@@ -74,7 +67,7 @@
                 <version>2.22.2</version>
                 <configuration>
                     <argLine>
-                        @{surefireArgLine}
+                        @{jacocoArgLine}
                         -XX:MaxDirectMemorySize=4g
                     </argLine>
                 </configuration>

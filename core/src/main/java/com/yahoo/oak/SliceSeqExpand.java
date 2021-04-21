@@ -58,7 +58,7 @@ class SliceSeqExpand extends Slice {
             // if SliceSeqExpand gets new members (not included in allocation info)
             // their copy needs to be added here
         } else {
-            throw new IllegalStateException("Must provide SliceSeqExpand other Slice");
+            throw new IllegalStateException("Must provide SliceSeqExpand other Slice - fake change");
         }
     }
 

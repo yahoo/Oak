@@ -44,7 +44,7 @@ public class PutIfAbsentTest {
     }
 
 
-    @Test(timeout = 60_000)
+    @Test(timeout = TIME_LIMIT_IN_SECONDS * 1000)
     public void testConcurrentPutOrCompute() throws ExecutorUtils.ExecutionError {
         executor.submitTasks(NUM_THREADS, i -> () -> {
             int counter = 0;
@@ -82,7 +82,7 @@ public class PutIfAbsentTest {
     }
 
 
-    @Test(timeout = 60_000)
+    @Test(timeout = TIME_LIMIT_IN_SECONDS * 1000)
     public void testConcurrentPutIfAbsent() throws ExecutorUtils.ExecutionError {
         executor.submitTasks(NUM_THREADS, i -> () -> {
             int counter = 0;
