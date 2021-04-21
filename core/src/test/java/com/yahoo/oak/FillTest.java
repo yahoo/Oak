@@ -9,40 +9,39 @@ package com.yahoo.oak;
 import com.yahoo.oak.common.OakCommonBuildersFactory;
 import com.yahoo.oak.common.integer.OakIntSerializer;
 import com.yahoo.oak.test_utils.ExecutorUtils;
+import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Random;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
+
 public class FillTest {
 
     private static final int NUM_THREADS = 1;
+    private static final long TIME_LIMIT_IN_SECONDS = 60;
 
-    static OakMap<Integer, Integer> oak;
     private static final long K = 1024;
-
     private static final int KEY_SIZE = 10;
     private static final int VALUE_SIZE = Math.round(5 * K);
+
     private static final int NUM_OF_ENTRIES = 100;
-    private final long timeLimitInMs = TimeUnit.MILLISECONDS.convert(60, TimeUnit.SECONDS);
+
+    static OakMap<Integer, Integer> oak;
     private  CountDownLatch latch;
-    private  ExecutorService executor;
+    private  ExecutorUtils<Void> executor;
 
     @Before
     public void setup() {
         latch = new CountDownLatch(1);
-        executor = Executors.newFixedThreadPool(NUM_THREADS);
+        executor = new ExecutorUtils<>(NUM_THREADS);
+    }
 
+    @After
+    public void tearDown() {
+        executor.shutdownNow();
     }
 
     static class RunThreads implements Callable<Void> {
@@ -91,7 +90,7 @@ public class FillTest {
     }
 
     @Test
-    public void testMain() throws InterruptedException, TimeoutException, ExecutionException {
+    public void testMain() throws ExecutorUtils.ExecutionError {
 
         OakMapBuilder<Integer, Integer> builder = OakCommonBuildersFactory.getDefaultIntBuilder()
             .setChunkMaxItems(2048)
@@ -100,10 +99,7 @@ public class FillTest {
 
         oak = builder.build();
 
-        List<Future<?>> tasks = new ArrayList<>();
-        for (int i = 0; i < NUM_THREADS; i++) {
-            tasks.add(executor.submit(new RunThreads(latch))) ;
-        }
+        executor.submitTasks(NUM_THREADS, i -> new RunThreads(latch));
 
         for (int i = 0; i < (int) Math.round(NUM_OF_ENTRIES * 0.5); i++) {
             oak.zc().putIfAbsent(i, i);
@@ -112,8 +108,7 @@ public class FillTest {
         long startTime = System.currentTimeMillis();
 
         latch.countDown();
-
-        ExecutorUtils.shutdownTaskPool(executor, tasks, timeLimitInMs);
+        executor.shutdown(TIME_LIMIT_IN_SECONDS);
 
         long stopTime = System.currentTimeMillis();
 

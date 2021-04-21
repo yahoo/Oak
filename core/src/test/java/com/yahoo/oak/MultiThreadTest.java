@@ -14,32 +14,25 @@ import org.junit.Before;
 import org.junit.Test;
 
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
 import java.util.Iterator;
-import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import java.util.function.Consumer;
 
 public class MultiThreadTest {
 
-    private OakMap<Integer, Integer> oak;
     private static final int NUM_THREADS = 31;
-    private ExecutorService executor;
+    private static final long TIME_LIMIT_IN_SECONDS = 60;
+
+    private static final int MAX_ITEMS_PER_CHUNK = 2048;
+
+    private OakMap<Integer, Integer> oak;
+    private ExecutorUtils<Void> executor;
 
     private CountDownLatch latch;
-    private static final int MAX_ITEMS_PER_CHUNK = 2048;
-    private final long timeLimitInMs = TimeUnit.MILLISECONDS.convert(60, TimeUnit.SECONDS);
-
 
     @Before
     public void init() {
@@ -47,15 +40,16 @@ public class MultiThreadTest {
                 .setChunkMaxItems(MAX_ITEMS_PER_CHUNK);
         oak = builder.build();
         latch = new CountDownLatch(1);
-        executor = Executors.newFixedThreadPool(NUM_THREADS);
+        executor = new ExecutorUtils<>(NUM_THREADS);
     }
 
     @After
     public void finish() {
+        executor.shutdownNow();
         oak.close();
     }
 
-    class RunThreads implements Callable {
+    class RunThreads implements Callable<Void> {
         CountDownLatch latch;
 
         RunThreads(CountDownLatch latch) {
@@ -67,47 +61,47 @@ public class MultiThreadTest {
             latch.await();
             Integer value;
 
-            for (Integer i = 0; i < (int) Math.round(0.5 * MAX_ITEMS_PER_CHUNK); i++) {
+            for (int i = 0; i < (int) Math.round(0.5 * MAX_ITEMS_PER_CHUNK); i++) {
                 value = oak.get(i);
                 Assert.assertNull(value);
             }
-            for (Integer i = MAX_ITEMS_PER_CHUNK; i < 2 * MAX_ITEMS_PER_CHUNK; i++) {
+            for (int i = MAX_ITEMS_PER_CHUNK; i < 2 * MAX_ITEMS_PER_CHUNK; i++) {
                 oak.zc().putIfAbsent(i, i);
             }
             for (Integer i = MAX_ITEMS_PER_CHUNK; i < 2 * MAX_ITEMS_PER_CHUNK; i++) {
                 value = oak.get(i);
                 Assert.assertEquals(i, value);
             }
-            for (Integer i = 0; i < (int) Math.round(0.5 * MAX_ITEMS_PER_CHUNK); i++) {
+            for (int i = 0; i < (int) Math.round(0.5 * MAX_ITEMS_PER_CHUNK); i++) {
                 value = oak.get(i);
                 Assert.assertNull(value);
             }
-            for (Integer i = 2 * MAX_ITEMS_PER_CHUNK; i < 3 * MAX_ITEMS_PER_CHUNK; i++) {
+            for (int i = 2 * MAX_ITEMS_PER_CHUNK; i < 3 * MAX_ITEMS_PER_CHUNK; i++) {
                 oak.zc().putIfAbsent(i, i);
             }
-            for (Integer i = 2 * MAX_ITEMS_PER_CHUNK; i < 3 * MAX_ITEMS_PER_CHUNK; i++) {
+            for (int i = 2 * MAX_ITEMS_PER_CHUNK; i < 3 * MAX_ITEMS_PER_CHUNK; i++) {
                 oak.zc().remove(i);
             }
             for (Integer i = MAX_ITEMS_PER_CHUNK; i < 2 * MAX_ITEMS_PER_CHUNK; i++) {
                 value = oak.get(i);
                 Assert.assertEquals(i, value);
             }
-            for (Integer i = (int) Math.round(0.5 * MAX_ITEMS_PER_CHUNK); i < MAX_ITEMS_PER_CHUNK; i++) {
+            for (int i = (int) Math.round(0.5 * MAX_ITEMS_PER_CHUNK); i < MAX_ITEMS_PER_CHUNK; i++) {
                 oak.zc().putIfAbsent(i, i);
             }
             for (Integer i = (int) Math.round(0.5 * MAX_ITEMS_PER_CHUNK); i < MAX_ITEMS_PER_CHUNK; i++) {
                 value = oak.get(i);
                 Assert.assertEquals(i, value);
             }
-            for (Integer i = 3 * MAX_ITEMS_PER_CHUNK; i < 4 * MAX_ITEMS_PER_CHUNK; i++) {
+            for (int i = 3 * MAX_ITEMS_PER_CHUNK; i < 4 * MAX_ITEMS_PER_CHUNK; i++) {
                 value = oak.get(i);
                 Assert.assertNull(value);
             }
-            for (Integer i = 3 * MAX_ITEMS_PER_CHUNK; i < 4 * MAX_ITEMS_PER_CHUNK; i++) {
+            for (int i = 3 * MAX_ITEMS_PER_CHUNK; i < 4 * MAX_ITEMS_PER_CHUNK; i++) {
                 oak.zc().remove(i);
             }
 
-            Iterator valIter = oak.values().iterator();
+            Iterator<Integer> valIter = oak.values().iterator();
             Integer twiceMaxItemsPerChunk = 2 * MAX_ITEMS_PER_CHUNK;
             Integer c = (int) Math.round(0.5 * MAX_ITEMS_PER_CHUNK);
             while (valIter.hasNext() && c < twiceMaxItemsPerChunk) {
@@ -118,9 +112,9 @@ public class MultiThreadTest {
             }
             Assert.assertEquals(twiceMaxItemsPerChunk, c);
 
-            Integer from = 0;
-            Integer to = twiceMaxItemsPerChunk;
-            try (OakMap sub = oak.subMap(from, true, to, false)) {
+            int from = 0;
+            int to = twiceMaxItemsPerChunk;
+            try (OakMap<Integer, Integer> sub = oak.subMap(from, true, to, false)) {
                 valIter = sub.values().iterator();
                 c = (int) Math.round(0.5 * MAX_ITEMS_PER_CHUNK);
                 while (valIter.hasNext()) {
@@ -135,17 +129,16 @@ public class MultiThreadTest {
 
             from = 1;
             to = (int) Math.round(0.5 * MAX_ITEMS_PER_CHUNK);
-            try (OakMap sub = oak.subMap(from, true, to, false)) {
+            try (OakMap<Integer, Integer> sub = oak.subMap(from, true, to, false)) {
                 valIter = sub.values().iterator();
                 Assert.assertFalse(valIter.hasNext());
             }
             from = 4 * MAX_ITEMS_PER_CHUNK;
             to = 5 * MAX_ITEMS_PER_CHUNK;
-            try (OakMap sub = oak.subMap(from, true, to, false)) {
+            try (OakMap<Integer, Integer> sub = oak.subMap(from, true, to, false)) {
                 valIter = sub.values().iterator();
                 Assert.assertFalse(valIter.hasNext());
             }
-
 
             for (int i = (int) Math.round(0.5 * MAX_ITEMS_PER_CHUNK); i < MAX_ITEMS_PER_CHUNK; i++) {
                 ByteBuffer bb = ByteBuffer.allocate(4);
@@ -161,24 +154,20 @@ public class MultiThreadTest {
     }
 
     @Test
-    public void testThreads() throws InterruptedException, TimeoutException, ExecutionException {
-
-        List<Future<?>> tasks = new ArrayList<>();
-        for (int i = 0; i < NUM_THREADS; i++) {
-            tasks.add(executor.submit(new MultiThreadTest.RunThreads(latch))) ;
-        }
+    public void testThreads() throws ExecutorUtils.ExecutionError {
+        executor.submitTasks(NUM_THREADS, i -> new MultiThreadTest.RunThreads(latch));
         latch.countDown();
-        ExecutorUtils.shutdownTaskPool(executor, tasks, timeLimitInMs);
+        executor.shutdown(TIME_LIMIT_IN_SECONDS);
 
         for (Integer i = (int) Math.round(0.5 * MAX_ITEMS_PER_CHUNK); i < 2 * MAX_ITEMS_PER_CHUNK; i++) {
             Integer value = oak.get(i);
             Assert.assertEquals(i, value);
         }
-        for (Integer i = 2 * MAX_ITEMS_PER_CHUNK; i < 4 * MAX_ITEMS_PER_CHUNK; i++) {
+        for (int i = 2 * MAX_ITEMS_PER_CHUNK; i < 4 * MAX_ITEMS_PER_CHUNK; i++) {
             Integer value = oak.get(i);
             Assert.assertNull(value);
         }
-        for (Integer i = 0; i < (int) Math.round(0.5 * MAX_ITEMS_PER_CHUNK); i++) {
+        for (int i = 0; i < (int) Math.round(0.5 * MAX_ITEMS_PER_CHUNK); i++) {
             Integer value = oak.get(i);
             Assert.assertNull(value);
         }
@@ -285,16 +274,12 @@ public class MultiThreadTest {
     }
 
     @Test
-    public void testThreadsDescend() throws InterruptedException, TimeoutException, ExecutionException {
+    public void testThreadsDescend() throws ExecutorUtils.ExecutionError {
         CyclicBarrier barrier = new CyclicBarrier(NUM_THREADS);
 
-        List<Future<?>> tasks = new ArrayList<>();
-        for (int i = 0; i < NUM_THREADS; i++) {
-            tasks.add(executor.submit(new MultiThreadTest.RunThreadsDescend(latch, barrier))) ;
-        }
+        executor.submitTasks(NUM_THREADS, i -> new MultiThreadTest.RunThreadsDescend(latch, barrier));
         latch.countDown();
-
-        ExecutorUtils.shutdownTaskPool(executor, tasks, timeLimitInMs);
+        executor.shutdown(TIME_LIMIT_IN_SECONDS);
 
         for (Integer i = 0; i < 2 * MAX_ITEMS_PER_CHUNK; i++) {
             Integer value = oak.get(i);

@@ -13,59 +13,48 @@ import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
-
-
 
 public class OffHeapOakTest {
-    private OakMap<Integer, Integer> oak;
     private static final int NUM_THREADS = 31;
-    private ExecutorService executor;
+    private static final long TIME_LIMIT_IN_SECONDS = 250;
+
+    private static final int MAX_ITEMS_PER_CHUNK = 248;
+
+    private OakMap<Integer, Integer> oak;
+    private ExecutorUtils<Void> executor;
     private CountDownLatch latch;
-    private final int maxItemsPerChunk = 248;
     private Exception threadException;
-    private final long timeLimitInMs = TimeUnit.MILLISECONDS.convert(15000, TimeUnit.MILLISECONDS);
 
     @Before
     public void init() {
         OakMapBuilder<Integer, Integer> builder = OakCommonBuildersFactory.getDefaultIntBuilder()
-                .setChunkMaxItems(maxItemsPerChunk);
+                .setChunkMaxItems(MAX_ITEMS_PER_CHUNK);
         oak = builder.build();
         latch = new CountDownLatch(1);
-        executor = Executors.newFixedThreadPool(NUM_THREADS);
+        executor = new ExecutorUtils<>(NUM_THREADS);
         threadException = null;
     }
 
     @After
     public void finish() {
+        executor.shutdownNow();
         oak.close();
     }
 
 
     @Test//(timeout = 15000)
-    public void testThreads() throws InterruptedException, TimeoutException, ExecutionException {
-        List<Future<?>> tasks = new ArrayList<>();
-        for (int i = 0; i < NUM_THREADS; i++) {
-            tasks.add(executor.submit(new RunThreads(latch)));
-        }
+    public void testThreads() throws ExecutorUtils.ExecutionError {
+        executor.submitTasks(NUM_THREADS, i -> new RunThreads(latch));
         latch.countDown();
-
-        ExecutorUtils.shutdownTaskPool(executor, tasks, timeLimitInMs);
+        executor.shutdown(TIME_LIMIT_IN_SECONDS);
 
         Assert.assertNull(threadException);
 
-        for (Integer i = 0; i < 6 * maxItemsPerChunk; i++) {
+        for (Integer i = 0; i < 6 * MAX_ITEMS_PER_CHUNK; i++) {
             Integer value = oak.get(i);
             Assert.assertNotNull("\n Value NULL for key " + i + "\n", value);
             if (!i.equals(value)) {
@@ -105,11 +94,11 @@ public class OffHeapOakTest {
             }
 
             // todo - perhaps check with non-zc versions
-            for (int i = 0; i < 6 * maxItemsPerChunk; i++) {
+            for (int i = 0; i < 6 * MAX_ITEMS_PER_CHUNK; i++) {
                 oak.zc().put(i, i);
             }
 
-            for (int i = 0; i < 6 * maxItemsPerChunk; i++) {
+            for (int i = 0; i < 6 * MAX_ITEMS_PER_CHUNK; i++) {
                 oak.zc().remove(i);
             }
             try {
@@ -122,7 +111,7 @@ public class OffHeapOakTest {
                             + entry.getKey(), entry.getValue());
                     Assert.assertEquals(
                             "\nAfter initial pass of put and remove (range 0-"
-                                    + (6 * maxItemsPerChunk) + "): Key " + entry.getKey()
+                                    + (6 * MAX_ITEMS_PER_CHUNK) + "): Key " + entry.getKey()
                                     + ", Value " + entry.getValue(),
                             0, entry.getValue() - entry.getKey());
                 }
@@ -130,11 +119,11 @@ public class OffHeapOakTest {
 
             }
 
-            for (int i = 0; i < 6 * maxItemsPerChunk; i++) {
+            for (int i = 0; i < 6 * MAX_ITEMS_PER_CHUNK; i++) {
                 oak.zc().putIfAbsent(i, i);
             }
 
-            for (int i = 0; i < 6 * maxItemsPerChunk; i++) {
+            for (int i = 0; i < 6 * MAX_ITEMS_PER_CHUNK; i++) {
                 oak.zc().remove(i);
             }
             try {
@@ -153,7 +142,7 @@ public class OffHeapOakTest {
             }
 
 
-            for (int i = 0; i < 6 * maxItemsPerChunk; i++) {
+            for (int i = 0; i < 6 * MAX_ITEMS_PER_CHUNK; i++) {
                 oak.zc().put(i, i);
             }
         }

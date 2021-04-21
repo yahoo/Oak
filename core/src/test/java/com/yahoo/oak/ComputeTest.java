@@ -8,45 +8,43 @@ package com.yahoo.oak;
 
 import com.yahoo.oak.common.OakCommonBuildersFactory;
 import com.yahoo.oak.test_utils.ExecutorUtils;
+import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Random;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import java.util.function.Consumer;
 
 
 public class ComputeTest {
 
     private static final int NUM_THREADS = 16;
+    private static final long TIME_LIMIT_IN_SECONDS = 60;
 
-    private static OakMap<ByteBuffer, ByteBuffer> oak;
     private static final long K = 1024;
-
     private static final int KEY_SIZE = 10;
     private static final int VAL_SIZE = Math.round(5 * K);
+
+    private static OakMap<ByteBuffer, ByteBuffer> oak;
+
     private static int numOfEntries;
-    private final long timeLimitInMs = TimeUnit.MILLISECONDS.convert(60, TimeUnit.SECONDS);
-    ExecutorService executor;
+
+    ExecutorUtils<Void> executor;
     private CountDownLatch latch;
-
-
 
     @Before
     public void setup() {
-        executor = Executors.newFixedThreadPool(NUM_THREADS);
+        executor = new ExecutorUtils<>(NUM_THREADS);
         latch = new CountDownLatch(1);
+    }
+
+    @After
+    public void tearDown() {
+        executor.shutdownNow();
     }
 
     private static  Consumer<OakScopedWriteBuffer> computer = oakWBuffer -> {
@@ -100,7 +98,7 @@ public class ComputeTest {
     }
 
     @Test
-    public void testMain() throws InterruptedException, TimeoutException, ExecutionException {
+    public void testMain() throws ExecutorUtils.ExecutionError {
         ByteBuffer minKey = ByteBuffer.allocate(KEY_SIZE * Integer.BYTES);
         minKey.position(0);
         for (int i = 0; i < KEY_SIZE; i++) {
@@ -116,10 +114,7 @@ public class ComputeTest {
 
         numOfEntries = 100;
 
-        List<Future<?>> tasks = new ArrayList<>();
-        for (int i = 0; i < NUM_THREADS; i++) {
-            tasks.add(executor.submit(new RunThreads(latch))) ;
-        }
+        executor.submitTasks(NUM_THREADS, i -> new RunThreads(latch));
 
         for (int i = 0; i < (int) Math.round(numOfEntries * 0.5); i++) {
             ByteBuffer key = ByteBuffer.allocate(KEY_SIZE * Integer.BYTES);
@@ -130,7 +125,7 @@ public class ComputeTest {
         }
 
         latch.countDown();
-        ExecutorUtils.shutdownTaskPool(executor, tasks, timeLimitInMs);
+        executor.shutdown(TIME_LIMIT_IN_SECONDS);
 
         for (int i = 0; i < numOfEntries; i++) {
             ByteBuffer key = ByteBuffer.allocate(KEY_SIZE * Integer.BYTES);

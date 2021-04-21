@@ -7,6 +7,7 @@
 package com.yahoo.oak;
 
 import com.yahoo.oak.common.OakCommonBuildersFactory;
+import com.yahoo.oak.test_utils.ExecutorUtils;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -14,76 +15,59 @@ import org.junit.Test;
 
 import java.util.ArrayList;
 import java.util.Iterator;
-import java.util.List;
 import java.util.Map;
-import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
 
 
 public class PutIfAbsentTest {
+    private static final int NUM_THREADS = 31;
+    private static final long TIME_LIMIT_IN_SECONDS = 10;
+
+    private static final int NUM_KEYS = 100000;
+
     private OakMap<Integer, Integer> oak;
     private CountDownLatch startSignal;
-    private List<Future<Integer>> threads;
-    private static final int NUM_THREADS = 31;
-    private static final int NUM_KEYS = 100000;
+    private ExecutorUtils<Integer> executor;
 
     @Before
     public void init() {
         OakMapBuilder<Integer, Integer> builder = OakCommonBuildersFactory.getDefaultIntBuilder();
         oak = builder.build();
         startSignal = new CountDownLatch(1);
-        threads = new ArrayList<>(NUM_THREADS);
+        executor = new ExecutorUtils<>(NUM_THREADS);
     }
 
     @After
     public void finish() {
+        executor.shutdownNow();
         oak.close();
     }
 
 
     @Test(timeout = 10_000)
-    public void testConcurrentPutOrCompute() {
-        ExecutorService executor = Executors.newFixedThreadPool(NUM_THREADS);
+    public void testConcurrentPutOrCompute() throws ExecutorUtils.ExecutionError {
+        executor.submitTasks(NUM_THREADS, i -> () -> {
+            int counter = 0;
+            try {
+                startSignal.await();
 
-        for (int i = 0; i < NUM_THREADS; ++i) {
-            Callable<Integer> operation = () -> {
-                int counter = 0;
-                try {
-                    startSignal.await();
-
-                    for (int j = 0; j < NUM_KEYS; ++j) {
-                        boolean retval = oak.zc().putIfAbsentComputeIfPresent(j, 1, buffer -> {
-                            int currentVal = buffer.getInt(0);
-                            buffer.putInt(0, currentVal + 1);
-                        });
-                        if (retval) {
-                            counter++;
-                        }
+                for (int j = 0; j < NUM_KEYS; ++j) {
+                    boolean retVal = oak.zc().putIfAbsentComputeIfPresent(j, 1, buffer -> {
+                        int currentVal = buffer.getInt(0);
+                        buffer.putInt(0, currentVal + 1);
+                    });
+                    if (retVal) {
+                        counter++;
                     }
-                } catch (InterruptedException e) {
-                    e.printStackTrace();
                 }
-                return counter;
-            };
-
-            Future<Integer> future = executor.submit(operation);
-            threads.add(future);
-        }
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+            return counter;
+        });
 
         startSignal.countDown();
-        final int[] returnValues = {0};
-        threads.forEach(t -> {
-            try {
-                returnValues[0] += t.get();
-            } catch (InterruptedException | ExecutionException e) {
-                e.printStackTrace();
-                Assert.fail();
-            }
-        });
+        ArrayList<Integer> result = executor.shutdown(TIME_LIMIT_IN_SECONDS);
 
         Iterator<Integer> iterator = oak.values().iterator();
         int count2 = 0;
@@ -94,46 +78,31 @@ public class PutIfAbsentTest {
         }
         Assert.assertEquals(count2, NUM_KEYS);
         Assert.assertEquals(NUM_KEYS, oak.size());
-        Assert.assertEquals(NUM_KEYS, returnValues[0]);
+        Assert.assertEquals(NUM_KEYS, (int) result.stream().reduce(0, Integer::sum));
     }
 
 
     @Test(timeout = 10_000)
-    public void testConcurrentPutIfAbsent() {
-        ExecutorService executor = Executors.newFixedThreadPool(NUM_THREADS);
+    public void testConcurrentPutIfAbsent() throws ExecutorUtils.ExecutionError {
+        executor.submitTasks(NUM_THREADS, i -> () -> {
+            int counter = 0;
+            try {
+                startSignal.await();
 
-        for (int i = 0; i < NUM_THREADS; ++i) {
-            Callable<Integer> operation = () -> {
-                int counter = 0;
-                try {
-                    startSignal.await();
-
-                    for (int j = 0; j < NUM_KEYS; ++j) {
-                        boolean retval = oak.zc().putIfAbsent(j, j);
-                        if (retval) {
-                            counter++;
-                        }
+                for (int j = 0; j < NUM_KEYS; ++j) {
+                    boolean retVal = oak.zc().putIfAbsent(j, j);
+                    if (retVal) {
+                        counter++;
                     }
-                } catch (InterruptedException e) {
-                    e.printStackTrace();
                 }
-                return counter;
-            };
-
-            Future<Integer> future = executor.submit(operation);
-            threads.add(future);
-        }
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+            return counter;
+        });
 
         startSignal.countDown();
-        final int[] returnValues = {0};
-        threads.forEach(t -> {
-            try {
-                returnValues[0] += t.get();
-            } catch (InterruptedException | ExecutionException e) {
-                e.printStackTrace();
-                Assert.fail();
-            }
-        });
+        ArrayList<Integer> result = executor.shutdown(TIME_LIMIT_IN_SECONDS);
 
         Iterator<Map.Entry<Integer, Integer>> iterator = oak.entrySet().iterator();
         int count2 = 0;
@@ -143,7 +112,7 @@ public class PutIfAbsentTest {
             count2++;
         }
         Assert.assertEquals(count2, NUM_KEYS);
-        Assert.assertEquals(NUM_KEYS, returnValues[0]);
         Assert.assertEquals(NUM_KEYS, oak.size());
+        Assert.assertEquals(NUM_KEYS, (int) result.stream().reduce(0, Integer::sum));
     }
 }

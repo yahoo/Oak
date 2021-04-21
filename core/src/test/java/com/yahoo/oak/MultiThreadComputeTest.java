@@ -13,28 +13,21 @@ import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
-import java.util.ArrayList;
-import java.util.List;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import java.util.function.Consumer;
 
 public class MultiThreadComputeTest {
+    private static final int NUM_THREADS = 31;
+    private static final long TIME_LIMIT_IN_SECONDS = 60;
+    private static final int MAX_ITEMS_PER_CHUNK = 1024;
 
     private OakMap<Integer, Integer> oak;
-    private static final int NUM_THREADS = 31;
-    private ExecutorService executor;
+    private ExecutorUtils<Void> executor;
+
     private CountDownLatch latch;
     private Consumer<OakScopedWriteBuffer> computer;
     private Consumer<OakScopedWriteBuffer> emptyComputer;
-    private static final int MAX_ITEMS_PER_CHUNK = 1024;
-    private final long timeLimitInMs = TimeUnit.MILLISECONDS.convert(60, TimeUnit.SECONDS);
 
     @Before
     public void init() {
@@ -42,7 +35,7 @@ public class MultiThreadComputeTest {
                 .setChunkMaxItems(MAX_ITEMS_PER_CHUNK);
         oak = builder.build();
         latch = new CountDownLatch(1);
-        executor = Executors.newFixedThreadPool(NUM_THREADS);
+        executor = new ExecutorUtils<>(NUM_THREADS);
         computer = oakWBuffer -> {
             if (oakWBuffer.getInt(0) == 0) {
                 oakWBuffer.putInt(0, 1);
@@ -54,6 +47,7 @@ public class MultiThreadComputeTest {
 
     @After
     public void finish() {
+        executor.shutdownNow();
         oak.close();
     }
 
@@ -139,16 +133,10 @@ public class MultiThreadComputeTest {
     }
 
     @Test
-    public void testThreadsCompute() throws InterruptedException, TimeoutException, ExecutionException {
-
-        List<Future<?>> tasks = new ArrayList<>();
-        for (int i = 0; i < NUM_THREADS; i++) {
-            tasks.add(executor.submit(new MultiThreadComputeTest.RunThreads(latch))) ;
-        }
-
+    public void testThreadsCompute() throws ExecutorUtils.ExecutionError {
+        executor.submitTasks(NUM_THREADS, i -> new MultiThreadComputeTest.RunThreads(latch));
         latch.countDown();
-
-        ExecutorUtils.shutdownTaskPool(executor, tasks, timeLimitInMs);
+        executor.shutdown(TIME_LIMIT_IN_SECONDS);
 
         for (Integer i = 0; i < MAX_ITEMS_PER_CHUNK; i++) {
             Integer value = oak.get(i);
@@ -163,7 +151,7 @@ public class MultiThreadComputeTest {
             }
             Assert.assertEquals(i, value);
         }
-        for (Integer i = MAX_ITEMS_PER_CHUNK; i < 2 * MAX_ITEMS_PER_CHUNK; i++) {
+        for (int i = MAX_ITEMS_PER_CHUNK; i < 2 * MAX_ITEMS_PER_CHUNK; i++) {
             Integer value = oak.get(i);
             Assert.assertNull(value);
         }
@@ -171,7 +159,7 @@ public class MultiThreadComputeTest {
             Integer value = oak.get(i);
             Assert.assertEquals(i, value);
         }
-        for (Integer i = 3 * MAX_ITEMS_PER_CHUNK; i < 4 * MAX_ITEMS_PER_CHUNK; i++) {
+        for (int i = 3 * MAX_ITEMS_PER_CHUNK; i < 4 * MAX_ITEMS_PER_CHUNK; i++) {
             Integer value = oak.get(i);
             Assert.assertNull(value);
         }
