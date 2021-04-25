@@ -7,14 +7,35 @@ on: [pull_request]
 
 jobs:
   build:
-
     runs-on: ubuntu-latest
-
     steps:
     - uses: actions/checkout@v2
+    - run: git fetch origin master
     - name: Set up JDK 1.8
       uses: actions/setup-java@v1
       with:
         java-version: 1.8
     - name: Build with Maven
-      run: mvn clean package
+      run: mvn clean package -DskipTests=true -Dstyle.color=always
+    - name: Run tests
+      run: mvn test -Dstyle.color=always
+    - name: Run tests with test-coverage analysis (slower)
+      # Skip some tests due to timeouts
+      run: mvn test -pl :oak -Djacoco.skip=false -Dstyle.color=always
+           -Dtest=!com.yahoo.oak.ComputeTest,!com.yahoo.oak.PutIfAbsentTest
+    - name: Setup diff-test-coverage
+      run: npm install @connectis/diff-test-coverage@1.5.3
+    - name: Validate test-coverage
+      run: git diff origin/master HEAD | node_modules/.bin/diff-test-coverage
+            --coverage "**/target/site/jacoco/jacoco.xml"
+            --type jacoco
+            --color
+            --line-coverage 50
+            --branch-coverage 50
+            --function-coverage 0
+            --log-template "coverage-lines-complete"
+            --log-template "coverage-files-complete"
+            --log-template "totals-complete"
+            --log-template "errors"
+            --
+            || { printf "\n\n****FAILED****\nDiff code coverage check failed. To view coverage report, run 'mvn clean test -Djacoco.skip=false' and open 'target/site/jacoco/index.html'\n\n" && false; }
