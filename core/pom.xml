@@ -18,7 +18,6 @@
         <jacocoArgLine/>
     </properties>
 
-
     <build>
         <plugins>
             <plugin>
