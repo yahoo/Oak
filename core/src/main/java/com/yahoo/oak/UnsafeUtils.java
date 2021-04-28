@@ -13,9 +13,10 @@ import java.lang.reflect.Field;
 import java.nio.Buffer;
 import java.nio.ByteBuffer;
 
-final class UnsafeUtils {
+public final class UnsafeUtils {
 
     static final Unsafe UNSAFE;
+    static final long INT_ARRAY_OFFSET;
 
     // static constructor - access and create a new instance of Unsafe
     static {
@@ -23,6 +24,7 @@ final class UnsafeUtils {
             Constructor<Unsafe> unsafeConstructor = Unsafe.class.getDeclaredConstructor();
             unsafeConstructor.setAccessible(true);
             UNSAFE = unsafeConstructor.newInstance();
+            INT_ARRAY_OFFSET = UNSAFE.arrayBaseOffset(int[].class);
         } catch (Exception ex) {
             throw new RuntimeException(ex);
         }
@@ -101,7 +103,18 @@ final class UnsafeUtils {
     public static void putDouble(long address, double value) {
         UNSAFE.putDouble(address, value);
     }
-    
+
+    public static long copyToArray(long address, int[] array, int size) {
+        long sizeBytes = ((long) size) * Integer.BYTES;
+        UNSAFE.copyMemory(null, address, array, INT_ARRAY_OFFSET, sizeBytes);
+        return sizeBytes;
+    }
+
+    public static long copyFromArray(int[] array, long address, int size) {
+        long sizeBytes = ((long) size) * Integer.BYTES;
+        UNSAFE.copyMemory(array, INT_ARRAY_OFFSET, null, address, sizeBytes);
+        return sizeBytes;
+    }
 
     /*-------------- Wrapping address with bytebuffer --------------*/
     private static final Field ADDRESS;
