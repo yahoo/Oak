@@ -34,4 +34,43 @@ public class UnsafeUtilsTest {
             }
         }
     }
+
+    @Test
+    public void testCopyToArray() {
+        final int sz = 10;
+        final int[] expected = new int[sz];
+        long address = UnsafeUtils.allocateMemory(sz * Integer.BYTES);
+        try {
+            for (int i = 0; i < sz; i++) {
+                expected[i] = i;
+                UnsafeUtils.putInt(address + i * Integer.BYTES, i);
+            }
+
+            final int[] result = new int[sz];
+            UnsafeUtils.copyToArray(address, result, sz);
+            Assert.assertArrayEquals(expected, result);
+        } finally {
+            UnsafeUtils.freeMemory(address);
+        }
+    }
+
+    @Test
+    public void testCopyFromArray() {
+        final int sz = 10;
+        final int[] expected = new int[sz];
+        for (int i = 0; i < sz; i++) {
+            expected[i] = i;
+        }
+
+        long address = UnsafeUtils.allocateMemory(sz * Integer.BYTES);
+        try {
+            UnsafeUtils.copyFromArray(expected, address, sz);
+
+            for (int i = 0; i < sz; i++) {
+                Assert.assertEquals(expected[i], UnsafeUtils.getInt(address + i * Integer.BYTES));
+            }
+        } finally {
+            UnsafeUtils.freeMemory(address);
+        }
+    }
 }

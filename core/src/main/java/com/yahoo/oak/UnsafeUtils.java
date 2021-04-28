@@ -33,8 +33,12 @@ public final class UnsafeUtils {
     private UnsafeUtils() {
     }
 
-    static long allocateMemory(long capacity ) {
+    static long allocateMemory(long capacity) {
         return UnsafeUtils.UNSAFE.allocateMemory(capacity);
+    }
+
+    static void freeMemory(long address) {
+        UnsafeUtils.UNSAFE.freeMemory(address);
     }
 
     static final long LONG_INT_MASK = (1L << Integer.SIZE) - 1L;
