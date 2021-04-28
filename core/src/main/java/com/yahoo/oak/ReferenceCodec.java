@@ -99,26 +99,15 @@ abstract class ReferenceCodec {
     }
 
     /*------- Internal abstract helpers -------*/
-    /* The ability to get the first parameter value from a slice */
-    protected abstract long getFirst(Slice s);
 
-    /* The ability to get the second parameter value from a slice */
-    protected abstract long getSecond(Slice s);
-
-    /* The ability to get the third parameter value from a slice */
-    protected abstract long getThird(Slice s);
-
-    /* The ability to get the first parameter value from a slice */
+    /* The ability to get the first parameter value for deleted reference */
     protected abstract long getFirstForDelete(long reference);
 
-    /* The ability to get the second parameter value from a slice */
+    /* The ability to get the second parameter value for deleted referenc */
     protected abstract long getSecondForDelete(long reference);
 
-    /* The ability to get the third parameter value from a slice */
+    /* The ability to get the third parameter value for deleted referenc */
     protected abstract long getThirdForDelete(long reference);
-
-    /* The ability to set the slice with all 3 parameters */
-    protected abstract void setAll(Slice s, long first, long second, long third, long reference);
 
     /*------- User Interface -------*/
 
@@ -141,17 +130,6 @@ abstract class ReferenceCodec {
      This means that the three mask+shift operations will be executed (and finished) simultaneously.
      */
 
-    /**
-     * @param s the object to encode
-     * @return the encoded reference
-     */
-    long encode(final Slice s) {
-        long first  = getFirst(s);
-        long second = getSecond(s);
-        long third  = getThird(s);
-
-        return  encode(first, second, third);
-    }
 
     /** Present the reference as it needs to be when the target is deleted
      * @param reference to alter
@@ -180,7 +158,7 @@ abstract class ReferenceCodec {
         int second = getSecond(reference);
         int third  = getThird(reference);
 
-        setAll(s, first, second, third, reference);
+        s.associateReferenceDecoding(first, second, third, reference);
         return !isReferenceDeleted(reference);
     }
 

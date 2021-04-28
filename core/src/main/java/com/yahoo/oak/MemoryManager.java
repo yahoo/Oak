@@ -26,45 +26,6 @@ interface MemoryManager extends Closeable {
      */
     long allocated();
 
-    /**
-     * This method allocates memory out of the off-heap, i.e. off-heap cut of the given size in bytes.
-     * The new off-heap cut is going to be associated with the given Slice.
-     * The given length is the size which is needed for the user. If off-heap metadata is needed
-     * for the off-heap cut, this is up to memory manager to allocate internally a bigger size.
-     * @param s        - an allocation object to update with the new allocation
-     * @param size     - the size of the Slice to allocate
-     * @param existing - if true allocation is for the value already existing in the managed memory,
-     *                 just moving to the new place
-     */
-    void allocate(Slice s, int size, boolean existing);
-
-    /**
-     * When returning an allocated Slice to the Memory Manager, depending on the implementation, there might be a
-     * restriction on whether this allocation is reachable by other threads or not.
-     *
-     * @param s the allocation object to release
-     */
-    void release(Slice s);
-
-    /* ------------- Interfaces to deal with references! ------------- */
-    /* Reference is a long (64 bits) that should encapsulate all the information required
-    * to access a memory for read and for write. It is up to memory manager what to put inside.
-    */
-
-    /**
-     * @param s         the memory slice to update with the info decoded from the reference
-     * @param reference the reference to decode
-     * @return true if the given allocation reference is valid and not deleted. If reference is
-     * invalid, the slice is invalidated. If reference is deleted, the slice is updated anyway.
-     */
-    boolean decodeReference(Slice s, long reference);
-
-    /**
-     * @param s the memory slice, encoding of which should be returned as a an output long reference
-     * @return the encoded reference
-     */
-    long encodeReference(Slice s);
-
     /** Present the reference as it needs to be when the target is deleted
      * @param reference to alter
      * @return the encoded reference

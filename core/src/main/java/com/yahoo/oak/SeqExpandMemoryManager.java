@@ -45,14 +45,25 @@ class SeqExpandMemoryManager implements MemoryManager {
     }
 
     // No-free memory manager requires no header therefore the same size as requested is allocated
-    @Override
-    public void allocate(Slice s, int size, boolean existing) {
+    long allocate(SliceSeqExpand s, int size, boolean existing) {
         boolean allocated = allocator.allocate(s, size);
         assert allocated;
+        return s.encodeReference();
     }
 
-    @Override
-    public void release(Slice s) {
+    /**
+     * When returning an allocated Slice to the Memory Manager, depending on the implementation, there might be a
+     * restriction on whether this allocation is reachable by other threads or not.
+     *
+     * @param s the allocation object to release
+     *
+     * IMPORTANT NOTE:
+     * It is assumed that this function is called only when the given Slice is not needed and cannot
+     * be reached by any other thread. This Memory Manager doesn't provide the check for other
+     * threads reachability as GC does. Therefore the Slice is moving straight to the free list of allocator.
+     */
+    public void release(SliceSeqExpand s) {
+        allocator.free(s);
     }
 
     public boolean isClosed() {
@@ -64,8 +75,7 @@ class SeqExpandMemoryManager implements MemoryManager {
      * @param reference the reference to decode
      * @return true if the given allocation reference is valid, otherwise the slice is invalidated
      */
-    @Override
-    public boolean decodeReference(Slice s, long reference) {
+    boolean decodeReference(SliceSeqExpand s, long reference) {
         if (s.getAllocatedBlockID() == rcd.getFirst(reference)) {
             // it shows performance improvement (10%) in stream scans, when only offset of the
             // key's slice is updated upon reference decoding.
@@ -79,15 +89,6 @@ class SeqExpandMemoryManager implements MemoryManager {
             return true;
         }
         return false;
-    }
-
-    /**
-     * @param s the memory slice, encoding of which should be returned as a an output long reference
-     * @return the encoded reference
-     */
-    @Override
-    public long encodeReference(Slice s) {
-        return rcd.encode(s);
     }
 
     /**
@@ -130,11 +131,12 @@ class SeqExpandMemoryManager implements MemoryManager {
     }
 
     @Override
-    public Slice getEmptySlice() {
-        return new SliceSeqExpand();
+    public SliceSeqExpand getEmptySlice() {
+        return new SliceSeqExpand(this, rcd);
     }
 
-    @Override public int getHeaderSize() {
+    @Override
+    public int getHeaderSize() {
         return 0;
     }
 }

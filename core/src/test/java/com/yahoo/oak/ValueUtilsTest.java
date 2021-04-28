@@ -26,7 +26,7 @@ public class ValueUtilsTest {
         SeqExpandMemoryManager keysMemoryManager = new SeqExpandMemoryManager(allocator);
         ctx = new ThreadContext(keysMemoryManager, valuesMemoryManager);
         s = ctx.value;
-        valuesMemoryManager.allocate(s.getSlice(), Integer.BYTES * 3, false);
+        s.getSlice().allocate(Integer.BYTES * 3, false);
     }
 
     private void putInt(int index, int value) {

@@ -24,14 +24,14 @@ public class SeqExpandMemoryManagerTest {
 
     @Test
     public void allocate() {
-        Slice s = new SliceSeqExpand();
+        Slice s = seqExpandMemoryManager.getEmptySlice();
         ByteBuffer bb;
 
-        seqExpandMemoryManager.allocate(s, 4, false);
+        s.allocate(4, false);
         Assert.assertEquals(4, s.getAllocatedLength());
         Assert.assertEquals(4, seqExpandMemoryManager.allocated());
 
-        seqExpandMemoryManager.allocate(s, 4, false);
+        s.allocate(4, false);
         Assert.assertEquals(4, s.getAllocatedLength());
         Assert.assertEquals(8, seqExpandMemoryManager.allocated());
     }

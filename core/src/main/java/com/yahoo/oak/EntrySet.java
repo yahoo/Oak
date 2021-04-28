@@ -320,7 +320,7 @@ class EntrySet<K, V> {
         }
 
         long reference = getKeyReference(ei);
-        return keysMemoryManager.decodeReference(key.getSlice(), reference);
+        return key.getSlice().decodeReference(reference);
     }
 
     /**
@@ -340,7 +340,7 @@ class EntrySet<K, V> {
             return false;
         }
         long reference = getValueReference(ei);
-        return valuesMemoryManager.decodeReference(value.getSlice(), reference);
+        return value.getSlice().decodeReference(reference);
     }
 
 
@@ -436,7 +436,7 @@ class EntrySet<K, V> {
      */
     void allocateKey(K key, KeyBuffer keyBuffer) {
         int keySize = keySerializer.calculateSize(key);
-        keysMemoryManager.allocate(keyBuffer.getSlice(), keySize, false);
+        keyBuffer.getSlice().allocate(keySize, false);
         ScopedWriteBuffer.serialize(keyBuffer.getSlice(), key, keySerializer);
     }
 
@@ -448,7 +448,7 @@ class EntrySet<K, V> {
      */
     void duplicateKey(KeyBuffer src, KeyBuffer dst) {
         final int keySize = src.capacity();
-        keysMemoryManager.allocate(dst.getSlice(), keySize, false);
+        dst.getSlice().allocate(keySize, false);
 
         // We duplicate the buffer without instantiating a write buffer because the user is not involved.
         UnsafeUtils.UNSAFE.copyMemory(src.getAddress(), dst.getAddress(), keySize);
@@ -470,7 +470,7 @@ class EntrySet<K, V> {
         because the entries array is initialized that way (see specs).
          */
         setEntryFieldLong(entryIdx2LongIdx(ctx.entryIndex),
-            OFFSET.KEY_REFERENCE, keysMemoryManager.encodeReference(ctx.key.getSlice()));
+            OFFSET.KEY_REFERENCE, ctx.key.getSlice().encodeReference());
     }
 
     /**
@@ -489,7 +489,7 @@ class EntrySet<K, V> {
 
         // The allocated slice includes all the needed information for further access,
         // the reference is set in the slice as part of the alocation
-        valuesMemoryManager.allocate(ctx.newValue.getSlice(), valueDataSize, writeForMove);
+        ctx.newValue.getSlice().allocate(valueDataSize, writeForMove);
         ctx.isNewValueForMove = writeForMove;
 
         ScopedWriteBuffer.serialize(ctx.newValue.getSlice(), value, valueSerializer);
@@ -559,7 +559,7 @@ class EntrySet<K, V> {
         if (casEntriesArrayLong(longIdx, OFFSET.VALUE_REFERENCE, expectedReference, newReference)) {
             assert valuesMemoryManager.isReferenceConsistent(getValueReference(ctx.entryIndex));
             numOfEntries.getAndDecrement();
-            valuesMemoryManager.release(ctx.value.getSlice());
+            ctx.value.getSlice().release();
             ctx.value.invalidate();
             ctx.valueState = ValueState.DELETED;
 
@@ -578,8 +578,9 @@ class EntrySet<K, V> {
      * @param ctx the context that follows the operation since the key was found/created
      **/
     void releaseKey(ThreadContext ctx) {
-        // currently using values memory manager as keys are not a subject to be released
-        valuesMemoryManager.release(ctx.key.getSlice());
+        // Keys are now managed via Sequentially Expanding Memory Manager, but since this key's slice
+        // can not be reached or used by other thread it is OK to release it and to allocate again.
+        ctx.key.getSlice().release();
     }
 
     /**
@@ -592,7 +593,7 @@ class EntrySet<K, V> {
      * @param ctx the context that follows the operation since the key was found/created
      **/
     void releaseNewValue(ThreadContext ctx) {
-        valuesMemoryManager.release(ctx.newValue.getSlice());
+        ctx.newValue.getSlice().release();
     }
 
     /**

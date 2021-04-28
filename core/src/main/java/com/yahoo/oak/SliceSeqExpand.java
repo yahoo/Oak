@@ -17,19 +17,72 @@ package com.yahoo.oak;
 class SliceSeqExpand extends Slice {
     static final int UNDEFINED_LENGTH_OR_OFFSET = -1;
 
+    private final SeqExpandMemoryManager semm;  // The memory manager for allocation and release
+    private final ReferenceCodecSeqExpand rcse; // The reference codec for references management via Slice
+
     /* ------------------------------------------------------------------------------------
      * Constructors
      * ------------------------------------------------------------------------------------*/
     // Should be used only by Memory Manager (within Memory Manager package)
-    SliceSeqExpand() {
+    SliceSeqExpand(SeqExpandMemoryManager semm, ReferenceCodecSeqExpand rcse) {
         super();
+        this.semm = semm;
+        this.rcse = rcse;
         invalidate();
+    }
+
+    /**
+     * Allocate new off-heap cut and associated this slice with a new off-heap cut of memory
+     *
+     * @param size     the number of bytes required by the user
+     * @param existing whether the allocation is for existing off-heap cut moving to the other
+     */
+    @Override
+    void allocate(int size, boolean existing) {
+        reference = semm.allocate(this, size, existing);
+    }
+
+    /**
+     * Release the associated off-heap cut, which is disconnected from the data structure,
+     * but can be still accessed via threads previously having the access. It is the memory
+     * manager responsibility to care for the old concurrent accesses.
+     */
+    @Override
+    void release() {
+        semm.release(this);
+    }
+
+    /**
+     * Decode information from reference to this Slice's fields.
+     *
+     * @param reference the reference to decode
+     * @return true if the given allocation reference is valid and not deleted. If reference is
+     * invalid, the slice is invalidated. If reference is deleted, this slice is updated anyway.
+     */
+    @Override
+    boolean decodeReference(long reference) {
+        return semm.decodeReference(this, reference);
+    }
+
+    /**
+     * Encode (create) the reference according to the information in this Slice
+     *
+     * @return the encoded reference
+     */
+    @Override
+    long encodeReference() {
+        return rcse.encode(getAllocatedBlockID(), getAllocatedOffset(), getAllocatedLength());
+    }
+
+    @Override
+    long getThirdForReferenceEncoding() {
+        return getAllocatedLength();
     }
 
     // Used to duplicate the allocation state. Does not duplicate the underlying memory buffer itself.
     // Should be used when ThreadContext's internal Slice needs to be exported to the user.
     SliceSeqExpand getDuplicatedSlice() {
-        SliceSeqExpand newSlice = new SliceSeqExpand();
+        SliceSeqExpand newSlice = new SliceSeqExpand(this.semm, this.rcse);
         newSlice.copyFrom(this);
         return newSlice;
     }
@@ -37,12 +90,22 @@ class SliceSeqExpand extends Slice {
     /* ------------------------------------------------------------------------------------
      * Allocation info and metadata setters
      * ------------------------------------------------------------------------------------*/
+    // Reset all common not final fields to invalid state
+    void invalidate() {
+        blockID     = NativeMemoryAllocator.INVALID_BLOCK_ID;
+        reference   = ReferenceCodecSeqExpand.INVALID_REFERENCE;
+        length      = undefinedLengthOrOffsetOrAddress;
+        offset      = undefinedLengthOrOffsetOrAddress;
+        memAddress  = undefinedLengthOrOffsetOrAddress;
+        associated  = false;
+    }
 
     /*
      * Updates everything that can be extracted with reference decoding of "SeqExpand" type,
      * including reference itself.
      * This is not the full setting of the association, therefore 'associated' flag remains false
      */
+    @Override
     void associateReferenceDecoding(int blockID, int offset, int length, long reference) {
         // length can remain undefined until requested, but if given length should include the header
         assert length != UNDEFINED_LENGTH_OR_OFFSET;
@@ -76,12 +139,8 @@ class SliceSeqExpand extends Slice {
     void updateOnSameBlock(int offset, int length) {
         this.offset = offset;
         this.length = length;
-        assert memAddress != UNDEFINED_LENGTH_OR_OFFSET_OR_ADDRESS;
+        assert memAddress != undefinedLengthOrOffsetOrAddress;
         this.associated = true;
-    }
-
-    // the method has no effect for SliceSeqExpand
-    protected void prefetchDataLength() {
     }
 
     /* ------------------------------------------------------------------------------------

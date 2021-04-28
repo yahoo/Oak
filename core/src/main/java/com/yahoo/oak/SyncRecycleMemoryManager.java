@@ -18,7 +18,7 @@ class SyncRecycleMemoryManager implements MemoryManager {
     private static final int VERS_INIT_VALUE = 1;
     private static final int OFF_HEAP_HEADER_SIZE = 12; /* Bytes */
     private final ThreadIndexCalculator threadIndexCalculator;
-    private final List<List<Slice>> releaseLists;
+    private final List<List<SliceSyncRecycle>> releaseLists;
     private final AtomicInteger globalVersionNumber;
     private final BlockMemoryAllocator allocator;
 
@@ -62,23 +62,13 @@ class SyncRecycleMemoryManager implements MemoryManager {
      * @param reference the reference to decode
      * @return true if the given allocation reference is valid, otherwise the slice is invalidated
      */
-    @Override
-    public boolean decodeReference(Slice s, long reference) {
+    boolean decodeReference(SliceSyncRecycle s, long reference) {
         // reference is set in the slice as part of decoding
         if (rcmm.decode(s, reference)) {
             allocator.readMemoryAddress(s);
             return true;
         }
         return false;
-    }
-
-    /**
-     * @param s the memory slice, encoding of which should be returned as a an output long reference
-     * @return the encoded reference
-     */
-    @Override
-    public long encodeReference(Slice s) {
-        return rcmm.encode(s);
     }
 
     /**
@@ -120,8 +110,8 @@ class SyncRecycleMemoryManager implements MemoryManager {
     }
 
     @Override
-    public Slice getEmptySlice() {
-        return new SliceSyncRecycle(OFF_HEAP_HEADER_SIZE, HEADER);
+    public SliceSyncRecycle getEmptySlice() {
+        return new SliceSyncRecycle(OFF_HEAP_HEADER_SIZE, HEADER, this, rcmm);
     }
 
     @VisibleForTesting
@@ -140,15 +130,11 @@ class SyncRecycleMemoryManager implements MemoryManager {
     // 2. The parameter flag existing explains whether the allocation is for existing slice
     // moving to the other location (e.g. in order to be enlarged). The algorithm of move requires
     // the lock of the newly allocated slice to be taken exclusively until the process of move is finished.
-    @Override
-    public void allocate(Slice s, int size, boolean existing) {
+    long allocate(SliceSyncRecycle s, int size, boolean existing) {
         boolean allocated = allocator.allocate(s, size + OFF_HEAP_HEADER_SIZE);
         assert allocated;
         int allocationVersion = globalVersionNumber.get();
-        s.associateMMAllocation(allocationVersion,
-            rcmm.encode((long) s.getAllocatedBlockID(), // can not use the encode(Slice s)
-                        (long) s.getAllocatedOffset(),  // because version is not yet set in slice
-                        (long) allocationVersion));
+        s.setVersion(allocationVersion);
         // Initiate the header that is serving for synchronization and memory management
         // for value written for the first time (not existing):
         //      initializing the header's lock to be free
@@ -159,18 +145,24 @@ class SyncRecycleMemoryManager implements MemoryManager {
             HEADER.initFreeHeader(s.getMetadataAddress(), size, allocationVersion);
         }
         assert HEADER.getOffHeapVersion(s.getMetadataAddress()) == allocationVersion;
+        return s.encodeReference();
     }
 
-    @Override
-    public void release(Slice s) {
+    /**
+     * When returning an allocated Slice to the Memory Manager, depending on the implementation, there might be a
+     * restriction on whether this allocation is reachable by other threads or not.
+     *
+     * @param s the allocation object to release
+     */
+    void release(SliceSyncRecycle s) {
         s.prefetchDataLength(); // this will set the length from off-heap header, if needed
         int idx = threadIndexCalculator.getIndex();
-        List<Slice> myReleaseList = this.releaseLists.get(idx);
+        List<SliceSyncRecycle> myReleaseList = this.releaseLists.get(idx);
         // ensure the length of the slice is always set
         myReleaseList.add(s.getDuplicatedSlice());
         if (myReleaseList.size() >= RELEASE_LIST_LIMIT) {
             increaseGlobalVersion();
-            for (Slice allocToRelease : myReleaseList) {
+            for (SliceSyncRecycle allocToRelease : myReleaseList) {
                 allocator.free(allocToRelease);
             }
             myReleaseList.clear();

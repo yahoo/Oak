@@ -13,41 +13,84 @@ package com.yahoo.oak;
 // Slice can be either empty or associated with an off-heap cut,
 // which is the aforementioned portion of an off-heap memory.
 abstract class Slice implements Comparable<Slice> {
-    static final int UNDEFINED_LENGTH_OR_OFFSET_OR_ADDRESS = -1;
+    protected final int undefinedLengthOrOffsetOrAddress = -1;
 
     /** The fields describing the associated off-heap cut, they are set when slice is not empty **/
     protected long reference;
     protected int blockID = NativeMemoryAllocator.INVALID_BLOCK_ID;
-    protected int offset  = UNDEFINED_LENGTH_OR_OFFSET_OR_ADDRESS;
+    protected int offset  = undefinedLengthOrOffsetOrAddress;
 
     // The entire length of the off-heap cut, including the header!
-    protected int length = UNDEFINED_LENGTH_OR_OFFSET_OR_ADDRESS;
-    protected long memAddress = UNDEFINED_LENGTH_OR_OFFSET_OR_ADDRESS;
+    protected int length = undefinedLengthOrOffsetOrAddress;
+    protected long memAddress = undefinedLengthOrOffsetOrAddress;
 
     // true if slice is associated with an off-heap slice of memory
     // if associated is false the Slice is empty
     protected boolean associated = false;
 
     /* ------------------------------------------------------------------------------------
-     * No Constructors, only for concrete implementations
+     * No Constructors, only for concrete implementations. Memory Manager invocations below.
      * ------------------------------------------------------------------------------------*/
 
-    // Used to duplicate the allocation state. Does not duplicate the underlying memory buffer itself.
-    // Should be used when ThreadContext's internal Slice needs to be exported to the user.
-    abstract Slice getDuplicatedSlice();
+    /**
+     * Allocate new off-heap cut and associated this slice with a new off-heap cut of memory
+     *
+     * @param size     the number of bytes required by the user
+     * @param existing whether the allocation is for existing off-heap cut moving to the other
+     *                 location (e.g. in order to be enlarged).
+     */
+    abstract void allocate(int size, boolean existing);
+
+    /**
+     * Release the associated off-heap cut, which is disconnected from the data structure,
+     * but can be still accessed via threads previously having the access. It is the memory
+     * manager responsibility to care for the old concurrent accesses.
+     */
+    abstract void release();
+
+    /* ------------- Interfaces to deal with references! ------------- */
+    /* Reference is a long (64 bits) that should encapsulate all the information required
+     * to access a memory for read and for write. It is up to memory manager what to put inside.
+     */
+
+    /**
+     * Decode information from reference to this Slice's fields.
+     *
+     * @param reference the reference to decode
+     * @return true if the given allocation reference is valid and not deleted. If reference is
+     * invalid, the slice is invalidated. If reference is deleted, this slice is updated anyway.
+     */
+    abstract boolean decodeReference(long reference);
+
+    /**
+     * Encode (create) the reference according to the information in this Slice
+     *
+     * @return the encoded reference
+     */
+    abstract long encodeReference();
+
+    /* ------------------------------------------------------------------------------------
+     * Getters for Reference encoding/decoding
+     * ------------------------------------------------------------------------------------*/
+    abstract long getThirdForReferenceEncoding();
+
+    long getSecondForReferenceEncoding() {
+        return getAllocatedOffset();
+    }
+
+    long getFirstForReferenceEncoding() {
+        return getAllocatedBlockID();
+    }
 
     /* ------------------------------------------------------------------------------------
      * Allocation info and metadata setters
      * ------------------------------------------------------------------------------------*/
-    // Reset all not final fields to invalid state
-    void invalidate() {
-        blockID     = NativeMemoryAllocator.INVALID_BLOCK_ID;
-        reference   = ReferenceCodecSeqExpand.INVALID_REFERENCE;
-        length      = UNDEFINED_LENGTH_OR_OFFSET_OR_ADDRESS;
-        offset      = UNDEFINED_LENGTH_OR_OFFSET_OR_ADDRESS;
-        memAddress  = UNDEFINED_LENGTH_OR_OFFSET_OR_ADDRESS;
-        associated  = false;
-    }
+    // Used to duplicate the allocation state. Does not duplicate the underlying memory buffer itself.
+    // Should be used when ThreadContext's internal Slice needs to be exported to the user.
+    abstract Slice getDuplicatedSlice();
+
+    // Reset all common not final fields to invalid state
+    abstract void invalidate();
 
     // initialize dummy for allocation
     void initializeLookupDummy(int l) {
@@ -75,8 +118,9 @@ abstract class Slice implements Comparable<Slice> {
      */
     void associateBlockAllocation(int blockID, int offset, int length, long memAddress) {
         assert blockID != NativeMemoryAllocator.INVALID_BLOCK_ID
-            && offset > UNDEFINED_LENGTH_OR_OFFSET_OR_ADDRESS && length > UNDEFINED_LENGTH_OR_OFFSET_OR_ADDRESS
-            && memAddress != UNDEFINED_LENGTH_OR_OFFSET_OR_ADDRESS;
+            && offset > undefinedLengthOrOffsetOrAddress
+            && length > undefinedLengthOrOffsetOrAddress
+            && memAddress != undefinedLengthOrOffsetOrAddress;
         setBlockIdOffsetAndLength(blockID, offset, length);
         this.memAddress  = memAddress;
         this.associated = true;
@@ -110,9 +154,6 @@ abstract class Slice implements Comparable<Slice> {
     // used only in case of iterations when the rest of the slice's data should remain the same
     // in this case once the offset is set the the slice is associated
     abstract void updateOnSameBlock(int offset, int length);
-
-    // the method has no effect if length is already set
-    protected abstract void prefetchDataLength();
 
     // simple setter, frequently internally used, to save code duplication
     protected void setBlockIdOffsetAndLength(int blockID, int offset, int length) {

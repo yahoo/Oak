@@ -24,26 +24,76 @@ class SliceSyncRecycle extends Slice {
     private final SyncRecycleMMHeader header;
     private int version;    // Allocation time version
 
+    private final SyncRecycleMemoryManager srmm;    // The memory manager for allocation and release
+    private final ReferenceCodecSyncRecycle rcsr;   // The reference codec for references management via Slice
+
     /* ------------------------------------------------------------------------------------
      * Constructors
      * ------------------------------------------------------------------------------------*/
     // Should be used only by Memory Manager (within Memory Manager package)
-    SliceSyncRecycle(int headerSize, SyncRecycleMMHeader header) {
+    SliceSyncRecycle(int headerSize, SyncRecycleMMHeader header, SyncRecycleMemoryManager srmm,
+        ReferenceCodecSyncRecycle rcsr) {
         super();
         this.headerSize = headerSize;
         this.header = header;
+        this.srmm = srmm;
+        this.rcsr = rcsr;
         invalidate();
     }
 
-    // Should be used only for testing
-    @VisibleForTesting SliceSyncRecycle() {
-        this(0, null);
+    /**
+     * Allocate new off-heap cut and associated this slice with a new off-heap cut of memory
+     *
+     * @param size     the number of bytes required by the user
+     * @param existing whether the allocation is for existing off-heap cut moving to the other
+     */
+    @Override
+    void allocate(int size, boolean existing) {
+        reference = srmm.allocate(this, size, existing);
+    }
+
+    /**
+     * Release the associated off-heap cut, which is disconnected from the data structure,
+     * but can be still accessed via threads previously having the access. It is the memory
+     * manager responsibility to care for the old concurrent accesses.
+     */
+    @Override
+    void release() {
+        srmm.release(this);
+    }
+
+    /**
+     * Decode information from reference to this Slice's fields.
+     *
+     * @param reference the reference to decode
+     * @return true if the given allocation reference is valid and not deleted. If reference is
+     * invalid, the slice is invalidated. If reference is deleted, this slice is updated anyway.
+     */
+    @Override
+    boolean decodeReference(long reference) {
+        return srmm.decodeReference(this, reference);
+    }
+
+    /**
+     * Encode (create) the reference according to the information in this Slice
+     *
+     * @return the encoded reference
+     */
+    @Override
+    long encodeReference() {
+        return rcsr.encode(getAllocatedBlockID(), getAllocatedOffset(), getVersion());
+    }
+
+    @Override
+    long getThirdForReferenceEncoding() {
+        return getVersion();
     }
 
     // Used to duplicate the allocation state. Does not duplicate the underlying memory buffer itself.
     // Should be used when ThreadContext's internal Slice needs to be exported to the user.
     SliceSyncRecycle getDuplicatedSlice() {
-        SliceSyncRecycle newSlice = new SliceSyncRecycle(this.headerSize, this.header);
+        SliceSyncRecycle newSlice = new SliceSyncRecycle(this.headerSize, this.header, this.srmm,
+            this.rcsr);
         newSlice.copyFrom(this);
         return newSlice;
     }
@@ -58,7 +108,7 @@ class SliceSyncRecycle extends Slice {
         version     = ReferenceCodecSyncRecycle.INVALID_VERSION;
         length      = UNDEFINED_LENGTH_OR_OFFSET;
         offset      = UNDEFINED_LENGTH_OR_OFFSET;
-        memAddress  = UNDEFINED_LENGTH_OR_OFFSET_OR_ADDRESS;
+        memAddress  = undefinedLengthOrOffsetOrAddress;
         associated  = false;
     }
 
@@ -67,6 +117,7 @@ class SliceSyncRecycle extends Slice {
      * including reference itself. The separation by reference decoding type is temporary!
      * This is not the full setting of the association, therefore 'associated' flag remains false
      */
+    @Override
     void associateReferenceDecoding(int blockID, int offset, int version, long reference) {
         setBlockIdOffsetAndLength(blockID, offset, UNDEFINED_LENGTH_OR_OFFSET);
         this.reference = reference;
@@ -101,7 +152,7 @@ class SliceSyncRecycle extends Slice {
     }
 
     // the method has no effect if length is already set
-    protected void prefetchDataLength() {
+    void prefetchDataLength() {
         if (length == UNDEFINED_LENGTH_OR_OFFSET) {
             // the length kept in header is the length of the data only!
             // add header size
@@ -124,6 +175,10 @@ class SliceSyncRecycle extends Slice {
      * ------------------------------------------------------------------------------------*/
     int getVersion() {
         return version;
+    }
+
+    void setVersion(int version) {
+        this.version = version;
     }
 
     @Override
