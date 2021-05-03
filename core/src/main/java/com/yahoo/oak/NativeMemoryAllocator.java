@@ -67,6 +67,7 @@ class NativeMemoryAllocator implements BlockMemoryAllocator {
     // within current block bounds.
     // Otherwise, new block is allocated within Oak memory bounds. Thread safe.
     // Given size already includes the size for metadata header if needed.
+    // For our internal implementation what all Slices we work with extend the AbstractSlice!
     @Override
     public boolean allocate(Slice s, int size) {
         // While the free list is not empty there can be a suitable free slice to reuse.
@@ -74,7 +75,7 @@ class NativeMemoryAllocator implements BlockMemoryAllocator {
         // Then, we use freeList.higher(s) which returns a free slice with greater or equal length to the length of the
         // dummy with time complexity of O(log N), where N is the number of free slices.
         while (!freeList.isEmpty()) {
-            s.initializeLookupDummy(size);
+            ((AbstractSlice) s).initializeLookupDummy(size);
             Slice bestFit = freeList.higher(s);
             if (bestFit == null) {
                 break;
@@ -92,7 +93,7 @@ class NativeMemoryAllocator implements BlockMemoryAllocator {
                 if (stats != null) {
                     stats.reclaim(size);
                 }
-                s.copyAllocationInfoFrom(bestFit);
+                ((AbstractSlice) s).copyAllocationInfoFrom((AbstractSlice) bestFit);
                 return true;
             }
         }
@@ -102,7 +103,7 @@ class NativeMemoryAllocator implements BlockMemoryAllocator {
         while (!isAllocated) {
             try {
                 // The ByteBuffer inside this slice is the thread's ByteBuffer
-                isAllocated = currentBlock.allocate(s, size);
+                isAllocated = currentBlock.allocate((AbstractSlice) s, size);
             } catch (OakOutOfMemoryException e) {
                 // there is no space in current block
                 // may be a buffer bigger than any block is requested?
@@ -185,6 +186,7 @@ class NativeMemoryAllocator implements BlockMemoryAllocator {
     }
 
     // When some buffer need to be read from a random block
+    // The Slices we work with must extend AbstractSlice
     @Override
     public void readMemoryAddress(Slice s) {
         int blockID = s.getAllocatedBlockID();
@@ -193,7 +195,7 @@ class NativeMemoryAllocator implements BlockMemoryAllocator {
         assert blockID > NativeMemoryAllocator.INVALID_BLOCK_ID :
                 String.format("Invalid block-id: %s", s);
         Block b = blocksArray[blockID];
-        s.setAddress(b.getStartMemAddress());
+        ((AbstractSlice) s).setAddress(b.getStartMemAddress());
     }
 
 

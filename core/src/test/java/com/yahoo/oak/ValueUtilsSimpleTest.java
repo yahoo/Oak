@@ -16,7 +16,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class ValueUtilsSimpleTest {
-    private Slice s;
+    private AbstractSlice s;
 
     @Before
     public void init() {

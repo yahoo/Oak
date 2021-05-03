@@ -148,7 +148,7 @@ abstract class ReferenceCodec {
      * @param reference the reference to decode
      * @return true if the allocation reference is valid
      */
-    boolean decode(final Slice s, final long reference) {
+    boolean decode(final AbstractSlice s, final long reference) {
         if (!isReferenceValid(reference)) {
             s.invalidate();
             return false;
