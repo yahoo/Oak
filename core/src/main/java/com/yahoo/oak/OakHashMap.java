@@ -39,7 +39,7 @@ public class OakHashMap<K, V> extends AbstractMap<K, V> implements AutoCloseable
     private final OakHashFunction<K , ?> hashFunction;
 
 
-    // internal constructor, to create OakMap use OakMapBuilder
+    // internal constructor, to create OakHashMap use OakHashMapBuilder
     OakHashMap(OakSerializer<K> keySerializer,
                OakSerializer<V> valueSerializer,
                OakComparator<K> oakComparator,
