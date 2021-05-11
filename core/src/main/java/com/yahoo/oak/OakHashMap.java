@@ -36,7 +36,7 @@ public class OakHashMap<K, V> extends AbstractMap<K, V> implements AutoCloseable
     private final Function<Map.Entry<OakScopedReadBuffer, OakScopedReadBuffer>,
             Map.Entry<K, V>> entryDeserializeTransformer;
     private final OakComparator<K> comparator;
-    private final OakHashFunction<K , ?> hashFunction;
+    private final OakHashFunction<K , ? extends Number> hashFunction;
 
 
     // internal constructor, to create OakHashMap use OakHashMapBuilder

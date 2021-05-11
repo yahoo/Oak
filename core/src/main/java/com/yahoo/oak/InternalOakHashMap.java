@@ -27,7 +27,7 @@ public class InternalOakHashMap<K , V> implements Closeable {
                               MemoryManager keysMemoryManager,
                               OakSerializer<K> keySerializer,
                               OakSerializer<V> valueSerializer,
-                              OakHashFunction<K , ?> hashFunction) {
+                              OakHashFunction<K , ? extends Number> hashFunction) {
         this.size = new AtomicInteger(0);
         this.valuesMemoryManager = valuesMemoryManager;
         this.keysMemoryManager = keysMemoryManager;
