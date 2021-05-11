@@ -224,6 +224,7 @@ public class OakMap<K, V> extends AbstractMap<K, V> implements AutoCloseable, Co
         if (value == null) {
             throw new NullPointerException();
         }
+
         return internalOakMap.replace(key, value, valueDeserializeTransformer);
     }
 

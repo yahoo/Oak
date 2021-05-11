@@ -8,5 +8,5 @@ package com.yahoo.oak;
 
 import java.util.function.Function;
 
-public interface OakHash<T> extends Function<T, Long> {
+public interface OakHashFunction<T , U> extends Function<T , U> {
 }
