@@ -8,6 +8,7 @@ package com.yahoo.oak;
 
 import com.yahoo.oak.common.OakCommonBuildersFactory;
 import com.yahoo.oak.common.integer.OakIntSerializer;
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -33,7 +34,7 @@ public class OverheadTest {
     }
 
     @Test
-    public void main() {
+    public void validateOverhead() {
         Random r = new Random();
         for (int i = 0; i < (int) Math.round(NUM_OF_ENTRIES * 0.5); ) {
             Integer key = r.nextInt(NUM_OF_ENTRIES);
@@ -51,6 +52,9 @@ public class OverheadTest {
 
         double heapOverhead = usedHeapMemoryMB / (usedHeapMemoryMB + usedOffHeapMemoryMB);
         System.out.println("Observed On Heap Overhead: " + heapOverhead);
-        assert heapOverhead < MAX_ON_HEAP_OVERHEAD_PERCENTAGE;
+        Assert.assertTrue(
+                "Observed On Heap Overhead: " + heapOverhead,
+                heapOverhead < MAX_ON_HEAP_OVERHEAD_PERCENTAGE
+        );
     }
 }
