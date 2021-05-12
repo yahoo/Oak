@@ -66,11 +66,6 @@ class ReferenceCodecSyncRecycle extends ReferenceCodec {
         return (INVALID_REFERENCE | v);
     }
 
-    @Override
-    boolean isReferenceValid(long reference) {
-        return reference != INVALID_REFERENCE;
-    }
-
     // invoked only within assert
     boolean isReferenceConsistent(long reference) {
         if (reference == INVALID_REFERENCE) {

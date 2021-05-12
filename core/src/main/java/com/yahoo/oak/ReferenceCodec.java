@@ -20,6 +20,7 @@ package com.yahoo.oak;
  * (As negatives have prefix of ones.)
  */
 abstract class ReferenceCodec {
+    static final long INVALID_REFERENCE = 0;
     protected static final int INVALID_BIT_SIZE = -1;
 
     private int firstBitSize = 0;
@@ -112,7 +113,9 @@ abstract class ReferenceCodec {
     /*------- User Interface -------*/
 
     // check if reference is invalid, according to concreete implementation
-    abstract boolean isReferenceValid(long reference);
+    boolean isReferenceValid(long reference) {
+        return reference != INVALID_REFERENCE;
+    }
 
     // check is reference deleted should be applied according to reference type
     abstract boolean isReferenceDeleted(long reference);
@@ -143,26 +146,6 @@ abstract class ReferenceCodec {
         return  encode(first, second, third);
     }
 
-    /**
-     * @param s         the object to update
-     * @param reference the reference to decode
-     * @return true if the allocation reference is valid
-     */
-    boolean decode(final AbstractSlice s, final long reference) {
-        if (!isReferenceValid(reference)) {
-            s.invalidate();
-            return false;
-        }
-
-        int first  = getFirst(reference);
-        int second = getSecond(reference);
-        int third  = getThird(reference);
-
-        s.associateReferenceDecoding(first, second, third, reference);
-        return !isReferenceDeleted(reference);
-    }
-
-
     long encode(long first, long second, long third) {
         // These checks validates that the chosen encoding is sufficient for the current use-case.
         if ((first & ~firstMask) != 0 || (second & ~secondMask) != 0 || (third & ~thirdMask) != 0 ) {
@@ -181,14 +164,15 @@ abstract class ReferenceCodec {
 
 
     /* To be used by derived classes */
-    protected int getFirst(final long reference) {
+    int getFirst(final long reference) {
         return  (int) (reference & firstMask);
     }
 
-    protected int getSecond(final long reference) {
+    int getSecond(final long reference) {
         return  (int) ((reference >>> secondShift) & secondMask);
     }
-    protected int getThird(final long reference) {
+
+    int getThird(final long reference) {
         return  (int) ((reference >>> thirdShift) & thirdMask);
     }
 }

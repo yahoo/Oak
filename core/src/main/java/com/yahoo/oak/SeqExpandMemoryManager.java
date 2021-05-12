@@ -27,12 +27,12 @@ class SeqExpandMemoryManager implements MemoryManager {
      * Note: these limitations will change for different block sizes.
      *
      */
-    private final ReferenceCodecSeqExpand rcse;
+    private final ReferenceCodecSeqExpand rc;
 
     SeqExpandMemoryManager(BlockMemoryAllocator memoryAllocator) {
         assert memoryAllocator != null;
         this.allocator = memoryAllocator;
-        rcse = new ReferenceCodecSeqExpand(
+        rc = new ReferenceCodecSeqExpand(
             BlocksPool.getInstance().blockSize(), BlocksPool.getInstance().blockSize(), memoryAllocator);
     }
 
@@ -49,14 +49,15 @@ class SeqExpandMemoryManager implements MemoryManager {
     }
 
     /**
-     * Present the reference as it needs to be when the target is deleted
+     * Present the reference as it needs to be when the target is deleted.
+     * As no deletions are assumed in Sequential Expandable MM return the same reference.
      *
      * @param reference to alter
      * @return the encoded reference
      */
     @Override
     public long alterReferenceForDelete(long reference) {
-        return rcse.alterForDelete(reference);
+        return reference;
     }
 
     /**
@@ -69,27 +70,27 @@ class SeqExpandMemoryManager implements MemoryManager {
 
     @Override
     public boolean isReferenceValid(long reference) {
-        return rcse.isReferenceValid(reference);
+        return rc.isReferenceValid(reference);
     }
 
     @Override
     public boolean isReferenceDeleted(long reference) {
-        return rcse.isReferenceDeleted(reference);
+        return rc.isReferenceDeleted(reference);
     }
 
     @Override
     public boolean isReferenceValidAndNotDeleted(long reference) {
-        return isReferenceValid(reference);
+        return rc.isReferenceValid(reference);
     }
 
     @Override
     public boolean isReferenceConsistent(long reference) {
-        return rcse.isReferenceConsistent(reference);
+        return rc.isReferenceConsistent(reference);
     }
 
     @Override
     public SliceSeqExpand getEmptySlice() {
-        return new SeqExpandMemoryManager.SliceSeqExpand();
+        return new SliceSeqExpand();
     }
 
     @Override
@@ -98,12 +99,11 @@ class SeqExpandMemoryManager implements MemoryManager {
     }
 
     /*===================================================================*/
-    /*           SeqExpandMemoryManager.SliceSeqExpand                   */
+    /*           SliceSeqExpand                   */
     /* Inner Class for easier access to SeqExpandMemoryManager abilities */
     /*===================================================================*/
 
     class SliceSeqExpand extends AbstractSlice implements Slice {
-        static final int UNDEFINED_LENGTH_OR_OFFSET = -1;
 
         /* ------------------------------------------------------------------------------------
          * Constructors
@@ -111,7 +111,6 @@ class SeqExpandMemoryManager implements MemoryManager {
         // Should be used only by Memory Manager (within Memory Manager package)
         SliceSeqExpand() {
             super();
-            invalidate();
         }
 
         /**
@@ -124,6 +123,7 @@ class SeqExpandMemoryManager implements MemoryManager {
         public void allocate(int size, boolean existing) {
             boolean allocated = allocator.allocate(this, size);
             assert allocated;
+            associated = true;
             reference = encodeReference();
         }
 
@@ -154,15 +154,15 @@ class SeqExpandMemoryManager implements MemoryManager {
          */
         @Override
         public boolean decodeReference(long reference) {
-            if (getAllocatedBlockID() == rcse.getFirst(reference)) {
+            if (getAllocatedBlockID() == rc.getFirst(reference)) {
                 // it shows performance improvement (10%) in stream scans, when only offset of the
                 // key's slice is updated upon reference decoding.
                 // Slice is not invalidated between next iterator steps and all the rest information
                 // in slice remains the same.
-                updateOnSameBlock(rcse.getSecond(reference)/*offset*/, rcse.getThird(reference)/*length*/);
+                updateOnSameBlock(rc.getSecond(reference)/*offset*/, rc.getThird(reference)/*length*/);
                 return true;
             }
-            if (rcse.decode(this, reference)) {
+            if (decode(reference)) {
                 allocator.readMemoryAddress(this);
                 return true;
             }
@@ -170,21 +170,43 @@ class SeqExpandMemoryManager implements MemoryManager {
         }
 
         /**
+         * @param reference the reference to decode
+         *                  (and to put the information from reference to this slice)
+         * @return true if the allocation reference is valid
+         */
+        private boolean decode(final long reference) {
+            if (!rc.isReferenceValid(reference)) {
+                invalidate();
+                return false;
+            }
+
+            int blockID  = rc.getFirst(reference);
+            int offset = rc.getSecond(reference);
+            int length  = rc.getThird(reference);
+
+            assert length != UNDEFINED_LENGTH_OR_OFFSET_OR_ADDRESS;
+            setBlockIdOffsetAndLength(blockID, offset, length);
+            this.reference = reference;
+            // This is not the full setting of the association, therefore 'associated' flag remains false
+            associated   = false;
+
+            return !isReferenceDeleted(reference);
+        }
+
+        /**
          * Encode (create) the reference according to the information in this Slice
          *
          * @return the encoded reference
          */
-        @Override
-        public long encodeReference() {
-            return rcse.encode(getAllocatedBlockID(), getAllocatedOffset(), getAllocatedLength());
+        private long encodeReference() {
+            return rc.encode(getAllocatedBlockID(), getAllocatedOffset(), getAllocatedLength());
         }
 
         // Used to duplicate the allocation state (Slice object).
         // Does not duplicate the underlying memory buffer itself.
         // Should be used when ThreadContext's internal Slice needs to be exported to the user.
-        public SeqExpandMemoryManager.SliceSeqExpand getDuplicatedSlice() {
-            SeqExpandMemoryManager.SliceSeqExpand newSlice =
-                new SeqExpandMemoryManager.SliceSeqExpand();
+        public SliceSeqExpand duplicate() {
+            SliceSeqExpand newSlice = new SliceSeqExpand();
             newSlice.copyFrom(this);
             return newSlice;
         }
@@ -196,33 +218,19 @@ class SeqExpandMemoryManager implements MemoryManager {
         public void invalidate() {
             blockID     = NativeMemoryAllocator.INVALID_BLOCK_ID;
             reference   = ReferenceCodecSeqExpand.INVALID_REFERENCE;
-            length      = undefinedLengthOrOffsetOrAddress;
-            offset      = undefinedLengthOrOffsetOrAddress;
-            memAddress  = undefinedLengthOrOffsetOrAddress;
+            length      = UNDEFINED_LENGTH_OR_OFFSET_OR_ADDRESS;
+            offset      = UNDEFINED_LENGTH_OR_OFFSET_OR_ADDRESS;
+            memAddress  = UNDEFINED_LENGTH_OR_OFFSET_OR_ADDRESS;
             associated  = false;
         }
 
-        /*
-         * Updates everything that can be extracted with reference decoding of "SeqExpand" type,
-         * including reference itself.
-         * This is not the full setting of the association, therefore 'associated' flag remains false
-         */
-        @Override
-        void associateReferenceDecoding(int blockID, int offset, int length, long reference) {
-            // length can remain undefined until requested, but if given length should include the header
-            assert length != UNDEFINED_LENGTH_OR_OFFSET;
-            setBlockIdOffsetAndLength(blockID, offset, length);
-            this.reference = reference;
-            associated   = false;
-        }
-
         // Copy the block allocation information from another block allocation.
-        public <T extends Slice> void copyFrom(T other) {
-            if (other instanceof SeqExpandMemoryManager.SliceSeqExpand) {
+        public void copyFrom(Slice other) {
+            if (other instanceof SliceSeqExpand) {
                 //TODO: any other ideas instead of `instanceof` STILL?
                 // Maybe can be resolve with introduction of the Slice interface...
-                copyAllocationInfoFrom((SeqExpandMemoryManager.SliceSeqExpand) other);
-                // if SeqExpandMemoryManager.SliceSeqExpand gets new members (not included in allocation info)
+                copyAllocationInfoFrom((SliceSeqExpand) other);
+                // if SliceSeqExpand gets new members (not included in allocation info)
                 // their copy needs to be added here
             } else {
                 throw new IllegalStateException(
@@ -234,7 +242,7 @@ class SeqExpandMemoryManager implements MemoryManager {
          * Needed only for testing!
          */
         @VisibleForTesting
-        void associateMMAllocation(int arg1, long arg2) {
+        protected void associateMMAllocation(int arg1, long arg2) {
             this.reference = arg2;
         }
 
@@ -243,7 +251,7 @@ class SeqExpandMemoryManager implements MemoryManager {
         private void updateOnSameBlock(int offset, int length) {
             this.offset = offset;
             this.length = length;
-            assert memAddress != undefinedLengthOrOffsetOrAddress;
+            assert memAddress != UNDEFINED_LENGTH_OR_OFFSET_OR_ADDRESS;
             this.associated = true;
         }
 
@@ -271,7 +279,8 @@ class SeqExpandMemoryManager implements MemoryManager {
         @Override
         public String toString() {
             return String.format(
-                "SeqExpandMemoryManager.SliceSeqExpand(blockID=%d, offset=%,d, length=%,d)",
+                "SeqExpandMemoryManager.SliceSeqExpand(isAssosiated? " + associated
+                    + " blockID=%d, offset=%,d, length=%,d)",
                 blockID, offset, length);
         }
 

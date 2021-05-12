@@ -83,7 +83,7 @@ class NativeMemoryAllocator implements BlockMemoryAllocator {
             // If the best fit is more than REUSE_MAX_MULTIPLIER times as big than the desired length, than a new
             // buffer is allocated instead of reusing.
             // This means that currently buffers are not split, so there is some internal fragmentation.
-            if (bestFit.getAllocatedLength() > (REUSE_MAX_MULTIPLIER * size)) {
+            if (((AbstractSlice) bestFit).getAllocatedLength() > (REUSE_MAX_MULTIPLIER * size)) {
                 break;     // all remaining buffers are too big
             }
             // If multiple threads got the same bestFit only one can use it (the one which succeeds in removing it
@@ -139,12 +139,12 @@ class NativeMemoryAllocator implements BlockMemoryAllocator {
     // Allocator!
     @Override
     public void free(Slice s) {
-        int size = s.getAllocatedLength();
+        int size = ((AbstractSlice) s).getAllocatedLength();
         allocated.addAndGet(-size);
         if (stats != null) {
             stats.release(size);
         }
-        freeList.add(s.getDuplicatedSlice());
+        freeList.add(s.duplicate());
     }
 
     // Releases all memory allocated for this Oak (should be used as part of the Oak destruction)
@@ -189,7 +189,7 @@ class NativeMemoryAllocator implements BlockMemoryAllocator {
     // The Slices we work with must extend AbstractSlice
     @Override
     public void readMemoryAddress(Slice s) {
-        int blockID = s.getAllocatedBlockID();
+        int blockID = ((AbstractSlice) s).getAllocatedBlockID();
         // Validates that the input block id is valid.
         // This check should be automatically eliminated by the compiler in production.
         assert blockID > NativeMemoryAllocator.INVALID_BLOCK_ID :

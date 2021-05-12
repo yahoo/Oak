@@ -6,31 +6,32 @@
 
 package com.yahoo.oak;
 
-// An abstract Slice represents an data about an off-heap cut: a portion of a bigger block,
-// which is part of the underlying managed off-heap memory. Concrete implementation adapts
-// the abstract Slice to a specific memory manager.
-// Slice is allocated only via memory manager, and can be de-allocated later.
-// Slice can be either empty or associated with an off-heap cut,
-// which is the aforementioned portion of an off-heap memory.
+/* An abstract Slice represents the information about an off-heap cut: a portion of a bigger block,
+** which is part of the underlying managed off-heap memory. Concrete implementation adapts
+** the abstract Slice to a specific memory manager.
+** Slice is allocated only via memory manager, and can be de-allocated later.
+** Slice can be either empty or associated with an off-heap cut,
+** which is the aforementioned portion of an off-heap memory.*/
 abstract class AbstractSlice implements Slice, Comparable<AbstractSlice> {
-    protected final int undefinedLengthOrOffsetOrAddress = -1;
+    protected static final int UNDEFINED_LENGTH_OR_OFFSET_OR_ADDRESS = -1;
 
     /** The fields describing the associated off-heap cut, they are set when slice is not empty **/
     protected long reference;
-    protected int blockID = NativeMemoryAllocator.INVALID_BLOCK_ID;
-    protected int offset  = undefinedLengthOrOffsetOrAddress;
-
-    // The entire length of the off-heap cut, including the header!
-    protected int length = undefinedLengthOrOffsetOrAddress;
-    protected long memAddress = undefinedLengthOrOffsetOrAddress;
+    protected int blockID;
+    protected int offset;
+    protected int length; // The entire length of the off-heap cut, including the header (if needed)!
+    protected long memAddress;
 
     // true if slice is associated with an off-heap slice of memory
     // if associated is false the Slice is empty
-    protected boolean associated = false;
+    protected boolean associated;
 
     /* ------------------------------------------------------------------------------------
-     * No Constructors, only for concrete implementations. Memory Manager invocations below.
+     * Protected Constructor
      * ------------------------------------------------------------------------------------*/
+    protected AbstractSlice() {
+        invalidate();
+    }
 
     /**
      * Allocate new off-heap cut and associated this slice with a new off-heap cut of memory
@@ -48,7 +49,13 @@ abstract class AbstractSlice implements Slice, Comparable<AbstractSlice> {
      */
     public abstract void release();
 
-    /* ------------- Interfaces to deal with references! ------------- */
+    /**
+     * Reset all Slice fields to invalid value, erase the previous association if existed.
+     * This does not releases the associated off-heap cut to memory manager, just disconnects
+     * the association!
+     */
+    public abstract void invalidate();
+
     /* Reference is a long (64 bits) that should encapsulate all the information required
      * to access a memory for read and for write. It is up to memory manager what to put inside.
      */
@@ -62,31 +69,25 @@ abstract class AbstractSlice implements Slice, Comparable<AbstractSlice> {
      */
     public abstract boolean decodeReference(long reference);
 
-    /**
-     * Encode (create) the reference according to the information in this Slice
-     *
-     * @return the encoded reference
-     */
-    public abstract long encodeReference();
-
     /* ------------------------------------------------------------------------------------
-     * Allocation info and metadata setters
+     * Slices duplication and info transfer
      * ------------------------------------------------------------------------------------*/
-    // Used to duplicate the allocation state. Does not duplicate the underlying memory buffer itself.
-    // Should be used when ThreadContext's internal Slice needs to be exported to the user.
-    public abstract AbstractSlice getDuplicatedSlice();
 
-    // Reset all common not final fields to invalid state
-    public abstract void invalidate();
+    /**
+     * Used to duplicate the allocation state. Does not duplicate the underlying off-heap cut itself.
+     * Should be used when ThreadContext's internal Slice needs to be exported to the user.
+     */
+    public abstract AbstractSlice duplicate();
 
-    // initialize dummy for allocation
-    public void initializeLookupDummy(int l) {
-        invalidate();
-        length = l;
-    }
+    /**
+     * Copy the off-heap cut allocation information from another off-heap cut allocation.
+     */
+    public abstract void copyFrom(Slice other);
 
-    // Copy the block allocation information from another block allocation.
-    public void copyAllocationInfoFrom(AbstractSlice other) {
+    /**
+     * Copy the common off-heap cut allocation information from another off-heap cut allocation.
+     */
+    protected void copyAllocationInfoFrom(AbstractSlice other) {
         if (other == this) {
             // No need to do anything if the input is this object
             return;
@@ -99,44 +100,69 @@ abstract class AbstractSlice implements Slice, Comparable<AbstractSlice> {
         this.associated = other.associated;
     }
 
+    // initialize dummy for allocation
+    protected void initializeLookupDummy(int l) {
+        invalidate();
+        length = l;
+    }
+
+    /* ------------------------------------------------------------------------------------
+     * Allocation info getters
+     * ------------------------------------------------------------------------------------*/
+
+    public boolean isAssociated() {
+        return associated;
+    }
+
+    public long getReference() {
+        return reference;
+    }
+
+    public abstract int getLength();
+
+    public abstract long getAddress();
+
+    public abstract String toString();
+
+    /* ------------------------------------------------------------------------------------
+     * Common methods required internally by Memory Manager module
+     * ------------------------------------------------------------------------------------*/
+
     /*
      * Sets everything related to allocation of an off-heap cut: a portion of a bigger block.
      * Turns empty slice to an associated slice upon allocation.
      */
-    void associateBlockAllocation(int blockID, int offset, int length, long memAddress) {
+    protected void associateBlockAllocation(int blockID, int offset, int length, long memAddress) {
         assert blockID != NativeMemoryAllocator.INVALID_BLOCK_ID
-            && offset > undefinedLengthOrOffsetOrAddress
-            && length > undefinedLengthOrOffsetOrAddress
-            && memAddress != undefinedLengthOrOffsetOrAddress;
+            && offset > UNDEFINED_LENGTH_OR_OFFSET_OR_ADDRESS
+            && length > UNDEFINED_LENGTH_OR_OFFSET_OR_ADDRESS
+            && memAddress != UNDEFINED_LENGTH_OR_OFFSET_OR_ADDRESS;
         setBlockIdOffsetAndLength(blockID, offset, length);
         this.memAddress  = memAddress;
-        this.associated = true;
-        // more Slice's properties are yet to be set by Memory Manager during allocation
+        // more Slice's properties are yet to be set by Memory Manager (MM) during allocation
+
+        // needs to be set here (and not in MM) due to the tests,
+        // which allocate and use Slice directly (not via MM)
+        associated = true;
     }
 
-    /*
-     * Updates everything that can be extracted with reference decoding,
-     * including reference itself. This is not the full setting of the association
-     */
-    abstract void associateReferenceDecoding(int blockID, int offset, int arg, long reference);
-
-    // Copy the block allocation information from another block allocation.
-    public abstract <T extends Slice> void copyFrom(T other);
-
-    // Set the internal buffer.
-    // This method should be used only within Memory Management package.
-    void setAddress(long memAddress) {
-        this.memAddress = memAddress;
+    /* Set the internal memory address.
+    * This method should be used only within Memory Management package.
+    * */
+    protected void setAddress(long memAddress) {
         assert memAddress != 0;
-        associated = true; // buffer is the final and the most important field for the slice validity
+        this.memAddress = memAddress;
+        // memAddress is the final and the most important field for the slice validity,
+        // once it is set the slice is considered associated
+        associated = true;
     }
 
     /*
-     * Memory Manager's data created during allocation is set directly to the Slice,
-     * this method is used only for testing!
+     * Memory Manager's data created during allocation is set directly to the Slice.
+     * This method is used only for testing!
      */
     @VisibleForTesting
-    abstract void associateMMAllocation(int arg1, long arg2);
+    protected abstract void associateMMAllocation(int arg1, long arg2);
 
     // simple setter, frequently internally used, to save code duplication
     protected void setBlockIdOffsetAndLength(int blockID, int offset, int length) {
@@ -146,40 +172,30 @@ abstract class AbstractSlice implements Slice, Comparable<AbstractSlice> {
     }
 
     /* ------------------------------------------------------------------------------------
-     * Allocation info getters
+     * Internal information getters
      * ------------------------------------------------------------------------------------*/
 
-    public boolean isInitiated() {
-        return associated;
-    }
-
-    public long getReference() {
-        return reference;
-    }
-
-    public int getAllocatedBlockID() {
+    /* BlockID should be used only internally within MM package */
+    protected int getAllocatedBlockID() {
         return blockID;
     }
 
-    public int getAllocatedOffset() {
+    /* Offset within the block should be used only internally within MM package */
+    protected int getAllocatedOffset() {
         return offset;
     }
 
-    public abstract int getAllocatedLength();
+    /* Returns the length of the off-heap cut including the space allocated for metadata (if any) */
+    protected abstract int getAllocatedLength();
 
-    /* ------------------------------------------------------------------------------------
-     * Metadata getters
-     * ------------------------------------------------------------------------------------*/
-    public long getMetadataAddress() {
+    /*
+     * Returns the address of the absolute beginning of the off-heap cut,
+     * where metadata may be located.
+     **/
+    protected long getMetadataAddress() {
         assert associated;
         return memAddress + offset;
     }
-
-    public abstract int getLength();
-
-    public abstract long getAddress();
-
-    public abstract String toString();
 
     /*-------------- Comparable<Slice> --------------*/
 

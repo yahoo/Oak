@@ -6,15 +6,17 @@
 
 package com.yahoo.oak;
 
-// An abstract Slice represents an data about an off-heap cut: a portion of a bigger block,
-// which is part of the underlying managed off-heap memory. Concrete implementation adapts
-// the abstract Slice to a specific memory manager.
-// Slice is allocated only via memory manager, and can be de-allocated later.
-// Slice can be either empty or associated with an off-heap cut,
-// which is the aforementioned portion of an off-heap memory.
+/* A Slice represents an data about an off-heap cut: a portion of a bigger block,
+** which is part of the underlying managed off-heap memory. Concrete implementation adapts
+** the Slice interface to a specific memory manager.
+** Slice is allocated only via memory manager, and can be de-allocated later.
+** Slice can be either empty or associated with an off-heap cut,
+** which is the aforementioned portion of an off-heap memory.
+** */
 interface Slice {
+
     /**
-     * Allocate new off-heap cut and associated this slice with a new off-heap cut of memory
+     * Allocate new off-heap cut and associate this slice with a new off-heap cut of memory
      *
      * @param size     the number of bytes required by the user
      * @param existing whether the allocation is for existing off-heap cut moving to the other
@@ -23,16 +25,25 @@ interface Slice {
     void allocate(int size, boolean existing);
 
     /**
-     * Release the associated off-heap cut, which is disconnected from the data structure,
-     * but can be still accessed via threads previously having the access. It is the memory
+     * Release the associated off-heap cut, which must be disconnected from the data structure,
+     * but can still be accessed via threads previously having the access. It is the memory
      * manager responsibility to care for the old concurrent accesses.
      */
     void release();
 
-    /* ------------- Interfaces to deal with references! ------------- */
-    /* Reference is a long (64 bits) that should encapsulate all the information required
-     * to access a memory for read and for write. It is up to memory manager what to put inside.
+    /**
+     * Reset all Slice fields to invalid value, erase the previous association if existed.
+     * This does not releases the associated off-heap cut to memory manager, just disconnects
+     * the association!
      */
+    void invalidate();
+
+    /* ------------------------------------------------------------------------------------
+     * Reference is a long (64 bits) that should encapsulate all the information required
+     * to access a memory for read and for write (when Slice is not kept).
+     * It is up to memory manager what to put inside.
+     * Reference is kept inside the Slice, which is associated to an off-heap cut.
+     * ------------------------------------------------------------------------------------*/
 
     /**
      * Decode information from reference to this Slice's fields.
@@ -43,52 +54,57 @@ interface Slice {
      */
     boolean decodeReference(long reference);
 
-    /**
-     * Encode (create) the reference according to the information in this Slice
-     *
-     * @return the encoded reference
-     */
-    long encodeReference();
-
-    // Reset all common not final fields to invalid state
-    void invalidate();
-
     /* ------------------------------------------------------------------------------------
-     * Allocation info and metadata setters
+     * Slices duplication and info transfer
      * ------------------------------------------------------------------------------------*/
-    // Used to duplicate the allocation state. Does not duplicate the underlying memory buffer itself.
-    // Should be used when ThreadContext's internal Slice needs to be exported to the user.
-    Slice getDuplicatedSlice();
 
-    // Copy the block allocation information from another block allocation.
-    <T extends Slice> void copyFrom(T other);
+    /**
+     * Used to duplicate the allocation state. Does not duplicate the underlying off-heap cut itself.
+     * Should be used when ThreadContext's internal Slice needs to be exported to the user.
+     */
+    Slice duplicate();
+
+    /**
+     * Copy the off-heap cut allocation information from another off-heap cut allocation.
+     */
+    void copyFrom(Slice other);
 
     /* ------------------------------------------------------------------------------------
      * Allocation info getters
      * ------------------------------------------------------------------------------------*/
 
-    boolean isInitiated();
+    /**
+     * Is the Slice associated with a valid off-heap cut of memory?
+     */
+    boolean isAssociated();
 
+    /**
+     * Return the reference which is a long that encapsulates needed to access this off-heap cut
+     * later, using decodeReference() method.
+     * The reference is valid only for associated with off-heap cut Slice.
+     */
     long getReference();
 
-    int getAllocatedBlockID();
-
-    int getAllocatedOffset();
-
-    int getAllocatedLength();
-
-    /* ------------------------------------------------------------------------------------
-     * Metadata getters
-     * ------------------------------------------------------------------------------------*/
-    long getMetadataAddress();
-
+    /**
+     * Returns the length of the associated off-heap cut. If any metadata needs to be added to the
+     * off-heap cut this metadata length is not included in the answer.
+     */
     int getLength();
 
+    /**
+     * Allows access to the memory address of the underlying off-heap cut.
+     * @return the exact memory address of the off-heap cut in the position of the user data.
+     */
     long getAddress();
 
+    /**
+     * For prints
+     */
     String toString();
 
-    /*-------------- Off-heap header operations: locking and logical delete --------------*/
+    /* ------------------------------------------------------------------------------------
+     * Off-heap metadata based operations: locking and logical delete
+     * ------------------------------------------------------------------------------------*/
 
     /**
      * Acquires a read lock

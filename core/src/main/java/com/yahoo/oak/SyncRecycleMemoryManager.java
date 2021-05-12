@@ -18,7 +18,7 @@ class SyncRecycleMemoryManager implements MemoryManager {
     private static final int VERS_INIT_VALUE = 1;
     private static final int OFF_HEAP_HEADER_SIZE = 12; /* Bytes */
     private final ThreadIndexCalculator threadIndexCalculator;
-    private final List<List<SyncRecycleMemoryManager.SliceSyncRecycle>> releaseLists;
+    private final List<List<SliceSyncRecycle>> releaseLists;
     private final AtomicInteger globalVersionNumber;
     private final BlockMemoryAllocator allocator;
 
@@ -28,7 +28,7 @@ class SyncRecycleMemoryManager implements MemoryManager {
      * For encoding details please take a look on ReferenceCodecSyncRecycle
      *
      */
-    private final ReferenceCodecSyncRecycle rcsr;
+    private final ReferenceCodecSyncRecycle rc;
 
     SyncRecycleMemoryManager(BlockMemoryAllocator allocator) {
         this.threadIndexCalculator = ThreadIndexCalculator.newInstance();
@@ -38,7 +38,7 @@ class SyncRecycleMemoryManager implements MemoryManager {
         }
         globalVersionNumber = new AtomicInteger(VERS_INIT_VALUE);
         this.allocator = allocator;
-        rcsr = new ReferenceCodecSyncRecycle(BlocksPool.getInstance().blockSize(), allocator);
+        rc = new ReferenceCodecSyncRecycle(BlocksPool.getInstance().blockSize(), allocator);
     }
 
     @Override
@@ -65,7 +65,7 @@ class SyncRecycleMemoryManager implements MemoryManager {
      */
     @Override
     public long alterReferenceForDelete(long reference) {
-        return rcsr.alterForDelete(reference);
+        return rc.alterForDelete(reference);
     }
 
     /**
@@ -78,26 +78,26 @@ class SyncRecycleMemoryManager implements MemoryManager {
 
     @Override
     public boolean isReferenceValid(long reference) {
-        return rcsr.isReferenceValid(reference);
+        return rc.isReferenceValid(reference);
     }
 
     @Override
     public boolean isReferenceDeleted(long reference) {
-        return rcsr.isReferenceDeleted(reference);
+        return rc.isReferenceDeleted(reference);
     }
 
     @Override public boolean isReferenceValidAndNotDeleted(long reference) {
-        return rcsr.isReferenceValidAndNotDeleted(reference);
+        return rc.isReferenceValidAndNotDeleted(reference);
     }
 
     @Override
     public boolean isReferenceConsistent(long reference) {
-        return rcsr.isReferenceConsistent(reference);
+        return rc.isReferenceConsistent(reference);
     }
 
     @Override
-    public SyncRecycleMemoryManager.SliceSyncRecycle getEmptySlice() {
-        return new SyncRecycleMemoryManager.SliceSyncRecycle(OFF_HEAP_HEADER_SIZE, HEADER);
+    public SliceSyncRecycle getEmptySlice() {
+        return new SliceSyncRecycle();
     }
 
     @VisibleForTesting
@@ -131,38 +131,28 @@ class SyncRecycleMemoryManager implements MemoryManager {
     }
 
     /*=====================================================================*/
-    /*           SyncRecycleMemoryManager.SliceSyncRecycle                 */
+    /*           SliceSyncRecycle                 */
     /* Inner Class for easier access to SyncRecycleMemoryManager abilities */
     /*=====================================================================*/
 
     /**
-     * SyncRecycleMemoryManager.SliceSyncRecycle represents an data about an off-heap cut:
+     * SliceSyncRecycle represents an data about an off-heap cut:
      * a portion of a bigger block, which is part of the underlying
      * (recycling and synchronized) managed off-heap memory.
-     * SyncRecycleMemoryManager.SliceSyncRecycle is allocated only via SyncRecycleMemoryManager,
+     * SliceSyncRecycle is allocated only via SyncRecycleMemoryManager,
      * and can be de-allocated later. Any slice can be either empty or associated with an off-heap cut,
      * which is the aforementioned portion of an off-heap memory.
      */
     class SliceSyncRecycle extends AbstractSlice {
-        static final int UNDEFINED_LENGTH_OR_OFFSET = -1;
 
-        /**
-         * An allocated by SyncRecycleMemoryManager off-heap cut have reserved space for meta-data, i.e., a header.
-         * The header size is defined externally by memory-manager at the slice construction.
-         */
-        private final int headerSize;
-        private final SyncRecycleMMHeader header;
         private int version;    // Allocation time version
 
         /* ------------------------------------------------------------------------------------
          * Constructors
          * ------------------------------------------------------------------------------------*/
         // Should be used only by Memory Manager (within Memory Manager package)
-        SliceSyncRecycle(int headerSize, SyncRecycleMMHeader header) {
+        SliceSyncRecycle() {
             super();
-            this.headerSize = headerSize;
-            this.header = header;
-            invalidate();
         }
 
         /**
@@ -184,6 +174,7 @@ class SyncRecycleMemoryManager implements MemoryManager {
             assert allocated;
             int allocationVersion = globalVersionNumber.get();
             version = allocationVersion;
+            associated = true;
             // Initiate the header that is serving for synchronization and memory management
             // for value written for the first time (not existing):
             //      initializing the header's lock to be free
@@ -206,12 +197,12 @@ class SyncRecycleMemoryManager implements MemoryManager {
         public void release() {
             prefetchDataLength(); // this will set the length from off-heap header, if needed
             int idx = threadIndexCalculator.getIndex();
-            List<SyncRecycleMemoryManager.SliceSyncRecycle> myReleaseList = releaseLists.get(idx);
+            List<SliceSyncRecycle> myReleaseList = releaseLists.get(idx);
             // ensure the length of the slice is always set
-            myReleaseList.add(getDuplicatedSlice());
+            myReleaseList.add(duplicate());
             if (myReleaseList.size() >= RELEASE_LIST_LIMIT) {
                 increaseGlobalVersion();
-                for (SyncRecycleMemoryManager.SliceSyncRecycle allocToRelease : myReleaseList) {
+                for (SliceSyncRecycle allocToRelease : myReleaseList) {
                     allocator.free(allocToRelease);
                 }
                 myReleaseList.clear();
@@ -228,7 +219,7 @@ class SyncRecycleMemoryManager implements MemoryManager {
         @Override
         public boolean decodeReference(long reference) {
             // reference is set in the slice as part of decoding
-            if (SyncRecycleMemoryManager.this.rcsr.decode(this, reference)) {
+            if (decode(reference)) {
                 allocator.readMemoryAddress(this);
                 return true;
             }
@@ -236,20 +227,41 @@ class SyncRecycleMemoryManager implements MemoryManager {
         }
 
         /**
+         * @param reference the reference to decode
+         * @return true if the allocation reference is valid
+         */
+        private boolean decode(final long reference) {
+            if (!rc.isReferenceValid(reference)) {
+                invalidate();
+                return false;
+            }
+
+            int blockID  = rc.getFirst(reference);
+            int offset = rc.getSecond(reference);
+            int version  = rc.getThird(reference);
+
+            setBlockIdOffsetAndLength(blockID, offset, UNDEFINED_LENGTH_OR_OFFSET_OR_ADDRESS);
+            this.reference = reference;
+            this.version = version;
+            // This is not the full setting of the association, therefore 'associated' flag remains false
+            associated   = false;
+
+            return !isReferenceDeleted(reference);
+        }
+
+        /**
          * Encode (create) the reference according to the information in this Slice
          *
          * @return the encoded reference
          */
-        @Override
-        public long encodeReference() {
-            return rcsr.encode(getAllocatedBlockID(), getAllocatedOffset(), getVersion());
+        private long encodeReference() {
+            return rc.encode(getAllocatedBlockID(), getAllocatedOffset(), getVersion());
         }
 
         // Used to duplicate the allocation state. Does not duplicate the underlying memory buffer itself.
         // Should be used when ThreadContext's internal Slice needs to be exported to the user.
-        public SyncRecycleMemoryManager.SliceSyncRecycle getDuplicatedSlice() {
-            SyncRecycleMemoryManager.SliceSyncRecycle
-                newSlice = new SyncRecycleMemoryManager.SliceSyncRecycle(this.headerSize, this.header);
+        public SliceSyncRecycle duplicate() {
+            SliceSyncRecycle newSlice = new SliceSyncRecycle();
             newSlice.copyFrom(this);
             return newSlice;
         }
@@ -262,30 +274,17 @@ class SyncRecycleMemoryManager implements MemoryManager {
             blockID     = NativeMemoryAllocator.INVALID_BLOCK_ID;
             reference   = ReferenceCodecSyncRecycle.INVALID_REFERENCE;
             version     = ReferenceCodecSyncRecycle.INVALID_VERSION;
-            length      = UNDEFINED_LENGTH_OR_OFFSET;
-            offset      = UNDEFINED_LENGTH_OR_OFFSET;
-            memAddress  = undefinedLengthOrOffsetOrAddress;
+            length      = UNDEFINED_LENGTH_OR_OFFSET_OR_ADDRESS;
+            offset      = UNDEFINED_LENGTH_OR_OFFSET_OR_ADDRESS;
+            memAddress  = UNDEFINED_LENGTH_OR_OFFSET_OR_ADDRESS;
             associated  = false;
         }
 
-        /*
-         * Updates everything that can be extracted with reference decoding of "SyncRecycle" type,
-         * including reference itself. The separation by reference decoding type is temporary!
-         * This is not the full setting of the association, therefore 'associated' flag remains false
-         */
-        @Override
-        void associateReferenceDecoding(int blockID, int offset, int version, long reference) {
-            setBlockIdOffsetAndLength(blockID, offset, UNDEFINED_LENGTH_OR_OFFSET);
-            this.reference = reference;
-            this.version = version;
-            associated   = false;
-        }
-
         // Copy the block allocation information from another block allocation.
-        public <T extends Slice> void copyFrom(T other) {
-            if (other instanceof SyncRecycleMemoryManager.SliceSyncRecycle) { //TODO: any other ideas?
-                copyAllocationInfoFrom((SyncRecycleMemoryManager.SliceSyncRecycle) other);
-                this.version = ((SyncRecycleMemoryManager.SliceSyncRecycle) other).version;
+        public void copyFrom(Slice other) {
+            if (other instanceof SliceSyncRecycle) { //TODO: any other ideas?
+                copyAllocationInfoFrom((SliceSyncRecycle) other);
+                this.version = ((SliceSyncRecycle) other).version;
                 // if SeqExpandMemoryManager.SliceSeqExpand gets new members (not included in allocation info)
                 // their copy needs to be added here
             } else {
@@ -297,17 +296,17 @@ class SyncRecycleMemoryManager implements MemoryManager {
          * Needed only for testing!
          */
         @VisibleForTesting
-        void associateMMAllocation(int arg1, long arg2) {
+        protected void associateMMAllocation(int arg1, long arg2) {
             this.version = arg1;
             this.reference = arg2;
         }
 
         // the method has no effect if length is already set
         void prefetchDataLength() {
-            if (length == UNDEFINED_LENGTH_OR_OFFSET) {
+            if (length == UNDEFINED_LENGTH_OR_OFFSET_OR_ADDRESS) {
                 // the length kept in header is the length of the data only!
                 // add header size
-                this.length = header.getDataLength(getMetadataAddress()) + headerSize;
+                this.length = HEADER.getDataLength(getMetadataAddress()) + OFF_HEAP_HEADER_SIZE;
             }
         }
 
@@ -336,18 +335,19 @@ class SyncRecycleMemoryManager implements MemoryManager {
         public int getLength() {
             // prefetchDataLength() prefetches the length from header only if Slice's length is undefined
             prefetchDataLength();
-            return length - headerSize;
+            return length - OFF_HEAP_HEADER_SIZE;
         }
 
         @Override
         public long getAddress() {
-            return memAddress + offset + headerSize;
+            return memAddress + offset + OFF_HEAP_HEADER_SIZE;
         }
 
         @Override
         public String toString() {
             return String.format(
-                "SyncRecycleMemoryManager.SliceSyncRecycle(blockID=%d, offset=%,d, length=%,d, version=%d)",
+                "SyncRecycleMemoryManager.SliceSyncRecycle(isAssociated? " + associated
+                    + " blockID=%d, offset=%,d, length=%,d, version=%d)",
                 blockID, offset, length, version);
         }
 
@@ -363,7 +363,7 @@ class SyncRecycleMemoryManager implements MemoryManager {
          */
         public ValueUtils.ValueResult lockRead() {
             assert version != ReferenceCodecSyncRecycle.INVALID_VERSION;
-            return header.lockRead(version, getMetadataAddress());
+            return HEADER.lockRead(version, getMetadataAddress());
         }
 
         /**
@@ -375,7 +375,7 @@ class SyncRecycleMemoryManager implements MemoryManager {
          */
         public ValueUtils.ValueResult unlockRead() {
             assert version != ReferenceCodecSyncRecycle.INVALID_VERSION;
-            return header.unlockRead(version, getMetadataAddress());
+            return HEADER.unlockRead(version, getMetadataAddress());
         }
 
         /**
@@ -387,7 +387,7 @@ class SyncRecycleMemoryManager implements MemoryManager {
          */
         public ValueUtils.ValueResult lockWrite() {
             assert version != ReferenceCodecSyncRecycle.INVALID_VERSION;
-            return header.lockWrite(version, getMetadataAddress());
+            return HEADER.lockWrite(version, getMetadataAddress());
         }
 
         /**
@@ -399,7 +399,7 @@ class SyncRecycleMemoryManager implements MemoryManager {
          */
         public ValueUtils.ValueResult unlockWrite() {
             assert version != ReferenceCodecSyncRecycle.INVALID_VERSION;
-            return header.unlockWrite(version, getMetadataAddress());
+            return HEADER.unlockWrite(version, getMetadataAddress());
         }
 
         /**
@@ -411,7 +411,7 @@ class SyncRecycleMemoryManager implements MemoryManager {
          */
         public ValueUtils.ValueResult logicalDelete() {
             assert version != ReferenceCodecSyncRecycle.INVALID_VERSION;
-            return header.logicalDelete(version, getMetadataAddress());
+            return HEADER.logicalDelete(version, getMetadataAddress());
         }
 
         /**
@@ -423,7 +423,7 @@ class SyncRecycleMemoryManager implements MemoryManager {
          */
         public ValueUtils.ValueResult isDeleted() {
             assert version != ReferenceCodecSyncRecycle.INVALID_VERSION;
-            return header.isLogicallyDeleted(version, getMetadataAddress());
+            return HEADER.isLogicallyDeleted(version, getMetadataAddress());
         }
 
         /**
@@ -432,7 +432,7 @@ class SyncRecycleMemoryManager implements MemoryManager {
          */
         public void markAsMoved() {
             assert associated;
-            header.markAsMoved(getMetadataAddress());
+            HEADER.markAsMoved(getMetadataAddress());
         }
 
         /**
@@ -442,7 +442,7 @@ class SyncRecycleMemoryManager implements MemoryManager {
          */
         public void markAsDeleted() {
             assert associated;
-            header.markAsDeleted(getMetadataAddress());
+            HEADER.markAsDeleted(getMetadataAddress());
         }
     }
 }

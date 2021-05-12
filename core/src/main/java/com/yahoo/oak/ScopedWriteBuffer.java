@@ -23,7 +23,7 @@ final class ScopedWriteBuffer extends ScopedReadBuffer implements OakScopedWrite
      * @param s the buffer to use.
      */
     private ScopedWriteBuffer(Slice s) {
-        super(s.getDuplicatedSlice());
+        super(s.duplicate());
     }
 
     /**

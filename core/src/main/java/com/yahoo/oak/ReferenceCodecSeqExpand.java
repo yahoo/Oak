@@ -79,9 +79,4 @@ class ReferenceCodecSeqExpand extends ReferenceCodec {
     boolean isReferenceConsistent(long reference) {
         return true;
     }
-
-    @Override
-    boolean isReferenceValid(long reference) {
-        return reference != INVALID_REFERENCE;
-    }
 }

@@ -470,7 +470,7 @@ class EntrySet<K, V> {
         because the entries array is initialized that way (see specs).
          */
         setEntryFieldLong(entryIdx2LongIdx(ctx.entryIndex),
-            OFFSET.KEY_REFERENCE, ctx.key.getSlice().encodeReference());
+            OFFSET.KEY_REFERENCE, ctx.key.getSlice().getReference());
     }
 
     /**
