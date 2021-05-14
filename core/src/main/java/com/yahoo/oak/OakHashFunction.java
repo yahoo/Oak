@@ -6,9 +6,8 @@
 
 package com.yahoo.oak;
 
-import java.util.function.Function;
 
-public interface OakHashFunction<T , U> extends Function<T , U> {
+public interface OakHashFunction<T , U> {
 
-    public U hash(T key);
+    U hash(T key);
 }
