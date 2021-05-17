@@ -75,7 +75,7 @@ class SeqExpandMemoryManager implements MemoryManager {
 
     @Override
     public boolean isReferenceDeleted(long reference) {
-        return rc.isReferenceDeleted(reference);
+        return false;
     }
 
     @Override
@@ -85,7 +85,7 @@ class SeqExpandMemoryManager implements MemoryManager {
 
     @Override
     public boolean isReferenceConsistent(long reference) {
-        return rc.isReferenceConsistent(reference);
+        return true;
     }
 
     @Override
@@ -103,7 +103,7 @@ class SeqExpandMemoryManager implements MemoryManager {
     /* Inner Class for easier access to SeqExpandMemoryManager abilities */
     /*===================================================================*/
 
-    class SliceSeqExpand extends AbstractSlice implements Slice {
+    class SliceSeqExpand extends BlockAllocationSlice implements Slice {
 
         /* ------------------------------------------------------------------------------------
          * Constructors
@@ -180,17 +180,16 @@ class SeqExpandMemoryManager implements MemoryManager {
                 return false;
             }
 
-            int blockID  = rc.getFirst(reference);
-            int offset = rc.getSecond(reference);
-            int length  = rc.getThird(reference);
-
-            assert length != UNDEFINED_LENGTH_OR_OFFSET_OR_ADDRESS;
-            setBlockIdOffsetAndLength(blockID, offset, length);
+            this.blockID  = rc.getFirst(reference);
+            this.offset = rc.getSecond(reference);
+            this.length  = rc.getThird(reference);
             this.reference = reference;
+            assert length != UNDEFINED_LENGTH_OR_OFFSET_OR_ADDRESS;
+
             // This is not the full setting of the association, therefore 'associated' flag remains false
             associated   = false;
 
-            return !isReferenceDeleted(reference);
+            return true;
         }
 
         /**
@@ -226,16 +225,9 @@ class SeqExpandMemoryManager implements MemoryManager {
 
         // Copy the block allocation information from another block allocation.
         public void copyFrom(Slice other) {
-            if (other instanceof SliceSeqExpand) {
-                //TODO: any other ideas instead of `instanceof` STILL?
-                // Maybe can be resolve with introduction of the Slice interface...
-                copyAllocationInfoFrom((SliceSeqExpand) other);
-                // if SliceSeqExpand gets new members (not included in allocation info)
-                // their copy needs to be added here
-            } else {
-                throw new IllegalStateException(
-                    "Must provide SeqExpandMemoryManager.SliceSeqExpand other Slice");
-            }
+            copyAllocationInfoFrom((SliceSeqExpand) other);
+            // if SliceSeqExpand gets new members (not included in allocation info)
+            // their copy needs to be added here
         }
 
         /*

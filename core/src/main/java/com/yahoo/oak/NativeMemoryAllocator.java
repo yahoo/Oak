@@ -23,12 +23,10 @@ class NativeMemoryAllocator implements BlockMemoryAllocator {
     private Block[] blocksArray;
     private final AtomicInteger idGenerator = new AtomicInteger(1);
 
-    /**
-     * free list of Slices which can be reused.
-     * They are sorted by the slice length, then by the block id, then by their offset.
-     * See {@code Slice.compareTo(Slice)} for more information.
-     */
-    private final ConcurrentSkipListSet<Slice> freeList = new ConcurrentSkipListSet<>();
+    // free list of Slices which can be reused.
+    // They are sorted by the slice length, then by the block id, then by their offset.
+    // See {@code Slice.compareTo(Slice)} for more information.
+    private final ConcurrentSkipListSet<BlockAllocationSlice> freeList = new ConcurrentSkipListSet<>();
 
     private final BlocksProvider blocksProvider;
     private Block currentBlock;
@@ -67,23 +65,24 @@ class NativeMemoryAllocator implements BlockMemoryAllocator {
     // within current block bounds.
     // Otherwise, new block is allocated within Oak memory bounds. Thread safe.
     // Given size already includes the size for metadata header if needed.
-    // For our internal implementation what all Slices we work with extend the AbstractSlice!
+    // For our internal implementation what all Slices we work with extend the BlockAllocationSlice!
     @Override
-    public boolean allocate(Slice s, int size) {
+    public boolean allocate(Slice sl, int size) {
+        BlockAllocationSlice s = (BlockAllocationSlice) sl;
         // While the free list is not empty there can be a suitable free slice to reuse.
         // To search a free slice, we use the input slice as a dummy and change its length to the desired length.
         // Then, we use freeList.higher(s) which returns a free slice with greater or equal length to the length of the
         // dummy with time complexity of O(log N), where N is the number of free slices.
         while (!freeList.isEmpty()) {
-            ((AbstractSlice) s).initializeLookupDummy(size);
-            Slice bestFit = freeList.higher(s);
+            s.initializeLookupDummy(size);
+            BlockAllocationSlice bestFit = freeList.higher(s);
             if (bestFit == null) {
                 break;
             }
             // If the best fit is more than REUSE_MAX_MULTIPLIER times as big than the desired length, than a new
             // buffer is allocated instead of reusing.
             // This means that currently buffers are not split, so there is some internal fragmentation.
-            if (((AbstractSlice) bestFit).getAllocatedLength() > (REUSE_MAX_MULTIPLIER * size)) {
+            if (((BlockAllocationSlice) bestFit).getAllocatedLength() > (REUSE_MAX_MULTIPLIER * size)) {
                 break;     // all remaining buffers are too big
             }
             // If multiple threads got the same bestFit only one can use it (the one which succeeds in removing it
@@ -93,7 +92,7 @@ class NativeMemoryAllocator implements BlockMemoryAllocator {
                 if (stats != null) {
                     stats.reclaim(size);
                 }
-                ((AbstractSlice) s).copyAllocationInfoFrom((AbstractSlice) bestFit);
+                s.copyAllocationInfoFrom(bestFit);
                 return true;
             }
         }
@@ -103,7 +102,7 @@ class NativeMemoryAllocator implements BlockMemoryAllocator {
         while (!isAllocated) {
             try {
                 // The ByteBuffer inside this slice is the thread's ByteBuffer
-                isAllocated = currentBlock.allocate((AbstractSlice) s, size);
+                isAllocated = currentBlock.allocate((BlockAllocationSlice) s, size);
             } catch (OakOutOfMemoryException e) {
                 // there is no space in current block
                 // may be a buffer bigger than any block is requested?
@@ -138,8 +137,9 @@ class NativeMemoryAllocator implements BlockMemoryAllocator {
     // IMPORTANT: it is assumed free will get an allocation only initially allocated from this
     // Allocator!
     @Override
-    public void free(Slice s) {
-        int size = ((AbstractSlice) s).getAllocatedLength();
+    public void free(Slice sl) {
+        BlockAllocationSlice s = (BlockAllocationSlice) sl;
+        int size = s.getAllocatedLength();
         allocated.addAndGet(-size);
         if (stats != null) {
             stats.release(size);
@@ -186,16 +186,16 @@ class NativeMemoryAllocator implements BlockMemoryAllocator {
     }
 
     // When some buffer need to be read from a random block
-    // The Slices we work with must extend AbstractSlice
+    // The Slices we work with must extend BlockAllocationSlice
     @Override
     public void readMemoryAddress(Slice s) {
-        int blockID = ((AbstractSlice) s).getAllocatedBlockID();
+        int blockID = ((BlockAllocationSlice) s).getAllocatedBlockID();
         // Validates that the input block id is valid.
         // This check should be automatically eliminated by the compiler in production.
         assert blockID > NativeMemoryAllocator.INVALID_BLOCK_ID :
                 String.format("Invalid block-id: %s", s);
         Block b = blocksArray[blockID];
-        ((AbstractSlice) s).setAddress(b.getStartMemAddress());
+        ((BlockAllocationSlice) s).setAddress(b.getStartMemAddress());
     }
 
 

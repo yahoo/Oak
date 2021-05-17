@@ -12,7 +12,7 @@ package com.yahoo.oak;
 ** Slice is allocated only via memory manager, and can be de-allocated later.
 ** Slice can be either empty or associated with an off-heap cut,
 ** which is the aforementioned portion of an off-heap memory.*/
-abstract class AbstractSlice implements Slice, Comparable<AbstractSlice> {
+abstract class BlockAllocationSlice implements Slice, Comparable<BlockAllocationSlice> {
     protected static final int UNDEFINED_LENGTH_OR_OFFSET_OR_ADDRESS = -1;
 
     /** The fields describing the associated off-heap cut, they are set when slice is not empty **/
@@ -29,45 +29,9 @@ abstract class AbstractSlice implements Slice, Comparable<AbstractSlice> {
     /* ------------------------------------------------------------------------------------
      * Protected Constructor
      * ------------------------------------------------------------------------------------*/
-    protected AbstractSlice() {
+    protected BlockAllocationSlice() {
         invalidate();
     }
-
-    /**
-     * Allocate new off-heap cut and associated this slice with a new off-heap cut of memory
-     *
-     * @param size     the number of bytes required by the user
-     * @param existing whether the allocation is for existing off-heap cut moving to the other
-     *                 location (e.g. in order to be enlarged).
-     */
-    public abstract void allocate(int size, boolean existing);
-
-    /**
-     * Release the associated off-heap cut, which is disconnected from the data structure,
-     * but can be still accessed via threads previously having the access. It is the memory
-     * manager responsibility to care for the old concurrent accesses.
-     */
-    public abstract void release();
-
-    /**
-     * Reset all Slice fields to invalid value, erase the previous association if existed.
-     * This does not releases the associated off-heap cut to memory manager, just disconnects
-     * the association!
-     */
-    public abstract void invalidate();
-
-    /* Reference is a long (64 bits) that should encapsulate all the information required
-     * to access a memory for read and for write. It is up to memory manager what to put inside.
-     */
-
-    /**
-     * Decode information from reference to this Slice's fields.
-     *
-     * @param reference the reference to decode
-     * @return true if the given allocation reference is valid and not deleted. If reference is
-     * invalid, the slice is invalidated. If reference is deleted, this slice is updated anyway.
-     */
-    public abstract boolean decodeReference(long reference);
 
     /* ------------------------------------------------------------------------------------
      * Slices duplication and info transfer
@@ -77,17 +41,12 @@ abstract class AbstractSlice implements Slice, Comparable<AbstractSlice> {
      * Used to duplicate the allocation state. Does not duplicate the underlying off-heap cut itself.
      * Should be used when ThreadContext's internal Slice needs to be exported to the user.
      */
-    public abstract AbstractSlice duplicate();
-
-    /**
-     * Copy the off-heap cut allocation information from another off-heap cut allocation.
-     */
-    public abstract void copyFrom(Slice other);
+    public abstract BlockAllocationSlice duplicate();
 
     /**
      * Copy the common off-heap cut allocation information from another off-heap cut allocation.
      */
-    protected void copyAllocationInfoFrom(AbstractSlice other) {
+    protected void copyAllocationInfoFrom(BlockAllocationSlice other) {
         if (other == this) {
             // No need to do anything if the input is this object
             return;
@@ -117,12 +76,6 @@ abstract class AbstractSlice implements Slice, Comparable<AbstractSlice> {
     public long getReference() {
         return reference;
     }
-
-    public abstract int getLength();
-
-    public abstract long getAddress();
-
-    public abstract String toString();
 
     /* ------------------------------------------------------------------------------------
      * Common methods required internally by Memory Manager module
@@ -207,7 +160,7 @@ abstract class AbstractSlice implements Slice, Comparable<AbstractSlice> {
      * the slices are deleted but not yet re-allocated.
      */
     @Override
-    public int compareTo(AbstractSlice o) {
+    public int compareTo(BlockAllocationSlice o) {
         int cmp = Integer.compare(this.length, o.length);
         if (cmp != 0) {
             return cmp;
@@ -218,74 +171,4 @@ abstract class AbstractSlice implements Slice, Comparable<AbstractSlice> {
         }
         return Integer.compare(this.offset, o.offset);
     }
-
-    /*-------------- Off-heap header operations: locking and logical delete --------------*/
-
-    /**
-     * Acquires a read lock
-     *
-     * @return {@code TRUE} if the read lock was acquires successfully
-     * {@code FALSE} if the header/off-heap-cut is marked as deleted
-     * {@code RETRY} if the header/off-heap-cut was moved, or the version of the off-heap header
-     * does not match {@code version}.
-     */
-    public abstract ValueUtils.ValueResult lockRead();
-
-    /**
-     * Releases a read lock
-     *
-     * @return {@code TRUE} if the read lock was released successfully
-     * {@code FALSE} if the value is marked as deleted
-     * {@code RETRY} if the value was moved, or the version of the off-heap value does not match {@code version}.
-     */
-    public abstract ValueUtils.ValueResult unlockRead();
-
-    /**
-     * Acquires a write lock
-     *
-     * @return {@code TRUE} if the write lock was acquires successfully
-     * {@code FALSE} if the value is marked as deleted
-     * {@code RETRY} if the value was moved, or the version of the off-heap value does not match {@code version}.
-     */
-    public abstract ValueUtils.ValueResult lockWrite();
-
-    /**
-     * Releases a write lock
-     *
-     * @return {@code TRUE} if the write lock was released successfully
-     * {@code FALSE} if the value is marked as deleted
-     * {@code RETRY} if the value was moved, or the version of the off-heap value does not match {@code version}.
-     */
-    public abstract ValueUtils.ValueResult unlockWrite();
-
-    /**
-     * Marks the associated off-heap cut as deleted only if the version of that value matches {@code version}.
-     *
-     * @return {@code TRUE} if the value was marked successfully
-     * {@code FALSE} if the value is already marked as deleted
-     * {@code RETRY} if the value was moved, or the version of the off-heap value does not match {@code version}.
-     */
-    public abstract ValueUtils.ValueResult logicalDelete();
-
-    /**
-     * Is the associated off-heap cut marked as logically deleted
-     *
-     * @return {@code TRUE} if the value is marked
-     * {@code FALSE} if the value is not marked
-     * {@code RETRY} if the value was moved, or the version of the off-heap value does not match {@code version}.
-     */
-    public abstract ValueUtils.ValueResult isDeleted();
-
-    /**
-     * Marks the header of the associated off-heap cut as moved, just write (without CAS)
-     * The write lock must be held (asserted inside the header)
-     */
-    public abstract void markAsMoved();
-
-    /**
-     * Marks the header of the associated off-heap cut as deleted, just write (without CAS)
-     * The write lock must be held (asserted inside the header).
-     * It is similar to logicalDelete() but used when locking and marking don't happen in one CAS
-     */
-    public abstract void markAsDeleted();
 }

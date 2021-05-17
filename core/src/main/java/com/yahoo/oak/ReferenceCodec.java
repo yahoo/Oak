@@ -118,11 +118,15 @@ abstract class ReferenceCodec {
     }
 
     // check is reference deleted should be applied according to reference type
-    abstract boolean isReferenceDeleted(long reference);
+    boolean isReferenceDeleted(long reference) {
+        return false;
+    }
 
     // invoked (only within assert statement) to check
     // the consistency and correctness of the reference encoding
-    abstract boolean isReferenceConsistent(long reference);
+    boolean isReferenceConsistent(long reference) {
+        return true;
+    }
 
     /*
     In the implementation of encode/decode methods, we make two assumptions that

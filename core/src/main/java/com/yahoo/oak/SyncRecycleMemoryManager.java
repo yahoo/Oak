@@ -143,7 +143,7 @@ class SyncRecycleMemoryManager implements MemoryManager {
      * and can be de-allocated later. Any slice can be either empty or associated with an off-heap cut,
      * which is the aforementioned portion of an off-heap memory.
      */
-    class SliceSyncRecycle extends AbstractSlice {
+    class SliceSyncRecycle extends BlockAllocationSlice {
 
         private int version;    // Allocation time version
 
@@ -236,13 +236,12 @@ class SyncRecycleMemoryManager implements MemoryManager {
                 return false;
             }
 
-            int blockID  = rc.getFirst(reference);
-            int offset = rc.getSecond(reference);
-            int version  = rc.getThird(reference);
-
-            setBlockIdOffsetAndLength(blockID, offset, UNDEFINED_LENGTH_OR_OFFSET_OR_ADDRESS);
+            this.blockID  = rc.getFirst(reference);
+            this.offset = rc.getSecond(reference);
+            this.version  = rc.getThird(reference);
+            this.length = UNDEFINED_LENGTH_OR_OFFSET_OR_ADDRESS;
             this.reference = reference;
-            this.version = version;
+
             // This is not the full setting of the association, therefore 'associated' flag remains false
             associated   = false;
 
@@ -282,14 +281,10 @@ class SyncRecycleMemoryManager implements MemoryManager {
 
         // Copy the block allocation information from another block allocation.
         public void copyFrom(Slice other) {
-            if (other instanceof SliceSyncRecycle) { //TODO: any other ideas?
-                copyAllocationInfoFrom((SliceSyncRecycle) other);
-                this.version = ((SliceSyncRecycle) other).version;
-                // if SeqExpandMemoryManager.SliceSeqExpand gets new members (not included in allocation info)
-                // their copy needs to be added here
-            } else {
-                throw new IllegalStateException("Must provide SyncRecycleMemoryManager.SliceSyncRecycle other Slice");
-            }
+            copyAllocationInfoFrom((SliceSyncRecycle) other);
+            this.version = ((SliceSyncRecycle) other).version;
+            // if SliceSyncRecycle gets new members (not included in allocation info)
+            // their copy needs to be added here
         }
 
         /*

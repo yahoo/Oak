@@ -33,16 +33,16 @@ class Block {
 
     // Block manages its linear allocation. Thread safe.
     // The returned buffer doesn't have all zero bytes.
-    boolean allocate(AbstractSlice s, final int size) {
+    boolean allocate(BlockAllocationSlice s, final int size) {
         assert size > 0;
-        long now = allocated.get();
-        if (now + size <= this.capacity) { // check is only an optimization
-            now = allocated.getAndAdd(size);
+        long offset = allocated.get();
+        if (offset + size <= this.capacity) { // check is only an optimization
+            offset = allocated.getAndAdd(size);
         }
-        if (now + size > this.capacity) {
+        if (offset + size > this.capacity) {
             throw new OakOutOfMemoryException(String.format("Block %d is out of memory", id));
         }
-        s.associateBlockAllocation(id, (int) now /*offset*/, size /*length*/, blockMemAddress );
+        s.associateBlockAllocation(id, (int) offset, size, blockMemAddress );
         return true;
     }
 

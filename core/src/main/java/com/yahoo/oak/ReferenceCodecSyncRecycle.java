@@ -20,7 +20,6 @@ package com.yahoo.oak;
 class ReferenceCodecSyncRecycle extends ReferenceCodec {
 
     static final int    INVALID_VERSION = 0;
-    static final long INVALID_REFERENCE = 0;
 
     // All Oak instances on one machine are expected to reference to no more than 4TB of RAM.
     // 4TB = 2^42 bytes

@@ -97,11 +97,6 @@ interface Slice {
      */
     long getAddress();
 
-    /**
-     * For prints
-     */
-    String toString();
-
     /* ------------------------------------------------------------------------------------
      * Off-heap metadata based operations: locking and logical delete
      * ------------------------------------------------------------------------------------*/
