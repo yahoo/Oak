@@ -82,7 +82,7 @@ class NativeMemoryAllocator implements BlockMemoryAllocator {
             // If the best fit is more than REUSE_MAX_MULTIPLIER times as big than the desired length, than a new
             // buffer is allocated instead of reusing.
             // This means that currently buffers are not split, so there is some internal fragmentation.
-            if (((BlockAllocationSlice) bestFit).getAllocatedLength() > (REUSE_MAX_MULTIPLIER * size)) {
+            if (bestFit.getAllocatedLength() > (REUSE_MAX_MULTIPLIER * size)) {
                 break;     // all remaining buffers are too big
             }
             // If multiple threads got the same bestFit only one can use it (the one which succeeds in removing it
@@ -102,7 +102,7 @@ class NativeMemoryAllocator implements BlockMemoryAllocator {
         while (!isAllocated) {
             try {
                 // The ByteBuffer inside this slice is the thread's ByteBuffer
-                isAllocated = currentBlock.allocate((BlockAllocationSlice) s, size);
+                isAllocated = currentBlock.allocate(s, size);
             } catch (OakOutOfMemoryException e) {
                 // there is no space in current block
                 // may be a buffer bigger than any block is requested?
@@ -188,14 +188,15 @@ class NativeMemoryAllocator implements BlockMemoryAllocator {
     // When some buffer need to be read from a random block
     // The Slices we work with must extend BlockAllocationSlice
     @Override
-    public void readMemoryAddress(Slice s) {
-        int blockID = ((BlockAllocationSlice) s).getAllocatedBlockID();
+    public void readMemoryAddress(Slice sl) {
+        BlockAllocationSlice s = (BlockAllocationSlice) sl;
+        int blockID = s.getAllocatedBlockID();
         // Validates that the input block id is valid.
         // This check should be automatically eliminated by the compiler in production.
         assert blockID > NativeMemoryAllocator.INVALID_BLOCK_ID :
                 String.format("Invalid block-id: %s", s);
         Block b = blocksArray[blockID];
-        ((BlockAllocationSlice) s).setAddress(b.getStartMemAddress());
+        s.setAddress(b.getStartMemAddress());
     }
 
 
