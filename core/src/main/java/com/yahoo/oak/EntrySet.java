@@ -66,7 +66,7 @@ class EntrySet<K, V> extends EntryArray<K, V> {
     // the size of the head in longs
     // how much it takes to keep the index of the first item in the list, after the head
     // (not necessarily first in the array!)
-    private static final int ADDITIONAL_FIELDS = 3;  // # of primitive fields in each item of entries array
+    private static final int ADDITIONAL_FIELDS = 1;  // # of primitive fields in each item of entries array
 
     // location of the first (head) node - just a next pointer (always same value 0)
     public final int headEntryIndex;
@@ -88,7 +88,7 @@ class EntrySet<K, V> extends EntryArray<K, V> {
         // We add additional field for the head (dummy) node
         super(vMM, kMM, ADDITIONAL_FIELDS, entriesCapacity + 1, keySerializer, valueSerializer);
         this.nextFreeIndex = new AtomicInteger( 1);
-        this.headEntryIndex = entriesCapacity;
+        this.headEntryIndex = 0;
         setNextEntryIndex(headEntryIndex, INVALID_ENTRY_INDEX);
     }
 
