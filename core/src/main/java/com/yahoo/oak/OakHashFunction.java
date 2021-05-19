@@ -10,4 +10,5 @@ package com.yahoo.oak;
 public interface OakHashFunction<T , U> {
 
     U hash(T key);
+
 }
