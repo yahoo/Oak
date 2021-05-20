@@ -49,8 +49,8 @@ public class NativeMemoryAllocatorTest {
 
     private static final MemoryManager VALUE_MEMORY_MANAGER = new SyncRecycleMemoryManager(null);
 
-    Slice allocate(NativeMemoryAllocator allocator, int size) {
-        Slice s = new SliceSyncRecycle();
+    BlockAllocationSlice allocate(NativeMemoryAllocator allocator, int size) {
+        BlockAllocationSlice s = (BlockAllocationSlice) VALUE_MEMORY_MANAGER.getEmptySlice();
         allocator.allocate(s, size);
         return s;
     }
@@ -90,34 +90,34 @@ public class NativeMemoryAllocatorTest {
         NativeMemoryAllocator ma = new NativeMemoryAllocator(capacity);
 
         /* simple allocation */
-        Slice bb = allocate(ma, 4);
+        BlockAllocationSlice bb = allocate(ma, 4);
         Assert.assertEquals(4, bb.getAllocatedLength());
         Assert.assertEquals(4, ma.getCurrentBlock().allocatedWithPossibleDelta());
 
 
-        Slice bb1 = allocate(ma, 4);
+        BlockAllocationSlice bb1 = allocate(ma, 4);
         Assert.assertEquals(4, bb1.getAllocatedLength());
         Assert.assertEquals(8, ma.getCurrentBlock().allocatedWithPossibleDelta());
 
-        Slice bb2 = allocate(ma, 8);
+        BlockAllocationSlice bb2 = allocate(ma, 8);
         Assert.assertEquals(8, bb2.getAllocatedLength());
         Assert.assertEquals(16, ma.getCurrentBlock().allocatedWithPossibleDelta());
 
         /* big allocation */
-        Slice bb3 = allocate(ma, blockSize - 8);
+        BlockAllocationSlice bb3 = allocate(ma, blockSize - 8);
         Assert.assertEquals(blockSize - 8,
                 bb3.getAllocatedLength());                                   // check the new ByteBuffer size
         Assert.assertEquals(blockSize - 8,  // check the new block allocation
                 ma.getCurrentBlock().allocatedWithPossibleDelta());
 
         /* complete up to full block allocation */
-        Slice bb4 = allocate(ma, 8);
+        BlockAllocationSlice bb4 = allocate(ma, 8);
         Assert.assertEquals(8, bb4.getAllocatedLength());              // check the new ByteBuffer size
         Assert.assertEquals(blockSize,               // check the new block allocation
                 ma.getCurrentBlock().allocatedWithPossibleDelta());
 
         /* next small allocation should move us to the next block */
-        Slice bb5 = allocate(ma, 8);
+        BlockAllocationSlice bb5 = allocate(ma, 8);
         Assert.assertEquals(8, bb5.getAllocatedLength());           // check the newest ByteBuffer size
         Assert.assertEquals(8,                             // check the newest block allocation
                 ma.getCurrentBlock().allocatedWithPossibleDelta());
@@ -294,7 +294,7 @@ public class NativeMemoryAllocatorTest {
         int[] sizes = new int[]{4, 16, 8, 32};
         List<Slice> allocated = Arrays.stream(sizes)
                 .mapToObj(curSize -> {
-                    Slice s = new SliceSyncRecycle();
+                    Slice s = VALUE_MEMORY_MANAGER.getEmptySlice();
                     allocator.allocate(s, curSize);
                     return s;
                 }).collect(Collectors.toList());
@@ -312,10 +312,10 @@ public class NativeMemoryAllocatorTest {
         Assert.assertEquals(0, stats.reclaimedBuffers);
 
         // Verify free list ordering
-        Slice bb = allocate(allocator, 4);
-        Assert.assertEquals(4, bb.getAllocatedLength());
+        BlockAllocationSlice bb = allocate(allocator, 4);
+        Assert.assertEquals(4, ((BlockAllocationSlice) bb).getAllocatedLength());
         bb = allocate(allocator, 4);
-        Assert.assertEquals(8, bb.getAllocatedLength());
+        Assert.assertEquals(8, ((BlockAllocationSlice) bb).getAllocatedLength());
 
         stats = allocator.getStats();
         Assert.assertEquals(2, stats.reclaimedBuffers);

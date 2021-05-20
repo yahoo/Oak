@@ -26,7 +26,7 @@ public class ValueUtilsTest {
         SeqExpandMemoryManager keysMemoryManager = new SeqExpandMemoryManager(allocator);
         ctx = new ThreadContext(keysMemoryManager, valuesMemoryManager);
         s = ctx.value;
-        valuesMemoryManager.allocate(s.getSlice(), Integer.BYTES * 3, false);
+        s.getSlice().allocate(Integer.BYTES * 3, false);
     }
 
     private void putInt(int index, int value) {
@@ -127,7 +127,7 @@ public class ValueUtilsTest {
 
     @Test
     public void cannotTransformedDifferentVersionTest() {
-        s.getSlice().associateMMAllocation(2, -1);
+        ((BlockAllocationSlice) s.getSlice()).associateMMAllocation(2, -1);
         Result result = valueOperator.transform(new Result(), s, byteBuffer -> byteBuffer.getInt(0));
         Assert.assertEquals(ValueUtils.ValueResult.RETRY, result.operationResult);
     }
@@ -313,7 +313,7 @@ public class ValueUtilsTest {
 
     @Test
     public void cannotPutToValueOfDifferentVersionTest() {
-        s.getSlice().associateMMAllocation(2, -1);
+        ((BlockAllocationSlice) s.getSlice()).associateMMAllocation(2, -1);
         Assert.assertEquals(ValueUtils.ValueResult.RETRY, valueOperator.put(null, ctx, null, null,
             null));
     }
@@ -432,7 +432,7 @@ public class ValueUtilsTest {
 
     @Test
     public void cannotComputeValueOfDifferentVersionTest() {
-        s.getSlice().associateMMAllocation(2, -1);
+        ((BlockAllocationSlice) s.getSlice()).associateMMAllocation(2, -1);
         Assert.assertEquals(ValueUtils.ValueResult.RETRY, valueOperator.compute(s, oakWBuffer -> {
         }));
     }

@@ -6,180 +6,100 @@
 
 package com.yahoo.oak;
 
-// An abstract Slice represents an data about an off-heap cut: a portion of a bigger block,
-// which is part of the underlying managed off-heap memory. Concrete implementation adapts
-// the abstract Slice to a specific memory manager.
-// Slice is allocated only via memory manager, and can be de-allocated later.
-// Slice can be either empty or associated with an off-heap cut,
-// which is the aforementioned portion of an off-heap memory.
-abstract class Slice implements Comparable<Slice> {
-    static final int UNDEFINED_LENGTH_OR_OFFSET_OR_ADDRESS = -1;
+/* A Slice represents an data about an off-heap cut: a portion of a bigger block,
+** which is part of the underlying managed off-heap memory. Concrete implementation adapts
+** the Slice interface to a specific memory manager.
+** Slice is allocated only via memory manager, and can be de-allocated later.
+** Slice can be either empty or associated with an off-heap cut,
+** which is the aforementioned portion of an off-heap memory.
+** */
+interface Slice {
 
-    /** The fields describing the associated off-heap cut, they are set when slice is not empty **/
-    protected long reference;
-    protected int blockID = NativeMemoryAllocator.INVALID_BLOCK_ID;
-    protected int offset  = UNDEFINED_LENGTH_OR_OFFSET_OR_ADDRESS;
+    /**
+     * Allocate new off-heap cut and associate this slice with a new off-heap cut of memory
+     *
+     * @param size     the number of bytes required by the user
+     * @param existing whether the allocation is for existing off-heap cut moving to the other
+     *                 location (e.g. in order to be enlarged).
+     */
+    void allocate(int size, boolean existing);
 
-    // The entire length of the off-heap cut, including the header!
-    protected int length = UNDEFINED_LENGTH_OR_OFFSET_OR_ADDRESS;
-    protected long memAddress = UNDEFINED_LENGTH_OR_OFFSET_OR_ADDRESS;
+    /**
+     * Release the associated off-heap cut, which must be disconnected from the data structure,
+     * but can still be accessed via threads previously having the access. It is the memory
+     * manager responsibility to care for the old concurrent accesses.
+     */
+    void release();
 
-    // true if slice is associated with an off-heap slice of memory
-    // if associated is false the Slice is empty
-    protected boolean associated = false;
+    /**
+     * Reset all Slice fields to invalid value, erase the previous association if existed.
+     * This does not releases the associated off-heap cut to memory manager, just disconnects
+     * the association!
+     */
+    void invalidate();
 
     /* ------------------------------------------------------------------------------------
-     * No Constructors, only for concrete implementations
+     * Reference is a long (64 bits) that should encapsulate all the information required
+     * to access a memory for read and for write (when Slice is not kept).
+     * It is up to memory manager what to put inside.
+     * Reference is kept inside the Slice, which is associated to an off-heap cut.
      * ------------------------------------------------------------------------------------*/
 
-    // Used to duplicate the allocation state. Does not duplicate the underlying memory buffer itself.
-    // Should be used when ThreadContext's internal Slice needs to be exported to the user.
-    abstract Slice getDuplicatedSlice();
+    /**
+     * Decode information from reference to this Slice's fields.
+     *
+     * @param reference the reference to decode
+     * @return true if the given allocation reference is valid and not deleted. If reference is
+     * invalid, the slice is invalidated. If reference is deleted, this slice is updated anyway.
+     */
+    boolean decodeReference(long reference);
 
     /* ------------------------------------------------------------------------------------
-     * Allocation info and metadata setters
+     * Slices duplication and info transfer
      * ------------------------------------------------------------------------------------*/
-    // Reset all not final fields to invalid state
-    void invalidate() {
-        blockID     = NativeMemoryAllocator.INVALID_BLOCK_ID;
-        reference   = ReferenceCodecSeqExpand.INVALID_REFERENCE;
-        length      = UNDEFINED_LENGTH_OR_OFFSET_OR_ADDRESS;
-        offset      = UNDEFINED_LENGTH_OR_OFFSET_OR_ADDRESS;
-        memAddress  = UNDEFINED_LENGTH_OR_OFFSET_OR_ADDRESS;
-        associated  = false;
-    }
 
-    // initialize dummy for allocation
-    void initializeLookupDummy(int l) {
-        invalidate();
-        length = l;
-    }
-
-    // Copy the block allocation information from another block allocation.
-    void copyAllocationInfoFrom(Slice other) {
-        if (other == this) {
-            // No need to do anything if the input is this object
-            return;
-        }
-        this.blockID = other.blockID;
-        this.offset = other.offset;
-        this.length = other.length;
-        this.memAddress = other.memAddress;
-        this.reference = other.reference;
-        this.associated = other.associated;
-    }
-
-    /*
-     * Sets everything related to allocation of an off-heap cut: a portion of a bigger block.
-     * Turns empty slice to an associated slice upon allocation.
+    /**
+     * Used to duplicate the allocation state. Does not duplicate the underlying off-heap cut itself.
+     * Should be used when ThreadContext's internal Slice needs to be exported to the user.
      */
-    void associateBlockAllocation(int blockID, int offset, int length, long memAddress) {
-        assert blockID != NativeMemoryAllocator.INVALID_BLOCK_ID
-            && offset > UNDEFINED_LENGTH_OR_OFFSET_OR_ADDRESS && length > UNDEFINED_LENGTH_OR_OFFSET_OR_ADDRESS
-            && memAddress != UNDEFINED_LENGTH_OR_OFFSET_OR_ADDRESS;
-        setBlockIdOffsetAndLength(blockID, offset, length);
-        this.memAddress  = memAddress;
-        this.associated = true;
-        // more Slice's properties are yet to be set by associateMMAllocation
-    }
+    Slice duplicate();
 
-    /*
-     * Updates everything that can be extracted with reference decoding,
-     * including reference itself. This is not the full setting of the association
+    /**
+     * Copy the off-heap cut allocation information from another off-heap cut allocation.
      */
-    abstract void associateReferenceDecoding(int blockID, int offset, int arg, long reference);
-
-    // Copy the block allocation information from another block allocation.
-    abstract <T extends Slice> void copyFrom(T other);
-
-    // Set the internal buffer.
-    // This method should be used only within Memory Management package.
-    void setAddress(long memAddress) {
-        this.memAddress = memAddress;
-        assert memAddress != 0;
-        associated = true; // buffer is the final and the most important field for the slice validity
-    }
-
-    /*
-     * Upon allocation, sets everything related to memory management of an off-heap cut:
-     * a portion of a bigger block.
-     * Used only within Memory Manager package.
-     */
-    abstract void associateMMAllocation(int version, long reference);
-
-    // used only in case of iterations when the rest of the slice's data should remain the same
-    // in this case once the offset is set the the slice is associated
-    abstract void updateOnSameBlock(int offset, int length);
-
-    // the method has no effect if length is already set
-    protected abstract void prefetchDataLength();
-
-    // simple setter, frequently internally used, to save code duplication
-    protected void setBlockIdOffsetAndLength(int blockID, int offset, int length) {
-        this.blockID = blockID;
-        this.offset = offset;
-        this.length = length;
-    }
+    void copyFrom(Slice other);
 
     /* ------------------------------------------------------------------------------------
      * Allocation info getters
      * ------------------------------------------------------------------------------------*/
 
-    boolean isInitiated() {
-        return associated;
-    }
-
-    long getReference() {
-        return reference;
-    }
-
-    int getAllocatedBlockID() {
-        return blockID;
-    }
-
-    int getAllocatedOffset() {
-        return offset;
-    }
-
-    abstract int getAllocatedLength();
-
-    /* ------------------------------------------------------------------------------------
-     * Metadata getters
-     * ------------------------------------------------------------------------------------*/
-    long getMetadataAddress() {
-        assert associated;
-        return memAddress + offset;
-    }
-
-    public abstract int getLength();
-
-    public abstract long getAddress();
-
-    public abstract String toString();
-
-    /*-------------- Comparable<Slice> --------------*/
+    /**
+     * Is the Slice associated with a valid off-heap cut of memory?
+     */
+    boolean isAssociated();
 
     /**
-     * The slices are ordered by their length, then by their block id, then by their offset.
-     * Slices with the same length, block id and offset are considered identical.
-     *
-     * Used for comparision of the slices in the freeList of memory manager,
-     * the slices are deleted but not yet re-allocated.
+     * Return the reference which is a long that encapsulates needed to access this off-heap cut
+     * later, using decodeReference() method.
+     * The reference is valid only for associated with off-heap cut Slice.
      */
-    @Override
-    public int compareTo(Slice o) {
-        int cmp = Integer.compare(this.length, o.length);
-        if (cmp != 0) {
-            return cmp;
-        }
-        cmp = Integer.compare(this.blockID, o.blockID);
-        if (cmp != 0) {
-            return cmp;
-        }
-        return Integer.compare(this.offset, o.offset);
-    }
+    long getReference();
 
-    /*-------------- Off-heap header operations: locking and logical delete --------------*/
+    /**
+     * Returns the length of the associated off-heap cut. If any metadata needs to be added to the
+     * off-heap cut this metadata length is not included in the answer.
+     */
+    int getLength();
+
+    /**
+     * Allows access to the memory address of the underlying off-heap cut.
+     * @return the exact memory address of the off-heap cut in the position of the user data.
+     */
+    long getAddress();
+
+    /* ------------------------------------------------------------------------------------
+     * Off-heap metadata based operations: locking and logical delete
+     * ------------------------------------------------------------------------------------*/
 
     /**
      * Acquires a read lock
@@ -189,7 +109,7 @@ abstract class Slice implements Comparable<Slice> {
      * {@code RETRY} if the header/off-heap-cut was moved, or the version of the off-heap header
      * does not match {@code version}.
      */
-    abstract ValueUtils.ValueResult lockRead();
+    ValueUtils.ValueResult lockRead();
 
     /**
      * Releases a read lock
@@ -198,7 +118,7 @@ abstract class Slice implements Comparable<Slice> {
      * {@code FALSE} if the value is marked as deleted
      * {@code RETRY} if the value was moved, or the version of the off-heap value does not match {@code version}.
      */
-    abstract ValueUtils.ValueResult unlockRead();
+    ValueUtils.ValueResult unlockRead();
 
     /**
      * Acquires a write lock
@@ -207,7 +127,7 @@ abstract class Slice implements Comparable<Slice> {
      * {@code FALSE} if the value is marked as deleted
      * {@code RETRY} if the value was moved, or the version of the off-heap value does not match {@code version}.
      */
-    abstract ValueUtils.ValueResult lockWrite();
+    ValueUtils.ValueResult lockWrite();
 
     /**
      * Releases a write lock
@@ -216,7 +136,7 @@ abstract class Slice implements Comparable<Slice> {
      * {@code FALSE} if the value is marked as deleted
      * {@code RETRY} if the value was moved, or the version of the off-heap value does not match {@code version}.
      */
-    abstract ValueUtils.ValueResult unlockWrite();
+    ValueUtils.ValueResult unlockWrite();
 
     /**
      * Marks the associated off-heap cut as deleted only if the version of that value matches {@code version}.
@@ -225,7 +145,7 @@ abstract class Slice implements Comparable<Slice> {
      * {@code FALSE} if the value is already marked as deleted
      * {@code RETRY} if the value was moved, or the version of the off-heap value does not match {@code version}.
      */
-    abstract ValueUtils.ValueResult logicalDelete();
+    ValueUtils.ValueResult logicalDelete();
 
     /**
      * Is the associated off-heap cut marked as logically deleted
@@ -234,18 +154,18 @@ abstract class Slice implements Comparable<Slice> {
      * {@code FALSE} if the value is not marked
      * {@code RETRY} if the value was moved, or the version of the off-heap value does not match {@code version}.
      */
-    abstract ValueUtils.ValueResult isDeleted();
+    ValueUtils.ValueResult isDeleted();
 
     /**
      * Marks the header of the associated off-heap cut as moved, just write (without CAS)
      * The write lock must be held (asserted inside the header)
      */
-    abstract void markAsMoved();
+    void markAsMoved();
 
     /**
      * Marks the header of the associated off-heap cut as deleted, just write (without CAS)
      * The write lock must be held (asserted inside the header).
      * It is similar to logicalDelete() but used when locking and marking don't happen in one CAS
      */
-    abstract void markAsDeleted();
+    void markAsDeleted();
 }

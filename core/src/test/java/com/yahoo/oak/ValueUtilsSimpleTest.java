@@ -16,14 +16,14 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class ValueUtilsSimpleTest {
-    private Slice s;
+    private BlockAllocationSlice s;
 
     @Before
     public void init() {
         SyncRecycleMemoryManager syncRecycleMemoryManager =
             new SyncRecycleMemoryManager(new NativeMemoryAllocator(128));
         s = syncRecycleMemoryManager.getEmptySlice();
-        syncRecycleMemoryManager.allocate(s, 16, false);
+        s.allocate(16, false);
         UnsafeUtils.UNSAFE.putInt(s.getAddress(), 1);
     }
 

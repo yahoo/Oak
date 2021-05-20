@@ -23,12 +23,10 @@ class NativeMemoryAllocator implements BlockMemoryAllocator {
     private Block[] blocksArray;
     private final AtomicInteger idGenerator = new AtomicInteger(1);
 
-    /**
-     * free list of Slices which can be reused.
-     * They are sorted by the slice length, then by the block id, then by their offset.
-     * See {@code Slice.compareTo(Slice)} for more information.
-     */
-    private final ConcurrentSkipListSet<Slice> freeList = new ConcurrentSkipListSet<>();
+    // free list of Slices which can be reused.
+    // They are sorted by the slice length, then by the block id, then by their offset.
+    // See {@code Slice.compareTo(Slice)} for more information.
+    private final ConcurrentSkipListSet<BlockAllocationSlice> freeList = new ConcurrentSkipListSet<>();
 
     private final BlocksProvider blocksProvider;
     private Block currentBlock;
@@ -67,15 +65,17 @@ class NativeMemoryAllocator implements BlockMemoryAllocator {
     // within current block bounds.
     // Otherwise, new block is allocated within Oak memory bounds. Thread safe.
     // Given size already includes the size for metadata header if needed.
+    // For our internal implementation what all Slices we work with extend the BlockAllocationSlice!
     @Override
-    public boolean allocate(Slice s, int size) {
+    public boolean allocate(Slice sl, int size) {
+        BlockAllocationSlice s = (BlockAllocationSlice) sl;
         // While the free list is not empty there can be a suitable free slice to reuse.
         // To search a free slice, we use the input slice as a dummy and change its length to the desired length.
         // Then, we use freeList.higher(s) which returns a free slice with greater or equal length to the length of the
         // dummy with time complexity of O(log N), where N is the number of free slices.
         while (!freeList.isEmpty()) {
             s.initializeLookupDummy(size);
-            Slice bestFit = freeList.higher(s);
+            BlockAllocationSlice bestFit = freeList.higher(s);
             if (bestFit == null) {
                 break;
             }
@@ -137,13 +137,14 @@ class NativeMemoryAllocator implements BlockMemoryAllocator {
     // IMPORTANT: it is assumed free will get an allocation only initially allocated from this
     // Allocator!
     @Override
-    public void free(Slice s) {
+    public void free(Slice sl) {
+        BlockAllocationSlice s = (BlockAllocationSlice) sl;
         int size = s.getAllocatedLength();
         allocated.addAndGet(-size);
         if (stats != null) {
             stats.release(size);
         }
-        freeList.add(s.getDuplicatedSlice());
+        freeList.add(s.duplicate());
     }
 
     // Releases all memory allocated for this Oak (should be used as part of the Oak destruction)
@@ -185,8 +186,10 @@ class NativeMemoryAllocator implements BlockMemoryAllocator {
     }
 
     // When some buffer need to be read from a random block
+    // The Slices we work with must extend BlockAllocationSlice
     @Override
-    public void readMemoryAddress(Slice s) {
+    public void readMemoryAddress(Slice sl) {
+        BlockAllocationSlice s = (BlockAllocationSlice) sl;
         int blockID = s.getAllocatedBlockID();
         // Validates that the input block id is valid.
         // This check should be automatically eliminated by the compiler in production.

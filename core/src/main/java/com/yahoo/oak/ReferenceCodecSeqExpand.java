@@ -39,7 +39,7 @@ package com.yahoo.oak;
  * Note: these limitations will change for different block sizes. */
 
 class ReferenceCodecSeqExpand extends ReferenceCodec {
-    static final long INVALID_REFERENCE = 0;
+
     /**
      * Initialize the codec with size block-size and value length limits.
      * These limits will inflict a limit on the maximal number of blocks (the remaining bits).
@@ -56,21 +56,6 @@ class ReferenceCodecSeqExpand extends ReferenceCodec {
     }
 
     @Override
-    protected long getFirst(Slice s) {
-        return (long) s.getAllocatedBlockID();
-    }
-
-    @Override
-    protected long getSecond(Slice s) {
-        return (long) s.getAllocatedOffset();
-    }
-
-    @Override
-    protected long getThird(Slice s) {
-        return (long) s.getAllocatedLength();
-    }
-
-    @Override
     protected long getFirstForDelete(long reference) {
         return getFirst(reference);
     }
@@ -83,25 +68,5 @@ class ReferenceCodecSeqExpand extends ReferenceCodec {
     @Override
     protected long getThirdForDelete(long reference) {
         return getThird(reference);
-    }
-
-    @Override
-    protected void setAll(Slice s, long blockID, long offset, long length, long reference) {
-        s.associateReferenceDecoding((int) blockID, (int) offset, (int) length, reference);
-    }
-
-    @Override
-    boolean isReferenceDeleted(long reference) {
-        return false;
-    }
-
-    @Override
-    boolean isReferenceConsistent(long reference) {
-        return true;
-    }
-
-    @Override
-    boolean isReferenceValid(long reference) {
-        return reference != INVALID_REFERENCE;
     }
 }

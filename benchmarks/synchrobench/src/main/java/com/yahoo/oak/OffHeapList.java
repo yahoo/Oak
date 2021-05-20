@@ -22,6 +22,7 @@ import java.util.function.Consumer;
 public class OffHeapList<K extends MyBuffer, V extends MyBuffer> implements CompositionalOakMap<K, V> {
     private ConcurrentSkipListMap<Object, Cell> skipListMap;
     private BlockMemoryAllocator allocator;
+    private MemoryManager mm;
     private Comparator<Object> comparator;
     private static final long KB = 1024L;
     private static final long GB = KB * KB * KB;
@@ -72,6 +73,7 @@ public class OffHeapList<K extends MyBuffer, V extends MyBuffer> implements Comp
 
         skipListMap = new ConcurrentSkipListMap<>(comparator);
         allocator = new NativeMemoryAllocator(OAK_MAX_OFF_MEMORY);
+        mm = new SyncRecycleMemoryManager(allocator);
     }
 
     @Override
@@ -97,8 +99,8 @@ public class OffHeapList<K extends MyBuffer, V extends MyBuffer> implements Comp
         Cell prevValue = skipListMap.putIfAbsent(newCell, newCell);
 
         if (prevValue == null) {
-            ScopedReadBuffer keybb = new ScopedReadBuffer(new SliceSyncRecycle());
-            ScopedReadBuffer valuebb = new ScopedReadBuffer(new SliceSyncRecycle());
+            ScopedReadBuffer keybb = new ScopedReadBuffer(mm.getEmptySlice());
+            ScopedReadBuffer valuebb = new ScopedReadBuffer(mm.getEmptySlice());
             allocator.allocate(keybb.getSlice(), key.calculateSerializedSize());
             ScopedWriteBuffer.serialize(keybb.getSlice(), key, MyBuffer.DEFAULT_SERIALIZER);
             newCell.key.set(keybb);
@@ -109,7 +111,7 @@ public class OffHeapList<K extends MyBuffer, V extends MyBuffer> implements Comp
             }
         } else {
             if (prevValue.value.get() == null) {
-                ScopedReadBuffer valuebb = new ScopedReadBuffer(new SliceSyncRecycle());
+                ScopedReadBuffer valuebb = new ScopedReadBuffer(mm.getEmptySlice());
                 allocator.allocate(valuebb.getSlice(), value.calculateSerializedSize());
                 ScopedWriteBuffer.serialize(valuebb.getSlice(), value, MyBuffer.DEFAULT_SERIALIZER);
                 if (!prevValue.value.compareAndSet(null, valuebb)) {
@@ -131,8 +133,8 @@ public class OffHeapList<K extends MyBuffer, V extends MyBuffer> implements Comp
         newCell.key.set(key);
         Cell prevValue = skipListMap.putIfAbsent(newCell, newCell);
         if (prevValue == null) {
-            ScopedReadBuffer keybb = new ScopedReadBuffer(new SliceSyncRecycle());
-            ScopedReadBuffer valuebb = new ScopedReadBuffer(new SliceSyncRecycle());
+            ScopedReadBuffer keybb = new ScopedReadBuffer(mm.getEmptySlice());
+            ScopedReadBuffer valuebb = new ScopedReadBuffer(mm.getEmptySlice());
             allocator.allocate(keybb.getSlice(), key.calculateSerializedSize());
             ScopedWriteBuffer.serialize(keybb.getSlice(), key, MyBuffer.DEFAULT_SERIALIZER);
             newCell.key.set(keybb);
@@ -232,7 +234,7 @@ public class OffHeapList<K extends MyBuffer, V extends MyBuffer> implements Comp
             Cell prevValue = (Cell) prevValueO;
             // cell is in map but maybe not initialized yet
             if (prevValue.value.get() == null) {
-                ScopedReadBuffer valuebb = new ScopedReadBuffer(new SliceSyncRecycle());
+                ScopedReadBuffer valuebb = new ScopedReadBuffer(mm.getEmptySlice());
                 allocator.allocate(valuebb.getSlice(), value.calculateSerializedSize());
                 ScopedWriteBuffer.serialize(valuebb.getSlice(), value, MyBuffer.DEFAULT_SERIALIZER);
                 if (!prevValue.value.compareAndSet(null, valuebb)) {
@@ -259,8 +261,8 @@ public class OffHeapList<K extends MyBuffer, V extends MyBuffer> implements Comp
 
         // If we only added and didnt do any compute, still have to init cell
         if (retval.value.get() == null) {
-            ScopedReadBuffer keybb = new ScopedReadBuffer(new SliceSyncRecycle());
-            ScopedReadBuffer valuebb = new ScopedReadBuffer(new SliceSyncRecycle());
+            ScopedReadBuffer keybb = new ScopedReadBuffer(mm.getEmptySlice());
+            ScopedReadBuffer valuebb = new ScopedReadBuffer(mm.getEmptySlice());
             allocator.allocate(keybb.getSlice(), key.calculateSerializedSize());
             ScopedWriteBuffer.serialize(keybb.getSlice(), key, MyBuffer.DEFAULT_SERIALIZER);
             retval.key.set(keybb);

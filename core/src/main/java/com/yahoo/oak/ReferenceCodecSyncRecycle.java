@@ -20,7 +20,6 @@ package com.yahoo.oak;
 class ReferenceCodecSyncRecycle extends ReferenceCodec {
 
     static final int    INVALID_VERSION = 0;
-    static final long INVALID_REFERENCE = 0;
 
     // All Oak instances on one machine are expected to reference to no more than 4TB of RAM.
     // 4TB = 2^42 bytes
@@ -48,23 +47,6 @@ class ReferenceCodecSyncRecycle extends ReferenceCodec {
         // and the rest goes for version (currently 22 bits)
     }
 
-
-    @Override
-    protected long getFirst(Slice s) {
-        return (long) s.getAllocatedBlockID();
-    }
-
-    @Override
-    protected long getSecond(Slice s) {
-        return (long) s.getAllocatedOffset();
-    }
-
-    @Override
-    protected long getThird(Slice s) {
-        int ver = ((SliceSyncRecycle) s).getVersion(); // other ideas?
-        return ver;
-    }
-
     @Override
     protected long getFirstForDelete(long reference) {
         return INVALID_REFERENCE;
@@ -81,17 +63,6 @@ class ReferenceCodecSyncRecycle extends ReferenceCodec {
         // The set the MSB (the left-most bit out of 22 is delete bit)
         v |= VERSION_DELETE_BIT_MASK;
         return (INVALID_REFERENCE | v);
-    }
-
-    @Override
-    protected void setAll(Slice s, long blockID, long offset, long version, long reference) {
-        s.associateReferenceDecoding(
-            (int) blockID, (int) offset, (int) version, reference);
-    }
-
-    @Override
-    boolean isReferenceValid(long reference) {
-        return reference != INVALID_REFERENCE;
     }
 
     // invoked only within assert

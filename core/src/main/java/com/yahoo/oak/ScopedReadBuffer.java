@@ -21,7 +21,7 @@ class ScopedReadBuffer implements OakScopedReadBuffer, OakUnsafeDirectBuffer {
     }
 
     ScopedReadBuffer(ScopedReadBuffer other) {
-        this.s = other.s.getDuplicatedSlice();
+        this.s = other.s.duplicate();
     }
 
     protected long getDataAddress(int index) {
@@ -37,7 +37,7 @@ class ScopedReadBuffer implements OakScopedReadBuffer, OakUnsafeDirectBuffer {
     }
 
     protected boolean isInitiated() {
-        return s.isInitiated();
+        return s.isAssociated();
     }
 
     protected Slice getSlice() {
