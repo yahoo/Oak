@@ -68,8 +68,8 @@ class EntrySet<K, V> extends EntryArray<K, V> {
     // (not necessarily first in the array!)
     private static final int ADDITIONAL_FIELDS = 1;  // # of primitive fields in each item of entries array
 
-    // location of the first (head) node - just a next pointer (always same value 0)
-    public final int headEntryIndex;
+    // location of the first (head) node
+    private AtomicInteger headEntryIndex = new AtomicInteger(INVALID_ENTRY_INDEX);
 
     // points to next free index of entry array, counted in "entries" and not in integers
     private final AtomicInteger nextFreeIndex;
@@ -86,10 +86,8 @@ class EntrySet<K, V> extends EntryArray<K, V> {
     EntrySet(MemoryManager vMM, MemoryManager kMM, int entriesCapacity, OakSerializer<K> keySerializer,
         OakSerializer<V> valueSerializer) {
         // We add additional field for the head (dummy) node
-        super(vMM, kMM, ADDITIONAL_FIELDS, entriesCapacity + 1, keySerializer, valueSerializer);
-        this.nextFreeIndex = new AtomicInteger( 1);
-        this.headEntryIndex = 0;
-        setNextEntryIndex(headEntryIndex, INVALID_ENTRY_INDEX);
+        super(vMM, kMM, ADDITIONAL_FIELDS, entriesCapacity, keySerializer, valueSerializer);
+        this.nextFreeIndex = new AtomicInteger( 0);
     }
 
     enum ValueState {
@@ -170,12 +168,30 @@ class EntrySet<K, V> extends EntryArray<K, V> {
     }
 
     /**
+     * TODO: doc
+     * @param headEntryIndex
+     */
+    void setHeadEntryIndex(int headEntryIndex) {
+        this.headEntryIndex.set(headEntryIndex);
+    }
+
+    /**
      * casNextEntryIndex CAS the next entry index (of the entry given by entry index "ei") to be the
      * "nextNew" only if it was "nextOld". Input parameter "nextNew" must be a valid entry index.
      * The method serves external EntrySet users.
      */
     boolean casNextEntryIndex(int ei, int nextOld, int nextNew) {
         return casEntryFieldLong(ei, NEXT_FIELD, nextOld, nextNew);
+    }
+
+    /**
+     * TODO: doc
+     * @param nextOld
+     * @param nextNew
+     * @return
+     */
+    boolean casHeadEntryIndex(int nextOld, int nextNew) {
+        return this.headEntryIndex.compareAndSet(nextOld, nextNew);
     }
 
 
@@ -185,7 +201,7 @@ class EntrySet<K, V> extends EntryArray<K, V> {
      * The method serves external EntrySet users.
      */
     int getHeadNextEntryIndex() {
-        return (int) getEntryFieldLong(headEntryIndex, NEXT_FIELD);
+        return headEntryIndex.get();
     }
 
 
@@ -528,7 +544,6 @@ class EntrySet<K, V> extends EntryArray<K, V> {
             return false;
         }
 
-        assert srcEntryIdx != srcEntrySet.headEntryIndex;
         assert srcEntrySet.isIndexInBound(srcEntryIdx);
 
         // don't increase the nextFreeIndex yet, as the source entry might not be copies
