@@ -52,9 +52,6 @@ public class OverheadTest {
 
 
         double heapOverhead = usedHeapMemoryMB / (usedHeapMemoryMB + usedOffHeapMemoryMB);
-        System.out.println(usedHeapMemoryMB);
-        System.out.println(usedOffHeapMemoryMB);
-        System.out.println(heapOverhead);
 
         System.out.println("Observed On Heap Overhead: " + heapOverhead);
         Assert.assertTrue(

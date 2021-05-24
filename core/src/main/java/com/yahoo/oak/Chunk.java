@@ -328,7 +328,8 @@ class Chunk<K, V> {
             return sortedCount - 1;
         }
 
-        int start = 0;
+        // `start` and `end` are intentionally initiated outside of the array boundaries.
+        int start = -1;
         int end = sortedCount;
         while (end - start > 1) {
             int curr = start + ((end - start) / 2);
@@ -339,7 +340,8 @@ class Chunk<K, V> {
             }
         }
 
-        return start;
+        // If the key is below the first item, then return NONE_NEXT
+        return start == -1 ? NONE_NEXT : start;
     }
 
 

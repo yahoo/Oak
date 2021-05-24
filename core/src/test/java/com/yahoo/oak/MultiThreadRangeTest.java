@@ -72,10 +72,13 @@ public class MultiThreadRangeTest {
     public void testRange() throws ExecutorUtils.ExecutionError {
         executor.submitTasks(NUM_THREADS, i -> new MultiThreadRangeTest.RunThreads(latch));
 
+        final int numOfItems = 5 * MAX_ITEMS_PER_CHUNK;
+        final int maxItem = numOfItems * 2;
+
         // fill
         Random r = new Random();
-        for (int i = 5 * MAX_ITEMS_PER_CHUNK; i > 0; ) {
-            Integer j = r.nextInt(10 * MAX_ITEMS_PER_CHUNK);
+        for (int i = numOfItems; i > 0; ) {
+            Integer j = r.nextInt(maxItem);
             if (oak.zc().putIfAbsent(j, j)) {
                 i--;
             }
@@ -84,12 +87,14 @@ public class MultiThreadRangeTest {
         latch.countDown();
         executor.shutdown(TIME_LIMIT_IN_SECONDS);
 
+        Assert.assertEquals(numOfItems, oak.size());
+
         int size = 0;
-        for (int i = 0; i < 10 * MAX_ITEMS_PER_CHUNK; i++) {
+        for (int i = 0; i < maxItem; i++) {
             if (oak.get(i) != null) {
                 size++;
             }
         }
-        Assert.assertEquals(5 * MAX_ITEMS_PER_CHUNK, size);
+        Assert.assertEquals(numOfItems, size);
     }
 }
