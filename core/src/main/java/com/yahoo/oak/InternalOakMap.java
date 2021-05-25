@@ -661,7 +661,7 @@ class InternalOakMap<K, V> {
 
             // AT THIS POINT value was marked deleted off-heap by this thread,
             // continue to set the entry's value reference as deleted
-            assert ctx.entryIndex > 0;
+            assert ctx.entryIndex != EntrySet.INVALID_ENTRY_INDEX;
             assert ctx.isValueValid();
             ctx.valueState = EntrySet.ValueState.DELETED_NOT_FINALIZED;
             finalizeDeletion(c, ctx); // includes publish/unpublish
