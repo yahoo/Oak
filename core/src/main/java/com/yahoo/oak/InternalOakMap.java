@@ -663,7 +663,7 @@ class InternalOakMap<K, V> {
             // continue to set the entry's value reference as deleted
             assert ctx.entryIndex != EntrySet.INVALID_ENTRY_INDEX;
             assert ctx.isValueValid();
-            ctx.valueState = EntrySet.ValueState.DELETED_NOT_FINALIZED;
+            ctx.entryState = EntryArray.EntryState.DELETED_NOT_FINALIZED;
             finalizeDeletion(c, ctx); // includes publish/unpublish
             return transformer == null ? ctx.result.withFlag(logicallyDeleted) : ctx.result.withValue(v);
         }
@@ -1119,7 +1119,7 @@ class InternalOakMap<K, V> {
 
                 if (needsValue) {
                     // Set value references and checks for value validity.
-                    // if value is deleted ctx.valueState is going to be invalid
+                    // if value is deleted ctx.entryState is going to be invalid
                     c.readValue(ctx);
                     validState = ctx.isValueValid();
                 }

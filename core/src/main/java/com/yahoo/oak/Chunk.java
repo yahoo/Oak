@@ -13,7 +13,8 @@ import java.util.concurrent.atomic.AtomicMarkableReference;
 import java.util.concurrent.atomic.AtomicReference;
 
 class Chunk<K, V> {
-    static final int NONE_NEXT = EntrySet.INVALID_ENTRY_INDEX;    // an entry with NONE_NEXT as its next pointer, points to a null entry
+    // an entry with NONE_NEXT as its next pointer, points to a null entry
+    static final int NONE_NEXT = EntrySet.INVALID_ENTRY_INDEX;
 
     /*-------------- Constants --------------*/
 
@@ -116,8 +117,22 @@ class Chunk<K, V> {
             comparator, entrySet.keySerializer, entrySet.valueSerializer);
         child.creator.set(this);
         child.state.set(State.INFANT);
-        entrySet.duplicateKey(minKey, child.minKey);
+        duplicateKeyBuffer(minKey, child.minKey);
         return child;
+    }
+
+    /**
+     * Allocate a new KeyBuffer and duplicate an existing key to the new one.
+     *
+     * @param src the off-heap KeyBuffer to copy from
+     * @param dst the off-heap KeyBuffer to update with the new allocation
+     */
+    private void duplicateKeyBuffer(KeyBuffer src, KeyBuffer dst) {
+        final int keySize = src.capacity();
+        dst.getSlice().allocate(keySize, false);
+
+        // We duplicate the buffer without instantiating a write buffer because the user is not involved.
+        UnsafeUtils.UNSAFE.copyMemory(src.getAddress(), dst.getAddress(), keySize);
     }
 
     /********************************************************************************************/
@@ -166,10 +181,10 @@ class Chunk<K, V> {
     }
 
     /**
-     * See {@code EntrySet.writeValueStart(ThreadContext)} for more information
+     * See {@code EntrySet.allocateValue(ThreadContext)} for more information
      */
     void writeValue(ThreadContext ctx, V value, boolean writeForMove) {
-        entrySet.writeValueStart(ctx, value, writeForMove);
+        entrySet.allocateValue(ctx, value, writeForMove);
     }
 
     /**
@@ -257,7 +272,7 @@ class Chunk<K, V> {
      *                   In this case, {@code ctx.isKeyValid() == False} and {@code ctx.isValueValid() == False}.
      *             (2) {@code key} was found.
      *                   In this case, {@code (ctx.isKeyValid() == True}
-     *                   The state of the value associated with {@code key} is described in {@code ctx.valueState}.
+     *                   The state of the value associated with {@code key} is described in {@code ctx.entryState}.
      *                   It can be one of the following states:
      *                     (1) not yet inserted, (2) in the process of being inserted, (3) valid,
      *                     (4) in the process of being deleted, (5) deleted.
@@ -387,7 +402,7 @@ class Chunk<K, V> {
      * deleted, or not, if there were no request to rebalance FALSE is going to be returned
      */
     boolean finalizeDeletion(ThreadContext ctx) {
-        if (ctx.valueState != EntrySet.ValueState.DELETED_NOT_FINALIZED) {
+        if (ctx.entryState != EntryArray.EntryState.DELETED_NOT_FINALIZED) {
             return false;
         }
         if (!publish()) {
