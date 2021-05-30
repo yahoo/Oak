@@ -21,27 +21,22 @@ public class InternalOakHashMap<K , V> implements Closeable {
     private final AtomicInteger size;
     private final OakSerializer<K> keySerializer;
     private final OakSerializer<V> valueSerializer;
-    private final OakHashFunction<K , ?> hashFunction;
 
     public InternalOakHashMap(MemoryManager valuesMemoryManager,
                               MemoryManager keysMemoryManager,
                               OakSerializer<K> keySerializer,
-                              OakSerializer<V> valueSerializer,
-                              OakHashFunction<K , ? extends Number> hashFunction) {
+                              OakSerializer<V> valueSerializer) {
         this.size = new AtomicInteger(0);
         this.valuesMemoryManager = valuesMemoryManager;
         this.keysMemoryManager = keysMemoryManager;
         this.keySerializer = keySerializer;
         this.valueSerializer = valueSerializer;
-        this.hashFunction = hashFunction;
     }
-
 
     @Override
     public void close()  {
         throw new UnsupportedOperationException("Not implemented yet");
     }
-
 
     private <T> T getValueTransformation(OakScopedReadBuffer key, OakTransformer<T> transformer) {
         K deserializedKey = this.keySerializer.deserialize(key);

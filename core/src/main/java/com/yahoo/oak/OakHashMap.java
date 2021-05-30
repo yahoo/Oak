@@ -36,8 +36,6 @@ public class OakHashMap<K, V> extends AbstractMap<K, V> implements AutoCloseable
     private final Function<Map.Entry<OakScopedReadBuffer, OakScopedReadBuffer>,
             Map.Entry<K, V>> entryDeserializeTransformer;
     private final OakComparator<K> comparator;
-    private final OakHashFunction<K , ? extends Number> hashFunction;
-
 
     // internal constructor, to create OakHashMap use OakHashMapBuilder
     OakHashMap(OakSerializer<K> keySerializer,
@@ -45,17 +43,16 @@ public class OakHashMap<K, V> extends AbstractMap<K, V> implements AutoCloseable
                OakComparator<K> oakComparator,
                int chunkMaxItems,
                MemoryManager vMM,
-               MemoryManager kMM, OakHashFunction hashFunction) {
+               MemoryManager kMM) {
         this.valuesMemoryManager = vMM;
         this.keysMemoryManager = kMM;
         this.comparator = oakComparator;
         this.keyDeserializeTransformer = keySerializer::deserialize;
         this.valueDeserializeTransformer = valueSerializer::deserialize;
-        this.hashFunction = hashFunction;
         this.entryDeserializeTransformer = entry -> new AbstractMap.SimpleEntry<>(
                 keySerializer.deserialize(entry.getKey()),
                 valueSerializer.deserialize(entry.getValue()));
-        this.internalOakHashMap = new InternalOakHashMap<>(vMM , kMM , keySerializer , valueSerializer , hashFunction);
+        this.internalOakHashMap = new InternalOakHashMap<>(vMM , kMM , keySerializer , valueSerializer);
     }
 
     /* ------ Map API methods ------ */

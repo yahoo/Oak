@@ -19,7 +19,6 @@ public class OakHashMapBuilder<K, V> {
 
     private OakSerializer<K> keySerializer;
     private OakSerializer<V> valueSerializer;
-    private OakHashFunction hashFunction;
 
     // comparators
     private OakComparator<K> comparator;
@@ -32,11 +31,9 @@ public class OakHashMapBuilder<K, V> {
 
     public OakHashMapBuilder(OakComparator<K> comparator,
                              OakSerializer<K> keySerializer,
-                             OakSerializer<V> valueSerializer,
-                             OakHashFunction hashFunction) {
+                             OakSerializer<V> valueSerializer) {
         this.keySerializer = keySerializer;
         this.valueSerializer = valueSerializer;
-        this.hashFunction = hashFunction;
         this.comparator = comparator;
 
         this.chunkMaxItems = Chunk.MAX_ITEMS_DEFAULT;
@@ -55,10 +52,7 @@ public class OakHashMapBuilder<K, V> {
         return this;
     }
 
-    public OakHashMapBuilder<K , V> setHashFunction(OakHashFunction<K , ?> hashFunction) {
-        this.hashFunction = hashFunction;
-        return this;
-    }
+
 
     public OakHashMapBuilder<K, V> setChunkMaxItems(int chunkMaxItems) {
         this.chunkMaxItems = chunkMaxItems;
@@ -109,18 +103,13 @@ public class OakHashMapBuilder<K, V> {
         if (valueSerializer == null) {
             throw new IllegalStateException("Must provide a non-null value serializer to build the OakHashMap");
         }
-        if (hashFunction == null) {
-            throw new IllegalStateException("Must provide a non-null hashFunction to build the OakHashMap");
-
-        }
 
         return new OakHashMap<>(keySerializer,
                 valueSerializer,
                 comparator,
                 chunkMaxItems,
                 valuesMemoryManager,
-                keysMemoryManager,
-                hashFunction);
+                keysMemoryManager);
     }
 
 }
