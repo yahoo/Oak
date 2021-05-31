@@ -110,7 +110,7 @@ public class ComputeTest {
                 OakCommonBuildersFactory.getDefaultIntBufferBuilder(KEY_SIZE, VAL_SIZE)
                         .setChunkMaxItems(2048);
 
-        oak = builder.build();
+        oak = builder.buildMap();
 
         numOfEntries = 100;
 

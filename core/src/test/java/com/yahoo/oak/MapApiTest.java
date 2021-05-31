@@ -31,7 +31,7 @@ public class MapApiTest {
         int maxItemsPerChunk = 2048;
         OakMapBuilder<Integer, Integer> builder = OakCommonBuildersFactory.getDefaultIntBuilder()
                 .setChunkMaxItems(maxItemsPerChunk);
-        oak = builder.build();
+        oak = builder.buildMap();
     }
 
     @After

@@ -23,7 +23,7 @@ public class SingleThreadTest {
     public void init() {
         OakMapBuilder<Integer, Integer> builder = OakCommonBuildersFactory.getDefaultIntBuilder()
                 .setChunkMaxItems(maxItemsPerChunk);
-        oak = builder.build();
+        oak = builder.buildMap();
     }
 
     @After

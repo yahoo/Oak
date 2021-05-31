@@ -33,7 +33,7 @@ public class MultiThreadComputeTest {
     public void init() {
         OakMapBuilder<Integer, Integer> builder = OakCommonBuildersFactory.getDefaultIntBuilder()
                 .setChunkMaxItems(MAX_ITEMS_PER_CHUNK);
-        oak = builder.build();
+        oak = builder.buildMap();
         latch = new CountDownLatch(1);
         executor = new ExecutorUtils<>(NUM_THREADS);
         computer = oakWBuffer -> {

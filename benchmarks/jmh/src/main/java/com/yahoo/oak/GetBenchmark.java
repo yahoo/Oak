@@ -46,7 +46,7 @@ public class GetBenchmark {
         @Setup()
         public void setup() {
             OakMapBuilder<String, String> builder = OakCommonBuildersFactory.getDefaultStringBuilder();
-            oakMap = builder.build();
+            oakMap = builder.buildMap();
 
             keys = new ArrayList<>(numRows);
             for (int i = 0; i < numRows; ++i) {

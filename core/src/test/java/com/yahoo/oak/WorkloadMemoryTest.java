@@ -41,7 +41,7 @@ public class WorkloadMemoryTest {
                 .setKeySerializer(new OakIntSerializer(KEY_SIZE))
                 .setValueSerializer(new OakIntSerializer(VALUE_SIZE));
 
-        oak = builder.build();
+        oak = builder.buildMap();
         barrier = new CyclicBarrier(NUM_THREADS + 1);
         stop = new AtomicBoolean(false);
         threads = new ArrayList<>(NUM_THREADS);

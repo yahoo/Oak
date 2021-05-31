@@ -89,7 +89,21 @@ public class OakMapBuilder<K, V> {
         return this;
     }
 
-    public OakMap<K, V> build() {
+
+    private void check() {
+        if (comparator == null) {
+            throw new IllegalStateException("Must provide a non-null comparator to build the OakHashMap");
+        }
+        if (keySerializer == null) {
+            throw new IllegalStateException("Must provide a non-null key serializer to build the OakHashMap");
+        }
+        if (valueSerializer == null) {
+            throw new IllegalStateException("Must provide a non-null value serializer to build the OakHashMap");
+        }
+    }
+
+
+    public OakMap<K, V> buildMap() {
         if (preferredBlockSizeBytes != null) {
             BlocksPool.preferBlockSize(preferredBlockSizeBytes);
         }
@@ -100,15 +114,7 @@ public class OakMapBuilder<K, V> {
 
         MemoryManager valuesMemoryManager = new SyncRecycleMemoryManager(memoryAllocator);
         MemoryManager keysMemoryManager = new SeqExpandMemoryManager(memoryAllocator);
-        if (comparator == null) {
-            throw new IllegalStateException("Must provide a non-null comparator to build the OakMap");
-        }
-        if (keySerializer == null) {
-            throw new IllegalStateException("Must provide a non-null key serializer to build the OakMap");
-        }
-        if (valueSerializer == null) {
-            throw new IllegalStateException("Must provide a non-null value serializer to build the OakMap");
-        }
+        check();
         if (minKey == null) {
             throw new IllegalStateException("Must provide a non-null minimal key object to build the OakMap");
         }
@@ -118,6 +124,33 @@ public class OakMapBuilder<K, V> {
                 valueSerializer,
                 comparator, chunkMaxItems,
                 valuesMemoryManager, keysMemoryManager);
+    }
+
+
+
+
+
+    public OakHashMap<K, V> buildHashMap() {
+        if (preferredBlockSizeBytes != null) {
+            BlocksPool.preferBlockSize(preferredBlockSizeBytes);
+        }
+
+        if (memoryAllocator == null) {
+            this.memoryAllocator = new NativeMemoryAllocator(memoryCapacity);
+        }
+        if (minKey != null) {
+            throw new IllegalStateException("Minkey isnt supported in building of OakHashMap");
+        }
+        MemoryManager valuesMemoryManager = new SyncRecycleMemoryManager(memoryAllocator);
+        MemoryManager keysMemoryManager = new SeqExpandMemoryManager(memoryAllocator);
+
+        check();
+        return new OakHashMap<>(keySerializer,
+                valueSerializer,
+                comparator,
+                chunkMaxItems,
+                valuesMemoryManager,
+                keysMemoryManager);
     }
 
 }

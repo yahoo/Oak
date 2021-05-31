@@ -29,7 +29,7 @@ public class OverheadTest {
                 .setKeySerializer(new OakIntSerializer(KEY_SIZE))
                 .setValueSerializer(new OakIntSerializer(VALUE_SIZE));
 
-        oak = builder.build();
+        oak = builder.buildMap();
     }
 
     @Test

@@ -23,7 +23,7 @@ public class ResizeValueTest {
         OakMapBuilder<String, String> builder = OakCommonBuildersFactory.getDefaultStringBuilder()
             .setChunkMaxItems(100);
 
-        oak = builder.build();
+        oak = builder.buildMap();
     }
 
     @Test
