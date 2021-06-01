@@ -8,44 +8,41 @@ package com.yahoo.oak;
 
 import java.util.concurrent.atomic.AtomicInteger;
 
-/* EntrySet keeps a set of entries. Entry is reference to key and value, both located off-heap.
- * EntrySet provides access, updates and manipulation on each entry, provided its index.
+/* EntrySet keeps a set of entries linked to a link list. Entry is reference to key and value, both located
+ * off-heap. EntrySet provides access, updates and manipulation on each entry, provided its index.
  *
- * IMPORTANT: Due to limitation in amount of bits we use to represent Block ID the amount of memory
- * supported by ALL OAKs in one system is 128GB only!
- * TODO: this limitation will be removed once void memory manager fully is presented for keys
- *
- * Entry is a set of 6 (FIELDS) consecutive integers, part of "entries" int array. The definition
- * of each integer is explained below. Also bits of each integer are represented in a very special
+ * Entry is a set of at least 2 fields (consecutive longs), part of "entries" int array. The definition
+ * of each long is explained below. Also bits of each long (references) are represented in a very special
  * way (also explained below). The bits manipulations are ReferenceCodec responsibility.
  * Please update with care.
  *
  * Entries Array:
  * --------------------------------------------------------------------------------------
- * 0 | headNextIndex keeps entry index of the first ordered entry
- * --------------------------------------------------------------------------------------
- * 1 | kept for 8-byte allignment
- * --------------------------------------------------------------------------------------
- * 2 | NEXT  - entry index of the entry following the entry with entry index 1  |
+ * 0 | Key Reference          | Reference encoding all info needed to           |
+ *   |                        | access the key off-heap                         | entry with
+ * -----------------------------------------------------------------------------| entry index
+ * 1 | Value Reference        | Reference encoding all info needed to           | 0
+ *   |                        | access the key off-heap.                        |
+ *   |                        | The encoding of key and value can be different  | entry that
+ * -----------------------------------------------------------------------------| was allocated
+ * 2 | NEXT  - entry index of the entry following the entry with entry index 0  | first
+ * ---------------------------------------------------------------------------------------
+ * 3 | Key Reference          | Reference encoding all info needed to           |
+ *   |                        | access the key off-heap                         |
+ * -----------------------------------------------------------------------------| entry with
+ * 4 | Value Reference        | Reference encoding all info needed to           | entry index
+ *   |                        | access the key off-heap.                        | 1
  * -----------------------------------------------------------------------------|
- * 3 | NOT IN USE:             saved for alignment and future usage             |
- * --------------------------------------------------------------------------------------
- * 4 | KEY_REF_OFFSET          | these 2 integers together, represented as long  | entry with
- * --|                        | provide KEY_REF_OFFSET. Pay attention that       | entry index
- * 5 |                        | KEY_REF_OFFSET is different than VALUE_REF_OFFSET | 1
- * -----------------------------------------------------------------------------|
- * 6 | VALUE_REF_OFFSET        | these 2 integers together, represented as long  | entry that
- * --|                        | provide VALUE_REF_OFFSET. Pay attention that     | was allocated
- * 7 |                        | VALUE_REF_OFFSET is different than KEY_REF_OFFSET | first
+ * 5 | NEXT  - entry index of the entry following the entry with entry index 1  |
+ * ---------------------------------------------------------------------------------------
+ * 6 | Key Reference          | Reference encoding all info needed to           |
+ *   |                        | access the key off-heap                         |
+ * -----------------------------------------------------------------------------| entry with
+ * 7 | Value Reference        | Reference encoding all info needed to           | entry index
+ *   |                        | access the key off-heap.                        | 2
  * -----------------------------------------------------------------------------|
  * 8 | NEXT  - entry index of the entry following the entry with entry index 2  |
- * -----------------------------------------------------------------------------|
- * 9 | NOT IN USE:             saved for alignment and future usage             |
- * --------------------------------------------------------------------------------------
- * 10| KEY_REF_OFFSET          | these 2 integers together, represented as long  | entry with
- * --|                        | provide KEY_REF_OFFSET. Pay attention that       | entry index
- * 11|                        | KEY_REF_OFFSET is different than VALUE_REF_OFFSET | 2
- * -----------------------------------------------------------------------------|
+ * ---------------------------------------------------------------------------------------
  * ...
  *
  *
@@ -57,9 +54,9 @@ class EntrySet<K, V> extends EntryArray<K, V> {
 
     /***
      * NEXT - the next index of this entry (one integer). Must be with offset 0, otherwise, copying an entire
-     * entry should be fixed (In function {@code copyPartNoKeys}, search for "LABEL").
+     * entry should be fixed (In function {@code copyPartOfEntries}, search for "LABEL").
      */
-    private static final int NEXT_FIELD = 2;
+    private static final int NEXT_FIELD_OFFSET = 2;
 
     // the size of the head in longs
     // how much it takes to keep the index of the first item in the list, after the head
@@ -117,7 +114,7 @@ class EntrySet<K, V> extends EntryArray<K, V> {
         if (!isIndexInBound(ei)) {
             return INVALID_ENTRY_INDEX;
         }
-        return (int) getEntryFieldLong(ei, NEXT_FIELD);
+        return (int) getEntryFieldLong(ei, NEXT_FIELD_OFFSET);
     }
 
     /**
@@ -127,11 +124,12 @@ class EntrySet<K, V> extends EntryArray<K, V> {
      */
     void setNextEntryIndex(int ei, int next) {
         assert ei <= nextFreeIndex.get() && next <= nextFreeIndex.get();
-        setEntryFieldLong(ei, NEXT_FIELD, next);
+        setEntryFieldLong(ei, NEXT_FIELD_OFFSET, next);
     }
 
     /**
-     * TODO: doc
+     * Set the index of the first entry in the linked list,
+     * when there is no concurrency (i.e. rebalance)
      * @param headEntryIndex
      */
     void setHeadEntryIndex(int headEntryIndex) {
@@ -144,11 +142,12 @@ class EntrySet<K, V> extends EntryArray<K, V> {
      * The method serves external EntrySet users.
      */
     boolean casNextEntryIndex(int ei, int nextOld, int nextNew) {
-        return casEntryFieldLong(ei, NEXT_FIELD, nextOld, nextNew);
+        return casEntryFieldLong(ei, NEXT_FIELD_OFFSET, nextOld, nextNew);
     }
 
     /**
-     * TODO: doc
+     * CAS the index of the first entry in the linked list, when concurrency can cause other
+     * concurrent trials to update the same field
      * @param nextOld
      * @param nextNew
      * @return

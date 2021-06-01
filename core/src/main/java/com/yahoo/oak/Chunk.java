@@ -69,8 +69,8 @@ class Chunk<K, V> {
         this.comparator = comparator;
         this.entrySet =
             new EntrySet<>(vMM, kMM, maxItems, keySerializer, valueSerializer);
-        // if not zero, sorted count keeps the entry index of the last
-        // subsequent and ordered entry in the entries array
+        // sortedCount keeps the number of  subsequent and ordered entries in the entries array,
+        // which are subject to binary search
         this.sortedCount = new AtomicInteger(0);
         this.minKey = new KeyBuffer(kMM.getEmptySlice());
         this.creator = new AtomicReference<>(null);
@@ -141,7 +141,7 @@ class Chunk<K, V> {
     /**
      * See {@code EntrySet.isValueRefValidAndNotDeleted(int)} for more information
      */
-    boolean isValueRefValid(int ei) {
+    boolean isValueRefValidAndNotDeleted(int ei) {
         return entrySet.isValueRefValidAndNotDeleted(ei);
     }
 
@@ -183,7 +183,7 @@ class Chunk<K, V> {
     /**
      * See {@code EntrySet.allocateValue(ThreadContext)} for more information
      */
-    void writeValue(ThreadContext ctx, V value, boolean writeForMove) {
+    void allocateValue(ThreadContext ctx, V value, boolean writeForMove) {
         entrySet.allocateValue(ctx, value, writeForMove);
     }
 
@@ -232,7 +232,8 @@ class Chunk<K, V> {
      */
     private int getLastItemEntryIndex() {
         int sortedCount = this.sortedCount.get();
-        int entryIndex = sortedCount == 0 ? entrySet.getHeadNextEntryIndex() : sortedCount - 1;
+        int entryIndex = sortedCount == 0 ?
+            entrySet.getHeadNextEntryIndex() : getLastSortedEntryIndex(sortedCount);
         int nextEntryIndex = entrySet.getNextEntryIndex(entryIndex);
         while (nextEntryIndex != NONE_NEXT) {
             entryIndex = nextEntryIndex;
@@ -241,6 +242,9 @@ class Chunk<K, V> {
         return entryIndex;
     }
 
+    private int getLastSortedEntryIndex(int sortedCount) {
+        return sortedCount - 1;
+    }
 
     /********************************************************************************************/
     /*-----------------------  Methods for looking up item in this chunk -----------------------*/
@@ -274,8 +278,8 @@ class Chunk<K, V> {
      *                   In this case, {@code (ctx.isKeyValid() == True}
      *                   The state of the value associated with {@code key} is described in {@code ctx.entryState}.
      *                   It can be one of the following states:
-     *                     (1) not yet inserted, (2) in the process of being inserted, (3) valid,
-     *                     (4) in the process of being deleted, (5) deleted.
+     *                     1- not yet inserted, 2- valid, 3- in the process of being deleted, 4- deleted.
+     *
      *                   For cases (2) and (3), {@code ctx.isValueValid() == True}.
      *                   Otherwise, {@code ctx.isValueValid() == False}.
      *                   This means that there is an entry with that key, but there is no value attached to this key.
@@ -339,11 +343,13 @@ class Chunk<K, V> {
         }
 
         // optimization: compare with last key to avoid binary search (here sortedCount is not zero)
-        if (compareKeyAndEntryIndex(tempKey, key, sortedCount - 1) > 0) {
-            return sortedCount - 1;
+        if (compareKeyAndEntryIndex(tempKey, key, getLastSortedEntryIndex(sortedCount)) > 0) {
+            return getLastSortedEntryIndex(sortedCount);
         }
 
         // `start` and `end` are intentionally initiated outside of the array boundaries.
+        // So the returned key index is exactly of the key we are looking for,
+        // or of the maximal key still less than the key we are looking for...
         int start = -1;
         int end = sortedCount;
         while (end - start > 1) {
@@ -490,7 +496,7 @@ class Chunk<K, V> {
                 if (sortedCount > 0) {
                     if (ei == sortedCount) {
                         // the new entry's index is exactly after the sorted count
-                        if (compareKeyAndEntryIndex(tempKeyBuff, key, sortedCount - 1) >= 0) {
+                        if (compareKeyAndEntryIndex(tempKeyBuff, key, getLastSortedEntryIndex(sortedCount)) >= 0) {
                             // compare with sorted count key, if inserting the "if-statement",
                             // the sorted count key is less or equal to the key just inserted
                             this.sortedCount.compareAndSet(sortedCount, (sortedCount + 1));
@@ -596,7 +602,7 @@ class Chunk<K, V> {
      * @return entry index of next to the last copied entry (in the srcChunk),
      *         NONE_NEXT if all items were copied
      */
-    final int copyPartNoKeys(ValueBuffer tempValue, Chunk<K, V> srcChunk, final int srcEntryIdx, int maxCapacity) {
+    final int copyPartOfEntries(ValueBuffer tempValue, Chunk<K, V> srcChunk, final int srcEntryIdx, int maxCapacity) {
 
         if (srcEntryIdx == NONE_NEXT) {
             return NONE_NEXT;

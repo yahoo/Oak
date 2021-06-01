@@ -13,6 +13,36 @@ import java.util.concurrent.atomic.AtomicInteger;
 /*
 * EntryArray is array of entries based on primitive array of longs.
 * Entry must include at least Key Reference and Value Reference fields, but might include more.
+*
+* Entries Array:
+ * --------------------------------------------------------------------------------------
+ * 0 | Key Reference          | Reference encoding all info needed to           |
+ *   |                        | access the key off-heap                         | entry with
+ * -----------------------------------------------------------------------------| entry index
+ * 1 | Value Reference        | Reference encoding all info needed to           | 0
+ *   |                        | access the key off-heap.                        |
+ *   |                        | The encoding of key and value can be different  | entry that
+ * -----------------------------------------------------------------------------| was allocated
+ * 2 |  Optional additional entry's 0 field, set by derived class               | first
+ * ---------------------------------------------------------------------------------------
+ * 3 | Key Reference          | Reference encoding all info needed to           |
+ *   |                        | access the key off-heap                         |
+ * -----------------------------------------------------------------------------| entry with
+ * 4 | Value Reference        | Reference encoding all info needed to           | entry index
+ *   |                        | access the key off-heap.                        | 1
+ * -----------------------------------------------------------------------------|
+ * 5 | Optional additional entry's 1 field, set by derived class                |
+ * ---------------------------------------------------------------------------------------
+ * 6 | Key Reference          | Reference encoding all info needed to           |
+ *   |                        | access the key off-heap                         |
+ * -----------------------------------------------------------------------------| entry with
+ * 7 | Value Reference        | Reference encoding all info needed to           | entry index
+ *   |                        | access the key off-heap.                        | 2
+ * -----------------------------------------------------------------------------|
+ * 8 | Optional additional entry's 2 field, set by derived class                |
+ * ---------------------------------------------------------------------------------------
+ * ...
+ *
 * */
 public class EntryArray<K, V> {
     /***
@@ -55,7 +85,7 @@ public class EntryArray<K, V> {
              OakSerializer<V> valueSerializer) {
         this.valuesMemoryManager = vMM;
         this.keysMemoryManager = kMM;
-        this.fields = additionalFieldCount + 2;
+        this.fields = additionalFieldCount + 2; // +2 for key and value references that always exist
         this.entries = new long[entriesCapacity * this.fields];
         this.numOfEntries = new AtomicInteger(0);
         this.entriesCapacity = entriesCapacity;
