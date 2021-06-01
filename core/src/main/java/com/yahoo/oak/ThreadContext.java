@@ -20,7 +20,7 @@ class ThreadContext {
     final KeyBuffer key;
 
     /* The state of the value */
-    EntrySet.ValueState valueState;
+    EntryArray.EntryState entryState;
 
     /* value is used for easier access to the off-heap memory */
     final ValueBuffer value;
@@ -32,7 +32,7 @@ class ThreadContext {
     /**
      * This parameter encapsulates the allocation information, from when value write started
      * and until value write was committed. It should not be used for other purposes, just transferred
-     * between writeValueStart (return parameter) to writeValueCommit (input parameter)
+     * between allocateValue (return parameter) to writeValueCommit (input parameter)
      */
     final ValueBuffer newValue;
 
@@ -57,7 +57,7 @@ class ThreadContext {
 
     ThreadContext(MemoryManager kmm, MemoryManager vmm) {
         entryIndex = EntrySet.INVALID_ENTRY_INDEX;
-        valueState = EntrySet.ValueState.UNKNOWN;
+        entryState = EntryArray.EntryState.UNKNOWN;
         isNewValueForMove = false;
 
         this.key = new KeyBuffer(kmm.getEmptySlice());
@@ -74,7 +74,7 @@ class ThreadContext {
         value.invalidate();
         newValue.invalidate();
         result.invalidate();
-        valueState = EntrySet.ValueState.UNKNOWN;
+        entryState = EntryArray.EntryState.UNKNOWN;
         isNewValueForMove = false;
         // No need to invalidate the temporary buffers
     }
@@ -100,11 +100,11 @@ class ThreadContext {
     }
 
     /**
-     * See {@code ValueState.isValid()} for more details.
+     * See {@code EntryState.isValid()} for more details.
      *
      * @return does the entry have a valid value
      */
     boolean isValueValid() {
-        return valueState.isValid();
+        return entryState.isValid();
     }
 }

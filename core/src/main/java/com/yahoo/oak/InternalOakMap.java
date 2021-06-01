@@ -174,7 +174,7 @@ class InternalOakMap<K, V> {
     boolean overwriteExistingValueForMove(ThreadContext ctx, V newVal, Chunk<K, V> c) {
         // given old entry index (inside ctx) and new value, while old value is locked,
         // allocate new value, new value is going to be locked as well, write the new value
-        c.writeValue(ctx, newVal, true);
+        c.allocateValue(ctx, newVal, true);
 
         // in order to connect/overwrite the old entry to point to new value
         // we need to publish as in the normal write process
@@ -396,7 +396,7 @@ class InternalOakMap<K, V> {
                 // with existing entry scenario, otherwise we can reuse this entry because
                 // its value is invalid.
                 c.releaseKey(ctx);
-                if (!c.isValueRefValid(prevEi)) {
+                if (!c.isValueRefValidAndNotDeleted(prevEi)) {
                     return false;
                 }
                 // We use an existing entry only if its value reference is invalid
@@ -462,7 +462,7 @@ class InternalOakMap<K, V> {
                 }
             }
 
-            c.writeValue(ctx, value, false); // write value in place
+            c.allocateValue(ctx, value, false); // write value in place
 
             if (!c.publish()) {
                 c.releaseNewValue(ctx);
@@ -522,7 +522,7 @@ class InternalOakMap<K, V> {
                 }
             }
 
-            c.writeValue(ctx, value, false); // write value in place
+            c.allocateValue(ctx, value, false); // write value in place
 
             if (!c.publish()) {
                 c.releaseNewValue(ctx);
@@ -582,7 +582,7 @@ class InternalOakMap<K, V> {
                 }
             }
 
-            c.writeValue(ctx, value, false); // write value in place
+            c.allocateValue(ctx, value, false); // write value in place
 
             if (!c.publish()) {
                 c.releaseNewValue(ctx);
@@ -661,9 +661,9 @@ class InternalOakMap<K, V> {
 
             // AT THIS POINT value was marked deleted off-heap by this thread,
             // continue to set the entry's value reference as deleted
-            assert ctx.entryIndex > 0;
+            assert ctx.entryIndex != EntrySet.INVALID_ENTRY_INDEX;
             assert ctx.isValueValid();
-            ctx.valueState = EntrySet.ValueState.DELETED_NOT_FINALIZED;
+            ctx.entryState = EntryArray.EntryState.DELETED_NOT_FINALIZED;
             finalizeDeletion(c, ctx); // includes publish/unpublish
             return transformer == null ? ctx.result.withFlag(logicallyDeleted) : ctx.result.withValue(v);
         }
@@ -1119,7 +1119,7 @@ class InternalOakMap<K, V> {
 
                 if (needsValue) {
                     // Set value references and checks for value validity.
-                    // if value is deleted ctx.valueState is going to be invalid
+                    // if value is deleted ctx.entryState is going to be invalid
                     c.readValue(ctx);
                     validState = ctx.isValueValid();
                 }

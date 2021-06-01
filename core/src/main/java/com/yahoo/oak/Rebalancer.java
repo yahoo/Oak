@@ -123,7 +123,7 @@ class Rebalancer<K, V> {
         ValueBuffer valueBuff = ctx.tempValue;
 
         while (true) {
-            ei = currNewChunk.copyPartNoKeys(valueBuff, currFrozen, ei, entriesLowThreshold);
+            ei = currNewChunk.copyPartOfEntries(valueBuff, currFrozen, ei, entriesLowThreshold);
             // if completed reading curr frozen chunk
             if (ei == Chunk.NONE_NEXT) {
                 if (!iterFrozen.hasNext()) {
@@ -185,12 +185,12 @@ class Rebalancer<K, V> {
         Iterator<Chunk<K, V>> iter = srcChunks.iterator();
 
         Chunk<K, V> src = iter.next();
-        dest.copyPartNoKeys(tempValue, src, ei, maxItems);
+        dest.copyPartOfEntries(tempValue, src, ei, maxItems);
 
         while (iter.hasNext()) {
             Chunk<K, V> curSrc = iter.next();
             int curEntryIndex = src.getFirstItemEntryIndex();
-            dest.copyPartNoKeys(tempValue, curSrc, curEntryIndex, maxItems);
+            dest.copyPartOfEntries(tempValue, curSrc, curEntryIndex, maxItems);
         }
     }
 
