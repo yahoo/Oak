@@ -24,7 +24,7 @@ import java.util.function.Function;
  */
 public class OakHashMap<K, V> extends AbstractMap<K, V> implements AutoCloseable, ConcurrentMap<K , V> {
 
-    private final InternalOakHashMap<K , V> internalOakHashMap;
+//    private final InternalOakHashMap<K , V> internalOakHashMap;
     /*
      * Memory manager cares for allocation, de-allocation and reuse of the internally pre-allocated
      * memory. There can be separate memory managing algorithms for keys and values.
@@ -36,9 +36,18 @@ public class OakHashMap<K, V> extends AbstractMap<K, V> implements AutoCloseable
     private final Function<Map.Entry<OakScopedReadBuffer, OakScopedReadBuffer>,
             Map.Entry<K, V>> entryDeserializeTransformer;
     private final OakComparator<K> comparator;
+    private final InternalOakMap<K , V> internalOakHashMap;
 
-    // internal constructor, to create OakHashMap use OakHashMapBuilder
-    OakHashMap(OakSerializer<K> keySerializer,
+
+
+    private final K fromKey;
+    private final boolean fromInclusive;
+    private final K toKey;
+    private boolean toInclusive;
+    private final boolean isDescending;
+    // internal constructor, to create OakHashMap use OakMapBuilder
+    OakHashMap(K minKey,
+               OakSerializer<K> keySerializer,
                OakSerializer<V> valueSerializer,
                OakComparator<K> oakComparator,
                int chunkMaxItems,
@@ -52,7 +61,14 @@ public class OakHashMap<K, V> extends AbstractMap<K, V> implements AutoCloseable
         this.entryDeserializeTransformer = entry -> new AbstractMap.SimpleEntry<>(
                 keySerializer.deserialize(entry.getKey()),
                 valueSerializer.deserialize(entry.getValue()));
-        this.internalOakHashMap = new InternalOakHashMap<>(vMM , kMM , keySerializer , valueSerializer);
+        this.internalOakHashMap = new InternalOakMap<>(minKey, keySerializer, valueSerializer, oakComparator,
+                this.valuesMemoryManager, kMM, chunkMaxItems, new ValueUtils());
+
+
+        this.fromKey = null;
+        this.fromInclusive = false;
+        this.toKey = null;
+        this.isDescending = false;
     }
 
     /* ------ Map API methods ------ */
@@ -65,7 +81,7 @@ public class OakHashMap<K, V> extends AbstractMap<K, V> implements AutoCloseable
      */
     @Override
     public int size() {
-        return internalOakHashMap.size();
+        return internalOakHashMap.entries();
     }
 
     /**
@@ -323,47 +339,50 @@ public class OakHashMap<K, V> extends AbstractMap<K, V> implements AutoCloseable
      * in ascending order of the corresponding keys.
      */
     private Iterator<V> valuesIterator() {
-        return internalOakHashMap.valuesTransformIterator(valueDeserializeTransformer);
+        return internalOakHashMap.valuesTransformIterator(fromKey, fromInclusive, toKey, toInclusive, isDescending,
+                valueDeserializeTransformer);
     }
 
     /**
      * Returns a {@link Iterator} of the mappings contained in this map in ascending key order.
      */
     private Iterator<Map.Entry<K, V>> entriesIterator() {
-        return internalOakHashMap.entriesTransformIterator(entryDeserializeTransformer);
+        return internalOakHashMap.entriesTransformIterator(fromKey, fromInclusive, toKey, toInclusive, isDescending,
+                entryDeserializeTransformer);
     }
 
     /**
      * Returns a {@link Iterator} of the keys contained in this map in ascending order.
      */
     private Iterator<K> keysIterator() {
-        return internalOakHashMap.keysTransformIterator(keyDeserializeTransformer);
+        return internalOakHashMap.keysTransformIterator(fromKey, fromInclusive, toKey, toInclusive, isDescending,
+                keyDeserializeTransformer);
     }
 
     private Iterator<OakUnscopedBuffer> keysBufferIterator() {
-        return internalOakHashMap.keysBufferViewIterator();
+        return internalOakHashMap.keysBufferViewIterator(fromKey, fromInclusive, toKey, toInclusive, isDescending);
     }
 
 
     private Iterator<OakUnscopedBuffer> valuesBufferIterator() {
-        return internalOakHashMap.valuesBufferViewIterator();
+        return internalOakHashMap.valuesBufferViewIterator(fromKey, fromInclusive, toKey, toInclusive, isDescending);
     }
 
     private Iterator<Map.Entry<OakUnscopedBuffer, OakUnscopedBuffer>> entriesBufferIterator() {
-        return internalOakHashMap.entriesBufferViewIterator();
+        return internalOakHashMap.entriesBufferViewIterator(fromKey, fromInclusive, toKey, toInclusive, isDescending);
     }
 
     private Iterator<OakUnscopedBuffer> keysStreamIterator() {
-        return internalOakHashMap.keysStreamIterator();
+        return internalOakHashMap.keysStreamIterator(fromKey, fromInclusive, toKey, toInclusive, isDescending);
     }
 
 
     private Iterator<OakUnscopedBuffer> valuesStreamIterator() {
-        return internalOakHashMap.valuesStreamIterator();
+        return internalOakHashMap.valuesStreamIterator(fromKey, fromInclusive, toKey, toInclusive, isDescending);
     }
 
     private Iterator<Map.Entry<OakUnscopedBuffer, OakUnscopedBuffer>> entriesStreamIterator() {
-        return internalOakHashMap.entriesStreamIterator();
+        return internalOakHashMap.entriesStreamIterator(fromKey, fromInclusive, toKey, toInclusive, isDescending);
     }
 
     /* ---------------- TODO: Move methods below to their proper place as they are implemented -------------- */

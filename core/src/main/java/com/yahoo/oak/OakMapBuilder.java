@@ -138,14 +138,15 @@ public class OakMapBuilder<K, V> {
         if (memoryAllocator == null) {
             this.memoryAllocator = new NativeMemoryAllocator(memoryCapacity);
         }
-        if (minKey != null) {
-            throw new IllegalStateException("Minkey isnt supported in building of OakHashMap");
-        }
+//        if (minKey != null) {
+//            throw new IllegalStateException("Minkey isnt supported in building of OakHashMap");
+//        } 
         MemoryManager valuesMemoryManager = new SyncRecycleMemoryManager(memoryAllocator);
         MemoryManager keysMemoryManager = new SeqExpandMemoryManager(memoryAllocator);
 
         check();
-        return new OakHashMap<>(keySerializer,
+        return new OakHashMap<>(minKey,
+                keySerializer,
                 valueSerializer,
                 comparator,
                 chunkMaxItems,
