@@ -61,7 +61,7 @@ class Block {
 
     // releasing the memory back to the OS, freeing the block, an opposite of allocation, not thread safe
     void clean() {
-        UnsafeUtils.UNSAFE.freeMemory(blockMemAddress);
+        UnsafeUtils.freeMemory(blockMemAddress);
     }
 
     long getStartMemAddress() {

@@ -110,7 +110,7 @@ final class ScopedWriteBuffer extends ScopedReadBuffer implements OakScopedWrite
     @Override
     public OakScopedWriteBuffer putDouble(int index, double value) {
         validateAccess();
-        UnsafeUtils.UNSAFE.putDouble(getDataAddress(index), value);
+        UnsafeUtils.putDouble(getDataAddress(index), value);
         return this;
     }
 }
