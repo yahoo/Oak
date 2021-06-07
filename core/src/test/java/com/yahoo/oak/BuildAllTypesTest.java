@@ -27,7 +27,7 @@ public class BuildAllTypesTest {
         OakMapBuilder<Integer, Integer> builder = new OakMapBuilder<Integer, Integer>(intComparator, intSerializer,
                 intSerializer2, Integer.MIN_VALUE).setMemoryCapacity(MEBIBYTE); // 1MB in bytes
 
-        OakMap<Integer, Integer> oak = builder.buildMap();
+        OakMap<Integer, Integer> oak = builder.buildOrderedMap();
 
         int myKey = 0;
         int myVal = 1;
@@ -46,7 +46,7 @@ public class BuildAllTypesTest {
         OakMapBuilder<Integer, Float> builder = new OakMapBuilder<Integer, Float>(intComparator, intSerializer,
                 floatSerializer, Integer.MIN_VALUE).setMemoryCapacity(MEBIBYTE); // 1MB in bytes
 
-        OakMap<Integer, Float> oak = builder.buildMap();
+        OakMap<Integer, Float> oak = builder.buildOrderedMap();
 
         int myKey = 0;
         float myVal = (float) 3.14;
@@ -65,7 +65,7 @@ public class BuildAllTypesTest {
         OakMapBuilder<Float, String> builder = new OakMapBuilder<Float, String>(floatComparator, floatSerializer,
                 stringSerializer, Float.MIN_VALUE).setMemoryCapacity(MEBIBYTE); // 1MB in bytes
 
-        OakMap<Float, String> oak = builder.buildMap();
+        OakMap<Float, String> oak = builder.buildOrderedMap();
 
         float myKey = (float) 2.72;
         String myVal = "val";

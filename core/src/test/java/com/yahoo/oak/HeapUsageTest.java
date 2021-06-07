@@ -41,7 +41,7 @@ public class HeapUsageTest {
         Integer val = 0;
 
 
-        try (OakMap<Integer, Integer> oak = builder.buildMap()) {
+        try (OakMap<Integer, Integer> oak = builder.buildOrderedMap()) {
 
 //            long heapSize = Runtime.getRuntime().totalMemory(); // Get current size of heap in bytes
 //            long heapMaxSize = Runtime.getRuntime().maxMemory(); // Get maximum size of heap in bytes
@@ -111,7 +111,7 @@ public class HeapUsageTest {
                     .setChunkMaxItems(2048)
                     .setKeySerializer(new OakIntSerializer(keySize))
                     .setValueSerializer(new OakIntSerializer(valSize));
-            try (OakMap<Integer, Integer> oak = builder.buildMap()) {
+            try (OakMap<Integer, Integer> oak = builder.buildOrderedMap()) {
                 System.out.println("=====================================\nWith " + numOfEntries + " entries");
                 long heapSize = Runtime.getRuntime().totalMemory(); // Get current size of heap in bytes
                 long heapFreeSize = Runtime.getRuntime().freeMemory();

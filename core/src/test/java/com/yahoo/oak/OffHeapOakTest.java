@@ -33,7 +33,7 @@ public class OffHeapOakTest {
     public void init() {
         OakMapBuilder<Integer, Integer> builder = OakCommonBuildersFactory.getDefaultIntBuilder()
                 .setChunkMaxItems(MAX_ITEMS_PER_CHUNK);
-        oak = builder.buildMap();
+        oak = builder.buildOrderedMap();
         latch = new CountDownLatch(1);
         executor = new ExecutorUtils<>(NUM_THREADS);
         threadException = null;

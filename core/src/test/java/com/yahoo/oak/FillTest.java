@@ -97,7 +97,7 @@ public class FillTest {
             .setKeySerializer(new OakIntSerializer(KEY_SIZE))
             .setValueSerializer(new OakIntSerializer(VALUE_SIZE));
 
-        oak = builder.buildMap();
+        oak = builder.buildOrderedMap();
 
         executor.submitTasks(NUM_THREADS, i -> new RunThreads(latch));
 

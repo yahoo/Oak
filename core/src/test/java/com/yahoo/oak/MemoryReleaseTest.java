@@ -23,7 +23,7 @@ public class MemoryReleaseTest {
 //                .setValueSerializer(new StringSerializer())
 //                .setComparator(new StringComparator())
 //                .setMinKey("");
-//        OakMap<String, String> oak =  builder.buildMap();
+//        OakMap<String, String> oak =  builder.buildOrderedMap();
 //
 //        int firstIteration = 0;
 //        try {

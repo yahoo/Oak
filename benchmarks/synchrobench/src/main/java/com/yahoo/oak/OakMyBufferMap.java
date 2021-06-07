@@ -33,7 +33,7 @@ public class OakMyBufferMap<K extends MyBuffer, V extends MyBuffer> implements C
                 MyBuffer.DEFAULT_COMPARATOR, MyBuffer.DEFAULT_SERIALIZER, MyBuffer.DEFAULT_SERIALIZER, minKey)
                 .setChunkMaxItems(Chunk.MAX_ITEMS_DEFAULT)
                 .setMemoryAllocator(ma);
-        oak = builder.buildMap();
+        oak = builder.buildOrderedMap();
     }
 
     public long allocated() {
@@ -140,7 +140,7 @@ public class OakMyBufferMap<K extends MyBuffer, V extends MyBuffer> implements C
                 MyBuffer.DEFAULT_COMPARATOR, MyBuffer.DEFAULT_SERIALIZER, MyBuffer.DEFAULT_SERIALIZER, minKey)
                 .setChunkMaxItems(Chunk.MAX_ITEMS_DEFAULT)
                 .setMemoryAllocator(ma);
-        oak = builder.buildMap();
+        oak = builder.buildOrderedMap();
     }
 
     @Override

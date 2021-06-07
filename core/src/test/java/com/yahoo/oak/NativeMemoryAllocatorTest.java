@@ -153,7 +153,7 @@ public class NativeMemoryAllocatorTest {
                 .setChunkMaxItems(maxItemsPerChunk)
                 .setMemoryAllocator(ma);
 
-        OakMap<Integer, Integer> oak = builder.buildMap();
+        OakMap<Integer, Integer> oak = builder.buildOrderedMap();
         expectedKeyCount += 1; // min key
 
         //check that before any allocation

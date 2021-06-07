@@ -103,7 +103,7 @@ public class OakMapBuilder<K, V> {
     }
 
 
-    public OakMap<K, V> buildMap() {
+    public OakMap<K, V> buildOrderedMap() {
         if (preferredBlockSizeBytes != null) {
             BlocksPool.preferBlockSize(preferredBlockSizeBytes);
         }
@@ -138,9 +138,7 @@ public class OakMapBuilder<K, V> {
         if (memoryAllocator == null) {
             this.memoryAllocator = new NativeMemoryAllocator(memoryCapacity);
         }
-//        if (minKey != null) {
-//            throw new IllegalStateException("Minkey isnt supported in building of OakHashMap");
-//        } 
+        //Todo assert that minkey is not null after the implmention of internalHashmap if it is throw exception
         MemoryManager valuesMemoryManager = new SyncRecycleMemoryManager(memoryAllocator);
         MemoryManager keysMemoryManager = new SeqExpandMemoryManager(memoryAllocator);
 

@@ -32,7 +32,7 @@ public class PutIfAbsentTest {
     @Before
     public void init() {
         OakMapBuilder<Integer, Integer> builder = OakCommonBuildersFactory.getDefaultIntBuilder();
-        oak = builder.buildMap();
+        oak = builder.buildOrderedMap();
         startSignal = new CountDownLatch(1);
         executor = new ExecutorUtils<>(NUM_THREADS);
     }

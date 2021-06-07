@@ -51,7 +51,7 @@ public class ScanBenchmark {
     @Setup
     public void setup() {
         OakMapBuilder<String, String> builder = OakCommonBuildersFactory.getDefaultStringBuilder();
-        oakMap = builder.buildMap();
+        oakMap = builder.buildOrderedMap();
 
         for (int i = 0; i < numRows; ++i) {
             String key = String.format("%0$" + KEY_SIZE_BYTES / Character.BYTES + "s",
