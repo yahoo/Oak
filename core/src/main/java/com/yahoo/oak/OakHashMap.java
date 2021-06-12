@@ -14,7 +14,6 @@ import java.util.Iterator;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.concurrent.ConcurrentMap;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -22,7 +21,7 @@ import java.util.function.Function;
 /**
  * A concurrent map implementation which supports off-heap memory.
  */
-public class OakHashMap<K, V> extends AbstractMap<K, V> implements AutoCloseable, ConcurrentMap<K , V> {
+public class OakHashMap<K, V>  extends AbstractMap<K, V> implements AutoCloseable, ConcurrentZCMap<K , V> {
 
     /*
      * Memory manager cares for allocation, de-allocation and reuse of the internally pre-allocated

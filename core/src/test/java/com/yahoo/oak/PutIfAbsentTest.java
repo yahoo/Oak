@@ -12,27 +12,59 @@ import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
 
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
+import java.util.function.Supplier;
 
-
+@RunWith(Parameterized.class)
 public class PutIfAbsentTest {
     private static final int NUM_THREADS = 31;
     private static final long TIME_LIMIT_IN_SECONDS = 10;
-
     private static final int NUM_KEYS = 100000;
 
-    private OakMap<Integer, Integer> oak;
+    private ConcurrentZCMap<Integer, Integer> oak;
     private CountDownLatch startSignal;
     private ExecutorUtils<Integer> executor;
 
+
+    private final Supplier<ConcurrentZCMap<Integer, Integer>> supplier;
+
+
+    public PutIfAbsentTest(Supplier<ConcurrentZCMap<Integer, Integer>> supplier) {
+        this.supplier = supplier;
+
+    }
+
+    @Parameterized.Parameters
+    public static Collection<Object[]> parameters() {
+
+        Supplier<ConcurrentZCMap<Integer, Integer>> s1 = () -> {
+            OakMapBuilder<Integer, Integer> builder = OakCommonBuildersFactory.getDefaultIntBuilder();
+            return builder.buildOrderedMap();
+        };
+        Supplier<ConcurrentZCMap<Integer, Integer>> s2 = () -> {
+            OakMapBuilder<Integer, Integer> builder = OakCommonBuildersFactory.getDefaultIntBuilder();
+            return builder.buildHashMap();
+        };
+        return Arrays.asList(new Object[][] {
+                { s1 },
+                { s2 }
+        });
+    }
+
+
+
+
     @Before
     public void init() {
-        OakMapBuilder<Integer, Integer> builder = OakCommonBuildersFactory.getDefaultIntBuilder();
-        oak = builder.buildOrderedMap();
+        oak = supplier.get();
         startSignal = new CountDownLatch(1);
         executor = new ExecutorUtils<>(NUM_THREADS);
     }

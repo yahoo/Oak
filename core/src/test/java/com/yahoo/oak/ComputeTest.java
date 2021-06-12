@@ -12,14 +12,19 @@ import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
 
 import java.nio.ByteBuffer;
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.Random;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 
-
+@RunWith(Parameterized.class)
 public class ComputeTest {
 
     private static final int NUM_THREADS = 16;
@@ -29,12 +34,56 @@ public class ComputeTest {
     private static final int KEY_SIZE = 10;
     private static final int VAL_SIZE = Math.round(5 * K);
 
-    private static OakMap<ByteBuffer, ByteBuffer> oak;
+    private static ConcurrentZCMap<ByteBuffer, ByteBuffer> oak;
 
     private static int numOfEntries;
 
     ExecutorUtils<Void> executor;
     private CountDownLatch latch;
+    private Supplier<ConcurrentZCMap> builder;
+
+    public ComputeTest(Supplier<ConcurrentZCMap> supplier) {
+        this.builder = supplier;
+    }
+
+    @Parameterized.Parameters
+    public static Collection parameters() {
+
+        Supplier<ConcurrentZCMap> s1 = () -> {
+            ByteBuffer minKey = ByteBuffer.allocate(KEY_SIZE * Integer.BYTES);
+            minKey.position(0);
+            for (int i = 0; i < KEY_SIZE; i++) {
+                minKey.putInt(4 * i, Integer.MIN_VALUE);
+            }
+            minKey.position(0);
+
+            OakMapBuilder<ByteBuffer, ByteBuffer> builder =
+                    OakCommonBuildersFactory.getDefaultIntBufferBuilder(KEY_SIZE, VAL_SIZE)
+                            .setChunkMaxItems(2048).setMinKey(minKey);
+            return builder.buildOrderedMap();
+        };
+
+        Supplier<ConcurrentZCMap> s2 = () -> {
+            ByteBuffer minKey = ByteBuffer.allocate(KEY_SIZE * Integer.BYTES);
+            minKey.position(0);
+            for (int i = 0; i < KEY_SIZE; i++) {
+                minKey.putInt(4 * i, Integer.MIN_VALUE);
+            }
+            minKey.position(0);
+
+            OakMapBuilder<ByteBuffer, ByteBuffer> builder =
+                    OakCommonBuildersFactory.getDefaultIntBufferBuilder(KEY_SIZE, VAL_SIZE)
+                            .setChunkMaxItems(2048);
+            return builder.buildHashMap();
+        };
+
+        return Arrays.asList(new Object[][] {
+                { s1 },
+                { s2 }
+        });
+    }
+
+
 
     @Before
     public void setup() {
@@ -99,19 +148,8 @@ public class ComputeTest {
 
     @Test
     public void testMain() throws ExecutorUtils.ExecutionError {
-        ByteBuffer minKey = ByteBuffer.allocate(KEY_SIZE * Integer.BYTES);
-        minKey.position(0);
-        for (int i = 0; i < KEY_SIZE; i++) {
-            minKey.putInt(4 * i, Integer.MIN_VALUE);
-        }
-        minKey.position(0);
 
-        OakMapBuilder<ByteBuffer, ByteBuffer> builder =
-                OakCommonBuildersFactory.getDefaultIntBufferBuilder(KEY_SIZE, VAL_SIZE)
-                        .setChunkMaxItems(2048);
-
-        oak = builder.buildOrderedMap();
-
+        oak = this.builder.get();
         numOfEntries = 100;
 
         executor.submitTasks(NUM_THREADS, i -> new RunThreads(latch));

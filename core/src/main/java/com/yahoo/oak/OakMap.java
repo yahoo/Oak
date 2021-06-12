@@ -24,7 +24,8 @@ import java.util.function.Function;
 /**
  * A concurrent map implementation which supports off-heap memory.
  */
-public class OakMap<K, V> extends AbstractMap<K, V> implements AutoCloseable, ConcurrentNavigableMap<K, V> {
+public class OakMap<K, V> extends AbstractMap<K, V>
+        implements AutoCloseable, ConcurrentNavigableMap<K, V>, ConcurrentZCMap<K, V> {
 
     private final InternalOakMap<K, V> internalOakMap;
     /*
@@ -475,6 +476,7 @@ public class OakMap<K, V> extends AbstractMap<K, V> implements AutoCloseable, Co
         return new OakZeroCopyMap<>(this);
     }
 
+    @Override
     public MemoryManager getValuesMemoryManager() {
         return valuesMemoryManager;
     }

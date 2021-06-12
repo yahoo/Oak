@@ -6,8 +6,11 @@
 
 package com.yahoo.oak;
 
+import java.io.Closeable;
 import java.util.concurrent.ConcurrentMap;
 
-public interface ConcurrentZCMap<K , V> extends ConcurrentMap<K , V> {
+public interface ConcurrentZCMap<K , V> extends ConcurrentMap<K , V>, Closeable {
     ZeroCopyMap<K , V> zc();
+    MemoryManager getValuesMemoryManager();
+    void close();
 }

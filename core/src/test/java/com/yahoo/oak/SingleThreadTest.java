@@ -11,19 +11,50 @@ import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
 
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 
+@RunWith(Parameterized.class)
 public class SingleThreadTest {
 
-    private OakMap<Integer, Integer> oak;
-    private int maxItemsPerChunk = 2048;
+    private ConcurrentZCMap<Integer, Integer> oak;
+    private  static final int MAX_ITEMS_PER_CHUNK = 2048;
+
+
+    private final Supplier<ConcurrentZCMap<Integer, Integer>> supplier;
+
+
+    public SingleThreadTest(Supplier<ConcurrentZCMap<Integer, Integer>> supplier) {
+        this.supplier = supplier;
+    }
+
+    @Parameterized.Parameters
+    public static Collection<Object[]> parameters() {
+
+        Supplier<ConcurrentZCMap<Integer, Integer>> s1 = () -> {
+            OakMapBuilder<Integer, Integer> builder = OakCommonBuildersFactory.getDefaultIntBuilder()
+                    .setChunkMaxItems(MAX_ITEMS_PER_CHUNK);
+            return builder.buildOrderedMap();
+        };
+        Supplier<ConcurrentZCMap<Integer, Integer>> s2 = () -> {
+            OakMapBuilder<Integer, Integer> builder = OakCommonBuildersFactory.getDefaultIntBuilder()
+                    .setChunkMaxItems(MAX_ITEMS_PER_CHUNK);
+            return builder.buildHashMap();
+        };
+        return Arrays.asList(new Object[][] {
+                { s1 },
+                { s2 }
+        });
+    }
 
     @Before
     public void init() {
-        OakMapBuilder<Integer, Integer> builder = OakCommonBuildersFactory.getDefaultIntBuilder()
-                .setChunkMaxItems(maxItemsPerChunk);
-        oak = builder.buildOrderedMap();
+        oak = supplier.get();
     }
 
     @After
@@ -33,10 +64,10 @@ public class SingleThreadTest {
 
     @Test
     public void testPutAndGet() {
-        for (Integer i = 0; i < 2 * maxItemsPerChunk; i++) {
+        for (Integer i = 0; i < 2 * MAX_ITEMS_PER_CHUNK; i++) {
             oak.zc().put(i, i);
         }
-        for (Integer i = 0; i < 2 * maxItemsPerChunk; i++) {
+        for (Integer i = 0; i < 2 * MAX_ITEMS_PER_CHUNK; i++) {
             Integer value = oak.get(i);
             Assert.assertEquals(i, value);
         }
@@ -50,19 +81,19 @@ public class SingleThreadTest {
     @Test
     public void testPutIfAbsent() {
         Integer value;
-        for (Integer i = 0; i < 2 * maxItemsPerChunk; i++) {
+        for (Integer i = 0; i < 2 * MAX_ITEMS_PER_CHUNK; i++) {
             value = oak.get(i);
             Assert.assertNull(value);
             Assert.assertTrue(oak.zc().putIfAbsent(i, i));
         }
-        for (Integer i = 0; i < 2 * maxItemsPerChunk; i++) {
+        for (Integer i = 0; i < 2 * MAX_ITEMS_PER_CHUNK; i++) {
             value = oak.get(i);
             Assert.assertEquals(i, value);
         }
-        for (Integer i = 0; i < 2 * maxItemsPerChunk; i++) {
+        for (Integer i = 0; i < 2 * MAX_ITEMS_PER_CHUNK; i++) {
             Assert.assertFalse(oak.zc().putIfAbsent(i, i + 1));
         }
-        for (Integer i = 0; i < 2 * maxItemsPerChunk; i++) {
+        for (Integer i = 0; i < 2 * MAX_ITEMS_PER_CHUNK; i++) {
             value = oak.get(i);
             Assert.assertEquals(i, value);
         }
@@ -70,10 +101,10 @@ public class SingleThreadTest {
 
     @Test
     public void testRemoveAndGet() {
-        for (Integer i = 0; i < 2 * maxItemsPerChunk; i++) {
+        for (int i = 0; i < 2 * MAX_ITEMS_PER_CHUNK; i++) {
             oak.zc().remove(i);
         }
-        for (Integer i = 0; i < 2 * maxItemsPerChunk; i++) {
+        for (int i = 0; i < 2 * MAX_ITEMS_PER_CHUNK; i++) {
             Integer value = oak.get(i);
             Assert.assertNull(value);
         }
@@ -82,62 +113,62 @@ public class SingleThreadTest {
     @Test
     public void testGraduallyRemove() {
         Integer value;
-        for (Integer i = 0; i < 4 * maxItemsPerChunk; i++) {
+        for (Integer i = 0; i < 4 * MAX_ITEMS_PER_CHUNK; i++) {
             value = oak.get(i);
             Assert.assertNull(value);
         }
-        for (Integer i = 0; i < 4 * maxItemsPerChunk; i++) {
+        for (Integer i = 0; i < 4 * MAX_ITEMS_PER_CHUNK; i++) {
             oak.zc().putIfAbsent(i, i);
         }
-        for (Integer i = 0; i < 4 * maxItemsPerChunk; i++) {
+        for (Integer i = 0; i < 4 * MAX_ITEMS_PER_CHUNK; i++) {
             value = oak.get(i);
             Assert.assertEquals(i, value);
         }
-        for (Integer i = 2 * maxItemsPerChunk; i < 3 * maxItemsPerChunk; i++) {
+        for (Integer i = 2 * MAX_ITEMS_PER_CHUNK; i < 3 * MAX_ITEMS_PER_CHUNK; i++) {
             oak.zc().remove(i);
             value = oak.get(i);
             Assert.assertNull(value);
         }
-        for (Integer i = maxItemsPerChunk; i < 2 * maxItemsPerChunk; i++) {
+        for (Integer i = MAX_ITEMS_PER_CHUNK; i < 2 * MAX_ITEMS_PER_CHUNK; i++) {
             oak.zc().remove(i);
             value = oak.get(i);
             Assert.assertNull(value);
         }
-        for (Integer i = maxItemsPerChunk; i < 3 * maxItemsPerChunk; i++) {
+        for (Integer i = MAX_ITEMS_PER_CHUNK; i < 3 * MAX_ITEMS_PER_CHUNK; i++) {
             value = oak.get(i);
             Assert.assertNull(value);
         }
-        for (Integer i = 0; i < maxItemsPerChunk; i++) {
+        for (Integer i = 0; i < MAX_ITEMS_PER_CHUNK; i++) {
             value = oak.get(i);
             Assert.assertEquals(i, value);
         }
-        for (Integer i = 3 * maxItemsPerChunk; i < 4 * maxItemsPerChunk; i++) {
+        for (Integer i = 3 * MAX_ITEMS_PER_CHUNK; i < 4 * MAX_ITEMS_PER_CHUNK; i++) {
             value = oak.get(i);
             Assert.assertNotNull(value);
             Assert.assertEquals(i, value);
         }
-        for (Integer i = 0; i < maxItemsPerChunk; i++) {
+        for (Integer i = 0; i < MAX_ITEMS_PER_CHUNK; i++) {
             oak.zc().remove(i);
         }
-        for (Integer i = 0; i < 3 * maxItemsPerChunk; i++) {
+        for (Integer i = 0; i < 3 * MAX_ITEMS_PER_CHUNK; i++) {
             value = oak.get(i);
             Assert.assertNull(value);
         }
-        for (Integer i = 3 * maxItemsPerChunk; i < 4 * maxItemsPerChunk; i++) {
+        for (Integer i = 3 * MAX_ITEMS_PER_CHUNK; i < 4 * MAX_ITEMS_PER_CHUNK; i++) {
             value = oak.get(i);
             Assert.assertEquals(i, value);
         }
-        for (Integer i = 3 * maxItemsPerChunk; i < 4 * maxItemsPerChunk; i++) {
+        for (Integer i = 3 * MAX_ITEMS_PER_CHUNK; i < 4 * MAX_ITEMS_PER_CHUNK; i++) {
             oak.zc().remove(i);
         }
-        for (Integer i = 0; i < 4 * maxItemsPerChunk; i++) {
+        for (Integer i = 0; i < 4 * MAX_ITEMS_PER_CHUNK; i++) {
             value = oak.get(i);
             Assert.assertNull(value);
         }
-        for (int i = 0; i < 4 * maxItemsPerChunk; i++) {
+        for (int i = 0; i < 4 * MAX_ITEMS_PER_CHUNK; i++) {
             oak.zc().put(i, i);
         }
-        for (Integer i = 0; i < 4 * maxItemsPerChunk; i++) {
+        for (Integer i = 0; i < 4 * MAX_ITEMS_PER_CHUNK; i++) {
             value = oak.get(i);
             Assert.assertEquals(i, value);
         }

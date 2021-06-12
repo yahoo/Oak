@@ -13,11 +13,17 @@ import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
 
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.Random;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
+import java.util.function.Supplier;
 
+@RunWith(Parameterized.class)
 public class FillTest {
 
     private static final int NUM_THREADS = 1;
@@ -29,9 +35,40 @@ public class FillTest {
 
     private static final int NUM_OF_ENTRIES = 100;
 
-    static OakMap<Integer, Integer> oak;
+    static ConcurrentZCMap<Integer, Integer> oak;
     private  CountDownLatch latch;
     private  ExecutorUtils<Void> executor;
+    private Supplier<ConcurrentZCMap> builder;
+
+
+    public FillTest(Supplier<ConcurrentZCMap> supplier) {
+        this.builder = supplier;
+
+    }
+
+    @Parameterized.Parameters
+    public static Collection parameters() {
+
+        Supplier<ConcurrentZCMap> s1 = () -> {
+            OakMapBuilder<Integer, Integer> builder = OakCommonBuildersFactory.getDefaultIntBuilder()
+                    .setChunkMaxItems(2048)
+                    .setKeySerializer(new OakIntSerializer(KEY_SIZE))
+                    .setValueSerializer(new OakIntSerializer(VALUE_SIZE));
+
+            return builder.buildOrderedMap();
+        };
+        Supplier<ConcurrentZCMap> s2 = () -> {
+            OakMapBuilder<Integer, Integer> builder = OakCommonBuildersFactory.getDefaultIntBuilder()
+                    .setChunkMaxItems(2048)
+                    .setKeySerializer(new OakIntSerializer(KEY_SIZE))
+                    .setValueSerializer(new OakIntSerializer(VALUE_SIZE));
+            return builder.buildHashMap();
+        };
+        return Arrays.asList(new Object[][] {
+                { s1 },
+                { s2 }
+        });
+    }
 
     @Before
     public void setup() {
@@ -92,12 +129,8 @@ public class FillTest {
     @Test
     public void testMain() throws ExecutorUtils.ExecutionError {
 
-        OakMapBuilder<Integer, Integer> builder = OakCommonBuildersFactory.getDefaultIntBuilder()
-            .setChunkMaxItems(2048)
-            .setKeySerializer(new OakIntSerializer(KEY_SIZE))
-            .setValueSerializer(new OakIntSerializer(VALUE_SIZE));
 
-        oak = builder.buildOrderedMap();
+        oak = this.builder.get();
 
         executor.submitTasks(NUM_THREADS, i -> new RunThreads(latch));
 

@@ -10,15 +10,20 @@ import com.yahoo.oak.common.OakCommonBuildersFactory;
 import com.yahoo.oak.common.integer.OakIntSerializer;
 import org.junit.Ignore;
 import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
 
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.Random;
 import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Supplier;
 
+@RunWith(Parameterized.class)
 public class WorkloadMemoryTest {
-
     /*-----------------------Constants-------------------------*/
     private static final int K = 1024;
     private static final int M = K * K;
@@ -28,20 +33,52 @@ public class WorkloadMemoryTest {
     private static final int VALUE_SIZE = 1000;
 
     /*--------------------Test Variables----------------------*/
-    private static OakMap<Integer, Integer> oak;
+    private static ConcurrentZCMap<Integer, Integer> oak;
     private static AtomicBoolean stop;
     private static CyclicBarrier barrier;
     private static int getPercents = 0;
     private static ArrayList<Thread> threads;
     private static final int NUM_THREADS = 1;
 
-    private static void initStuff() {
-        OakMapBuilder<Integer, Integer> builder = OakCommonBuildersFactory.getDefaultIntBuilder()
-                .setChunkMaxItems(100)
-                .setKeySerializer(new OakIntSerializer(KEY_SIZE))
-                .setValueSerializer(new OakIntSerializer(VALUE_SIZE));
+    private final Supplier<ConcurrentZCMap<Integer, Integer>> supplier;
 
-        oak = builder.buildOrderedMap();
+    public WorkloadMemoryTest(Supplier<ConcurrentZCMap<Integer, Integer>> supplier) {
+        this.supplier = supplier;
+
+    }
+
+    @Parameterized.Parameters
+    public static Collection<Object[]> parameters() {
+
+        Supplier<ConcurrentZCMap<Integer, Integer>> s1 = () -> {
+            OakMapBuilder<Integer, Integer> builder = OakCommonBuildersFactory.getDefaultIntBuilder()
+                    .setChunkMaxItems(100)
+                    .setKeySerializer(new OakIntSerializer(KEY_SIZE))
+                    .setValueSerializer(new OakIntSerializer(VALUE_SIZE));
+            return builder.buildOrderedMap();
+        };
+        Supplier<ConcurrentZCMap<Integer, Integer>> s2 = () -> {
+            OakMapBuilder<Integer, Integer> builder = OakCommonBuildersFactory.getDefaultIntBuilder()
+                    .setChunkMaxItems(100)
+                    .setKeySerializer(new OakIntSerializer(KEY_SIZE))
+                    .setValueSerializer(new OakIntSerializer(VALUE_SIZE));
+            return builder.buildHashMap();
+        };
+        return Arrays.asList(new Object[][] {
+                { s1 },
+                { s2 }
+        });
+    }
+
+
+
+
+
+
+
+
+    private void initStuff() {
+        oak = supplier.get();
         barrier = new CyclicBarrier(NUM_THREADS + 1);
         stop = new AtomicBoolean(false);
         threads = new ArrayList<>(NUM_THREADS);

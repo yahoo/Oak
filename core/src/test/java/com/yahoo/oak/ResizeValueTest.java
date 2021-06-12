@@ -10,20 +10,49 @@ import com.yahoo.oak.common.OakCommonBuildersFactory;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
 
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.concurrent.Semaphore;
+import java.util.function.Supplier;
 
+
+@RunWith(Parameterized.class)
 public class ResizeValueTest {
-    private OakMap<String, String> oak;
+    private ConcurrentZCMap<String, String> oak;
+    private final Supplier<ConcurrentZCMap<String, String>> supplier;
+
+    public ResizeValueTest(Supplier<ConcurrentZCMap<String, String>> supplier) {
+        this.supplier = supplier;
+
+    }
+
+    @Parameterized.Parameters
+    public static Collection<Object[]> parameters() {
+
+        Supplier<ConcurrentZCMap<String, String>> s1 = () -> {
+            OakMapBuilder<String, String> builder = OakCommonBuildersFactory.getDefaultStringBuilder()
+                    .setChunkMaxItems(100);
+            return builder.buildOrderedMap();
+        };
+        Supplier<ConcurrentZCMap<String, String>> s2 = () -> {
+            OakMapBuilder<String, String> builder = OakCommonBuildersFactory.getDefaultStringBuilder()
+                    .setChunkMaxItems(100);
+            return builder.buildHashMap();
+        };
+        return Arrays.asList(new Object[][] {
+                { s1 },
+                { s2 }
+        });
+    }
 
     @Before
     public void initStuff() {
-        OakMapBuilder<String, String> builder = OakCommonBuildersFactory.getDefaultStringBuilder()
-            .setChunkMaxItems(100);
-
-        oak = builder.buildOrderedMap();
+        oak = supplier.get();
     }
 
     @Test
