@@ -90,7 +90,7 @@ public class OakMapBuilder<K, V> {
     }
 
 
-    private void check() {
+    private void checkPreconditions() {
         if (comparator == null) {
             throw new IllegalStateException("Must provide a non-null comparator to build the OakHashMap");
         }
@@ -114,7 +114,7 @@ public class OakMapBuilder<K, V> {
 
         MemoryManager valuesMemoryManager = new SyncRecycleMemoryManager(memoryAllocator);
         MemoryManager keysMemoryManager = new SeqExpandMemoryManager(memoryAllocator);
-        check();
+        checkPreconditions();
         if (minKey == null) {
             throw new IllegalStateException("Must provide a non-null minimal key object to build the OakMap");
         }
@@ -138,11 +138,11 @@ public class OakMapBuilder<K, V> {
         if (memoryAllocator == null) {
             this.memoryAllocator = new NativeMemoryAllocator(memoryCapacity);
         }
-        //Todo assert that minkey is not null after the implmention of internalHashmap if it is throw exception
+        //Todo assert that minkey is not null after the implmention of internalHashmap if it is throw exception??
         MemoryManager valuesMemoryManager = new SyncRecycleMemoryManager(memoryAllocator);
         MemoryManager keysMemoryManager = new SeqExpandMemoryManager(memoryAllocator);
 
-        check();
+        checkPreconditions();
         return new OakHashMap<>(minKey,
                 keySerializer,
                 valueSerializer,
