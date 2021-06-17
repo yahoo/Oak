@@ -13,7 +13,7 @@ class ThreadContext {
      * Entry Context
      *-----------------------------------------------------------*/
 
-    /* The index of the key's entry in EntrySet */
+    /* The index of the key's entry in EntryOrderedSet */
     int entryIndex;
 
     /* key is used for easier access to the off-heap memory */
@@ -56,7 +56,7 @@ class ThreadContext {
     final ValueBuffer tempValue;
 
     ThreadContext(MemoryManager kmm, MemoryManager vmm) {
-        entryIndex = EntrySet.INVALID_ENTRY_INDEX;
+        entryIndex = EntryOrderedSet.INVALID_ENTRY_INDEX;
         entryState = EntryArray.EntryState.UNKNOWN;
         isNewValueForMove = false;
 
@@ -69,7 +69,7 @@ class ThreadContext {
     }
 
     void invalidate() {
-        entryIndex = EntrySet.INVALID_ENTRY_INDEX;
+        entryIndex = EntryOrderedSet.INVALID_ENTRY_INDEX;
         key.invalidate();
         value.invalidate();
         newValue.invalidate();

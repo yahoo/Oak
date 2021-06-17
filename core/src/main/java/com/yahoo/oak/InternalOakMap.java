@@ -382,9 +382,9 @@ class InternalOakMap<K, V> {
     // (if rebalance happened or another valid entry with same key was found)
     private boolean allocateAndLinkEntry(Chunk c, ThreadContext ctx, K key, boolean isPutIfAbsent) {
         // There was no such key found, going to allocate a new key.
-        // EntrySet allocates the entry (holding the key) and ctx is going to be updated
-        // to be used by EntrySet's subsequent requests to write value
-        if (!c.allocateEntry(ctx, key)) {
+        // EntryOrderedSet allocates the entry (holding the key) and ctx is going to be updated
+        // to be used by EntryOrderedSet's subsequent requests to write value
+        if (!c.allocateKey(ctx, key)) {
             rebalance(c); // there was no space to allocate new entry, need to rebalance
             return false;     // after rebalance always restart
         }
@@ -661,7 +661,7 @@ class InternalOakMap<K, V> {
 
             // AT THIS POINT value was marked deleted off-heap by this thread,
             // continue to set the entry's value reference as deleted
-            assert ctx.entryIndex != EntrySet.INVALID_ENTRY_INDEX;
+            assert ctx.entryIndex != EntryOrderedSet.INVALID_ENTRY_INDEX;
             assert ctx.isValueValid();
             ctx.entryState = EntryArray.EntryState.DELETED_NOT_FINALIZED;
             finalizeDeletion(c, ctx); // includes publish/unpublish
