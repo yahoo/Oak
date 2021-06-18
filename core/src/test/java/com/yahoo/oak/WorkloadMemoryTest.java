@@ -114,7 +114,7 @@ public class WorkloadMemoryTest {
 
         System.out.println("\n" + message);
         System.out.println((float) (heapSize - heapFreeSize) / M);
-        System.out.println((float) (oak.getValuesMemoryManager().allocated()) / M);
+        System.out.println((float) (oak.memorySize()) / M);
     }
 
     private static void testMain() throws InterruptedException {

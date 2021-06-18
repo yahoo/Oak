@@ -476,7 +476,6 @@ public class OakMap<K, V> extends AbstractMap<K, V>
         return new OakZeroCopyMap<>(this);
     }
 
-    @Override
     public MemoryManager getValuesMemoryManager() {
         return valuesMemoryManager;
     }
@@ -569,6 +568,7 @@ public class OakMap<K, V> extends AbstractMap<K, V>
     /**
      * @return current off heap memory usage in bytes
      */
+    @Override
     public long memorySize() {
         return internalOakMap.memorySize();
     }

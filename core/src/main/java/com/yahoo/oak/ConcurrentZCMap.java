@@ -11,6 +11,6 @@ import java.util.concurrent.ConcurrentMap;
 
 public interface ConcurrentZCMap<K , V> extends ConcurrentMap<K , V>, Closeable {
     ZeroCopyMap<K , V> zc();
-    MemoryManager getValuesMemoryManager();
+    long memorySize();
     void close();
 }
