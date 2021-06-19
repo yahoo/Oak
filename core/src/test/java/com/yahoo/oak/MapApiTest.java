@@ -195,7 +195,7 @@ public class MapApiTest {
             oak.put(i, i);
         }
 
-        Integer from = 4;
+        int from = 4;
         Integer to = 6;
 
         int expected = from + 1;

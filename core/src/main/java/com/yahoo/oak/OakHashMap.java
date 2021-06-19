@@ -38,11 +38,6 @@ public class OakHashMap<K, V>  extends AbstractMap<K, V> implements AutoCloseabl
 
 
 
-    private final K fromKey = null; //TODO: to be removed when internalOakHashMap  implementation is done
-    private final boolean fromInclusive = false; //TODO: to be removed when internalOakHashMap  implementation is done
-    private final K toKey = null; //TODO: to be removed when internalOakHashMap  implementation is done
-    private boolean toInclusive = false; //TODO: to be removed when internalOakHashMap  implementation is done
-    private final boolean isDescending = false; //TODO: to be removed when internalOakHashMap  implementation is done
     // internal constructor, to create OakHashMap use OakMapBuilder
     OakHashMap(K minKey, //TODO:  this parameter is to be removed when internalOakHashMap  implementation is done
                OakSerializer<K> keySerializer,
@@ -333,7 +328,7 @@ public class OakHashMap<K, V>  extends AbstractMap<K, V> implements AutoCloseabl
      * in ascending order of the corresponding keys.
      */
     private Iterator<V> valuesIterator() {
-        return internalOakMap.valuesTransformIterator(fromKey, fromInclusive, toKey, toInclusive, isDescending,
+        return internalOakMap.valuesTransformIterator(null, false, null, false, false,
                 valueDeserializeTransformer);
     }
 
@@ -341,7 +336,7 @@ public class OakHashMap<K, V>  extends AbstractMap<K, V> implements AutoCloseabl
      * Returns a {@link Iterator} of the mappings contained in this map in ascending key order.
      */
     private Iterator<Map.Entry<K, V>> entriesIterator() {
-        return internalOakMap.entriesTransformIterator(fromKey, fromInclusive, toKey, toInclusive, isDescending,
+        return internalOakMap.entriesTransformIterator(null, false, null, false, false,
                 entryDeserializeTransformer);
     }
 
@@ -349,34 +344,34 @@ public class OakHashMap<K, V>  extends AbstractMap<K, V> implements AutoCloseabl
      * Returns a {@link Iterator} of the keys contained in this map in ascending order.
      */
     private Iterator<K> keysIterator() {
-        return internalOakMap.keysTransformIterator(fromKey, fromInclusive, toKey, toInclusive, isDescending,
+        return internalOakMap.keysTransformIterator(null, false, null, false, false,
                 keyDeserializeTransformer);
     }
 
     private Iterator<OakUnscopedBuffer> keysBufferIterator() {
-        return internalOakMap.keysBufferViewIterator(fromKey, fromInclusive, toKey, toInclusive, isDescending);
+        return internalOakMap.keysBufferViewIterator(null, false, null, false, false);
     }
 
 
     private Iterator<OakUnscopedBuffer> valuesBufferIterator() {
-        return internalOakMap.valuesBufferViewIterator(fromKey, fromInclusive, toKey, toInclusive, isDescending);
+        return internalOakMap.valuesBufferViewIterator(null, false, null, false, false);
     }
 
     private Iterator<Map.Entry<OakUnscopedBuffer, OakUnscopedBuffer>> entriesBufferIterator() {
-        return internalOakMap.entriesBufferViewIterator(fromKey, fromInclusive, toKey, toInclusive, isDescending);
+        return internalOakMap.entriesBufferViewIterator(null, false, null, false, false);
     }
 
     private Iterator<OakUnscopedBuffer> keysStreamIterator() {
-        return internalOakMap.keysStreamIterator(fromKey, fromInclusive, toKey, toInclusive, isDescending);
+        return internalOakMap.keysStreamIterator(null, false, null, false, false);
     }
 
 
     private Iterator<OakUnscopedBuffer> valuesStreamIterator() {
-        return internalOakMap.valuesStreamIterator(fromKey, fromInclusive, toKey, toInclusive, isDescending);
+        return internalOakMap.valuesStreamIterator(null, false, null, false, false);
     }
 
     private Iterator<Map.Entry<OakUnscopedBuffer, OakUnscopedBuffer>> entriesStreamIterator() {
-        return internalOakMap.entriesStreamIterator(fromKey, fromInclusive, toKey, toInclusive, isDescending);
+        return internalOakMap.entriesStreamIterator(null, false, null, false, false);
     }
 
     /* ---------------- TODO: Move methods below to their proper place as they are implemented -------------- */
