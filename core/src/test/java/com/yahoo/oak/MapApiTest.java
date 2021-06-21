@@ -25,13 +25,12 @@ public class MapApiTest {
     private OakMap<Integer, Integer> oak;
     private Random r = new Random();
 
-
     @Before
     public void init() {
         int maxItemsPerChunk = 2048;
         OakMapBuilder<Integer, Integer> builder = OakCommonBuildersFactory.getDefaultIntBuilder()
                 .setChunkMaxItems(maxItemsPerChunk);
-        oak = builder.build();
+        oak = builder.buildOrderedMap();
     }
 
     @After
@@ -52,96 +51,6 @@ public class MapApiTest {
 
         // Should throw UnsupportedOperationException
         oak.subMap(0, 1).size();
-    }
-
-    @Test
-    public void isEmpty() {
-        Assert.assertTrue("New OakMap should be empty", oak.isEmpty());
-        oak.put(0, 0);
-        Assert.assertFalse("Insertion of new key should make OakMap non-empty", oak.isEmpty());
-        oak.remove(0);
-        Assert.assertTrue("Removal of all keys should make OakMap empty", oak.isEmpty());
-    }
-
-
-    @Test
-    public void put() {
-        int initialValue = r.nextInt();
-        Integer res = oak.put(0, initialValue);
-        Assert.assertNull("Inserting a new key should return null", res);
-
-        res = oak.put(0, initialValue + 1);
-        Assert.assertNotNull("Inserting an existing key should return a value", res);
-        Assert.assertEquals("Inserting an existing key should return old value", initialValue, (int) res);
-    }
-
-    @Test
-    public void putZC() {
-        int initialValue = r.nextInt();
-        oak.zc().put(0, initialValue);
-        Assert.assertEquals("zc insertion of new key should increase size by 1", 1, oak.size());
-
-        oak.zc().put(0, initialValue + 1);
-        Assert.assertEquals("zc insertion of existing key should not increase size", 1, oak.size());
-    }
-
-
-    @Test
-    public void get() {
-        int key = r.nextInt();
-        int expectedValue = r.nextInt();
-        oak.put(key, expectedValue);
-
-        Assert.assertEquals("Looking up an existing key should return the mapped value", expectedValue,
-                (int) oak.get(key));
-        Assert.assertNull("Looking up a non-existing key should return null", oak.get(key + 1));
-    }
-
-    @Test
-    public void getZC() {
-        int key = r.nextInt();
-        int expectedValue = r.nextInt();
-        oak.put(key, expectedValue);
-
-        OakUnscopedBuffer result = oak.zc().get(key);
-        Assert.assertNotNull("Looking up an existing key should return non-null buffer", result);
-        int actualValue = result.getInt(0);
-        Assert.assertEquals("Looking up an existing key should return the mapped value", expectedValue, actualValue);
-        Assert.assertNull("Looking up a non-existing key should return null", oak.zc().get(key + 1));
-    }
-
-    @Test
-    public void remove() {
-        int key = r.nextInt();
-        int expectedValue = r.nextInt();
-
-        /* Remove(K) */
-        oak.put(key, expectedValue);
-        Integer removed = oak.remove(key);
-        Assert.assertNotNull("Removing an existing key should return a value", removed);
-        Assert.assertEquals("Remove should return old value", expectedValue, (int) removed);
-        Assert.assertNull("Remove should remove the mapping from the map", oak.get(key));
-        Assert.assertNull("Removing an non-existing key should return null", oak.remove(key));
-
-        /* Remove(K, V) */
-        oak.put(key, expectedValue);
-        Assert.assertFalse("Removing a key with non-matching value should return false",
-                oak.remove(key, expectedValue + 1));
-        Assert.assertTrue("Removing a key with matching value should return true",
-                oak.remove(key, expectedValue));
-        Assert.assertNull("Removing a key with non-matching value should not remove the value",
-                oak.remove(key));
-    }
-
-    @Test
-    public void removeZC() {
-        int key = r.nextInt();
-        int expectedValue = r.nextInt();
-
-        /* zc().remove(K) */
-        oak.put(key, expectedValue);
-        oak.zc().remove(key);
-        Assert.assertNull("Remove should remove the mapping from the map", oak.get(key));
     }
 
     @Test
@@ -168,25 +77,6 @@ public class MapApiTest {
         Assert.assertEquals(String.format("Max key should be %d", maxKey), maxKey, (int) oak.lastKey());
     }
 
-    @Test
-    public void replace() {
-        int key = r.nextInt();
-        int val1 = r.nextInt();
-        int val2 = r.nextInt();
-        oak.put(key, val1);
-
-        /* Replace(K, V) */
-        Assert.assertNull("Replacing non-existing key should return null", oak.replace(key + 1, val1));
-        Integer result = oak.replace(key, val2);
-        Assert.assertNotNull("Replacing existing key should return a non-null value", result);
-        Assert.assertEquals("Replacing existing key should return previous value", val1, result.intValue());
-        Assert.assertEquals("Replacing existing key should replace the value", val2, oak.get(key).intValue());
-
-        /* Replace(K, V, V) */
-        Assert.assertFalse("Replacing non-matching value should return false", oak.replace(key, val1, val2));
-        Assert.assertTrue("Replacing non-matching value should return true", oak.replace(key, val2, val1));
-        Assert.assertEquals("Replacing existing key should replace the value", val1, oak.get(key).intValue());
-    }
 
     @Test
     public void lowerKey() {
@@ -305,7 +195,7 @@ public class MapApiTest {
             oak.put(i, i);
         }
 
-        Integer from = 4;
+        int from = 4;
         Integer to = 6;
 
         int expected = from + 1;

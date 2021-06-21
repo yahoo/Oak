@@ -89,7 +89,21 @@ public class OakMapBuilder<K, V> {
         return this;
     }
 
-    public OakMap<K, V> build() {
+
+    private void checkPreconditions() {
+        if (comparator == null) {
+            throw new IllegalStateException("Must provide a non-null comparator to build the OakHashMap");
+        }
+        if (keySerializer == null) {
+            throw new IllegalStateException("Must provide a non-null key serializer to build the OakHashMap");
+        }
+        if (valueSerializer == null) {
+            throw new IllegalStateException("Must provide a non-null value serializer to build the OakHashMap");
+        }
+    }
+
+
+    public OakMap<K, V> buildOrderedMap() {
         if (preferredBlockSizeBytes != null) {
             BlocksPool.preferBlockSize(preferredBlockSizeBytes);
         }
@@ -100,15 +114,7 @@ public class OakMapBuilder<K, V> {
 
         MemoryManager valuesMemoryManager = new SyncRecycleMemoryManager(memoryAllocator);
         MemoryManager keysMemoryManager = new SeqExpandMemoryManager(memoryAllocator);
-        if (comparator == null) {
-            throw new IllegalStateException("Must provide a non-null comparator to build the OakMap");
-        }
-        if (keySerializer == null) {
-            throw new IllegalStateException("Must provide a non-null key serializer to build the OakMap");
-        }
-        if (valueSerializer == null) {
-            throw new IllegalStateException("Must provide a non-null value serializer to build the OakMap");
-        }
+        checkPreconditions();
         if (minKey == null) {
             throw new IllegalStateException("Must provide a non-null minimal key object to build the OakMap");
         }
@@ -118,6 +124,32 @@ public class OakMapBuilder<K, V> {
                 valueSerializer,
                 comparator, chunkMaxItems,
                 valuesMemoryManager, keysMemoryManager);
+    }
+
+
+
+
+
+    public OakHashMap<K, V> buildHashMap() {
+        if (preferredBlockSizeBytes != null) {
+            BlocksPool.preferBlockSize(preferredBlockSizeBytes);
+        }
+
+        if (memoryAllocator == null) {
+            this.memoryAllocator = new NativeMemoryAllocator(memoryCapacity);
+        }
+        //Todo assert that minkey is not null after the implmention of internalHashmap if it is throw exception??
+        MemoryManager valuesMemoryManager = new SyncRecycleMemoryManager(memoryAllocator);
+        MemoryManager keysMemoryManager = new SeqExpandMemoryManager(memoryAllocator);
+
+        checkPreconditions();
+        return new OakHashMap<>(minKey,
+                keySerializer,
+                valueSerializer,
+                comparator,
+                chunkMaxItems,
+                valuesMemoryManager,
+                keysMemoryManager);
     }
 
 }

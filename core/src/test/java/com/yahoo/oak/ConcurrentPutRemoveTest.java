@@ -13,14 +13,21 @@ import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Ignore;
 import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
 
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.Random;
 import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Supplier;
 
+
+@RunWith(Parameterized.class)
 public class ConcurrentPutRemoveTest {
     private static final int NUM_THREADS = 1;
     private static final long TIME_LIMIT_IN_SECONDS = 10;
@@ -31,16 +38,43 @@ public class ConcurrentPutRemoveTest {
     private static final int NUM_OF_ENTRIES = 10 * K;
 
     private ExecutorUtils<Void> executor;
-    private OakMap<Integer, Integer> oak;
+    private ConcurrentZCMap<Integer, Integer> oak;
 
     private AtomicBoolean stop;
     private AtomicInteger[] status;
     private CyclicBarrier barrier;
+    private Supplier<ConcurrentZCMap> builder;
+
+    public ConcurrentPutRemoveTest(Supplier<ConcurrentZCMap> supplier) {
+        this.builder = supplier;
+    }
+
+
+
+    @Parameterized.Parameters
+    public static Collection parameters() {
+
+        Supplier<ConcurrentZCMap> s1 = () -> {
+            OakMapBuilder<Integer, Integer> builder = OakCommonBuildersFactory.getDefaultIntBuilder();
+
+            return builder.buildOrderedMap();
+        };
+        Supplier<ConcurrentZCMap> s2 = () -> {
+            OakMapBuilder<Integer, Integer> builder =
+                    OakCommonBuildersFactory.getDefaultIntBuilder();
+            return builder.buildHashMap();
+        };
+        return Arrays.asList(new Object[][] {
+                { s1 },
+                { s2 }
+        });
+    }
+
+
 
     @Before
     public void initStuff() {
-        OakMapBuilder<Integer, Integer> builder = OakCommonBuildersFactory.getDefaultIntBuilder();
-        oak = builder.build();
+        oak = this.builder.get();
         barrier = new CyclicBarrier(NUM_THREADS + 1);
         stop = new AtomicBoolean(false);
         executor = new ExecutorUtils<>(NUM_THREADS);

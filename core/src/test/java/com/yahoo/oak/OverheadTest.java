@@ -11,9 +11,15 @@ import com.yahoo.oak.common.integer.OakIntSerializer;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
 
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.Random;
+import java.util.function.Supplier;
 
+@RunWith(Parameterized.class)
 public class OverheadTest {
     private static final int K = 1024;
     private static final int M = K * K;
@@ -21,16 +27,48 @@ public class OverheadTest {
     private static final int KEY_SIZE = 100;
     private static final int VALUE_SIZE = 1000;
     private static final double MAX_ON_HEAP_OVERHEAD_PERCENTAGE = 0.05;
-    private static OakMap<Integer, Integer> oak;
+    private static ConcurrentZCMap<Integer, Integer> oak;
+
+    private final Supplier<ConcurrentZCMap<Integer, Integer>> supplier;
+
+
+    public OverheadTest(Supplier<ConcurrentZCMap<Integer, Integer>> supplier) {
+        this.supplier = supplier;
+
+    }
+
+    @Parameterized.Parameters
+    public static Collection<Object[]> parameters() {
+
+        Supplier<ConcurrentZCMap<Integer, Integer>> s1 = () -> {
+            OakMapBuilder<Integer, Integer> builder = OakCommonBuildersFactory.getDefaultIntBuilder()
+                    .setChunkMaxItems(100)
+                    .setKeySerializer(new OakIntSerializer(KEY_SIZE))
+                    .setValueSerializer(new OakIntSerializer(VALUE_SIZE));
+
+            return builder.buildOrderedMap();
+        };
+        Supplier<ConcurrentZCMap<Integer, Integer>> s2 = () -> {
+            OakMapBuilder<Integer, Integer> builder = OakCommonBuildersFactory.getDefaultIntBuilder()
+                    .setChunkMaxItems(100)
+                    .setKeySerializer(new OakIntSerializer(KEY_SIZE))
+                    .setValueSerializer(new OakIntSerializer(VALUE_SIZE));
+
+            return builder.buildHashMap();
+        };
+        return Arrays.asList(new Object[][] {
+                { s1 },
+                { s2 }
+        });
+    }
+
+
+
 
     @Before
     public void init() {
-        OakMapBuilder<Integer, Integer> builder = OakCommonBuildersFactory.getDefaultIntBuilder()
-                .setChunkMaxItems(100)
-                .setKeySerializer(new OakIntSerializer(KEY_SIZE))
-                .setValueSerializer(new OakIntSerializer(VALUE_SIZE));
 
-        oak = builder.build();
+        oak = supplier.get();
     }
 
     @Test
@@ -48,7 +86,7 @@ public class OverheadTest {
         long heapFreeSize = Runtime.getRuntime().freeMemory();
 
         double usedHeapMemoryMB = (double) (heapSize - heapFreeSize) / M;
-        double usedOffHeapMemoryMB = (double) (oak.getValuesMemoryManager().allocated()) / M;
+        double usedOffHeapMemoryMB = (double) (oak.memorySize()) / M;
 
 
         double heapOverhead = usedHeapMemoryMB / (usedHeapMemoryMB + usedOffHeapMemoryMB);

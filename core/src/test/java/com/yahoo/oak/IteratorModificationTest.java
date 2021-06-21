@@ -39,7 +39,7 @@ public class IteratorModificationTest {
         OakMapBuilder<String, String> builder = OakCommonBuildersFactory.getDefaultStringBuilder()
                 .setChunkMaxItems(100);
 
-        oak = builder.build();
+        oak = builder.buildOrderedMap();
 
         for (int i = 0; i < ELEMENTS; i++) {
             String key = generateString(i, KEY_SIZE);

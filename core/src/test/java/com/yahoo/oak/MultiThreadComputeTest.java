@@ -12,28 +12,65 @@ import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
 
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 
+
+@RunWith(Parameterized.class)
 public class MultiThreadComputeTest {
     private static final int NUM_THREADS = 31;
     private static final long TIME_LIMIT_IN_SECONDS = 60;
     private static final int MAX_ITEMS_PER_CHUNK = 1024;
 
-    private OakMap<Integer, Integer> oak;
+    private ConcurrentZCMap<Integer, Integer> oak;
     private ExecutorUtils<Void> executor;
 
     private CountDownLatch latch;
     private Consumer<OakScopedWriteBuffer> computer;
     private Consumer<OakScopedWriteBuffer> emptyComputer;
 
+    private Supplier<ConcurrentZCMap> builder;
+
+
+    public MultiThreadComputeTest(Supplier<ConcurrentZCMap> supplier) {
+        this.builder = supplier;
+
+    }
+
+    @Parameterized.Parameters
+    public static Collection parameters() {
+
+        Supplier<ConcurrentZCMap> s1 = () -> {
+            OakMapBuilder<Integer, Integer> builder = OakCommonBuildersFactory.getDefaultIntBuilder()
+                    .setChunkMaxItems(MAX_ITEMS_PER_CHUNK);
+            return builder.buildOrderedMap();
+        };
+        Supplier<ConcurrentZCMap> s2 = () -> {
+            OakMapBuilder<Integer, Integer> builder = OakCommonBuildersFactory.getDefaultIntBuilder()
+                    .setChunkMaxItems(MAX_ITEMS_PER_CHUNK);
+            return builder.buildHashMap();
+        };
+        return Arrays.asList(new Object[][] {
+                { s1 },
+                { s2 }
+        });
+    }
+
+
+
+
+
     @Before
     public void init() {
-        OakMapBuilder<Integer, Integer> builder = OakCommonBuildersFactory.getDefaultIntBuilder()
-                .setChunkMaxItems(MAX_ITEMS_PER_CHUNK);
-        oak = builder.build();
+
+        oak = builder.get();
         latch = new CountDownLatch(1);
         executor = new ExecutorUtils<>(NUM_THREADS);
         computer = oakWBuffer -> {

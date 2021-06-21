@@ -46,7 +46,7 @@ public class PutBenchmark {
         @Setup(Level.Iteration)
         public void setup() {
             OakMapBuilder<String, String> builder = OakCommonBuildersFactory.getDefaultStringBuilder();
-            oakMap = builder.build();
+            oakMap = builder.buildOrderedMap();
         }
 
         @TearDown
