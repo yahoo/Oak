@@ -187,30 +187,6 @@ class EntryOrderedSet<K, V> extends EntryArray<K, V> {
     }
 
     /**
-     * writeValueCommit does the physical CAS of the value reference, which is the Linearization
-     * Point of the insertion.
-     *
-     * @param ctx The context that follows the operation since the key was found/created.
-     *            Holds the entry index to which the value reference is linked, the old and new
-     *            value references.
-     *
-     * @return TRUE if the value reference was CASed successfully.
-     */
-    ValueUtils.ValueResult writeValueCommit(ThreadContext ctx) {
-        // If the commit is for a writing the new value, the old values should be invalid.
-        // Otherwise (commit is for moving the value) old value reference is saved in the context.
-
-        long oldValueReference = ctx.value.getSlice().getReference();
-        long newValueReference = ctx.newValue.getSlice().getReference();
-        assert valuesMemoryManager.isReferenceValid(newValueReference);
-
-        if (!casValueReference(ctx.entryIndex, oldValueReference, newValueReference)) {
-            return ValueUtils.ValueResult.FALSE;
-        }
-        return ValueUtils.ValueResult.TRUE;
-    }
-
-    /**
      * deleteValueFinish completes the deletion of a value in Oak, by marking the value reference in
      * entry, after the on-heap value was already marked as deleted.
      *

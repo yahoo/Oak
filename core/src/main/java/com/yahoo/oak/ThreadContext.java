@@ -42,6 +42,9 @@ class ThreadContext {
      */
     boolean isNewValueForMove;
 
+    /* The full hash number of the found entry's key. Relevant and used only for OakHash */
+    long fullHash;
+
     /*-----------------------------------------------------------
      * Result Context
      *-----------------------------------------------------------*/
@@ -66,6 +69,8 @@ class ThreadContext {
         this.result = new Result();
         this.tempKey = new KeyBuffer(kmm.getEmptySlice());
         this.tempValue = new ValueBuffer(vmm.getEmptySlice());
+
+        this.fullHash = EntryHashSet.INVALID_FULL_HASH;
     }
 
     void invalidate() {
@@ -76,6 +81,7 @@ class ThreadContext {
         result.invalidate();
         entryState = EntryArray.EntryState.UNKNOWN;
         isNewValueForMove = false;
+        this.fullHash = EntryHashSet.INVALID_FULL_HASH;
         // No need to invalidate the temporary buffers
     }
 
