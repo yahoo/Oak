@@ -162,32 +162,25 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
         return collisionEscapes.get();
     }
 
-    /* Check the entry in hashIdx for being occupied:
-    * if key reference is invalid reference --> entry is vacant (EntryState.UNKNOWN)
-    * if key is deleted (off-heap or reference):
-    *   if value reference is deleted --> entry is fully deleted and thus vacant (EntryState.DELETED)
-    *   otherwise              --> accomplish the full deletion process (if needed)
-    *                                               (EntryState.DELETED_NOT_FINALIZED)
-    * if value reference is valid --> entry is occupied (EntryState.VALID)
-    * otherwise --> the entry is in process of being inserted
-    *               if key is the same as ours --> we can participate in competition inserting value
-    *               (EntryState.INSERT_NOT_FINALIZED)
-    *               otherwise --> some else key is being inserted, consider entry being occupied
-    *               (EntryState.VALID)
-    */
+    /* Check the entry in `hi` for being occupied
+    ** Assume upon invocation that ctx.value ctx.key ctx.fullHash are invalidated
+    ** At the end:
+    ** If output is  EntryState.UNKNOWN --> ctx.key, ctx.value, ctx.fullHash remain untouched
+    ** If output is  EntryState.DELETED_NOT_FINALIZED/DELETED/INSERT_NOT_FINALIZED/VALID
+    ** --> ctx.key, ctx.value, ctx.fullHash keep the data of the entry's key, value, and full hash number
+     */
     private EntryState getEntryState(ThreadContext ctx, int hi, K key, long fullKeyHashIdx) {
-        ctx.fullHash = getFullHashEntryField(hi);
+
         if (getKeyReference(hi) == keysMemoryManager.getInvalidReference()) {
-            ctx.tempKey.invalidate();
             return EntryState.UNKNOWN;
         }
+        ctx.fullHash = getFullHashEntryField(hi);
         // entry was used already, is value deleted?
-
         // the linearization point of deletion is marking the value off-heap
         // isValueDeleted checks the reference first (for being invalid or deleted) than the off-heap header
         if (isValueDeleted(ctx.value, hi)) { // value is read to the ctx.value as a side effect
             // for later progressing with deleted entry read current key slice
-            // (value is read during deleted key check)
+            // (value is read during deleted key check, unless deleted)
             if (readKey(ctx.key, hi)) {
                 // key is not deleted: either this deletion is not yet finished,
                 // or this is a new assignment on top of deleted entry
@@ -204,14 +197,15 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
             // not finalized insert is progressing out of this if
         }
 
+        // read current key slice (value is read during delete check)
+        readKey(ctx.key, ctx.entryIndex);
+
         // value is either invalid or valid (but not deleted), can be in progress of being inserted
         if (isValueRefValidAndNotDeleted(hi)) {
             return EntryState.VALID;
         }
 
         if (equalKeyAndEntryKey(ctx.key, key, hi, fullKeyHashIdx)) {
-            // for later finish of the insert read current key slice (value is read during delete check)
-            readKey(ctx.key, ctx.entryIndex);
             if (!valuesMemoryManager.isReferenceValid(ctx.value.getSlice().getReference())) {
                 return EntryState.INSERT_NOT_FINALIZED;
             }
@@ -249,26 +243,18 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
             // entry's key is read into ctx.tempKey as a side effect
             ctx.entryState = getEntryState(ctx, currentLocation, key, fullHashIdx);
 
-            // EntryState.VALID --> maybe our relevant entry
-            // EntryState.DELETED_NOT_FINALIZED --> not the needed entry
-            // EntryState.UNKNOWN, EntryState.DELETED --> not the needed entry
-            // EntryState.INSERT_NOT_FINALIZED --> not the needed entry
-
-            if (ctx.entryState == EntryState.VALID) {
-                if (equalKeyAndEntryKey(ctx.tempKey, key, ctx.entryIndex, fullHashIdx)) {
-                    // read current value slice (can be done on the Chunk level)
-                    readValue(ctx.value, ctx.entryIndex);
-                    // check the key for being off-heap deleted (delete linearization point for Hash)
-                    // the key slice is filled/read during the check
-                    if (!isKeyDeleted(ctx.key, ctx.entryIndex)) {
-                        return true;
-                    }
-                    // the same key found if it is deleted it can not locate anywhere else
-                    ctx.invalidate();
-                    return false;
-                }
+            // value and key slices are read during getEntryState() unless the entry is
+            // fully deleted (EntryState.DELETED) in this case we cannot compare the key (!)
+            // also deletion linearization point is checked during getEntryState()
+            if (ctx.entryState != EntryState.DELETED &&
+                equalKeyAndEntryKey(ctx.key, key, ctx.entryIndex, fullHashIdx)) {
+                // EntryState.VALID --> the key is found
+                // DELETED_NOT_FINALIZED/UNKNOWN --> key doesn't exists
+                //                      and there is no need to continue to check next entries
+                // INSERT_NOT_FINALIZED --> before linearization point, key doesn't exist
+                // when more than unique keys can be concurrently inserted, need to check further!
+                return (ctx.entryState == EntryState.VALID) ? true : false;
             }
-
             // not in this entry, move to next
             currentLocation = (currentLocation + 1) % entriesCapacity; // cyclic increase
         }
@@ -304,7 +290,7 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
 
         // as far as we didn't check more than `collisionEscapes` indexes
         while (Math.abs(currentLocation - hashIdx) < collisionEscapesLocal) {
-
+            ctx.invalidate();
             ctx.entryIndex = currentLocation; // check the entry candidate
             // entry's key is read into ctx.tempKey as a side effect
             ctx.entryState = getEntryState(ctx, currentLocation, key, fullHashIdx);
@@ -315,7 +301,7 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
             // EntryState.INSERT_NOT_FINALIZED --> you can compete to associate value with the same key
             switch (ctx.entryState) {
                 case VALID:
-                    if (equalKeyAndEntryKey(ctx.tempKey, key, hashIdx, fullHashIdx)) {
+                    if (equalKeyAndEntryKey(ctx.key, key, hashIdx, fullHashIdx)) {
                         // found valid entry has our key, the inserted key must be unique
                         // the entry state will indicate that insert didn't happen
                         return true;
@@ -323,7 +309,7 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
                     currentLocation = (currentLocation + 1) % entriesCapacity; // cyclic increase
                     continue;
                 case DELETED_NOT_FINALIZED:
-                    deleteValueFinish(ctx); //invocation without chunk publishing scope
+                    deleteValueFinish(ctx); //TODO: invocation must be within chunk publishing scope!
                     // deleteValueFinish() also changes the entry state to DELETED
                     // deliberate break through
                 case DELETED: // deliberate break through
@@ -390,7 +376,7 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
      *
      * The allocation won't happen for an existing key, although TRUE will be returned
      * (because no re-balance required). In this case the entry state should be EntryState.VALID.
-     * Also invalid ctx.key indicates that the same key was found.
+     * The ctx.key will be populated to point to the found key
      *
      * @param ctx the context that will follow the operation following this key allocation
      * @param key the key to write
@@ -423,7 +409,11 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
             return true;
         }
 
-        // Here the chosen entry is either uninitialized or fully deleted
+        // Here the chosen entry is either uninitialized or fully deleted.
+        // Before writing a new key and to the ctx.key copy the ctx.key to ctx.tempKey
+        ctx.tempKey.copyFrom(ctx.key);
+        ctx.key.invalidate();
+
         // Write given key object "key" (to off-heap) as a serialized key, referenced by entry
         // that was set in this context ({@code ctx}).
         writeKey(key, ctx.key);
@@ -454,24 +444,26 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
 
     /**
      * deleteValueFinish completes the deletion of a mapping in OakHash.
-     * The linearization point is (1) marking the delete bit in the key's off-heap header,
+     * The linearization point is (1) marking the delete bit in the value's off-heap header,
      * this must be done before invoking deleteValueFinish.
      *
-     * The rest is: (2) marking the key reference as deleted;
-     * (3) marking the delete bit in the value's off-heap header;
-     * (4) marking the value reference as deleted
+     * The rest is: (2) marking the delete bit in the key's off-heap header;
+     * (3) marking the value reference as deleted
+     * (4) marking the key reference as deleted;
      * (5) invalidate the full hash idx as well
      *
-     * All the actions are made via CAS and thus idempotent.
+     * All the actions are made via CAS and thus idempotent. All the expected CAS values are taken
+     * from ctx that must be previously updated (when the entry was first found). The return value
+     * is true if the delete help was actually needed, or false otherwise.
      *
      * @param ctx The context that follows the operation since the key was found/created.
      *            Holds the entry to change, the old value reference to CAS out, and the current value reference.
      * @return true if the deletion indeed updated the entry to be deleted as a unique operation
      * <p>
-     * Note 1: the value in {@code ctx} is updated in this method to be the DELETED.
+     * Note 1: the entry state in {@code ctx} is updated in this method to be the DELETED.
      * <p>
-     * Note 2: updating of the entries MUST be under published operation. The invoker of this method
-     * is responsible to call it inside the publish/un-publish scope.
+     *  Note 2: the invocation must be withing publishing scope to ensure marking the
+     *  references as deleted is unique and so the slice releases
      */
     boolean deleteValueFinish(ThreadContext ctx) {
         if (valuesMemoryManager.isReferenceDeleted(ctx.value.getSlice().getReference())
@@ -484,14 +476,11 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
 
         assert ctx.entryState == EntryState.DELETED_NOT_FINALIZED;
 
-        // mark key reference as deleted
-        long expectedKeyReference = ctx.value.getSlice().getReference();
-        long newKeyReference = keysMemoryManager.alterReferenceForDelete(expectedKeyReference);
-        // try CAS and continue anyway
-        casEntryFieldLong(ctx.entryIndex, KEY_REF_OFFSET, expectedKeyReference, newKeyReference);
-
-        // mark value off-heap
-
+        // marking the delete bit in the key's off-heap header (only one true setter gets result TRUE)
+        // The marking happens only when no lock is taken, otherwise busy waits
+        // if the version is already different result is RETRY, if already deleted - FALSE
+        // we continue anyway, therefore disregard the logicalDelete() output
+        ctx.key.s.logicalDelete();
 
         // Value's reference codec prepares the reference to be used after value is deleted
         long expectedReference = ctx.value.getSlice().getReference();
@@ -507,17 +496,26 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
         // is done.
         if (casEntryFieldLong(ctx.entryIndex, VALUE_REF_OFFSET, expectedReference, newReference)) {
             assert valuesMemoryManager.isReferenceConsistent(getValueReference(ctx.entryIndex));
-            numOfEntries.getAndDecrement();
             ctx.value.getSlice().release();
             ctx.value.invalidate();
-            ctx.entryState = EntryState.DELETED;
-
-            return true;
         }
-        // CAS wasn't successful, someone else set the value reference as deleted and
-        // maybe value was allocated again. Let the context's value to be updated
-        readValue(ctx);
-        return false;
+
+        // mark key reference as deleted
+        long expectedKeyReference = ctx.key.getSlice().getReference();
+        long newKeyReference = keysMemoryManager.alterReferenceForDelete(expectedReference);
+        if (casEntryFieldLong(ctx.entryIndex, KEY_REF_OFFSET, expectedKeyReference, newKeyReference)) {
+            assert keysMemoryManager.isReferenceConsistent(getKeyReference(ctx.entryIndex));
+            ctx.key.getSlice().release();
+            ctx.key.invalidate();
+        }
+
+        if (casFullHashEntryIndex(ctx.entryIndex, ctx.fullHash, INVALID_FULL_HASH)) {
+            numOfEntries.getAndDecrement();
+            ctx.entryState = EntryState.DELETED;
+        }
+
+        return true;
+
     }
 
     /**

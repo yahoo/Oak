@@ -88,11 +88,14 @@ public class EntryHashSetTest {
 
         // insert the same key again,
         // the valid entry state states that the key WASN'T inserted because the same key was found
-        // also invalid key buffer indicates that same key was found
+        // The key buffer is populated with the found key
         assert ehs.allocateKey(ctx, new Integer(5), 7 /*000111*/, 39 /*100111*/ );
         assert ctx.entryIndex == 7 && ctx.entryState == EntryArray.EntryState.VALID
-            && ctx.key.getSlice().getReference() == memoryManager.getInvalidReference();
+            && ctx.key.getSlice().getReference() != memoryManager.getInvalidReference();
 
+        ctx.invalidate();
+        ctx.entryIndex = 7;
+        ctx.entryState = EntryArray.EntryState.VALID;
         // allocate another value to test double value commit for key 5 later
         ehs.allocateValue(ctx, new Integer(50), false);
         assert ctx.entryIndex == 7 &&
@@ -144,24 +147,10 @@ public class EntryHashSetTest {
         assert ehs.writeValueCommit(ctx) == ValueUtils.ValueResult.TRUE;
     }
 
+    private void readKeyValue(
+        ThreadContext ctx, EntryHashSet ehs, SyncRecycleMemoryManager memoryManager,
+        OakIntSerializer serializer) {
 
-    @Test
-    public void testSingleInsert() {
-        final NativeMemoryAllocator allocator = new NativeMemoryAllocator(128);
-        SyncRecycleMemoryManager memoryManager = new SyncRecycleMemoryManager(allocator);
-        OakIntSerializer serializer = new OakIntSerializer();
-
-        // create EntryHashSet
-        EntryHashSet ehs =
-            new EntryHashSet(memoryManager, memoryManager, 100,
-                serializer, serializer, new OakIntComparator());
-
-        ThreadContext ctx = new ThreadContext(memoryManager, memoryManager);
-
-        allocateSimpleKeyValue(ctx, ehs, memoryManager); // very simple
-        allocateMoreKeyValue(ctx, ehs, memoryManager); // corner cases
-
-        // next read values
         assert ehs.lookUp(ctx, new Integer(5), 7 /*000111*/, 39 /*100111*/ );
         assert ctx.entryIndex == 7 && ctx.entryState == EntryArray.EntryState.VALID
             && ctx.key.getSlice().getReference() != memoryManager.getInvalidReference()
@@ -212,6 +201,83 @@ public class EntryHashSetTest {
         result = valueOperator.transform(new Result(), ctx.value, buf -> serializer.deserialize(buf));
         Assert.assertEquals(ValueUtils.ValueResult.TRUE, result.operationResult);
         Assert.assertEquals(350, ((Integer) result.value).intValue());
+
+
+    }
+
+    // the main (single threaded) test flow
+    @Test
+    public void testSingleInsert() {
+        final NativeMemoryAllocator allocator = new NativeMemoryAllocator(128);
+        SyncRecycleMemoryManager memoryManager = new SyncRecycleMemoryManager(allocator);
+        OakIntSerializer serializer = new OakIntSerializer();
+
+        // create EntryHashSet
+        EntryHashSet ehs =
+            new EntryHashSet(memoryManager, memoryManager, 100,
+                serializer, serializer, new OakIntComparator());
+
+        ThreadContext ctx = new ThreadContext(memoryManager, memoryManager);
+
+        allocateSimpleKeyValue(ctx, ehs, memoryManager); // very simple
+        allocateMoreKeyValue(ctx, ehs, memoryManager); // corner cases
+        readKeyValue(ctx, ehs, memoryManager, serializer); // next read values
+
+        // delete firstly inserted entries, first look for a key and mark its value as deleted
+        assert ehs.lookUp(ctx, new Integer(5), 7 /*000111*/, 39 /*100111*/ );
+        assert ctx.entryIndex == 7 && ctx.entryState == EntryArray.EntryState.VALID
+            && ctx.key.getSlice().getReference() != memoryManager.getInvalidReference()
+            && ctx.value.getSlice().getReference() != memoryManager.getInvalidReference()
+            && ctx.isValueValid();
+        Result result = valueOperator.transform(new Result(), ctx.value, buf -> serializer.deserialize(buf));
+        Assert.assertEquals(ValueUtils.ValueResult.TRUE, result.operationResult);
+        Assert.assertEquals(50, ((Integer) result.value).intValue());
+
+        ValueUtils.ValueResult vr = ctx.value.s.logicalDelete();
+        assert vr == ValueUtils.ValueResult.TRUE;
+
+        //look for the entry again, to ensure the state is delete not finalize
+        // delete some entries, first look for a key and mark its value as deleted
+        assert !ehs.lookUp(ctx, new Integer(5), 7 /*000111*/, 39 /*100111*/ );
+        assert ctx.entryIndex == 7 && ctx.entryState == EntryArray.EntryState.DELETED_NOT_FINALIZED
+            && ctx.key.getSlice().getReference() != memoryManager.getInvalidReference()
+            && ctx.value.getSlice().getReference() != memoryManager.getInvalidReference()
+            && !ctx.isValueValid();
+
+        assert ehs.deleteValueFinish(ctx);
+        assert ctx.entryIndex == 7 && ctx.entryState == EntryArray.EntryState.DELETED
+            && ctx.key.getSlice().getReference() == memoryManager.getInvalidReference()
+            && ctx.value.getSlice().getReference() == memoryManager.getInvalidReference()
+            && !ctx.isValueValid() && !ctx.isKeyValid();
+
+        //look for the key once again to check it is not found
+        assert !ehs.lookUp(ctx, new Integer(5), 7 /*000111*/, 39 /*100111*/ );
+        assert ctx.entryIndex == EntryArray.INVALID_ENTRY_INDEX && ctx.entryState == EntryArray.EntryState.UNKNOWN
+            && ctx.key.getSlice().getReference() == memoryManager.getInvalidReference()
+            && ctx.value.getSlice().getReference() == memoryManager.getInvalidReference()
+            && !ctx.isValueValid() && !ctx.isKeyValid();
+
+        //insert on top of the deleted entry
+        assert ehs.allocateKey(ctx, new Integer(5), 7 /*000111*/, 39 /*100111*/ );
+        assert ctx.entryIndex == 7 && ctx.entryState == EntryArray.EntryState.DELETED
+            && ctx.key.getSlice().getReference() != memoryManager.getInvalidReference()
+            && memoryManager.isReferenceDeleted(ctx.value.getSlice().getReference());
+
+        // simple value allocation
+        ehs.allocateValue(ctx, new Integer(50), false);
+        assert ctx.entryIndex == 7 &&
+            ctx.entryState == EntryArray.EntryState.DELETED &&
+            ehs.getCollisionEscapes() > EntryHashSet.DEFAULT_COLLISION_ESCAPES
+            && ctx.key.getSlice().getReference() != memoryManager.getInvalidReference()
+            && memoryManager.isReferenceDeleted(ctx.value.getSlice().getReference())
+            && ctx.newValue.getSlice().getReference() != memoryManager.getInvalidReference();
+
+        // commit the value, insert linearization points
+        assert ehs.writeValueCommit(ctx) == ValueUtils.ValueResult.TRUE;
+
+
+
+
 
     }
 
