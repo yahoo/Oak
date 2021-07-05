@@ -59,7 +59,7 @@ class ThreadContext {
     final ValueBuffer tempValue;
 
     ThreadContext(MemoryManager kmm, MemoryManager vmm) {
-        entryIndex = EntryOrderedSet.INVALID_ENTRY_INDEX;
+        entryIndex = EntryArray.INVALID_ENTRY_INDEX;
         entryState = EntryArray.EntryState.UNKNOWN;
         isNewValueForMove = false;
 
@@ -74,7 +74,7 @@ class ThreadContext {
     }
 
     void invalidate() {
-        entryIndex = EntryOrderedSet.INVALID_ENTRY_INDEX;
+        entryIndex = EntryArray.INVALID_ENTRY_INDEX;
         key.invalidate();
         value.invalidate();
         newValue.invalidate();

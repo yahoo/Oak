@@ -30,7 +30,7 @@ public class EntryHashSetTest {
         ehs.allocateValue(ctx, new Integer(50), false);
         assert ctx.entryIndex == 7 &&
             ctx.entryState == EntryArray.EntryState.UNKNOWN &&
-            ehs.getCollisionEscapes() == EntryHashSet.DEFAULT_COLLISION_ESCAPES
+            ehs.getCollisionChainLength() == EntryHashSet.DEFAULT_COLLISION_CHAIN_LENGTH
             && ctx.key.getSlice().getReference() != memoryManager.getInvalidReference()
             && ctx.value.getSlice().getReference() == memoryManager.getInvalidReference()
             && ctx.newValue.getSlice().getReference() != memoryManager.getInvalidReference();
@@ -49,7 +49,7 @@ public class EntryHashSetTest {
         ehs.allocateValue(ctx, new Integer(150), false);
         assert ctx.entryIndex == 8 &&
             ctx.entryState == EntryArray.EntryState.UNKNOWN &&
-            ehs.getCollisionEscapes() == EntryHashSet.DEFAULT_COLLISION_ESCAPES
+            ehs.getCollisionChainLength() == EntryHashSet.DEFAULT_COLLISION_CHAIN_LENGTH
             && ctx.key.getSlice().getReference() != memoryManager.getInvalidReference()
             && ctx.value.getSlice().getReference() == memoryManager.getInvalidReference()
             && ctx.newValue.getSlice().getReference() != memoryManager.getInvalidReference();
@@ -66,7 +66,7 @@ public class EntryHashSetTest {
         assert ehs.allocateKey(ctx, new Integer(25), 7 /*000111*/, 23 /*010111*/ );
         assert ctx.entryIndex == 9 &&
             ctx.entryState == EntryArray.EntryState.UNKNOWN &&
-            ehs.getCollisionEscapes() == EntryHashSet.DEFAULT_COLLISION_ESCAPES
+            ehs.getCollisionChainLength() == EntryHashSet.DEFAULT_COLLISION_CHAIN_LENGTH
             && ctx.key.getSlice().getReference() != memoryManager.getInvalidReference()
             && ctx.value.getSlice().getReference() == memoryManager.getInvalidReference();
 
@@ -74,7 +74,7 @@ public class EntryHashSetTest {
         ehs.allocateValue(ctx, new Integer(250), false);
         assert ctx.entryIndex == 9 &&
             ctx.entryState == EntryArray.EntryState.UNKNOWN &&
-            ehs.getCollisionEscapes() == EntryHashSet.DEFAULT_COLLISION_ESCAPES
+            ehs.getCollisionChainLength() == EntryHashSet.DEFAULT_COLLISION_CHAIN_LENGTH
             && ctx.key.getSlice().getReference() != memoryManager.getInvalidReference()
             && ctx.value.getSlice().getReference() == memoryManager.getInvalidReference()
             && ctx.newValue.getSlice().getReference() != memoryManager.getInvalidReference();
@@ -100,7 +100,7 @@ public class EntryHashSetTest {
         ehs.allocateValue(ctx, new Integer(50), false);
         assert ctx.entryIndex == 7 &&
             ctx.entryState == EntryArray.EntryState.VALID &&
-            ehs.getCollisionEscapes() == EntryHashSet.DEFAULT_COLLISION_ESCAPES
+            ehs.getCollisionChainLength() == EntryHashSet.DEFAULT_COLLISION_CHAIN_LENGTH
             && ctx.key.getSlice().getReference() == memoryManager.getInvalidReference()
             && ctx.value.getSlice().getReference() == memoryManager.getInvalidReference()
             && ctx.newValue.getSlice().getReference() != memoryManager.getInvalidReference();
@@ -118,7 +118,7 @@ public class EntryHashSetTest {
         ehs.allocateValue(ctx, new Integer(40), false);
         assert ctx.entryIndex == 10 &&
             ctx.entryState == EntryArray.EntryState.UNKNOWN &&
-            ehs.getCollisionEscapes() == EntryHashSet.DEFAULT_COLLISION_ESCAPES
+            ehs.getCollisionChainLength() == EntryHashSet.DEFAULT_COLLISION_CHAIN_LENGTH
             && ctx.key.getSlice().getReference() != memoryManager.getInvalidReference()
             && ctx.value.getSlice().getReference() == memoryManager.getInvalidReference()
             && ctx.newValue.getSlice().getReference() != memoryManager.getInvalidReference();
@@ -131,7 +131,7 @@ public class EntryHashSetTest {
         assert (ehs.allocateKey(ctx, new Integer(35), 8 /*000111*/, 23 /*010111*/ ));
         assert ctx.entryIndex == 11 &&
             ctx.entryState == EntryArray.EntryState.UNKNOWN &&
-            ehs.getCollisionEscapes() > EntryHashSet.DEFAULT_COLLISION_ESCAPES
+            ehs.getCollisionChainLength() > EntryHashSet.DEFAULT_COLLISION_CHAIN_LENGTH
             && ctx.key.getSlice().getReference() != memoryManager.getInvalidReference()
             && ctx.value.getSlice().getReference() == memoryManager.getInvalidReference();
 
@@ -139,7 +139,7 @@ public class EntryHashSetTest {
         ehs.allocateValue(ctx, new Integer(350), false);
         assert ctx.entryIndex == 11 &&
             ctx.entryState == EntryArray.EntryState.UNKNOWN &&
-            ehs.getCollisionEscapes() > EntryHashSet.DEFAULT_COLLISION_ESCAPES
+            ehs.getCollisionChainLength() > EntryHashSet.DEFAULT_COLLISION_CHAIN_LENGTH
             && ctx.key.getSlice().getReference() != memoryManager.getInvalidReference()
             && ctx.value.getSlice().getReference() == memoryManager.getInvalidReference()
             && ctx.newValue.getSlice().getReference() != memoryManager.getInvalidReference();
@@ -267,7 +267,7 @@ public class EntryHashSetTest {
         ehs.allocateValue(ctx, new Integer(50), false);
         assert ctx.entryIndex == 7 &&
             ctx.entryState == EntryArray.EntryState.DELETED &&
-            ehs.getCollisionEscapes() > EntryHashSet.DEFAULT_COLLISION_ESCAPES
+            ehs.getCollisionChainLength() > EntryHashSet.DEFAULT_COLLISION_CHAIN_LENGTH
             && ctx.key.getSlice().getReference() != memoryManager.getInvalidReference()
             && memoryManager.isReferenceDeleted(ctx.value.getSlice().getReference())
             && ctx.newValue.getSlice().getReference() != memoryManager.getInvalidReference();

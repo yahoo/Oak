@@ -53,7 +53,7 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
 
     /*-------------- Constants --------------*/
     static final int INVALID_FULL_HASH = 0; // because memory is initially zeroed
-    static final int DEFAULT_COLLISION_ESCAPES = 3;
+    static final int DEFAULT_COLLISION_CHAIN_LENGTH = 3;
     // HASH - the full hash index of this entry (one integer, all bits).
     private static final int HASH_FIELD_OFFSET = 2;
 
@@ -61,7 +61,7 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
     private static final int ADDITIONAL_FIELDS = 1;  // # of primitive fields in each item of entries array
 
     // number of entries candidates to try in case of collision
-    private AtomicInteger collisionEscapes = new AtomicInteger(DEFAULT_COLLISION_ESCAPES);
+    private AtomicInteger collisionChainLength = new AtomicInteger(DEFAULT_COLLISION_CHAIN_LENGTH);
 
     private final OakComparator<K> comparator;
 
@@ -87,10 +87,10 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
     /*---------- Methods for managing full hash entry indexes (package visibility) -------------*/
 
     /**
-     * getFullHashEntryIndex returns the full hash entry index (the number only!) of the entry
+     * getFullHashNumber returns the full hash entry index (the number only!) of the entry
      * given by entry index "ei". The method serves internal and external EntryHashSet users.
      */
-    private int getFullHashEntryIndex(int ei) {
+    private int getFullHashNumber(int ei) {
         assert isIndexInBound(ei);
         // TODO: need to extract the number from the updates counter and to return only the integer
         return (int) getEntryFieldLong(ei, HASH_FIELD_OFFSET);
@@ -102,7 +102,6 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
      */
     private int getFullHashEntryField(int ei) {
         assert isIndexInBound(ei);
-        // TODO: need to extract the number from the updates counter and to return only the integer
         return (int) getEntryFieldLong(ei, HASH_FIELD_OFFSET);
     }
 
@@ -110,7 +109,7 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
      * isFullHashIndexValid checks the index itself disregarding the update counter
      */
     private boolean isFullHashIndexValid(int ei) {
-        return (getFullHashEntryIndex(ei) != INVALID_FULL_HASH);
+        return (getFullHashNumber(ei) != INVALID_FULL_HASH);
     }
 
     /**
@@ -125,7 +124,7 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
      * casFullHashIndex CAS the full hash entry index (of the entry given by entry index "ei") to be the
      * "newFullHash" only if it was "oldFullHash"
      */
-    boolean casFullHashEntryIndex(int ei, long oldFullHash, long newFullHash) {
+    private boolean casFullHashEntryIndex(int ei, long oldFullHash, long newFullHash) {
         //TODO: need to extract here the updates counter from the old hash
         //TODO: and to increase it and to add to the new hash
         return casEntryFieldLong(ei, HASH_FIELD_OFFSET, oldFullHash, newFullHash);
@@ -150,7 +149,7 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
      */
     private boolean equalKeyAndEntryKey(KeyBuffer tempKeyBuff, K key, int hi, long fullKeyHashIdx) {
         // check the hash value comparision first
-        int entryFullHash = getFullHashEntryIndex(hi);
+        int entryFullHash = getFullHashNumber(hi);
         if (entryFullHash != INVALID_FULL_HASH && entryFullHash != fullKeyHashIdx) {
             return false;
         }
@@ -158,8 +157,8 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
     }
 
     @VisibleForTesting
-    int getCollisionEscapes() {
-        return collisionEscapes.get();
+    int getCollisionChainLength() {
+        return collisionChainLength.get();
     }
 
     /* Check the entry in `hi` for being occupied
@@ -216,12 +215,9 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
     /**
      * lookUp checks whether key exists in the given hashIdx or after.
      * Given initial hash index for the key, it checks entries[hashIdx] first and continues
-     * to the next entries up to 'collisionEscapes', if key wasn't previously found.
+     * to the next entries up to 'collisionChainLength', if key wasn't previously found.
      * If true is returned, ctx.entryIndex keeps the index of the found entry
      * and ctx.entryState keeps the state.
-     *
-     * IMPORTANT:
-     *  1. Throws IllegalStateException if too much collisions are found
      *
      * @param ctx the context that will follow the operation following this key allocation
      * @param key the key to write
@@ -232,16 +228,14 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
      */
     boolean lookUp(ThreadContext ctx, K key, int hashIdx, long fullHashIdx) {
         // start from given hash index
-        // and check the next `collisionEscapes` indexes if previous index is occupied
-        int currentLocation = hashIdx;
-        int collisionEscapesLocal = collisionEscapes.get();
+        // and check the next `collisionChainLength` indexes if previous index is occupied
+        int collisionChainLengthLocal = collisionChainLength.get();
 
-        // as far as we didn't check more than `collisionEscapes` indexes
-        while (Math.abs(currentLocation - hashIdx) < collisionEscapesLocal) {
-
-            ctx.entryIndex = currentLocation; // check the entry candidate
+        // as far as we didn't check more than `collisionChainLength` indexes
+        for (int i = 0; i < collisionChainLengthLocal; i++) {
+            ctx.entryIndex = (hashIdx + i) % entriesCapacity; // check the entry candidate, cyclic increase
             // entry's key is read into ctx.tempKey as a side effect
-            ctx.entryState = getEntryState(ctx, currentLocation, key, fullHashIdx);
+            ctx.entryState = getEntryState(ctx, ctx.entryIndex, key, fullHashIdx);
 
             // value and key slices are read during getEntryState() unless the entry is
             // fully deleted (EntryState.DELETED) in this case we cannot compare the key (!)
@@ -253,10 +247,9 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
                 //                      and there is no need to continue to check next entries
                 // INSERT_NOT_FINALIZED --> before linearization point, key doesn't exist
                 // when more than unique keys can be concurrently inserted, need to check further!
-                return (ctx.entryState == EntryState.VALID) ? true : false;
+                return ctx.entryState == EntryState.VALID;
             }
             // not in this entry, move to next
-            currentLocation = (currentLocation + 1) % entriesCapacity; // cyclic increase
         }
         ctx.invalidate();
         return false;
@@ -266,7 +259,7 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
     /**
      * findSuitableEntryForInsert finds the entry where given hey is going to be inserted.
      * Given initial hash index for the key, it checks entries[hashIdx] first and continues
-     * to the next entries up to 'collisionEscapes', if the previous entries are all occupied.
+     * to the next entries up to 'collisionChainLength', if the previous entries are all occupied.
      * If true is returned, ctx.entryIndex keeps the index of the chosen entry
      * and ctx.entryState keeps the state.
      *
@@ -283,17 +276,16 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
      */
     private boolean findSuitableEntryForInsert(ThreadContext ctx, K key, int hashIdx, long fullHashIdx) {
         // start from given hash index
-        // and check the next `collisionEscapes` indexes if previous index is occupied
-        int currentLocation = hashIdx;
-        int collisionEscapesLocal = collisionEscapes.get();
+        // and check the next `collisionChainLength` indexes if previous index is occupied
+        int collisionChainLengthLocal = collisionChainLength.get();
         boolean entryFound = false;
 
-        // as far as we didn't check more than `collisionEscapes` indexes
-        while (Math.abs(currentLocation - hashIdx) < collisionEscapesLocal) {
+        // as far as we didn't check more than `collisionChainLength` indexes
+        for (int i = 0; i < collisionChainLengthLocal; i++) {
             ctx.invalidate();
-            ctx.entryIndex = currentLocation; // check the entry candidate
+            ctx.entryIndex = (hashIdx + i) % entriesCapacity; // check the entry candidate, cyclic increase
             // entry's key is read into ctx.tempKey as a side effect
-            ctx.entryState = getEntryState(ctx, currentLocation, key, fullHashIdx);
+            ctx.entryState = getEntryState(ctx, ctx.entryIndex, key, fullHashIdx);
 
             // EntryState.VALID --> entry is occupied, continue to next possible location
             // EntryState.DELETED_NOT_FINALIZED --> finish the deletion, then try to insert here
@@ -306,7 +298,6 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
                         // the entry state will indicate that insert didn't happen
                         return true;
                     }
-                    currentLocation = (currentLocation + 1) % entriesCapacity; // cyclic increase
                     continue;
                 case DELETED_NOT_FINALIZED:
                     deleteValueFinish(ctx); //TODO: invocation must be within chunk publishing scope!
@@ -319,35 +310,35 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
                     entryFound = true;
                     break;
                 default:
-                    throw new IllegalStateException("Unexpected Entry State");
+                    // For debugging the case new state is added and this code is not updated
+                    assert false;
             }
-            if (entryFound) {
-                break;
-            }
+            break;
         }
 
         if (!entryFound) {
             boolean differentFullHashIdxes = false;
             // we checked allowed number of locations and all were occupied
-            // if all occupied entries have same full hash index (rebalance won't help) --> increase collisionEscapes
+            // if all occupied entries have same full hash index (rebalance won't help)
+            //           --> increase collisionChainLength
             // otherwise --> rebalance
-            currentLocation = hashIdx;
-            while (collisionEscapesLocal > 1) {
-                if (getFullHashEntryIndex(currentLocation) !=
-                    getFullHashEntryIndex(currentLocation + 1)) {
+            int currentLocation = hashIdx;
+            while (collisionChainLengthLocal > 1) {
+                if (getFullHashNumber(currentLocation) !=
+                    getFullHashNumber(currentLocation + 1)) {
                     differentFullHashIdxes = true;
                     break;
                 }
                 currentLocation++;
-                collisionEscapesLocal--;
+                collisionChainLengthLocal--;
             }
             if (differentFullHashIdxes) {
                 return false; // do rebalance
             } else {
-                if (collisionEscapesLocal > (DEFAULT_COLLISION_ESCAPES * 10)) {
+                if (collisionChainLength.get() > (DEFAULT_COLLISION_CHAIN_LENGTH * 10)) {
                     throw new IllegalStateException("Too much collisions for the hash function");
                 }
-                collisionEscapes.incrementAndGet();
+                collisionChainLength.incrementAndGet();
                 // restart recursively (hopefully won't happen too much)
                 return findSuitableEntryForInsert(ctx, key, hashIdx, fullHashIdx);
             }
@@ -467,7 +458,7 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
      */
     boolean deleteValueFinish(ThreadContext ctx) {
         if (valuesMemoryManager.isReferenceDeleted(ctx.value.getSlice().getReference())
-            && getFullHashEntryIndex(ctx.entryIndex) == INVALID_FULL_HASH) {
+            && getFullHashNumber(ctx.entryIndex) == INVALID_FULL_HASH) {
             // entry is already deleted
             // value reference is marked deleted and full hash is invalid, the last stages are done
             ctx.entryState = EntryState.DELETED;

@@ -74,10 +74,10 @@ public class EntryArray<K, V> {
     final OakSerializer<V> valueSerializer;
 
     /**
-     * Create a new EntryOrderedSet
+     * Create a new instance
      * @param vMM   for values off-heap allocations and releases
      * @param kMM off-heap allocations and releases for keys
-     * @param entriesCapacity how many entries should this EntryOrderedSet keep at maximum
+     * @param entriesCapacity how many entries should this EntryArray instance keep at maximum
      * @param keySerializer   used to serialize the key when written to off-heap
      */
     EntryArray(MemoryManager vMM, MemoryManager kMM, int additionalFieldCount, int entriesCapacity,
@@ -157,8 +157,8 @@ public class EntryArray<K, V> {
 
 
     /**
-     * Returns the number of entries allocated and not deleted for this EntryOrderedSet.
-     * Although, in case EntryOrderedSet is used as an array, nextFreeIndex is can be used to calculate
+     * Returns the number of entries allocated and not deleted for this EntryArray instance.
+     * Although, in case instance is used as an linked list, nextFreeIndex is can be used to calculate
      * number of entries, additional variable is used to support OakHash
      */
     int getNumOfEntries() {
@@ -251,7 +251,7 @@ public class EntryArray<K, V> {
      * Reference being marked as deleted is checked.
      *
      * Pay attention that (given entry's) value may be deleted asynchronously by other thread just
-     * after this check. For the thread safety use a copy of value reference.
+     * after this check.
      * */
     boolean isValueRefValidAndNotDeleted(int ei) {
         long valRef = getValueReference(ei);

@@ -14,7 +14,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 class Chunk<K, V> {
     // an entry with NONE_NEXT as its next pointer, points to a null entry
-    static final int NONE_NEXT = EntryOrderedSet.INVALID_ENTRY_INDEX;
+    static final int NONE_NEXT = EntryArray.INVALID_ENTRY_INDEX;
 
     /*-------------- Constants --------------*/
 
