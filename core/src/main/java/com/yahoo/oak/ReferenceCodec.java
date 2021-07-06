@@ -19,9 +19,9 @@ package com.yahoo.oak;
  * IMPORTANT: The 3 parameters (first, second and third) cannot be negative numbers!
  * (As negatives have prefix of ones.)
  */
-abstract class ReferenceCodec {
+class ReferenceCodec {
     static final long INVALID_REFERENCE = 0;
-    protected static final int INVALID_BIT_SIZE = -1;
+    static final int INVALID_BIT_SIZE = -1;
 
     private int firstBitSize = 0;
     private int secondBitSize = 0;
@@ -77,13 +77,47 @@ abstract class ReferenceCodec {
         this.thirdMask  = mask(this.thirdBitSize);
     }
 
-    /*------- Static helpers -------*/
+    /**
+     * Construct the codec setting the number of bits to be used for each parameter.
+     * This instance would combine only 2 integers inside long.
+     * The bit sizes of 1 parameters can be given and the third is always the remaining bits.
+     * @param firstBitSizeLimit an upper limit on the size of the first parameter (exclusive)
+     *                          if invalid calculate according to other two limits
+     * @param secondBitSizeLimit an upper limit on the size of the second parameter (exclusive)
+     *                          if invalid calculate according to other two limits
+     */
+    protected ReferenceCodec(int firstBitSizeLimit, int secondBitSizeLimit) {
+
+        if (secondBitSizeLimit == INVALID_BIT_SIZE) {
+            assert (firstBitSizeLimit != INVALID_BIT_SIZE);
+            this.firstBitSize = firstBitSizeLimit;
+            this.secondBitSize = Long.SIZE - firstBitSize;
+        } else if (firstBitSizeLimit == INVALID_BIT_SIZE) {
+            this.secondBitSize = secondBitSizeLimit;
+            this.firstBitSize = Long.SIZE - secondBitSize;
+        }
+
+        assert (this.firstBitSize > 0 || this.secondBitSize > 0) :
+            String.format(
+                "Not enough bits to encode a reference: firstBitSizeLimit=%,d, secondBitSizeLimit=%,d.",
+                firstBitSizeLimit, secondBitSizeLimit);
+
+        this.secondShift = this.firstBitSize;
+        this.firstMask  = mask(this.firstBitSize);
+        this.secondMask = mask(this.secondBitSize);
+
+        // invalidate third part parameters
+        this.thirdShift = INVALID_BIT_SIZE;
+        this.thirdMask  = INVALID_BIT_SIZE;
+    }
+
+    /*--------- Static helpers ---------*/
 
     /**
      * @param size the value to encode
      * @return the required bits to encode the value (exclusive)
      */
-    protected static int requiredBits(long size) {
+    static int requiredBits(long size) {
         return (int) Math.ceil(Math.log(size) / Math.log(2));
     }
 
@@ -99,16 +133,22 @@ abstract class ReferenceCodec {
                 this.firstBitSize, this.secondBitSize, this.thirdBitSize);
     }
 
-    /*------- Internal abstract helpers -------*/
+    /*------- Internal helpers -------*/
 
     /* The ability to get the first parameter value for deleted reference */
-    protected abstract long getFirstForDelete(long reference);
+    protected long getFirstForDelete(long reference) {
+        return getFirst(reference);
+    }
 
     /* The ability to get the second parameter value for deleted referenc */
-    protected abstract long getSecondForDelete(long reference);
+    protected long getSecondForDelete(long reference) {
+        return getSecond(reference);
+    }
 
     /* The ability to get the third parameter value for deleted referenc */
-    protected abstract long getThirdForDelete(long reference);
+    protected long getThirdForDelete(long reference) {
+        return getThird(reference);
+    }
 
     /*------- User Interface -------*/
 
@@ -148,6 +188,21 @@ abstract class ReferenceCodec {
         long third  = getThirdForDelete(reference);
 
         return  encode(first, second, third);
+    }
+
+    long encode(long first, long second) {
+        // These checks validates that the chosen encoding is sufficient for the current use-case.
+        if ((first & ~firstMask) != 0 || (second & ~secondMask) != 0 ) {
+            throw new IllegalArgumentException(
+                String.format(
+                    "%s has insufficient capacity to encode 2 integers: first %s, second %s",
+                    this, first, second));
+        }
+
+        long firstPart  = first & firstMask;
+        long secondPart = (second & secondMask) << secondShift;
+
+        return firstPart | secondPart ;
     }
 
     long encode(long first, long second, long third) {

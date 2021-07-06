@@ -56,7 +56,7 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
     static final int DEFAULT_COLLISION_CHAIN_LENGTH = 3;
     // HASH - the full hash index of this entry (one integer, all bits).
     private static final int HASH_FIELD_OFFSET = 2;
-
+    private static final int FULL_HASH_BITS = 32; // Hash needs to be an integer
     // One additional to the key and value references field, which keeps the full hash index of the entry
     private static final int ADDITIONAL_FIELDS = 1;  // # of primitive fields in each item of entries array
 
@@ -64,6 +64,11 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
     private AtomicInteger collisionChainLength = new AtomicInteger(DEFAULT_COLLISION_CHAIN_LENGTH);
 
     private final OakComparator<K> comparator;
+
+    // use reference codec to encode Full Hash Number integer (first) with its updates counter (second)
+    private final ReferenceCodec hashCodec = new ReferenceCodec(
+        FULL_HASH_BITS, // bits# to represent full hash number as integer, bits# to represent update
+        ReferenceCodec.INVALID_BIT_SIZE); // counter are calculated upon previous parameters (also int)
 
     /*----------------- Constructor -------------------*/
 
@@ -92,17 +97,18 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
      */
     private int getFullHashNumber(int ei) {
         assert isIndexInBound(ei);
-        // TODO: need to extract the number from the updates counter and to return only the integer
-        return (int) getEntryFieldLong(ei, HASH_FIELD_OFFSET);
+        long fullHashNumberField = getEntryFieldLong(ei, HASH_FIELD_OFFSET);
+        // extract the hash number (first) from the updates counter (second)
+        return hashCodec.getFirst(fullHashNumberField);
     }
 
     /**
      * getFullHashEntryField returns the full hash entry index (the entire field including counter!)
      * of the entry given by entry index "ei". The method serves internal and external EntryHashSet users.
      */
-    private int getFullHashEntryField(int ei) {
+    private long getFullHashEntryField(int ei) {
         assert isIndexInBound(ei);
-        return (int) getEntryFieldLong(ei, HASH_FIELD_OFFSET);
+        return getEntryFieldLong(ei, HASH_FIELD_OFFSET);
     }
 
     /**
@@ -114,20 +120,22 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
 
     /**
      * setFullHashEntryIndex sets the full hash entry index (of the entry given by entry index "ei")
-     * to be the "fullHash".
+     * to be the "fullHash". To be used while rebalance, during normal path only CAS is used.
      */
     private void setFullHashEntryIndex(int ei, long fullHash) {
         setEntryFieldLong(ei, HASH_FIELD_OFFSET, fullHash);
     }
 
     /**
-     * casFullHashIndex CAS the full hash entry index (of the entry given by entry index "ei") to be the
-     * "newFullHash" only if it was "oldFullHash"
+     * casFullHashIndex CAS the full hash entry index (of the entry given by entry index "ei") to be
+     * the `newFullHash` only if it was `oldFullHash`, the update counter incorporated inside
+     * `oldFullHash` must match. Also update counter is increased as part of the action.
      */
-    private boolean casFullHashEntryIndex(int ei, long oldFullHash, long newFullHash) {
-        //TODO: need to extract here the updates counter from the old hash
-        //TODO: and to increase it and to add to the new hash
-        return casEntryFieldLong(ei, HASH_FIELD_OFFSET, oldFullHash, newFullHash);
+    private boolean casFullHashEntryIndex(int ei, long oldFullHash, int newFullHash) {
+        // extract the updates counter from the old hash and increase it and to add to the new hash
+        int updCnt = hashCodec.getSecond(oldFullHash);
+        long newFullHashField = hashCodec.encode(newFullHash, updCnt++);
+        return casEntryFieldLong(ei, HASH_FIELD_OFFSET, oldFullHash, newFullHashField);
     }
 
     /********************************************************************************************/
@@ -376,7 +384,7 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
      * @return true only if the allocation was successful.
      *         Otherwise (false), rebalance is required
      **/
-    boolean allocateKey(ThreadContext ctx, K key, int hashIdx, long fullHashIdx) {
+    boolean allocateKey(ThreadContext ctx, K key, int hashIdx, int fullHashIdx) {
         ctx.invalidate();
         if (!isIndexInBound(hashIdx)) {
             // cannot return "false" on illegal arguments,
@@ -393,10 +401,6 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
             // our key exists, either in valid entry, or the key is already set in the relevant entry,
             // but value is not yet set. According to the entry
             // state either fail insertion or continue and compete on assigning the value
-
-            //TODO: we need to check for key's full hash number being already set in the entry
-            //TODO: if not need to apply hash function on the key and write it there
-            //TODO: need to see how hash function can be applied
             return true;
         }
 

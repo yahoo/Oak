@@ -6,8 +6,38 @@
 
 package com.yahoo.oak;
 
-
-class SeqExpandMemoryManager implements MemoryManager {
+/**
+ * A Sequential-Expanding Memory Manager doesn't impose any memory manager related actions upon any
+ * access. A Sequential-Expanding reference is composed of 3 parameters:
+ *
+ * block ID (first), offset (second) and length (third)
+ *
+ * All these parameters may be squashed together into one long for easy representation.
+ * Using different number of bits for each parameter may incur different limitations on their sizes.
+ *
+ * Number of bits used for BlockID + offset gives the size of the memory that can be referenced
+ * with SeqExpandMemoryManager.
+ *
+ * If block size is 256MB = 2^28 --> takes 28 bits
+ * Then BlockID+offset have 36 bits for their representation.
+ * Total memory 64GB
+ *
+ *
+ * The Sequential-Expanding reference codec encodes the reference of the Sequential-Expanding slices
+ * into a single long primitive (64 bit).
+ * For example, for the block size 256MB, we need 28 bits to encode the offset
+ * and additional 28 bits to encode the length.
+ * So, the remaining 8 bits can encode the block id, which will limit the maximal number of blocks to 256.
+ * Thus, the key/value reference encoding when using this block size (256MB) will be as follows:
+ *
+ *    LSB                                       MSB
+ *     |     offset     |     length     | block |
+ *     |     28 bit     |     28 bit     | 8 bit |
+ *      0             27 28            55 56   63
+ *
+ * From that, we can derive that the maximal number of 1K items that can be allocated is ~128 million (2^26).
+ * Note: these limitations will change for different block sizes. */
+class SeqExpandMemoryManager implements MemoryManager  {
     private final BlockMemoryAllocator allocator;
 
     /*
@@ -27,13 +57,14 @@ class SeqExpandMemoryManager implements MemoryManager {
      * Note: these limitations will change for different block sizes.
      *
      */
-    private final ReferenceCodecSeqExpand rc;
+    private final ReferenceCodec rc = new ReferenceCodec(
+        ReferenceCodec.INVALID_BIT_SIZE, // bits# to represent block id are calculated upon other parameters
+        ReferenceCodec.requiredBits(BlocksPool.getInstance().blockSize()),   // bits# to represent offset
+        ReferenceCodec.requiredBits(BlocksPool.getInstance().blockSize()));  // bits# to represent length
 
     SeqExpandMemoryManager(BlockMemoryAllocator memoryAllocator) {
         assert memoryAllocator != null;
         this.allocator = memoryAllocator;
-        rc = new ReferenceCodecSeqExpand(
-            BlocksPool.getInstance().blockSize(), BlocksPool.getInstance().blockSize(), memoryAllocator);
     }
 
     public void close() {
@@ -65,7 +96,7 @@ class SeqExpandMemoryManager implements MemoryManager {
      */
     @Override
     public long getInvalidReference() {
-        return ReferenceCodecSeqExpand.INVALID_REFERENCE;
+        return ReferenceCodec.INVALID_REFERENCE;
     }
 
     @Override
@@ -216,7 +247,7 @@ class SeqExpandMemoryManager implements MemoryManager {
         // Reset all common not final fields to invalid state
         public void invalidate() {
             blockID     = NativeMemoryAllocator.INVALID_BLOCK_ID;
-            reference   = ReferenceCodecSeqExpand.INVALID_REFERENCE;
+            reference   = ReferenceCodec.INVALID_REFERENCE;
             length      = UNDEFINED_LENGTH_OR_OFFSET_OR_ADDRESS;
             offset      = UNDEFINED_LENGTH_OR_OFFSET_OR_ADDRESS;
             memAddress  = UNDEFINED_LENGTH_OR_OFFSET_OR_ADDRESS;

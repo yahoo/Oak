@@ -42,8 +42,8 @@ class ReferenceCodecSyncRecycle extends ReferenceCodec {
      *
      */
     ReferenceCodecSyncRecycle(long blockSize, BlockMemoryAllocator allocator) {
-        super(BITS_FOR_MAXIMUM_RAM - ReferenceCodecSeqExpand.requiredBits(blockSize),
-            ReferenceCodecSeqExpand.requiredBits(blockSize), INVALID_BIT_SIZE);
+        super(BITS_FOR_MAXIMUM_RAM - ReferenceCodec.requiredBits(blockSize),
+            ReferenceCodec.requiredBits(blockSize), INVALID_BIT_SIZE);
         // and the rest goes for version (currently 22 bits)
     }
 
