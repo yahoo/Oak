@@ -19,20 +19,8 @@ package com.yahoo.oak;
  * IMPORTANT: The 3 parameters (first, second and third) cannot be negative numbers!
  * (As negatives have prefix of ones.)
  */
-class ReferenceCodec {
+class ReferenceCodec extends UnionCodec {
     static final long INVALID_REFERENCE = 0;
-    static final int INVALID_BIT_SIZE = -1;
-
-    private int firstBitSize = 0;
-    private int secondBitSize = 0;
-    private int thirdBitSize = 0;
-
-    private final int secondShift;
-    private final int thirdShift;
-
-    private final long firstMask;
-    private final long secondMask;
-    private final long thirdMask;
 
     /*------- Constructor -------*/
 
@@ -46,35 +34,7 @@ class ReferenceCodec {
      * @param thirdBitSizeLimit an upper limit on the size of the third parameter (exclusive)
      */
     protected ReferenceCodec(int firstBitSizeLimit, int secondBitSizeLimit, int thirdBitSizeLimit) {
-
-        if (thirdBitSizeLimit == INVALID_BIT_SIZE) {
-            assert (secondBitSizeLimit != INVALID_BIT_SIZE) && (firstBitSizeLimit != INVALID_BIT_SIZE);
-            this.firstBitSize = firstBitSizeLimit;
-            this.secondBitSize = secondBitSizeLimit;
-            this.thirdBitSize = Long.SIZE - firstBitSize - secondBitSize;
-        } else if (secondBitSizeLimit == INVALID_BIT_SIZE) {
-            // thirdBitSizeLimit is valid
-            assert (firstBitSizeLimit != INVALID_BIT_SIZE);
-            this.firstBitSize = firstBitSizeLimit;
-            this.thirdBitSize = thirdBitSizeLimit;
-            this.secondBitSize = Long.SIZE - firstBitSize - thirdBitSize;
-        } else if (firstBitSizeLimit == INVALID_BIT_SIZE) {
-            this.secondBitSize = secondBitSizeLimit;
-            this.thirdBitSize = thirdBitSizeLimit;
-            this.firstBitSize = Long.SIZE - secondBitSize - thirdBitSize;
-        }
-
-        assert (this.firstBitSize > 0 || this.secondBitSize > 0 || this.thirdBitSize > 0) :
-            String.format(
-                "Not enough bits to encode a reference: firstBitSizeLimit=%,d, secondBitSizeLimit=%,d.",
-                firstBitSizeLimit, secondBitSizeLimit);
-
-        this.secondShift = this.firstBitSize;
-        this.thirdShift  = this.firstBitSize + this.secondBitSize;
-
-        this.firstMask  = mask(this.firstBitSize);
-        this.secondMask = mask(this.secondBitSize);
-        this.thirdMask  = mask(this.thirdBitSize);
+        super(firstBitSizeLimit, secondBitSizeLimit, thirdBitSizeLimit);
     }
 
     /**
@@ -87,50 +47,7 @@ class ReferenceCodec {
      *                          if invalid calculate according to other two limits
      */
     protected ReferenceCodec(int firstBitSizeLimit, int secondBitSizeLimit) {
-
-        if (secondBitSizeLimit == INVALID_BIT_SIZE) {
-            assert (firstBitSizeLimit != INVALID_BIT_SIZE);
-            this.firstBitSize = firstBitSizeLimit;
-            this.secondBitSize = Long.SIZE - firstBitSize;
-        } else if (firstBitSizeLimit == INVALID_BIT_SIZE) {
-            this.secondBitSize = secondBitSizeLimit;
-            this.firstBitSize = Long.SIZE - secondBitSize;
-        }
-
-        assert (this.firstBitSize > 0 || this.secondBitSize > 0) :
-            String.format(
-                "Not enough bits to encode a reference: firstBitSizeLimit=%,d, secondBitSizeLimit=%,d.",
-                firstBitSizeLimit, secondBitSizeLimit);
-
-        this.secondShift = this.firstBitSize;
-        this.firstMask  = mask(this.firstBitSize);
-        this.secondMask = mask(this.secondBitSize);
-
-        // invalidate third part parameters
-        this.thirdShift = INVALID_BIT_SIZE;
-        this.thirdMask  = INVALID_BIT_SIZE;
-    }
-
-    /*--------- Static helpers ---------*/
-
-    /**
-     * @param size the value to encode
-     * @return the required bits to encode the value (exclusive)
-     */
-    static int requiredBits(long size) {
-        return (int) Math.ceil(Math.log(size) / Math.log(2));
-    }
-
-    protected static long mask(int size) {
-        return (1L << size) - 1L;
-    }
-
-    @Override
-    public String toString() {
-        return String.format(
-            "ReferenceCodec(first parameter size: %d bits, second parameter size: %d bits," +
-                " third parameter size: %d bits)",
-                this.firstBitSize, this.secondBitSize, this.thirdBitSize);
+        super(firstBitSizeLimit, secondBitSizeLimit);
     }
 
     /*------- Internal helpers -------*/
@@ -188,50 +105,5 @@ class ReferenceCodec {
         long third  = getThirdForDelete(reference);
 
         return  encode(first, second, third);
-    }
-
-    long encode(long first, long second) {
-        // These checks validates that the chosen encoding is sufficient for the current use-case.
-        if ((first & ~firstMask) != 0 || (second & ~secondMask) != 0 ) {
-            throw new IllegalArgumentException(
-                String.format(
-                    "%s has insufficient capacity to encode 2 integers: first %s, second %s",
-                    this, first, second));
-        }
-
-        long firstPart  = first & firstMask;
-        long secondPart = (second & secondMask) << secondShift;
-
-        return firstPart | secondPart ;
-    }
-
-    long encode(long first, long second, long third) {
-        // These checks validates that the chosen encoding is sufficient for the current use-case.
-        if ((first & ~firstMask) != 0 || (second & ~secondMask) != 0 || (third & ~thirdMask) != 0 ) {
-            throw new IllegalArgumentException(
-                String.format(
-                    "%s has insufficient capacity to encode first %s, second %s, and third %s",
-                    this, first, second, third));
-        }
-
-        long firstPart  = first & firstMask;
-        long secondPart = (second & secondMask) << secondShift;
-        long thirdPart  = (third & thirdMask)   << thirdShift;
-
-        return firstPart | secondPart | thirdPart;
-    }
-
-
-    /* To be used by derived classes */
-    int getFirst(final long reference) {
-        return  (int) (reference & firstMask);
-    }
-
-    int getSecond(final long reference) {
-        return  (int) ((reference >>> secondShift) & secondMask);
-    }
-
-    int getThird(final long reference) {
-        return  (int) ((reference >>> thirdShift) & thirdMask);
     }
 }

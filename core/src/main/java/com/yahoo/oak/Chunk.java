@@ -175,10 +175,10 @@ class Chunk<K, V> {
 
     /**
      * Writes the key off-heap and allocates an entry with the reference pointing to the given key
-     * See {@code EntryOrderedSet.allocateKey(ThreadContext)} for more information
+     * See {@code EntryOrderedSet.allocateEntryAndWriteKey(ThreadContext)} for more information
      */
-    boolean allocateKey(ThreadContext ctx, K key) {
-        return entryOrderedSet.allocateKey(ctx, key);
+    boolean allocateEntryAndWriteKey(ThreadContext ctx, K key) {
+        return entryOrderedSet.allocateEntryAndWriteKey(ctx, key);
     }
 
     /**

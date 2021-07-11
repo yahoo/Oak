@@ -66,7 +66,7 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
     private final OakComparator<K> comparator;
 
     // use reference codec to encode Full Hash Number integer (first) with its updates counter (second)
-    private final ReferenceCodec hashCodec = new ReferenceCodec(
+    private final UnionCodec hashCodec = new UnionCodec(
         FULL_HASH_BITS, // bits# to represent full hash number as integer, bits# to represent update
         ReferenceCodec.INVALID_BIT_SIZE); // counter are calculated upon previous parameters (also int)
 
@@ -81,7 +81,6 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
      */
     EntryHashSet(MemoryManager vMM, MemoryManager kMM, int entriesCapacity, OakSerializer<K> keySerializer,
         OakSerializer<V> valueSerializer, OakComparator<K> comparator) {
-        // We add additional field for the head (dummy) node
         super(vMM, kMM, ADDITIONAL_FIELDS, entriesCapacity, keySerializer, valueSerializer);
         this.comparator = comparator;
     }
@@ -97,9 +96,8 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
      */
     private int getFullHashNumber(int ei) {
         assert isIndexInBound(ei);
-        long fullHashNumberField = getEntryFieldLong(ei, HASH_FIELD_OFFSET);
         // extract the hash number (first) from the updates counter (second)
-        return hashCodec.getFirst(fullHashNumberField);
+        return hashCodec.getFirst(getFullHashEntryField(ei));
     }
 
     /**
@@ -155,8 +153,8 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
      * @param hi          the entry index to compare with
      * @return true - the keys are equal, false - otherwise
      */
-    private boolean equalKeyAndEntryKey(KeyBuffer tempKeyBuff, K key, int hi, long fullKeyHashIdx) {
-        // check the hash value comparision first
+    private boolean isKeyAndEntryKeyEqual(KeyBuffer tempKeyBuff, K key, int hi, long fullKeyHashIdx) {
+        // check the hash value comparison first
         int entryFullHash = getFullHashNumber(hi);
         if (entryFullHash != INVALID_FULL_HASH && entryFullHash != fullKeyHashIdx) {
             return false;
@@ -212,7 +210,7 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
             return EntryState.VALID;
         }
 
-        if (equalKeyAndEntryKey(ctx.key, key, hi, fullKeyHashIdx)) {
+        if (isKeyAndEntryKeyEqual(ctx.key, key, hi, fullKeyHashIdx)) {
             if (!valuesMemoryManager.isReferenceValid(ctx.value.getSlice().getReference())) {
                 return EntryState.INSERT_NOT_FINALIZED;
             }
@@ -249,7 +247,7 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
             // fully deleted (EntryState.DELETED) in this case we cannot compare the key (!)
             // also deletion linearization point is checked during getEntryState()
             if (ctx.entryState != EntryState.DELETED &&
-                equalKeyAndEntryKey(ctx.key, key, ctx.entryIndex, fullHashIdx)) {
+                isKeyAndEntryKeyEqual(ctx.key, key, ctx.entryIndex, fullHashIdx)) {
                 // EntryState.VALID --> the key is found
                 // DELETED_NOT_FINALIZED/UNKNOWN --> key doesn't exists
                 //                      and there is no need to continue to check next entries
@@ -301,7 +299,7 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
             // EntryState.INSERT_NOT_FINALIZED --> you can compete to associate value with the same key
             switch (ctx.entryState) {
                 case VALID:
-                    if (equalKeyAndEntryKey(ctx.key, key, hashIdx, fullHashIdx)) {
+                    if (isKeyAndEntryKeyEqual(ctx.key, key, hashIdx, fullHashIdx)) {
                         // found valid entry has our key, the inserted key must be unique
                         // the entry state will indicate that insert didn't happen
                         return true;
@@ -368,7 +366,7 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
      * The value of the new entry is set to NULL (INVALID_VALUE_REFERENCE)
      * or can be some deleted value
      *
-     * Upon successful finishing of allocateKey():
+     * Upon successful finishing of allocateEntryAndWriteKey():
      * ctx.entryIndex keeps the index of the chosen entry
      * Reference of ctx.key is the reference pointing to the new key
      * Reference of ctx.value is either invalid or deleted reference to the previous entry's value
@@ -418,7 +416,7 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
             ctx.key.getSlice().getReference() /* new reference */ )) {
 
             // key reference CASed (only one should succeed) write the entry's full hash,
-            // because it is used for keys comparision (invalid full hash is not used for comparison)
+            // because it is used for keys comparison (invalid full hash is not used for comparison)
             if ( casFullHashEntryIndex(ctx.entryIndex, ctx.fullHash, fullHashIdx) ) {
                 return true;
             } else {
@@ -428,7 +426,7 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
             }
         }
         // CAS failed, does it failed because the same key as our was assigned?
-        if (equalKeyAndEntryKey(ctx.tempKey, key, hashIdx, fullHashIdx)) {
+        if (isKeyAndEntryKeyEqual(ctx.tempKey, key, hashIdx, fullHashIdx)) {
             return true; // continue to compete on assigning the value
         }
         // CAS failed as other key was assigned restart and look for the entry again

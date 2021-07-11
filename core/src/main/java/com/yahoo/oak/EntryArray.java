@@ -77,7 +77,7 @@ public class EntryArray<K, V> {
      * Create a new instance
      * @param vMM   for values off-heap allocations and releases
      * @param kMM off-heap allocations and releases for keys
-     * @param entriesCapacity how many entries should this EntryArray instance keep at maximum
+     * @param entriesCapacity how many entries should this instance keep at maximum
      * @param keySerializer   used to serialize the key when written to off-heap
      */
     EntryArray(MemoryManager vMM, MemoryManager kMM, int additionalFieldCount, int entriesCapacity,
@@ -475,7 +475,7 @@ public class EntryArray<K, V> {
      * Releases the newly allocated value of the input context.
      * Currently the method is used only to release an
      * unreachable value reference, the one that was not yet attached to an entry!
-     * The method is part of EntryOrderedSet, because it cares also
+     * The method is part of EntryArray, because it cares also
      * for writing the value before attaching it to an entry (allocateValue/writeValueCommit)
      *
      * @param ctx the context that follows the operation since the key was found/created

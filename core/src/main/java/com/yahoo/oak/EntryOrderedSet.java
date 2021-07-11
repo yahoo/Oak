@@ -80,7 +80,6 @@ class EntryOrderedSet<K, V> extends EntryArray<K, V> {
      */
     EntryOrderedSet(MemoryManager vMM, MemoryManager kMM, int entriesCapacity, OakSerializer<K> keySerializer,
         OakSerializer<V> valueSerializer) {
-        // We add additional field for the head (dummy) node
         super(vMM, kMM, ADDITIONAL_FIELDS, entriesCapacity, keySerializer, valueSerializer);
         this.nextFreeIndex = new AtomicInteger( 0);
     }
@@ -166,7 +165,7 @@ class EntryOrderedSet<K, V> extends EntryArray<K, V> {
      * @return true only if the allocation was successful.
      *         Otherwise, it means that the EntryOrderedSet is full (may require a re-balance).
      **/
-    boolean allocateKey(ThreadContext ctx, K key) {
+    boolean allocateEntryAndWriteKey(ThreadContext ctx, K key) {
         ctx.invalidate();
 
         int ei = nextFreeIndex.getAndIncrement();

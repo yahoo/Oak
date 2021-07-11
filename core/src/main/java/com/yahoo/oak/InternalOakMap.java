@@ -384,7 +384,7 @@ class InternalOakMap<K, V> {
         // There was no such key found, going to allocate a new key.
         // EntryOrderedSet allocates the entry (holding the key) and ctx is going to be updated
         // to be used by EntryOrderedSet's subsequent requests to write value
-        if (!c.allocateKey(ctx, key)) {
+        if (!c.allocateEntryAndWriteKey(ctx, key)) {
             rebalance(c); // there was no space to allocate new entry, need to rebalance
             return false;     // after rebalance always restart
         }

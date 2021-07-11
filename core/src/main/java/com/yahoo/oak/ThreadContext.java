@@ -13,7 +13,7 @@ class ThreadContext {
      * Entry Context
      *-----------------------------------------------------------*/
 
-    /* The index of the key's entry in EntryOrderedSet */
+    /* The index of the key's entry in EntryArray */
     int entryIndex;
 
     /* key is used for easier access to the off-heap memory */
