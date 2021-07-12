@@ -12,7 +12,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicMarkableReference;
 import java.util.concurrent.atomic.AtomicReference;
 
-class Chunk<K, V> {
+class OrderedChunk<K, V> {
     // an entry with NONE_NEXT as its next pointer, points to a null entry
     static final int NONE_NEXT = EntryArray.INVALID_ENTRY_INDEX;
 
@@ -37,11 +37,11 @@ class Chunk<K, V> {
     /*-------------- Members --------------*/
 
     KeyBuffer minKey;       // minimal key that can be put in this chunk
-    AtomicMarkableReference<Chunk<K, V>> next;
+    AtomicMarkableReference<OrderedChunk<K, V>> next;
     OakComparator<K> comparator;
 
     // in split/compact process, represents parent of split (can be null!)
-    private final AtomicReference<Chunk<K, V>> creator;
+    private final AtomicReference<OrderedChunk<K, V>> creator;
     // chunk can be in the following states: normal, frozen or infant(has a creator)
     private final AtomicReference<State> state;
     private final AtomicReference<Rebalancer<K, V>> rebalancer;
@@ -53,15 +53,15 @@ class Chunk<K, V> {
     // # of sorted items at entry-array's beginning (resulting from split)
     private final AtomicInteger sortedCount;
     private final int maxItems;
-    AtomicInteger externalSize; // for updating oak's size (reference to one global per Oak size)
+    private AtomicInteger externalSize; // for updating oak's size (reference to one global per Oak size)
 
     /*-------------- Constructors --------------*/
 
     /**
-     * This constructor is only used internally to instantiate a Chunk without a creator and a min-key.
-     * The caller should set the creator and min-key before returning the Chunk to the user.
+     * This constructor is only used internally to instantiate a OrderedChunk without a creator and a min-key.
+     * The caller should set the creator and min-key before returning the OrderedChunk to the user.
      */
-    private Chunk(int maxItems, AtomicInteger externalSize, MemoryManager vMM, MemoryManager kMM,
+    private OrderedChunk(int maxItems, AtomicInteger externalSize, MemoryManager vMM, MemoryManager kMM,
         OakComparator<K> comparator, OakSerializer<K> keySerializer,
         OakSerializer<V> valueSerializer) {
         this.maxItems = maxItems;
@@ -82,9 +82,9 @@ class Chunk<K, V> {
     }
 
     /**
-     * This constructor is only used when creating the first chunk (without a creator).
+     * This constructor is only used when creating the first ever chunk (without a creator).
      */
-    Chunk(K minKey, int maxItems, AtomicInteger externalSize, MemoryManager vMM, MemoryManager kMM,
+    OrderedChunk(K minKey, int maxItems, AtomicInteger externalSize, MemoryManager vMM, MemoryManager kMM,
         OakComparator<K> comparator, OakSerializer<K> keySerializer,
         OakSerializer<V> valueSerializer) {
 
@@ -93,12 +93,13 @@ class Chunk<K, V> {
     }
 
     /**
-     * Create a child Chunk where this Chunk object as its creator.
-     * The child Chunk will have the same minKey as this Chunk (without duplicating the KeyBuffer data).
+     * Create a child OrderedChunk where this OrderedChunk object as its creator.
+     * The child OrderedChunk will have the same minKey as this OrderedChunk
+     * (without duplicating the KeyBuffer data).
      */
-    Chunk<K, V> createFirstChild() {
-        Chunk<K, V> child =
-            new Chunk<>(maxItems, externalSize,
+    OrderedChunk<K, V> createFirstChild() {
+        OrderedChunk<K, V> child =
+            new OrderedChunk<>(maxItems, externalSize,
                 entryOrderedSet.valuesMemoryManager, entryOrderedSet.keysMemoryManager,
                 comparator, entryOrderedSet.keySerializer, entryOrderedSet.valueSerializer);
         child.creator.set(this);
@@ -108,11 +109,11 @@ class Chunk<K, V> {
     }
 
     /**
-     * Create a child Chunk where this Chunk object as its creator.
-     * The child Chunk will use a duplicate minKey of the input (allocates a new buffer).
+     * Create a child OrderedChunk where this OrderedChunk object as its creator.
+     * The child OrderedChunk will use a duplicate minKey of the input (allocates a new buffer).
      */
-    Chunk<K, V> createNextChild(KeyBuffer minKey) {
-        Chunk<K, V> child = new Chunk<>(maxItems, externalSize,
+    OrderedChunk<K, V> createNextChild(KeyBuffer minKey) {
+        OrderedChunk<K, V> child = new OrderedChunk<>(maxItems, externalSize,
             entryOrderedSet.valuesMemoryManager, entryOrderedSet.keysMemoryManager,
             comparator, entryOrderedSet.keySerializer, entryOrderedSet.valueSerializer);
         child.creator.set(this);
@@ -593,17 +594,18 @@ class Chunk<K, V> {
     }
 
     /**
-     * Copies entries from srcChunk (starting srcEntryIdx) to this chunk,
+     * Copies entries from srcOrderedChunk (starting srcEntryIdx) to this chunk,
      * performing entries sorting on the fly (delete entries that are removed as well).
      *
      * @param tempValue   a reusable buffer object for internal temporary usage
-     * @param srcChunk    chunk to copy from
+     * @param srcOrderedChunk    chunk to copy from
      * @param srcEntryIdx start position for copying
      * @param maxCapacity max number of entries "this" chunk can contain after copy
-     * @return entry index of next to the last copied entry (in the srcChunk),
+     * @return entry index of next to the last copied entry (in the srcOrderedChunk),
      *         NONE_NEXT if all items were copied
      */
-    final int copyPartOfEntries(ValueBuffer tempValue, Chunk<K, V> srcChunk, final int srcEntryIdx, int maxCapacity) {
+    final int copyPartOfEntries(
+        ValueBuffer tempValue, OrderedChunk<K, V> srcOrderedChunk, final int srcEntryIdx, int maxCapacity) {
 
         if (srcEntryIdx == NONE_NEXT) {
             return NONE_NEXT;
@@ -635,10 +637,10 @@ class Chunk<K, V> {
 
         // copy entry by entry traversing the source linked list
         int curEntryIdx = srcEntryIdx;
-        while (entryOrderedSet.copyEntry(tempValue, srcChunk.entryOrderedSet, curEntryIdx)) {
+        while (entryOrderedSet.copyEntry(tempValue, srcOrderedChunk.entryOrderedSet, curEntryIdx)) {
             // the source entry was either copied or disregarded as deleted
             // anyway move to next source entry (according to the linked list)
-            curEntryIdx = srcChunk.entryOrderedSet.getNextEntryIndex(curEntryIdx);
+            curEntryIdx = srcOrderedChunk.entryOrderedSet.getNextEntryIndex(curEntryIdx);
 
             // if entry was ignored as deleted (no change in this EntryOrderedSet num of entries), continue
             if (thisNumOfEntries == entryOrderedSet.getNumOfEntries()) {
@@ -687,7 +689,7 @@ class Chunk<K, V> {
         return state.get();
     }
 
-    Chunk<K, V> creator() {
+    OrderedChunk<K, V> creator() {
         return creator.get();
     }
 
@@ -724,7 +726,7 @@ class Chunk<K, V> {
      *
      * @return the next chunk pointed to once marked (will not change)
      */
-    Chunk<K, V> markAndGetNext() {
+    OrderedChunk<K, V> markAndGetNext() {
         // new chunks are ready, we mark frozen chunk's next pointer so it won't change
         // since next pointer can be changed by other split operations we need to do this in a loop - until we succeed
         while (true) {
@@ -734,7 +736,7 @@ class Chunk<K, V> {
                 return next.getReference();
             } else { // otherwise try to mark it
                 // read chunk's current next
-                Chunk<K, V> savedNext = next.getReference();
+                OrderedChunk<K, V> savedNext = next.getReference();
 
                 // try to mark next while keeping the same next chunk - using CAS
                 // if we succeeded then the next pointer we remembered is set and will not change - return it
@@ -788,7 +790,7 @@ class Chunk<K, V> {
     }
 
     /********************************************************************************************/
-    /*------ Base Class for Chunk Iterators (keeps all the common fields and methods) ----------*/
+    /*------ Base Class for OrderedChunk Iterators (keeps all the common fields and methods) ----------*/
 
     // specifier whether the end boundary check needs to be performed on the current scan output
     enum IterEndBoundCheck {

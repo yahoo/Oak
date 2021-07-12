@@ -221,8 +221,8 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
      * lookUp checks whether key exists in the given idx or after.
      * Given initial index for the key, it checks entries[idx] first and continues
      * to the next entries up to 'collisionChainLength', if key wasn't previously found.
-     * If true is returned, ctx.entryIndex keeps the index of the found entry
-     * and ctx.entryState keeps the state.
+     * If true is returned, ctx.entryIndex keeps the index of the found entry,
+     * ctx.entryState keeps the state, and key and value are read into the ctx.
      *
      * @param ctx the context that will follow the operation following this key allocation
      * @param key the key to write
@@ -377,7 +377,7 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
      * @return true only if the allocation was successful.
      *         Otherwise (false), rebalance is required
      **/
-    boolean allocateKey(ThreadContext ctx, K key, int idx, int keyHash) {
+    boolean allocateEntryAndWriteKey(ThreadContext ctx, K key, int idx, int keyHash) {
         ctx.invalidate();
         if (!isIndexInBound(idx)) {
             // cannot return "false" on illegal arguments,
@@ -417,7 +417,7 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
             } else {
                 // someone else proceeded with the same key if key hash is deleted we are totally late
                 // check everything again
-                return allocateKey(ctx, key, idx, keyHash);
+                return allocateEntryAndWriteKey(ctx, key, idx, keyHash);
             }
         }
         // CAS failed, does it failed because the same key as our was assigned?
@@ -425,7 +425,7 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
             return true; // continue to compete on assigning the value
         }
         // CAS failed as other key was assigned restart and look for the entry again
-        return allocateKey(ctx, key, idx, keyHash);
+        return allocateEntryAndWriteKey(ctx, key, idx, keyHash);
 
         // FOR NOW WE ASSUME NO SAME KEY IS INSERTED SIMULTANEOUSLY, SO CHECK IS OMITTED HERE
     }
