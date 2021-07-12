@@ -21,7 +21,7 @@ public class EntryHashSetTest {
         ThreadContext ctx, EntryHashSet ehs, SyncRecycleMemoryManager memoryManager) {
 
         // simple one key insert
-        assert ehs.allocateKey(ctx, new Integer(5), 7 /*000111*/, 39 /*100111*/ );
+        assert ehs.allocateEntryAndWriteKey(ctx, new Integer(5), 7 /*000111*/, 39 /*100111*/ );
         Assert.assertEquals(ctx.entryIndex, 7);
         Assert.assertEquals(ctx.entryState, EntryArray.EntryState.UNKNOWN);
         Assert.assertNotEquals(ctx.key.getSlice().getReference(), memoryManager.getInvalidReference());
@@ -40,7 +40,7 @@ public class EntryHashSetTest {
 
         /************----- New insert ----*************/
         // simple another insert to the same hash idx different full hash idx
-        assert ehs.allocateKey(ctx, new Integer(15), 7 /*000111*/, 23 /*010111*/ );
+        assert ehs.allocateEntryAndWriteKey(ctx, new Integer(15), 7 /*000111*/, 23 /*010111*/ );
         Assert.assertEquals(ctx.entryIndex, 8);
         Assert.assertEquals(ctx.entryState, EntryArray.EntryState.UNKNOWN);
         Assert.assertNotEquals(ctx.key.getSlice().getReference(), memoryManager.getInvalidReference());
@@ -64,7 +64,7 @@ public class EntryHashSetTest {
 
         // insert different key with the same hash idx and the same full hash idx
         // (without exceeding default collision escape number)
-        assert ehs.allocateKey(ctx, new Integer(25), 7 /*000111*/, 23 /*010111*/ );
+        assert ehs.allocateEntryAndWriteKey(ctx, new Integer(25), 7 /*000111*/, 23 /*010111*/ );
         Assert.assertEquals(ctx.entryIndex, 9);
         Assert.assertEquals(ctx.entryState, EntryArray.EntryState.UNKNOWN);
         Assert.assertNotEquals(ctx.key.getSlice().getReference(), memoryManager.getInvalidReference());
@@ -86,12 +86,12 @@ public class EntryHashSetTest {
         // insert different key with the same hash idx and the same full hash idx
         // (exceeding default collision escape number, but not all having the same full hash)
         // should fail to request a rebalance
-        assert (!ehs.allocateKey(ctx, new Integer(35), 7 /*000111*/, 23 /*010111*/ ));
+        assert (!ehs.allocateEntryAndWriteKey(ctx, new Integer(35), 7 /*000111*/, 23 /*010111*/ ));
 
         // insert the same key again,
         // the valid entry state states that the key WASN'T inserted because the same key was found
         // The key and value buffers are populated with the found key
-        assert ehs.allocateKey(ctx, new Integer(5), 7 /*000111*/, 39 /*100111*/ );
+        assert ehs.allocateEntryAndWriteKey(ctx, new Integer(5), 7 /*000111*/, 39 /*100111*/ );
         Assert.assertEquals(ctx.entryIndex, 7);
         Assert.assertEquals(ctx.entryState, EntryArray.EntryState.VALID);
         Assert.assertNotEquals(ctx.key.getSlice().getReference(), memoryManager.getInvalidReference());
@@ -115,7 +115,7 @@ public class EntryHashSetTest {
         assert ehs.writeValueCommit(ctx) == ValueUtils.ValueResult.FALSE;
 
         // simple one insert, different hashIdx, same full hash idx
-        assert ehs.allocateKey(ctx, new Integer(4), 10 /*000111*/, 23 /*100111*/ );
+        assert ehs.allocateEntryAndWriteKey(ctx, new Integer(4), 10 /*000111*/, 23 /*100111*/ );
         Assert.assertEquals(ctx.entryIndex, 10);
         Assert.assertEquals(ctx.entryState, EntryArray.EntryState.UNKNOWN);
         Assert.assertNotEquals(ctx.key.getSlice().getReference(), memoryManager.getInvalidReference());
@@ -136,7 +136,7 @@ public class EntryHashSetTest {
         // insert different key with the same hash idx and the same full hash idx
         // (exceeding default collision escape number, triplet having the same full hash)
         // should not fail and increase collision escapes
-        assert (ehs.allocateKey(ctx, new Integer(35), 8 /*000111*/, 23 /*010111*/ ));
+        assert (ehs.allocateEntryAndWriteKey(ctx, new Integer(35), 8 /*000111*/, 23 /*010111*/ ));
         Assert.assertEquals(ctx.entryIndex, 11);
         Assert.assertEquals(ctx.entryState, EntryArray.EntryState.UNKNOWN);
         Assert.assertTrue(ehs.getCollisionChainLength() > EntryHashSet.DEFAULT_COLLISION_CHAIN_LENGTH);
@@ -303,7 +303,7 @@ public class EntryHashSetTest {
         Assert.assertFalse(ctx.isKeyValid());
 
         //insert on top of the deleted entry
-        assert ehs.allocateKey(ctx, new Integer(5), 7 /*000111*/, 39 /*100111*/ );
+        assert ehs.allocateEntryAndWriteKey(ctx, new Integer(5), 7 /*000111*/, 39 /*100111*/ );
         Assert.assertEquals(ctx.entryIndex, 7);
         Assert.assertEquals(ctx.entryState, EntryArray.EntryState.DELETED);
         Assert.assertNotEquals(ctx.key.getSlice().getReference(), memoryManager.getInvalidReference());

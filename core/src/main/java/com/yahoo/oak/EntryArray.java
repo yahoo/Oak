@@ -65,8 +65,8 @@ public class EntryArray<K, V> {
     protected final int entriesCapacity; // number of entries (not longs) to be maximally held
 
     // Counts number of entries inserted & not deleted. Pay attention that not all entries (counted
-    // in number of entries) are finally are finally considered existing by the Chunk above
-    // and participating in holding the "real" KV-mappings, the "real" are counted in Chunk
+    // in number of entries) are finally are finally considered existing by the OrderedChunk above
+    // and participating in holding the "real" KV-mappings, the "real" are counted in OrderedChunk
     protected final AtomicInteger numOfEntries;
 
     // for writing the keys into the off-heap
@@ -251,7 +251,7 @@ public class EntryArray<K, V> {
      * Reference being marked as deleted is checked.
      *
      * Pay attention that (given entry's) value may be deleted asynchronously by other thread just
-     * after this check.
+     * after this check. For the thread safety use a copy of value reference.
      * */
     boolean isValueRefValidAndNotDeleted(int ei) {
         long valRef = getValueReference(ei);
