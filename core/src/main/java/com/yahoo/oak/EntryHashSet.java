@@ -8,35 +8,36 @@ package com.yahoo.oak;
 
 import java.util.concurrent.atomic.AtomicInteger;
 
-/* EntryHashSet keeps a set of entries placed according to the hash function.
+/* EntryHashSet keeps a set of entries placed according to the key hash.
  * Entry is reference to key and value, both located off-heap.
- * EntryHashSet provides access, updates and manipulation on each entry, provided its entry hash index.
+ * EntryHashSet provides access, updates and manipulation on each entry, provided its entry index.
  *
- * Entry is a set of at least 2 fields (consecutive longs), part of "entries" int array. The definition
- * of each long is explained below. Also bits of each long (references) are represented in a very special
- * way (also explained below). The bits manipulations are ReferenceCodec responsibility.
+ * Entry of EntryHashSet is a set of 3 fields (consecutive longs), part of "entries" long array.
+ * The definition of each long is explained below. Also bits of each long (references) are represented
+ * in a very special way (also explained below). The bits manipulations are ReferenceCodec responsibility.
  * Please update with care.
  *
  * Entries Array:
  * --------------------------------------------------------------------------------------
  * 0 | Key Reference          | Reference encoding all info needed to           |
  *   |                        | access the key off-heap                         | entry with
- * -----------------------------------------------------------------------------| entry hash index
+ * -----------------------------------------------------------------------------| entry index
  * 1 | Value Reference        | Reference encoding all info needed to           | 0
- *   |                        | access the key off-heap.                        |
- *   |                        | The encoding of key and value can be different  |
+ *   |                        | access the value off-heap. (The encoding        |
+ *   |                        | algorithm of key and value can be different)    |
  * -----------------------------------------------------------------------------|
- * 2 | Hash  - FULL entry hash index, which might be different (bigger) than    |
- *   |         entry hash index                                                 |
+ * 2 | Hash  - key hash, which might be different (bigger) than                 |
+ *   |         entry index + update counter (increased every update)            |
  * ---------------------------------------------------------------------------------------
- * 3 | Key Reference          | Deleted reference (still) encoding all info     |
- *   |                        | needed to access the key off-heap               |
- * -----------------------------------------------------------------------------| Deleted entry with
- * 4 | Value Reference        | Deleted reference(still)  encoding all info     | entry hash index
- *   |                        | needed to access the key off-heap.              | 1
- * -----------------------------------------------------------------------------|
- * 5 | Hash  - FULL entry hash index, which might be different (bigger) than    |
- *   |         entry hash index                                                 |
+ * 3 | Key Reference          | Reference encoding all access info.             |
+ *   |                        | Deleted reference (still) encoding all info     | entry with
+ *   |                        | needed to access the key off-heap               | entry index
+ * -----------------------------------------------------------------------------| 1
+ * 4 | Value Reference        | Reference encoding all access info              |
+ *   |                        |                                                 | entry can be
+ * -----------------------------------------------------------------------------| deleted
+ * 5 | Hash  - key hash, which might be different (bigger) than                 |
+ *   |         entry index + update counter (increased every update)            |
  * ---------------------------------------------------------------------------------------
  * 6 | Key Reference          | Invalid key reference                           | empty entry
  * -----------------------------------------------------------------------------|
@@ -52,26 +53,26 @@ import java.util.concurrent.atomic.AtomicInteger;
 class EntryHashSet<K, V> extends EntryArray<K, V> {
 
     /*-------------- Constants --------------*/
-    static final int INVALID_FULL_HASH = 0; // because memory is initially zeroed
+    static final int INVALID_KEY_HASH = 0; // because memory is initially zeroed
     static final int DEFAULT_COLLISION_CHAIN_LENGTH = 3;
-    // HASH - the full hash index of this entry (one integer, all bits).
+    // HASH - the key hash of this entry (long includes the update counter)
     private static final int HASH_FIELD_OFFSET = 2;
-    private static final int FULL_HASH_BITS = 32; // Hash needs to be an integer
-    // One additional to the key and value references field, which keeps the full hash index of the entry
-    private static final int ADDITIONAL_FIELDS = 1;  // # of primitive fields in each item of entries array
+    private static final int KEY_HASH_BITS = 32; // Hash needs to be an integer
+    // Additional field to keep key hash + its update counter (additional to the key and value reference fields)
+    // # of additional primitive fields in each item of entries array
+    private static final int ADDITIONAL_FIELDS = 1;
 
     // number of entries candidates to try in case of collision
     private AtomicInteger collisionChainLength = new AtomicInteger(DEFAULT_COLLISION_CHAIN_LENGTH);
 
     private final OakComparator<K> comparator;
 
-    // use reference codec to encode Full Hash Number integer (first) with its updates counter (second)
+    // use union codec to encode key hash integer (first) with its update counter (second)
     private final UnionCodec hashCodec = new UnionCodec(
-        FULL_HASH_BITS, // bits# to represent full hash number as integer, bits# to represent update
-        ReferenceCodec.INVALID_BIT_SIZE); // counter are calculated upon previous parameters (also int)
+        KEY_HASH_BITS, // bits# to represent full hash number as integer, bits# to represent update
+        UnionCodec.INVALID_BIT_SIZE); // counter are calculated upon previous parameters (also int)
 
     /*----------------- Constructor -------------------*/
-
     /**
      * Create a new EntryHashSet
      * @param vMM   for values off-heap allocations and releases
@@ -85,63 +86,60 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
         this.comparator = comparator;
     }
 
-
-
-    /********************************************************************************************/
-    /*---------- Methods for managing full hash entry indexes (package visibility) -------------*/
-
+    /*---------- Private methods for managing key hash entry field -------------*/
     /**
-     * getFullHashNumber returns the full hash entry index (the number only!) of the entry
-     * given by entry index "ei". The method serves internal and external EntryHashSet users.
+     * getKeyHash returns the key hash of the entry given by entry index "ei"
+     * (without update counter!).
      */
-    private int getFullHashNumber(int ei) {
+    private int getKeyHash(int ei) {
         assert isIndexInBound(ei);
         // extract the hash number (first) from the updates counter (second)
-        return hashCodec.getFirst(getFullHashEntryField(ei));
+        return hashCodec.getFirst(getKeyHashAndUpdateCounter(ei));
     }
 
     /**
-     * getFullHashEntryField returns the full hash entry index (the entire field including counter!)
-     * of the entry given by entry index "ei". The method serves internal and external EntryHashSet users.
+     * getKeyHashAndUpdateCounter returns the key hash (the entire long including the update counter!)
+     * of the entry given by entry index "ei".
      */
-    private long getFullHashEntryField(int ei) {
+    private long getKeyHashAndUpdateCounter(int ei) {
         assert isIndexInBound(ei);
         return getEntryFieldLong(ei, HASH_FIELD_OFFSET);
     }
 
     /**
-     * isFullHashIndexValid checks the index itself disregarding the update counter
+     * isKeyHashValid checks the key hash itself disregarding the update counter
      */
-    private boolean isFullHashIndexValid(int ei) {
-        return (getFullHashNumber(ei) != INVALID_FULL_HASH);
+    private boolean isKeyHashValid(int ei) {
+        return (getKeyHash(ei) != INVALID_KEY_HASH);
     }
 
     /**
-     * setFullHashEntryIndex sets the full hash entry index (of the entry given by entry index "ei")
-     * to be the "fullHash". To be used while rebalance, during normal path only CAS is used.
+     * setKeyHashAndUpdateCounter sets the key hash (of the entry given by entry index "ei")
+     * to be the "hash". Long parameter "hash" must include the update counter!
+     * To be used while rebalance, during normal path only CAS is used.
      */
-    private void setFullHashEntryIndex(int ei, long fullHash) {
-        setEntryFieldLong(ei, HASH_FIELD_OFFSET, fullHash);
+    private void setKeyHashAndUpdateCounter(int ei, long hash) {
+        setEntryFieldLong(ei, HASH_FIELD_OFFSET, hash);
     }
 
     /**
-     * casFullHashIndex CAS the full hash entry index (of the entry given by entry index "ei") to be
-     * the `newFullHash` only if it was `oldFullHash`, the update counter incorporated inside
-     * `oldFullHash` must match. Also update counter is increased as part of the action.
+     * casKeyHashAndUpdateCounter CAS the key hash including the update counter
+     * (of the entry given by entry index "ei") to be
+     * the `newKeyHash` only if it was `oldKeyHash`, the update counter incorporated inside
+     * `oldKeyHash` must match. Also update counter is increased as part of the action.
      */
-    private boolean casFullHashEntryIndex(int ei, long oldFullHash, int newFullHash) {
+    private boolean casKeyHashAndUpdateCounter(int ei, long oldKeyHash, int newKeyHash) {
         // extract the updates counter from the old hash and increase it and to add to the new hash
-        int updCnt = hashCodec.getSecond(oldFullHash);
-        long newFullHashField = hashCodec.encode(newFullHash, updCnt++);
-        return casEntryFieldLong(ei, HASH_FIELD_OFFSET, oldFullHash, newFullHashField);
+        int updCnt = hashCodec.getSecond(oldKeyHash);
+        long newFullHashField = hashCodec.encode(newKeyHash, updCnt++);
+        return casEntryFieldLong(ei, HASH_FIELD_OFFSET, oldKeyHash, newFullHashField);
     }
 
-    /********************************************************************************************/
     /*----- Private Helpers -------*/
-
     /**
-     * Compare a key with a serialized key that is pointed by a specific entry hash index,
-     * and say whether they are equal.
+     * Compare an object key with a serialized key that is pointed by a specific entry index,
+     * and say whether they are equal. The comparison starts with hash of two keys compare,
+     * only if serialized key's hash is valid.
      *
      * IMPORTANT:
      *  1. Assuming the entry's key is already read into the tempKeyBuff
@@ -150,54 +148,50 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
      *                    As a side effect, this buffer will contain the compared
      *                    serialized key.
      * @param key         the key to compare
-     * @param hi          the entry index to compare with
+     * @param idx         the entry index to compare with
+     * @param keyHash     the hash of the object key without update counter
      * @return true - the keys are equal, false - otherwise
      */
-    private boolean isKeyAndEntryKeyEqual(KeyBuffer tempKeyBuff, K key, int hi, long fullKeyHashIdx) {
-        // check the hash value comparison first
-        int entryFullHash = getFullHashNumber(hi);
-        if (entryFullHash != INVALID_FULL_HASH && entryFullHash != fullKeyHashIdx) {
+    private boolean isKeyAndEntryKeyEqual(KeyBuffer tempKeyBuff, K key, int idx, int keyHash) {
+        // check the key's hash comparison first
+        int entryKeyHash = getKeyHash(idx);
+        if (entryKeyHash != INVALID_KEY_HASH && entryKeyHash != keyHash) {
             return false;
         }
         return (0 == comparator.compareKeyAndSerializedKey(key, tempKeyBuff));
     }
 
-    @VisibleForTesting
-    int getCollisionChainLength() {
-        return collisionChainLength.get();
-    }
-
-    /* Check the entry in `hi` for being occupied
-    ** Assume upon invocation that ctx.value ctx.key ctx.fullHash are invalidated
+    /* Check the state of the entry in `idx`
+    ** Assume upon invocation that ctx.value, ctx.key, and ctx.keyHash are invalidated
     ** At the end:
-    ** If output is  EntryState.UNKNOWN --> ctx.key, ctx.value, ctx.fullHash remain untouched
+    ** If output is  EntryState.UNKNOWN --> ctx.key, ctx.value, ctx.keyHash remain untouched
     ** If output is  EntryState.DELETED_NOT_FINALIZED/DELETED/INSERT_NOT_FINALIZED/VALID
-    ** --> ctx.key, ctx.value, ctx.fullHash keep the data of the entry's key, value, and full hash number
+    ** --> ctx.key, ctx.value, ctx.keyHash keep the data of the entry's key, value, and key hash
      */
-    private EntryState getEntryState(ThreadContext ctx, int hi, K key, long fullKeyHashIdx) {
+    private EntryState getEntryState(ThreadContext ctx, int idx, K key, int keyHash) {
 
-        if (getKeyReference(hi) == keysMemoryManager.getInvalidReference()) {
+        if (getKeyReference(idx) == keysMemoryManager.getInvalidReference()) {
             return EntryState.UNKNOWN;
         }
-        ctx.fullHash = getFullHashEntryField(hi);
+        ctx.keyHash = getKeyHashAndUpdateCounter(idx);
         // entry was used already, is value deleted?
         // the linearization point of deletion is marking the value off-heap
         // isValueDeleted checks the reference first (for being invalid or deleted) than the off-heap header
-        if (isValueDeleted(ctx.value, hi)) { // value is read to the ctx.value as a side effect
+        if (isValueDeleted(ctx.value, idx)) { // value is read to the ctx.value as a side effect
             // for later progressing with deleted entry read current key slice
             // (value is read during deleted key check, unless deleted)
-            if (readKey(ctx.key, hi)) {
+            if (readKey(ctx.key, idx)) {
                 // key is not deleted: either this deletion is not yet finished,
                 // or this is a new assignment on top of deleted entry
-                // Check the full hash index:
+                // Check the key hash:
                 // if invalid --> this is INSERT_NOT_FINALIZED if valid --> DELETED_NOT_FINALIZED
-                if (isFullHashIndexValid(hi)) {
+                if (isKeyHashValid(idx)) {
                     return EntryState.DELETED_NOT_FINALIZED;
                 }
             } else {
                 // key is deleted, check that full hash index is invalidated,
                 // because it is the last stage of deletion
-                return isFullHashIndexValid(hi) ? EntryState.DELETED_NOT_FINALIZED : EntryState.DELETED;
+                return isKeyHashValid(idx) ? EntryState.DELETED_NOT_FINALIZED : EntryState.DELETED;
             }
             // not finalized insert is progressing out of this if
         }
@@ -206,11 +200,11 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
         readKey(ctx.key, ctx.entryIndex);
 
         // value is either invalid or valid (but not deleted), can be in progress of being inserted
-        if (isValueRefValidAndNotDeleted(hi)) {
+        if (isValueRefValidAndNotDeleted(idx)) {
             return EntryState.VALID;
         }
 
-        if (isKeyAndEntryKeyEqual(ctx.key, key, hi, fullKeyHashIdx)) {
+        if (isKeyAndEntryKeyEqual(ctx.key, key, idx, keyHash)) {
             if (!valuesMemoryManager.isReferenceValid(ctx.value.getSlice().getReference())) {
                 return EntryState.INSERT_NOT_FINALIZED;
             }
@@ -218,36 +212,41 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
         return EntryState.VALID;
     }
 
+    @VisibleForTesting
+    int getCollisionChainLength() {
+        return collisionChainLength.get();
+    }
+
     /**
-     * lookUp checks whether key exists in the given hashIdx or after.
-     * Given initial hash index for the key, it checks entries[hashIdx] first and continues
+     * lookUp checks whether key exists in the given idx or after.
+     * Given initial index for the key, it checks entries[idx] first and continues
      * to the next entries up to 'collisionChainLength', if key wasn't previously found.
      * If true is returned, ctx.entryIndex keeps the index of the found entry
      * and ctx.entryState keeps the state.
      *
      * @param ctx the context that will follow the operation following this key allocation
      * @param key the key to write
-     * @param hashIdx hashIdx=fullHash||bit_size_mask
-     * @param fullHashIdx fullHashIdx=hashFunction(key)
+     * @param idx idx=keyHash||bit_size_mask
+     * @param keyHash keyHash=hashFunction(key)
      * @return true only if the key is found (ctx.entryState keeps more details).
      *         Otherwise (false), key wasn't found, ctx with it's buffers is invalidated
      */
-    boolean lookUp(ThreadContext ctx, K key, int hashIdx, long fullHashIdx) {
+    boolean lookUp(ThreadContext ctx, K key, int idx, int keyHash) {
         // start from given hash index
         // and check the next `collisionChainLength` indexes if previous index is occupied
         int collisionChainLengthLocal = collisionChainLength.get();
 
         // as far as we didn't check more than `collisionChainLength` indexes
         for (int i = 0; i < collisionChainLengthLocal; i++) {
-            ctx.entryIndex = (hashIdx + i) % entriesCapacity; // check the entry candidate, cyclic increase
+            ctx.entryIndex = (idx + i) % entriesCapacity; // check the entry candidate, cyclic increase
             // entry's key is read into ctx.tempKey as a side effect
-            ctx.entryState = getEntryState(ctx, ctx.entryIndex, key, fullHashIdx);
+            ctx.entryState = getEntryState(ctx, ctx.entryIndex, key, keyHash);
 
             // value and key slices are read during getEntryState() unless the entry is
             // fully deleted (EntryState.DELETED) in this case we cannot compare the key (!)
             // also deletion linearization point is checked during getEntryState()
             if (ctx.entryState != EntryState.DELETED &&
-                isKeyAndEntryKeyEqual(ctx.key, key, ctx.entryIndex, fullHashIdx)) {
+                isKeyAndEntryKeyEqual(ctx.key, key, ctx.entryIndex, keyHash)) {
                 // EntryState.VALID --> the key is found
                 // DELETED_NOT_FINALIZED/UNKNOWN --> key doesn't exists
                 //                      and there is no need to continue to check next entries
@@ -261,26 +260,22 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
         return false;
     }
 
-
     /**
      * findSuitableEntryForInsert finds the entry where given hey is going to be inserted.
-     * Given initial hash index for the key, it checks entries[hashIdx] first and continues
+     * Given initial index for the key, it checks entries[idx] first and continues
      * to the next entries up to 'collisionChainLength', if the previous entries are all occupied.
      * If true is returned, ctx.entryIndex keeps the index of the chosen entry
      * and ctx.entryState keeps the state.
      *
-     * IMPORTANT:
-     *  1. Throws IllegalStateException if too much collisions are found
-     *
      * @param ctx the context that will follow the operation following this key allocation
      * @param key the key to write
-     * @param hashIdx hashIdx=fullHash||bit_size_mask
-     * @param fullHashIdx fullHashIdx=hashFunction(key)
+     * @param idx idx=keyHash||bit_size_mask
+     * @param keyHash keyHash=hashFunction(key)
      * @return true only if the index is found (ctx.entryState keeps more details).
      *         Otherwise (false), re-balance is required
      *         ctx.entryIndex keeps the index of the chosen entry & ctx.entryState keeps the state
      */
-    private boolean findSuitableEntryForInsert(ThreadContext ctx, K key, int hashIdx, long fullHashIdx) {
+    private boolean findSuitableEntryForInsert(ThreadContext ctx, K key, int idx, int keyHash) {
         // start from given hash index
         // and check the next `collisionChainLength` indexes if previous index is occupied
         int collisionChainLengthLocal = collisionChainLength.get();
@@ -289,9 +284,9 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
         // as far as we didn't check more than `collisionChainLength` indexes
         for (int i = 0; i < collisionChainLengthLocal; i++) {
             ctx.invalidate();
-            ctx.entryIndex = (hashIdx + i) % entriesCapacity; // check the entry candidate, cyclic increase
+            ctx.entryIndex = (idx + i) % entriesCapacity; // check the entry candidate, cyclic increase
             // entry's key is read into ctx.tempKey as a side effect
-            ctx.entryState = getEntryState(ctx, ctx.entryIndex, key, fullHashIdx);
+            ctx.entryState = getEntryState(ctx, ctx.entryIndex, key, keyHash);
 
             // EntryState.VALID --> entry is occupied, continue to next possible location
             // EntryState.DELETED_NOT_FINALIZED --> finish the deletion, then try to insert here
@@ -299,7 +294,7 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
             // EntryState.INSERT_NOT_FINALIZED --> you can compete to associate value with the same key
             switch (ctx.entryState) {
                 case VALID:
-                    if (isKeyAndEntryKeyEqual(ctx.key, key, hashIdx, fullHashIdx)) {
+                    if (isKeyAndEntryKeyEqual(ctx.key, key, idx, keyHash)) {
                         // found valid entry has our key, the inserted key must be unique
                         // the entry state will indicate that insert didn't happen
                         return true;
@@ -323,30 +318,30 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
         }
 
         if (!entryFound) {
-            boolean differentFullHashIdxes = false;
+            boolean differentKeyHashes = false;
             // we checked allowed number of locations and all were occupied
-            // if all occupied entries have same full hash index (rebalance won't help)
+            // if all occupied entries have same key hash (rebalance won't help)
             //           --> increase collisionChainLength
             // otherwise --> rebalance
-            int currentLocation = hashIdx;
+            int currentLocation = idx;
             while (collisionChainLengthLocal > 1) {
-                if (getFullHashNumber(currentLocation) !=
-                    getFullHashNumber(currentLocation + 1)) {
-                    differentFullHashIdxes = true;
+                if (getKeyHash(currentLocation) !=
+                    getKeyHash(currentLocation + 1)) {
+                    differentKeyHashes = true;
                     break;
                 }
                 currentLocation++;
                 collisionChainLengthLocal--;
             }
-            if (differentFullHashIdxes) {
+            if (differentKeyHashes) {
                 return false; // do rebalance
             } else {
                 if (collisionChainLength.get() > (DEFAULT_COLLISION_CHAIN_LENGTH * 10)) {
-                    throw new IllegalStateException("Too much collisions for the hash function");
+                    System.out.println("WARNING!: Too much collisions for the hash function");
                 }
                 collisionChainLength.incrementAndGet();
                 // restart recursively (hopefully won't happen too much)
-                return findSuitableEntryForInsert(ctx, key, hashIdx, fullHashIdx);
+                return findSuitableEntryForInsert(ctx, key, idx, keyHash);
             }
         }
 
@@ -360,8 +355,8 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
     /*------ Methods for managing the write/remove path of the hashed keys and values  ---------*/
 
     /**
-     * Creates/allocates an entry for the key, given fullHashIdx=hashFunction(key)
-     * and hashIdx=fullHash||bit_size_mask. An entry is always associated with a key,
+     * Creates/allocates an entry for the key, given keyHash=hashFunction(key)
+     * and idx=keyHash||bit_size_mask. An entry is always associated with a key,
      * therefore the key is written to off-heap and associated with the entry simultaneously.
      * The value of the new entry is set to NULL (INVALID_VALUE_REFERENCE)
      * or can be some deleted value
@@ -377,20 +372,20 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
      *
      * @param ctx the context that will follow the operation following this key allocation
      * @param key the key to write
-     * @param hashIdx hashIdx=fullHash||bit_size_mask
-     * @param fullHashIdx fullHashIdx=hashFunction(key)
+     * @param idx idx=keyHash||bit_size_mask
+     * @param keyHash keyHash=hashFunction(key)
      * @return true only if the allocation was successful.
      *         Otherwise (false), rebalance is required
      **/
-    boolean allocateKey(ThreadContext ctx, K key, int hashIdx, int fullHashIdx) {
+    boolean allocateKey(ThreadContext ctx, K key, int idx, int keyHash) {
         ctx.invalidate();
-        if (!isIndexInBound(hashIdx)) {
+        if (!isIndexInBound(idx)) {
             // cannot return "false" on illegal arguments,
             // it would just indicate unnecessary rebalnce requirement
             throw new IllegalArgumentException("Hash index out of bounds");
         }
 
-        if (!findSuitableEntryForInsert(ctx, key, hashIdx, fullHashIdx)) {
+        if (!findSuitableEntryForInsert(ctx, key, idx, keyHash)) {
             // rebalance is required
             return false;
         }
@@ -415,22 +410,22 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
         if (casKeyReference(ctx.entryIndex, ctx.tempKey.getSlice().getReference(), /* old reference */
             ctx.key.getSlice().getReference() /* new reference */ )) {
 
-            // key reference CASed (only one should succeed) write the entry's full hash,
-            // because it is used for keys comparison (invalid full hash is not used for comparison)
-            if ( casFullHashEntryIndex(ctx.entryIndex, ctx.fullHash, fullHashIdx) ) {
+            // key reference CASed (only one should succeed) write the entry's key hash,
+            // because it is used for keys comparison (invalid key hash is not used for comparison)
+            if ( casKeyHashAndUpdateCounter(ctx.entryIndex, ctx.keyHash, keyHash) ) {
                 return true;
             } else {
-                // someone else proceeded with the same key if full hash is deleted we are totally late
+                // someone else proceeded with the same key if key hash is deleted we are totally late
                 // check everything again
-                return allocateKey(ctx, key, hashIdx, fullHashIdx);
+                return allocateKey(ctx, key, idx, keyHash);
             }
         }
         // CAS failed, does it failed because the same key as our was assigned?
-        if (isKeyAndEntryKeyEqual(ctx.tempKey, key, hashIdx, fullHashIdx)) {
+        if (isKeyAndEntryKeyEqual(ctx.tempKey, key, idx, keyHash)) {
             return true; // continue to compete on assigning the value
         }
         // CAS failed as other key was assigned restart and look for the entry again
-        return allocateKey(ctx, key, hashIdx, fullHashIdx);
+        return allocateKey(ctx, key, idx, keyHash);
 
         // FOR NOW WE ASSUME NO SAME KEY IS INSERTED SIMULTANEOUSLY, SO CHECK IS OMITTED HERE
     }
@@ -443,7 +438,7 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
      * The rest is: (2) marking the delete bit in the key's off-heap header;
      * (3) marking the value reference as deleted
      * (4) marking the key reference as deleted;
-     * (5) invalidate the full hash idx as well
+     * (5) invalidate the key hash as well
      *
      * All the actions are made via CAS and thus idempotent. All the expected CAS values are taken
      * from ctx that must be previously updated (when the entry was first found). The return value
@@ -460,9 +455,9 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
      */
     boolean deleteValueFinish(ThreadContext ctx) {
         if (valuesMemoryManager.isReferenceDeleted(ctx.value.getSlice().getReference())
-            && getFullHashNumber(ctx.entryIndex) == INVALID_FULL_HASH) {
+            && getKeyHash(ctx.entryIndex) == INVALID_KEY_HASH) {
             // entry is already deleted
-            // value reference is marked deleted and full hash is invalid, the last stages are done
+            // value reference is marked deleted and key hash is invalid, the last stages are done
             ctx.entryState = EntryState.DELETED;
             return false;
         }
@@ -502,7 +497,7 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
             ctx.key.invalidate();
         }
 
-        if (casFullHashEntryIndex(ctx.entryIndex, ctx.fullHash, INVALID_FULL_HASH)) {
+        if (casKeyHashAndUpdateCounter(ctx.entryIndex, ctx.keyHash, INVALID_KEY_HASH)) {
             numOfEntries.getAndDecrement();
             ctx.entryState = EntryState.DELETED;
         }
