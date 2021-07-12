@@ -8,8 +8,8 @@ package com.yahoo.oak;
 
 import java.util.concurrent.atomic.AtomicInteger;
 
-/* EntrySet keeps a set of entries linked to a link list. Entry is reference to key and value, both located
- * off-heap. EntrySet provides access, updates and manipulation on each entry, provided its index.
+/* EntryOrderedSet keeps a set of entries linked to a link list. Entry is reference to key and value, both located
+ * off-heap. EntryOrderedSet provides access, updates and manipulation on each entry, provided its index.
  *
  * Entry is a set of at least 2 fields (consecutive longs), part of "entries" int array. The definition
  * of each long is explained below. Also bits of each long (references) are represented in a very special
@@ -48,7 +48,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  *
  * Internal class, package visibility
  */
-class EntrySet<K, V> extends EntryArray<K, V> {
+class EntryOrderedSet<K, V> extends EntryArray<K, V> {
 
     /*-------------- Constants --------------*/
 
@@ -72,15 +72,14 @@ class EntrySet<K, V> extends EntryArray<K, V> {
     /*----------------- Constructor -------------------*/
 
     /**
-     * Create a new EntrySet
+     * Create a new EntryOrderedSet
      * @param vMM   for values off-heap allocations and releases
      * @param kMM off-heap allocations and releases for keys
-     * @param entriesCapacity how many entries should this EntrySet keep at maximum
+     * @param entriesCapacity how many entries should this EntryOrderedSet keep at maximum
      * @param keySerializer   used to serialize the key when written to off-heap
      */
-    EntrySet(MemoryManager vMM, MemoryManager kMM, int entriesCapacity, OakSerializer<K> keySerializer,
+    EntryOrderedSet(MemoryManager vMM, MemoryManager kMM, int entriesCapacity, OakSerializer<K> keySerializer,
         OakSerializer<V> valueSerializer) {
-        // We add additional field for the head (dummy) node
         super(vMM, kMM, ADDITIONAL_FIELDS, entriesCapacity, keySerializer, valueSerializer);
         this.nextFreeIndex = new AtomicInteger( 0);
     }
@@ -89,26 +88,12 @@ class EntrySet<K, V> extends EntryArray<K, V> {
         return nextFreeIndex.get();
     }
 
-
-    /*
-     * isValueRefValidAndNotDeleted is used only to check whether the value reference, which is part of the
-     * entry on entry index "ei" is valid and not deleted. No off-heap value deletion mark check.
-     * Reference being marked as deleted is checked.
-     *
-     * Pay attention that (given entry's) value may be deleted asynchronously by other thread just
-     * after this check. For the thread safety use a copy of value reference.
-     * */
-    boolean isValueRefValidAndNotDeleted(int ei) {
-        long valRef = getValueReference(ei);
-        return valuesMemoryManager.isReferenceValidAndNotDeleted(valRef);
-    }
-
     /********************************************************************************************/
     /*------------- Methods for managing next entry indexes (package visibility) ---------------*/
 
     /**
      * getNextEntryIndex returns the next entry index (of the entry given by entry index "ei")
-     * The method serves external EntrySet users.
+     * The method serves external EntryOrderedSet users.
      */
     int getNextEntryIndex(int ei) {
         if (!isIndexInBound(ei)) {
@@ -120,7 +105,7 @@ class EntrySet<K, V> extends EntryArray<K, V> {
     /**
      * setNextEntryIndex sets the next entry index (of the entry given by entry index "ei")
      * to be the "next". Input parameter "next" must be a valid entry index (not integer index!).
-     * The method serves external EntrySet users.
+     * The method serves external EntryOrderedSet users.
      */
     void setNextEntryIndex(int ei, int next) {
         assert ei <= nextFreeIndex.get() && next <= nextFreeIndex.get();
@@ -139,7 +124,7 @@ class EntrySet<K, V> extends EntryArray<K, V> {
     /**
      * casNextEntryIndex CAS the next entry index (of the entry given by entry index "ei") to be the
      * "nextNew" only if it was "nextOld". Input parameter "nextNew" must be a valid entry index.
-     * The method serves external EntrySet users.
+     * The method serves external EntryOrderedSet users.
      */
     boolean casNextEntryIndex(int ei, int nextOld, int nextNew) {
         return casEntryFieldLong(ei, NEXT_FIELD_OFFSET, nextOld, nextNew);
@@ -160,7 +145,7 @@ class EntrySet<K, V> extends EntryArray<K, V> {
     /**
      * getHeadEntryIndex returns the entry index of the entry first in the array,
      * which is written in the first integer of the array
-     * The method serves external EntrySet users.
+     * The method serves external EntryOrderedSet users.
      */
     int getHeadNextEntryIndex() {
         return headEntryIndex.get();
@@ -178,9 +163,9 @@ class EntrySet<K, V> extends EntryArray<K, V> {
      * @param ctx the context that will follow the operation following this key allocation
      * @param key the key to write
      * @return true only if the allocation was successful.
-     *         Otherwise, it means that the EntrySet is full (may require a re-balance).
+     *         Otherwise, it means that the EntryOrderedSet is full (may require a re-balance).
      **/
-    boolean allocateEntry(ThreadContext ctx, K key) {
+    boolean allocateEntryAndWriteKey(ThreadContext ctx, K key) {
         ctx.invalidate();
 
         int ei = nextFreeIndex.getAndIncrement();
@@ -189,52 +174,15 @@ class EntrySet<K, V> extends EntryArray<K, V> {
             return false;
         }
         numOfEntries.getAndIncrement();
-
         ctx.entryIndex = ei;
-        writeKey(ctx, key);
-        return true;
-    }
-
-    /**
-     * Writes given key object "key" (to off-heap) as a serialized key, referenced by entry
-     * that was set in this context ({@code ctx}).
-     *
-     * @param ctx the context that follows the operation since the key was found/created
-     * @param key the key to write
-     **/
-    private void writeKey(ThreadContext ctx, K key) {
-        allocateKey(key, ctx.key);
-
-        /*
-        The current entry key reference should be updated. The value reference should be invalid.
-        In reality, the value reference is already set to zero,
-        because the entries array is initialized that way (see specs).
-         */
+        // Write given key object "key" (to off-heap) as a serialized key, referenced by entry
+        // that was set in this context ({@code ctx}).
+        writeKey(key, ctx.key);
+        // The entry key reference is set. The value reference is already set to zero, because
+        // the entries array is initialized that way (see specs).
         setKeyReference(ctx.entryIndex, ctx.key.getSlice().getReference());
-    }
 
-    /**
-     * writeValueCommit does the physical CAS of the value reference, which is the Linearization
-     * Point of the insertion.
-     *
-     * @param ctx The context that follows the operation since the key was found/created.
-     *            Holds the entry index to which the value reference is linked, the old and new
-     *            value references.
-     *
-     * @return TRUE if the value reference was CASed successfully.
-     */
-    ValueUtils.ValueResult writeValueCommit(ThreadContext ctx) {
-        // If the commit is for a writing the new value, the old values should be invalid.
-        // Otherwise (commit is for moving the value) old value reference is saved in the context.
-
-        long oldValueReference = ctx.value.getSlice().getReference();
-        long newValueReference = ctx.newValue.getSlice().getReference();
-        assert valuesMemoryManager.isReferenceValid(newValueReference);
-
-        if (!casValueReference(ctx.entryIndex, oldValueReference, newValueReference)) {
-            return ValueUtils.ValueResult.FALSE;
-        }
-        return ValueUtils.ValueResult.TRUE;
+        return true;
     }
 
     /**
@@ -286,51 +234,34 @@ class EntrySet<K, V> extends EntryArray<K, V> {
         return false;
     }
 
-    /**
-     * Checks if an entry is deleted (checks on-heap and off-heap).
-     *
-     * @param tempValue a reusable buffer object for internal temporary usage
-     * @param ei        the entry index to check
-     * @return true if the entry is deleted
-     */
-    boolean isEntryDeleted(ValueBuffer tempValue, int ei) {
-        // checking the reference
-        boolean isAllocatedAndNotDeleted = readValue(tempValue, ei);
-        if (!isAllocatedAndNotDeleted) {
-            return true;
-        }
-        // checking the off-heap data
-        return tempValue.getSlice().isDeleted() != ValueUtils.ValueResult.FALSE;
-    }
-
-
     /************************* REBALANCE *****************************************/
     /*
      * All the functionality that links entries into a linked list or updates the linked list
-     * is provided by the user of the entry set. EntrySet provides the possibility to update the
+     * is provided by the user of the entry set. EntryOrderedSet provides the possibility to update the
      * next entry index via set or CAS, but does it only as a result of the user request.
      * */
 
     /**
-     * copyEntry copies one entry from source EntrySet (at source entry index "srcEntryIdx") to this EntrySet.
+     * copyEntry copies one entry from source EntryOrderedSet (at source entry index "srcEntryIdx")
+     * to this EntryOrderedSet.
      * The destination entry index is chosen according to this nextFreeIndex which is increased with
      * each copy. Deleted entry (marked on-heap or off-heap) is not copied (disregarded).
      * <p>
      * The next pointers of the entries are requested to be set by the user if needed.
      *
      * @param tempValue   a reusable buffer object for internal temporary usage
-     * @param srcEntrySet another EntrySet to copy from
-     * @param srcEntryIdx the entry index to copy from {@code srcEntrySet}
-     * @return false when this EntrySet is full
+     * @param srcEntryOrderedSet another EntryOrderedSet to copy from
+     * @param srcEntryIdx the entry index to copy from {@code srcEntryOrderedSet}
+     * @return false when this EntryOrderedSet is full
      * <p>
      * Note: NOT THREAD SAFE
      */
-    boolean copyEntry(ValueBuffer tempValue, EntrySet<K, V> srcEntrySet, int srcEntryIdx) {
+    boolean copyEntry(ValueBuffer tempValue, EntryOrderedSet<K, V> srcEntryOrderedSet, int srcEntryIdx) {
         if (srcEntryIdx == INVALID_ENTRY_INDEX) {
             return false;
         }
 
-        assert srcEntrySet.isIndexInBound(srcEntryIdx);
+        assert srcEntryOrderedSet.isIndexInBound(srcEntryIdx);
 
         // don't increase the nextFreeIndex yet, as the source entry might not be copies
         int destEntryIndex = nextFreeIndex.get();
@@ -339,7 +270,7 @@ class EntrySet<K, V> extends EntryArray<K, V> {
             return false;
         }
 
-        if (srcEntrySet.isEntryDeleted(tempValue, srcEntryIdx)) {
+        if (srcEntryOrderedSet.isValueDeleted(tempValue, srcEntryIdx)) {
             return true;
         }
 
@@ -350,7 +281,7 @@ class EntrySet<K, V> extends EntryArray<K, V> {
         // the first field in an entry is next, and it is not copied since it should be assigned elsewhere
         // therefore, to copy the rest of the entry we use the offset of next (which we assume is 0) and
         // add 1 to start the copying from the subsequent field of the entry.
-        copyEntriesFrom(srcEntrySet, srcEntryIdx, destEntryIndex, 2);
+        copyEntriesFrom(srcEntryOrderedSet, srcEntryIdx, destEntryIndex, 2);
 
         assert valuesMemoryManager.isReferenceConsistent(getValueReference(destEntryIndex));
 

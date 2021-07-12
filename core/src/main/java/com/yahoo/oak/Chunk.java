@@ -14,7 +14,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 class Chunk<K, V> {
     // an entry with NONE_NEXT as its next pointer, points to a null entry
-    static final int NONE_NEXT = EntrySet.INVALID_ENTRY_INDEX;
+    static final int NONE_NEXT = EntryArray.INVALID_ENTRY_INDEX;
 
     /*-------------- Constants --------------*/
 
@@ -45,7 +45,7 @@ class Chunk<K, V> {
     // chunk can be in the following states: normal, frozen or infant(has a creator)
     private final AtomicReference<State> state;
     private final AtomicReference<Rebalancer<K, V>> rebalancer;
-    private final EntrySet<K, V> entrySet;
+    private final EntryOrderedSet<K, V> entryOrderedSet;
 
     private final AtomicInteger pendingOps;
 
@@ -67,8 +67,8 @@ class Chunk<K, V> {
         this.maxItems = maxItems;
         this.externalSize = externalSize;
         this.comparator = comparator;
-        this.entrySet =
-            new EntrySet<>(vMM, kMM, maxItems, keySerializer, valueSerializer);
+        this.entryOrderedSet =
+            new EntryOrderedSet<>(vMM, kMM, maxItems, keySerializer, valueSerializer);
         // sortedCount keeps the number of  subsequent and ordered entries in the entries array,
         // which are subject to binary search
         this.sortedCount = new AtomicInteger(0);
@@ -89,7 +89,7 @@ class Chunk<K, V> {
         OakSerializer<V> valueSerializer) {
 
         this(maxItems, externalSize, vMM, kMM, comparator, keySerializer, valueSerializer);
-        entrySet.allocateKey(minKey, this.minKey);
+        entryOrderedSet.writeKey(minKey, this.minKey);
     }
 
     /**
@@ -99,8 +99,8 @@ class Chunk<K, V> {
     Chunk<K, V> createFirstChild() {
         Chunk<K, V> child =
             new Chunk<>(maxItems, externalSize,
-                entrySet.valuesMemoryManager, entrySet.keysMemoryManager,
-                comparator, entrySet.keySerializer, entrySet.valueSerializer);
+                entryOrderedSet.valuesMemoryManager, entryOrderedSet.keysMemoryManager,
+                comparator, entryOrderedSet.keySerializer, entryOrderedSet.valueSerializer);
         child.creator.set(this);
         child.state.set(State.INFANT);
         child.minKey.copyFrom(this.minKey);
@@ -113,8 +113,8 @@ class Chunk<K, V> {
      */
     Chunk<K, V> createNextChild(KeyBuffer minKey) {
         Chunk<K, V> child = new Chunk<>(maxItems, externalSize,
-            entrySet.valuesMemoryManager, entrySet.keysMemoryManager,
-            comparator, entrySet.keySerializer, entrySet.valueSerializer);
+            entryOrderedSet.valuesMemoryManager, entryOrderedSet.keysMemoryManager,
+            comparator, entryOrderedSet.keySerializer, entryOrderedSet.valueSerializer);
         child.creator.set(this);
         child.state.set(State.INFANT);
         duplicateKeyBuffer(minKey, child.minKey);
@@ -136,69 +136,70 @@ class Chunk<K, V> {
     }
 
     /********************************************************************************************/
-    /*-----------------------------  Wrappers for EntrySet methods -----------------------------*/
+    /*-----------------------------  Wrappers for EntryOrderedSet methods -----------------------------*/
 
     /**
-     * See {@code EntrySet.isValueRefValidAndNotDeleted(int)} for more information
+     * See {@code EntryOrderedSet.isValueRefValidAndNotDeleted(int)} for more information
      */
     boolean isValueRefValidAndNotDeleted(int ei) {
-        return entrySet.isValueRefValidAndNotDeleted(ei);
+        return entryOrderedSet.isValueRefValidAndNotDeleted(ei);
     }
 
     /**
-     * See {@code EntrySet.readKey(ThreadContext)} for more information
+     * See {@code EntryOrderedSet.readKey(ThreadContext)} for more information
      */
     void readKey(ThreadContext ctx) {
-        entrySet.readKey(ctx);
+        entryOrderedSet.readKey(ctx);
     }
 
     /**
-     * See {@code EntrySet.readValue(ThreadContext)} for more information
+     * See {@code EntryOrderedSet.readValue(ThreadContext)} for more information
      */
     void readValue(ThreadContext ctx) {
-        entrySet.readValue(ctx);
+        entryOrderedSet.readValue(ctx);
     }
 
     /**
-     * See {@code EntrySet.readKey(KeyBuffer)} for more information
+     * See {@code EntryOrderedSet.readKey(KeyBuffer)} for more information
      */
     boolean readKeyFromEntryIndex(KeyBuffer key, int ei) {
-        return entrySet.readKey(key, ei);
+        return entryOrderedSet.readKey(key, ei);
     }
 
     /**
-     * See {@code EntrySet.readValue(ValueBuffer)} for more information
+     * See {@code EntryOrderedSet.readValue(ValueBuffer)} for more information
      */
     boolean readValueFromEntryIndex(ValueBuffer value, int ei) {
-        return entrySet.readValue(value, ei);
+        return entryOrderedSet.readValue(value, ei);
     }
 
     /**
-     * See {@code EntrySet.allocateEntry(ThreadContext)} for more information
+     * Writes the key off-heap and allocates an entry with the reference pointing to the given key
+     * See {@code EntryOrderedSet.allocateEntryAndWriteKey(ThreadContext)} for more information
      */
-    boolean allocateEntry(ThreadContext ctx, K key) {
-        return entrySet.allocateEntry(ctx, key);
+    boolean allocateEntryAndWriteKey(ThreadContext ctx, K key) {
+        return entryOrderedSet.allocateEntryAndWriteKey(ctx, key);
     }
 
     /**
-     * See {@code EntrySet.allocateValue(ThreadContext)} for more information
+     * See {@code EntryOrderedSet.allocateValue(ThreadContext)} for more information
      */
     void allocateValue(ThreadContext ctx, V value, boolean writeForMove) {
-        entrySet.allocateValue(ctx, value, writeForMove);
+        entryOrderedSet.allocateValue(ctx, value, writeForMove);
     }
 
     /**
-     * See {@code EntrySet.releaseKey(ThreadContext)} for more information
+     * See {@code EntryOrderedSet.releaseKey(ThreadContext)} for more information
      */
     void releaseKey(ThreadContext ctx) {
-        entrySet.releaseKey(ctx);
+        entryOrderedSet.releaseKey(ctx);
     }
 
     /**
-     * See {@code EntrySet.releaseNewValue(ThreadContext)} for more information
+     * See {@code EntryOrderedSet.releaseNewValue(ThreadContext)} for more information
      */
     void releaseNewValue(ThreadContext ctx) {
-        entrySet.releaseNewValue(ctx);
+        entryOrderedSet.releaseNewValue(ctx);
     }
 
     /**
@@ -206,7 +207,7 @@ class Chunk<K, V> {
      * @return true if successful
      */
     boolean readMinKey(KeyBuffer key) {
-        return entrySet.readKey(key, entrySet.getHeadNextEntryIndex());
+        return entryOrderedSet.readKey(key, entryOrderedSet.getHeadNextEntryIndex());
     }
 
     /**
@@ -214,15 +215,15 @@ class Chunk<K, V> {
      * @return true if successful
      */
     boolean readMaxKey(KeyBuffer key) {
-        return entrySet.readKey(key, getLastItemEntryIndex());
+        return entryOrderedSet.readKey(key, getLastItemEntryIndex());
     }
 
     /**
      * @return the index of the first item in the chunk
-     * See {@code EntrySet.getHeadNextIndex} for more information.
+     * See {@code EntryOrderedSet.getHeadNextIndex} for more information.
      */
     final int getFirstItemEntryIndex() {
-        return entrySet.getHeadNextEntryIndex();
+        return entryOrderedSet.getHeadNextEntryIndex();
     }
 
     /**
@@ -233,11 +234,11 @@ class Chunk<K, V> {
     private int getLastItemEntryIndex() {
         int sortedCount = this.sortedCount.get();
         int entryIndex = sortedCount == 0 ?
-            entrySet.getHeadNextEntryIndex() : getLastSortedEntryIndex(sortedCount);
-        int nextEntryIndex = entrySet.getNextEntryIndex(entryIndex);
+            entryOrderedSet.getHeadNextEntryIndex() : getLastSortedEntryIndex(sortedCount);
+        int nextEntryIndex = entryOrderedSet.getNextEntryIndex(entryIndex);
         while (nextEntryIndex != NONE_NEXT) {
             entryIndex = nextEntryIndex;
-            nextEntryIndex = entrySet.getNextEntryIndex(entryIndex);
+            nextEntryIndex = entryOrderedSet.getNextEntryIndex(entryIndex);
         }
         return entryIndex;
     }
@@ -260,7 +261,7 @@ class Chunk<K, V> {
      * @return the comparison result
      */
     int compareKeyAndEntryIndex(KeyBuffer tempKeyBuff, K key, int ei) {
-        boolean isAllocated = entrySet.readKey(tempKeyBuff, ei);
+        boolean isAllocated = entryOrderedSet.readKey(tempKeyBuff, ei);
         assert isAllocated;
         return comparator.compareKeyAndSerializedKey(key, tempKeyBuff);
     }
@@ -290,7 +291,7 @@ class Chunk<K, V> {
         // binary search sorted part of key array to quickly find node to start search at
         // it finds previous-to-key
         int curr = binaryFind(ctx.tempKey, key);
-        curr = (curr == NONE_NEXT) ? entrySet.getHeadNextEntryIndex() : entrySet.getNextEntryIndex(curr);
+        curr = (curr == NONE_NEXT) ? entryOrderedSet.getHeadNextEntryIndex() : entryOrderedSet.getNextEntryIndex(curr);
 
         // iterate until end of list (or key is found)
         while (curr != NONE_NEXT) {
@@ -306,11 +307,11 @@ class Chunk<K, V> {
                 // Updates the entry's context
                 // ctx.key was already updated as a side effect of compareKeyAndEntryIndex()
                 ctx.entryIndex = curr;
-                entrySet.readValue(ctx);
+                entryOrderedSet.readValue(ctx);
                 return;
             }
             // otherwise- proceed to next item
-            curr = entrySet.getNextEntryIndex(curr);
+            curr = entryOrderedSet.getNextEntryIndex(curr);
         }
 
         // Reset entry context to be INVALID
@@ -338,7 +339,7 @@ class Chunk<K, V> {
 
         // if the first item is already larger than key,
         // return NONE_NEXT to indicate that a regular linear search is needed
-        if (compareKeyAndEntryIndex(tempKey, key, entrySet.getHeadNextEntryIndex()) <= 0) {
+        if (compareKeyAndEntryIndex(tempKey, key, entryOrderedSet.getHeadNextEntryIndex()) <= 0) {
             return NONE_NEXT;
         }
 
@@ -415,7 +416,7 @@ class Chunk<K, V> {
             return true;
         }
         try {
-            if (!entrySet.deleteValueFinish(ctx)) {
+            if (!entryOrderedSet.deleteValueFinish(ctx)) {
                 return false;
             }
             externalSize.decrementAndGet();
@@ -444,10 +445,10 @@ class Chunk<K, V> {
         while (true) {
             if (anchor == NONE_NEXT) {
                 prev = NONE_NEXT;
-                curr = entrySet.getHeadNextEntryIndex();
+                curr = entryOrderedSet.getHeadNextEntryIndex();
             } else {
                 prev = anchor;
-                curr = entrySet.getNextEntryIndex(anchor);    // index of next item in list
+                curr = entryOrderedSet.getNextEntryIndex(anchor);    // index of next item in list
             }
 
             //TODO: use ctx and location window inside ctx (when key wasn't found),
@@ -472,18 +473,18 @@ class Chunk<K, V> {
                 }
 
                 prev = curr;
-                curr = entrySet.getNextEntryIndex(prev);    // index of next item in list
+                curr = entryOrderedSet.getNextEntryIndex(prev);    // index of next item in list
             }
 
             // link to list between curr and previous, first change this entry's next to point to curr
             // no need for CAS since put is not even published yet
-            entrySet.setNextEntryIndex(ei, curr);
+            entryOrderedSet.setNextEntryIndex(ei, curr);
 
             boolean linkSuccess;
             if (prev != NONE_NEXT) {
-                linkSuccess = entrySet.casNextEntryIndex(prev, curr, ei);
+                linkSuccess = entryOrderedSet.casNextEntryIndex(prev, curr, ei);
             } else {
-                linkSuccess = entrySet.casHeadEntryIndex(curr, ei);
+                linkSuccess = entryOrderedSet.casHeadEntryIndex(curr, ei);
             }
             if (linkSuccess) {
                 // Here is the single place where we do enter a new entry to the chunk, meaning
@@ -520,7 +521,7 @@ class Chunk<K, V> {
      * @return true if the value reference was CASed successfully.
      */
     ValueUtils.ValueResult linkValue(ThreadContext ctx) {
-        if (entrySet.writeValueCommit(ctx) == ValueUtils.ValueResult.FALSE) {
+        if (entryOrderedSet.writeValueCommit(ctx) == ValueUtils.ValueResult.FALSE) {
             return ValueUtils.ValueResult.FALSE;
         }
 
@@ -578,7 +579,7 @@ class Chunk<K, V> {
         if (!isEngaged(null)) {
             return false;
         }
-        int numOfEntries = entrySet.getNumOfEntries();
+        int numOfEntries = entryOrderedSet.getNumOfEntries();
         int numOfItems = statistics.getCompactedCount();
         int sortedCount = this.sortedCount.get();
         // Reasons for executing a rebalance:
@@ -609,7 +610,7 @@ class Chunk<K, V> {
         }
 
         // use local variables and just set the atomic variables once at the end
-        int thisNumOfEntries = entrySet.getNumOfEntries();
+        int thisNumOfEntries = entryOrderedSet.getNumOfEntries();
 
         // check that we are not beyond allowed number of entries to copy from source chunk
         if (thisNumOfEntries >= maxCapacity) {
@@ -622,9 +623,9 @@ class Chunk<K, V> {
         // if sortedThisEntryIndex is one (first entry to be occupied on this chunk)
         // we are exactly going to update the head (ei=0)
         if (thisNumOfEntries == 0) {
-            entrySet.setHeadEntryIndex(thisNumOfEntries);
+            entryOrderedSet.setHeadEntryIndex(thisNumOfEntries);
         } else {
-            entrySet.setNextEntryIndex(thisNumOfEntries - 1, thisNumOfEntries);
+            entryOrderedSet.setNextEntryIndex(thisNumOfEntries - 1, thisNumOfEntries);
         }
 
         // Here was the code that was trying to read entries from srcEntryIdx on the source chunk
@@ -634,19 +635,19 @@ class Chunk<K, V> {
 
         // copy entry by entry traversing the source linked list
         int curEntryIdx = srcEntryIdx;
-        while (entrySet.copyEntry(tempValue, srcChunk.entrySet, curEntryIdx)) {
+        while (entryOrderedSet.copyEntry(tempValue, srcChunk.entryOrderedSet, curEntryIdx)) {
             // the source entry was either copied or disregarded as deleted
             // anyway move to next source entry (according to the linked list)
-            curEntryIdx = srcChunk.entrySet.getNextEntryIndex(curEntryIdx);
+            curEntryIdx = srcChunk.entryOrderedSet.getNextEntryIndex(curEntryIdx);
 
-            // if entry was ignored as deleted (no change in this EntrySet num of entries), continue
-            if (thisNumOfEntries == entrySet.getNumOfEntries()) {
+            // if entry was ignored as deleted (no change in this EntryOrderedSet num of entries), continue
+            if (thisNumOfEntries == entryOrderedSet.getNumOfEntries()) {
                 continue;
             }
 
             // we indeed copied the entry, update the number of entries and the next pointer
             thisNumOfEntries++;
-            entrySet.setNextEntryIndex(thisNumOfEntries - 1, thisNumOfEntries);
+            entryOrderedSet.setNextEntryIndex(thisNumOfEntries - 1, thisNumOfEntries);
 
             // check that we are not beyond allowed number of entries to copy from source chunk
             if (thisNumOfEntries >= maxCapacity) {
@@ -663,17 +664,17 @@ class Chunk<K, V> {
 
         // the last next pointer was set to what is there in the source to copy, reset it to null
         if (thisNumOfEntries == 0) {
-            entrySet.setHeadEntryIndex(NONE_NEXT);
+            entryOrderedSet.setHeadEntryIndex(NONE_NEXT);
         } else {
-            entrySet.setNextEntryIndex(thisNumOfEntries - 1, NONE_NEXT);
+            entryOrderedSet.setNextEntryIndex(thisNumOfEntries - 1, NONE_NEXT);
         }
 
         // sorted count keeps the number of sorted entries
         sortedCount.set(thisNumOfEntries);
         statistics.updateInitialSortedCount(sortedCount.get());
 
-        // check the validity of the new entrySet
-        assert entrySet.isEntrySetValidAfterRebalance();
+        // check the validity of the new entryOrderedSet
+        assert entryOrderedSet.isEntrySetValidAfterRebalance();
 
         return curEntryIdx; // if NONE_NEXT then we finished copying old chunk, else we reached max in new chunk
     }
@@ -856,7 +857,7 @@ class Chunk<K, V> {
 
         AscendingIter(ThreadContext ctx, K to, boolean toInclusive,
             OakScopedReadBuffer nextChunkMinKey) {
-            next = entrySet.getHeadNextEntryIndex();
+            next = entryOrderedSet.getHeadNextEntryIndex();
             next = advanceNextIndexNoBound(next, ctx);
             setIsEndBoundCheckNeeded(ctx, to, toInclusive, nextChunkMinKey);
         }
@@ -872,14 +873,16 @@ class Chunk<K, V> {
             // otherwise (next < midIdx) means that midIdx is surely of one of the entries to be scanned,
             // if not binaryFind will return midIdx or higher
 
-            next = (next == NONE_NEXT) ? entrySet.getHeadNextEntryIndex() : entrySet.getNextEntryIndex(next);
+            next = (next == NONE_NEXT) ?
+                entryOrderedSet.getHeadNextEntryIndex() : entryOrderedSet.getNextEntryIndex(next);
             int compare = -1;
             if (next != NONE_NEXT) {
                 compare = compareKeyAndEntryIndex(tempKeyBuff, from, next);
             }
             while (next != NONE_NEXT &&
-                    (compare > 0 || (compare >= 0 && !fromInclusive) || !entrySet.isValueRefValidAndNotDeleted(next))) {
-                next = entrySet.getNextEntryIndex(next);
+                    (compare > 0 || (compare >= 0 && !fromInclusive) ||
+                        !entryOrderedSet.isValueRefValidAndNotDeleted(next))) {
+                next = entryOrderedSet.getNextEntryIndex(next);
                 if (next != NONE_NEXT) {
                     compare = compareKeyAndEntryIndex(tempKeyBuff, from, next);
                 }
@@ -890,7 +893,7 @@ class Chunk<K, V> {
         }
 
         private void advance(ThreadContext ctx) {
-            next = entrySet.getNextEntryIndex(next);
+            next = entryOrderedSet.getNextEntryIndex(next);
             // if there is no need to check the end-boundary on this chunk (IterEndBoundCheck.NEVER_END_BOUNDARY_CHECK),
             // or if the caller will check the end-boundary (IterEndBoundCheck.ALWAYS_END_BOUNDARY_CHECK),
             // then advance next without additional checks
@@ -915,8 +918,8 @@ class Chunk<K, V> {
 
         private int advanceNextIndex(final int entryIndex, ThreadContext ctx) {
             int next = entryIndex;
-            while (next != NONE_NEXT && !entrySet.isValueRefValidAndNotDeleted(next)) {
-                next = entrySet.getNextEntryIndex(next);
+            while (next != NONE_NEXT && !entryOrderedSet.isValueRefValidAndNotDeleted(next)) {
+                next = entryOrderedSet.getNextEntryIndex(next);
                 if (isEndBoundCheckNeeded == IterEndBoundCheck.MID_END_BOUNDARY_CHECK && next == midIdx) {
                     // update isEndBoundCheckNeeded to ALWAYS_END_BOUNDARY_CHECK
                     // when reaching the midIndex
@@ -928,8 +931,8 @@ class Chunk<K, V> {
 
         private int advanceNextIndexNoBound(final int entryIndex, ThreadContext ctx) {
             int next = entryIndex;
-            while (next != NONE_NEXT && !entrySet.isValueRefValidAndNotDeleted(next)) {
-                next = entrySet.getNextEntryIndex(next);
+            while (next != NONE_NEXT && !entryOrderedSet.isValueRefValidAndNotDeleted(next)) {
+                next = entryOrderedSet.getNextEntryIndex(next);
             }
             return next;
         }
@@ -961,10 +964,10 @@ class Chunk<K, V> {
             KeyBuffer tempKeyBuff = ctx.tempKey;
             setIsEndBoundCheckNeeded(ctx, to, toInclusive, minKey);
             from = null;
-            stack = new IntStack(entrySet.getLastEntryIndex() + 1);
+            stack = new IntStack(entryOrderedSet.getLastEntryIndex() + 1);
             int sortedCnt = sortedCount.get();
             anchor = // this is the last sorted entry
-                    (sortedCnt == 0 ? entrySet.getHeadNextEntryIndex() : sortedCnt - 1);
+                    (sortedCnt == 0 ? entryOrderedSet.getHeadNextEntryIndex() : sortedCnt - 1);
             stack.push(anchor);
             initNext(tempKeyBuff);
         }
@@ -974,7 +977,7 @@ class Chunk<K, V> {
 
             this.from = from;
             this.fromInclusive = fromInclusive;
-            stack = new IntStack(entrySet.getLastEntryIndex());
+            stack = new IntStack(entryOrderedSet.getLastEntryIndex());
             anchor = binaryFind(tempKeyBuff, from);
 
             if (anchor <= midIdx) { // binaryFind output is always less than sorted Count; or NONE_NEXT
@@ -984,7 +987,7 @@ class Chunk<K, V> {
             // if not binaryFind will return midIdx or less
 
             // translate to be valid index, if anchor is head we know to stop the iteration
-            anchor = (anchor == NONE_NEXT) ? entrySet.getHeadNextEntryIndex() : anchor;
+            anchor = (anchor == NONE_NEXT) ? entryOrderedSet.getHeadNextEntryIndex() : anchor;
             stack.push(anchor);
             initNext(tempKeyBuff);
             setIsEndBoundCheckNeeded(ctx, to, toInclusive, minKey);
@@ -1004,7 +1007,7 @@ class Chunk<K, V> {
                 return;
             }
             next = stack.pop();
-            while (next != NONE_NEXT && !entrySet.isValueRefValidAndNotDeleted(next)) {
+            while (next != NONE_NEXT && !entryOrderedSet.isValueRefValidAndNotDeleted(next)) {
                 if (!stack.empty()) {
                     next = stack.pop();
                 } else {
@@ -1018,11 +1021,11 @@ class Chunk<K, V> {
             while (next != NONE_NEXT) {
                 if (!compareWithPrevAnchor) {
                     stack.push(next);
-                    next = entrySet.getNextEntryIndex(next);
+                    next = entryOrderedSet.getNextEntryIndex(next);
                 } else {
                     if (next != prevAnchor) {
                         stack.push(next);
-                        next = entrySet.getNextEntryIndex(next);
+                        next = entryOrderedSet.getNextEntryIndex(next);
                     } else {
                         break;
                     }
@@ -1037,11 +1040,11 @@ class Chunk<K, V> {
          */
         private void traverseLinkedList(KeyBuffer tempKeyBuff, boolean firstTimeInvocation) {
             assert stack.size() == 1;   // ancor is in the stack
-            if (prevAnchor == entrySet.getNextEntryIndex(anchor)) {
+            if (prevAnchor == entryOrderedSet.getNextEntryIndex(anchor)) {
                 next = NONE_NEXT;   // there is no next;
                 return;
             }
-            next = entrySet.getNextEntryIndex(anchor);
+            next = entryOrderedSet.getNextEntryIndex(anchor);
             if (from == null) {
                 // if this is not the first invocation, stop when reaching previous anchor
                 pushToStack(!firstTimeInvocation);
@@ -1053,7 +1056,7 @@ class Chunk<K, V> {
                     //     when non-fromInclusive: CMP > 0
                     while (next != NONE_NEXT && compareKeyAndEntryIndex(tempKeyBuff, from, next) > threshold) {
                         stack.push(next);
-                        next = entrySet.getNextEntryIndex(next);
+                        next = entryOrderedSet.getNextEntryIndex(next);
                     }
                 } else {
                     // stop when reaching previous anchor
@@ -1068,11 +1071,11 @@ class Chunk<K, V> {
         private void findNewAnchor() {
             assert stack.empty();
             prevAnchor = anchor;
-            if (anchor == entrySet.getHeadNextEntryIndex()) {
+            if (anchor == entryOrderedSet.getHeadNextEntryIndex()) {
                 next = NONE_NEXT; // there is no more in this chunk
                 return;
             } else if (anchor == 1) { // cannot get below the first index
-                anchor = entrySet.getHeadNextEntryIndex();
+                anchor = entryOrderedSet.getHeadNextEntryIndex();
             } else {
                 if ((anchor - skipEntriesForBiggerStack) > 1) {
                     // try to skip more then one backward step at a time
@@ -1099,7 +1102,7 @@ class Chunk<K, V> {
                     return;
                 }
                 // there is no next in stack
-                if (anchor == entrySet.getHeadNextEntryIndex()) {
+                if (anchor == entryOrderedSet.getHeadNextEntryIndex()) {
                     // there is no next at all
                     return;
                 }

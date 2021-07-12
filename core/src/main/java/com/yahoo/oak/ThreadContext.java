@@ -13,7 +13,7 @@ class ThreadContext {
      * Entry Context
      *-----------------------------------------------------------*/
 
-    /* The index of the key's entry in EntrySet */
+    /* The index of the key's entry in EntryArray */
     int entryIndex;
 
     /* key is used for easier access to the off-heap memory */
@@ -42,6 +42,9 @@ class ThreadContext {
      */
     boolean isNewValueForMove;
 
+    /* The key hash of the found (serialized) entry's key. Relevant and used only for OakHash */
+    long keyHash;
+
     /*-----------------------------------------------------------
      * Result Context
      *-----------------------------------------------------------*/
@@ -56,7 +59,7 @@ class ThreadContext {
     final ValueBuffer tempValue;
 
     ThreadContext(MemoryManager kmm, MemoryManager vmm) {
-        entryIndex = EntrySet.INVALID_ENTRY_INDEX;
+        entryIndex = EntryArray.INVALID_ENTRY_INDEX;
         entryState = EntryArray.EntryState.UNKNOWN;
         isNewValueForMove = false;
 
@@ -66,16 +69,19 @@ class ThreadContext {
         this.result = new Result();
         this.tempKey = new KeyBuffer(kmm.getEmptySlice());
         this.tempValue = new ValueBuffer(vmm.getEmptySlice());
+
+        this.keyHash = EntryHashSet.INVALID_KEY_HASH;
     }
 
     void invalidate() {
-        entryIndex = EntrySet.INVALID_ENTRY_INDEX;
+        entryIndex = EntryArray.INVALID_ENTRY_INDEX;
         key.invalidate();
         value.invalidate();
         newValue.invalidate();
         result.invalidate();
         entryState = EntryArray.EntryState.UNKNOWN;
         isNewValueForMove = false;
+        this.keyHash = EntryHashSet.INVALID_KEY_HASH;
         // No need to invalidate the temporary buffers
     }
 

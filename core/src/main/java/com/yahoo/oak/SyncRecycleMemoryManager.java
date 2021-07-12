@@ -192,6 +192,8 @@ class SyncRecycleMemoryManager implements MemoryManager {
          * Release the associated off-heap cut, which is disconnected from the data structure,
          * but can be still accessed via threads previously having the access. It is the memory
          * manager responsibility to care for the old concurrent accesses.
+         * IMPORTANT: As many slices can be associated with the same off-heap cut, the release()
+         * must be invoked only ONCE after each allocation of the specific off-heap cut.
          */
         @Override
         public void release() {

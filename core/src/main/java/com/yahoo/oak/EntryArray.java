@@ -74,10 +74,10 @@ public class EntryArray<K, V> {
     final OakSerializer<V> valueSerializer;
 
     /**
-     * Create a new EntrySet
+     * Create a new instance
      * @param vMM   for values off-heap allocations and releases
      * @param kMM off-heap allocations and releases for keys
-     * @param entriesCapacity how many entries should this EntrySet keep at maximum
+     * @param entriesCapacity how many entries should this instance keep at maximum
      * @param keySerializer   used to serialize the key when written to off-heap
      */
     EntryArray(MemoryManager vMM, MemoryManager kMM, int additionalFieldCount, int entriesCapacity,
@@ -117,6 +117,11 @@ public class EntryArray<K, V> {
         DELETED_NOT_FINALIZED,
 
         /*
+        * For EntryArray serving for Hash, valid key reference is set, but value not yet
+        * */
+        INSERT_NOT_FINALIZED,
+
+        /*
          * There is any entry with the given key and its is valid.
          * valueSlice is pointing to the location that is referenced by valueReference.
          */
@@ -152,8 +157,8 @@ public class EntryArray<K, V> {
 
 
     /**
-     * Returns the number of entries allocated and not deleted for this EntrySet.
-     * Although, in case EntrySet is used as an array, nextFreeIndex is can be used to calculate
+     * Returns the number of entries allocated and not deleted for this EntryArray instance.
+     * Although, in case instance is used as an linked list, nextFreeIndex is can be used to calculate
      * number of entries, additional variable is used to support OakHash
      */
     int getNumOfEntries() {
@@ -203,6 +208,14 @@ public class EntryArray<K, V> {
     }
 
     /**
+     * casKeyReference CAS the key reference (of the entry given by entry index "ei") to be the
+     * "keyRefNew" only if it was "keyRefOld". The method serves external EntryArray users.
+     */
+    protected boolean casKeyReference(int ei, long keyRefOld, long keyRefNew) {
+        return casEntryFieldLong(ei, KEY_REF_OFFSET, keyRefOld, keyRefNew);
+    }
+
+    /**
      * Atomically reads the value reference from the entry (given by entry index "ei")
      * 8-byte align is only promised in the 64-bit JVM when allocating int arrays.
      * For long arrays, it is also promised in the 32-bit JVM.
@@ -212,12 +225,12 @@ public class EntryArray<K, V> {
     }
 
     /**
-     * casNextEntryIndex CAS the next entry index (of the entry given by entry index "ei") to be the
-     * "nextNew" only if it was "nextOld". Input parameter "nextNew" must be a valid entry index.
-     * The method serves external EntrySet users.
+     * casValueReference CAS the value reference (of the entry given by entry index "ei") to be the
+     * "valueRefNew" only if it was "valueRefOld".
+     * The method serves external EntryArray users.
      */
-    protected boolean casValueReference(int ei, long nextOld, long nextNew) {
-        return casEntryFieldLong(ei, VALUE_REF_OFFSET, nextOld, nextNew);
+    protected boolean casValueReference(int ei, long valueRefOld, long valueRefNew) {
+        return casEntryFieldLong(ei, VALUE_REF_OFFSET, valueRefOld, valueRefNew);
     }
 
     protected void copyEntriesFrom(EntryArray<K, V> other, int srcEntryIdx, int destEntryIndex, int fieldCount) {
@@ -230,6 +243,55 @@ public class EntryArray<K, V> {
                 entryIdx2LongIdx(srcEntryIdx),
                 entries,                        // this entries array
                 entryIdx2LongIdx(destEntryIndex), fieldCount);
+    }
+
+    /*
+     * isValueRefValidAndNotDeleted is used only to check whether the value reference, which is part of the
+     * entry on entry index "ei" is valid and not deleted. No off-heap value deletion mark check.
+     * Reference being marked as deleted is checked.
+     *
+     * Pay attention that (given entry's) value may be deleted asynchronously by other thread just
+     * after this check.
+     * */
+    boolean isValueRefValidAndNotDeleted(int ei) {
+        long valRef = getValueReference(ei);
+        return valuesMemoryManager.isReferenceValidAndNotDeleted(valRef);
+    }
+
+    /**
+     * Checks if a value of an entry is deleted (checks on-heap and off-heap).
+     *
+     * @param tempValue a reusable buffer object for internal temporary usage
+     * @param ei        the entry index to check
+     * @return true if the entry is deleted
+     */
+    boolean isValueDeleted(ValueBuffer tempValue, int ei) {
+        // checking the reference,
+        // it is important to check the reference first and avoid accessing off-heap if possible
+        boolean isAllocatedAndNotDeleted = readValue(tempValue, ei);
+        if (!isAllocatedAndNotDeleted) {
+            return true;
+        }
+        // checking the off-heap data
+        return tempValue.getSlice().isDeleted() != ValueUtils.ValueResult.FALSE;
+    }
+
+    /**
+     * Checks if a key of an entry is deleted (checks on-heap and off-heap).
+     *
+     * @param keyBuffer a reusable buffer object for internal temporary usage
+     * @param ei        the entry index to check
+     * @return true if the entry is deleted
+     */
+    boolean isKeyDeleted(KeyBuffer keyBuffer, int ei) {
+        // checking the reference,
+        // it is important to check the reference first and avoid accessing off-heap if possible
+        boolean isAllocatedAndNotDeleted = readKey(keyBuffer, ei);
+        if (!isAllocatedAndNotDeleted) {
+            return true;
+        }
+        // checking the off-heap data
+        return keyBuffer.getSlice().isDeleted() != ValueUtils.ValueResult.FALSE;
     }
 
     /********************************************************************************************/
@@ -339,12 +401,12 @@ public class EntryArray<K, V> {
     }
 
     /**
-     * Allocate and serialize a key object to off-heap KeyBuffer. Writes the key off-heap.
+     * Allocate and serialize (writes) a key object to off-heap KeyBuffer. Writes the key off-heap.
      *
      * @param key       the key to write
      * @param keyBuffer the off-heap KeyBuffer to update with the new allocation
      */
-    void allocateKey(K key, KeyBuffer keyBuffer) {
+    void writeKey(K key, KeyBuffer keyBuffer) {
         int keySize = keySerializer.calculateSize(key);
         keyBuffer.getSlice().allocate(keySize, false);
         ScopedWriteBuffer.serialize(keyBuffer.getSlice(), key, keySerializer);
@@ -361,6 +423,7 @@ public class EntryArray<K, V> {
      * @param writeForMove true if the value will replace another value
      **/
     void allocateValue(ThreadContext ctx, V value, boolean writeForMove) {
+
         // the length of the given value plus its header
         int valueDataSize   = valueSerializer.calculateSize(value);
 
@@ -370,6 +433,30 @@ public class EntryArray<K, V> {
         ctx.isNewValueForMove = writeForMove;
 
         ScopedWriteBuffer.serialize(ctx.newValue.getSlice(), value, valueSerializer);
+    }
+
+    /**
+     * writeValueCommit does the physical CAS of the value reference, which is the Linearization
+     * Point of the insertion.
+     *
+     * @param ctx The context that follows the operation since the key was found/created.
+     *            Holds the entry index to which the value reference is linked, the old and new
+     *            value references.
+     *
+     * @return TRUE if the value reference was CASed successfully.
+     */
+    ValueUtils.ValueResult writeValueCommit(ThreadContext ctx) {
+        // If the commit is for a writing the new value, the old values should be invalid.
+        // Otherwise (commit is for moving the value) old value reference is saved in the context.
+
+        long oldValueReference = ctx.value.getSlice().getReference();
+        long newValueReference = ctx.newValue.getSlice().getReference();
+        assert valuesMemoryManager.isReferenceValid(newValueReference);
+
+        if (!casValueReference(ctx.entryIndex, oldValueReference, newValueReference)) {
+            return ValueUtils.ValueResult.FALSE;
+        }
+        return ValueUtils.ValueResult.TRUE;
     }
 
     /**
@@ -388,7 +475,7 @@ public class EntryArray<K, V> {
      * Releases the newly allocated value of the input context.
      * Currently the method is used only to release an
      * unreachable value reference, the one that was not yet attached to an entry!
-     * The method is part of EntrySet, because it cares also
+     * The method is part of EntryArray, because it cares also
      * for writing the value before attaching it to an entry (allocateValue/writeValueCommit)
      *
      * @param ctx the context that follows the operation since the key was found/created
