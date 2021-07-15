@@ -6,102 +6,72 @@
 
 package com.yahoo.oak;
 
-import java.util.EmptyStackException;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicReference;
 
-class HashChunk<K, V> {
+class HashChunk<K, V> extends BasicChunk<K, V> {
     // HashChunk takes a number of least significant bits from the full key hash
     // to provide as an index in the EntryHashSet
-    private static final int DEFAULT_MAX_LSB_SECOND_LEVEL = 16;
+    private static final int DEFAULT_MAX_LSB_SECOND_LEVEL = 12; // per MAX_HASH_ITEMS_DEFAULT
     private static final int DEFAULT_MIN_LSB_SECOND_LEVEL = 4;
     private int lsbForSecondLevelHash = DEFAULT_MAX_LSB_SECOND_LEVEL;
     private UnionCodec hashIndexCodec;
-    /*-------------- Constants --------------*/
-
-    enum State {
-        INFANT,
-        NORMAL,
-        FROZEN,
-        RELEASED
-    }
 
     // defaults
-    public static final int MAX_HASH_ITEMS_DEFAULT = 4096;
+    public static final int MAX_HASH_ITEMS_DEFAULT = 4096; // 2^DEFAULT_MAX_LSB_SECOND_LEVEL
 
     /*-------------- Members --------------*/
-    OakComparator<K> comparator;
-
-    // in split/compact process, represents parent of split (can be null!)
-    private final AtomicReference<HashChunk<K, V>> creator;
-    // chunk can be in the following states: normal, frozen or infant(has a creator)
-    private final AtomicReference<State> state;
-    private final AtomicReference<Rebalancer<K, V>> rebalancer;
     private final EntryHashSet<K, V> entryHashSet;
 
-    private final AtomicInteger pendingOps;
-
-    private final Statistics statistics;
-
-    private final int maxItems;
-    private AtomicInteger externalSize; // for updating oak's size (reference to one global per Oak size)
-
     /*-------------- Constructors --------------*/
-
     /**
-     * This constructor is only used when creating the first ever chunks (without a creator).
-     * The caller might set the creator before returning the OrderedChunk to the user.
+     * This constructor is only used when creating the first ever chunk (without a creator).
+     * The caller might set the creator before returning the HashChunk to the user.
+     *
+     * @param maxItems  is the size of the entries array (not all the entries are going to be in use)
+     *                  IMPORTANT!: it is better to be a power of two,
+     *                  if not the rest of the entries are going to be waisted
      */
     HashChunk(int maxItems, AtomicInteger externalSize, MemoryManager vMM, MemoryManager kMM,
         OakComparator<K> comparator, OakSerializer<K> keySerializer,
         OakSerializer<V> valueSerializer) {
-        this.maxItems = maxItems;
-        this.externalSize = externalSize;
-        this.comparator = comparator;
+
+        super(maxItems, externalSize, comparator);
         this.entryHashSet =
             new EntryHashSet<>(vMM, kMM, maxItems, keySerializer, valueSerializer, comparator);
-        this.creator = new AtomicReference<>(null);
-        this.state = new AtomicReference<>(State.NORMAL);
-        this.pendingOps = new AtomicInteger();
-        this.rebalancer = new AtomicReference<>(null); // to be updated on rebalance
-        this.statistics = new Statistics();
+        setChildSecondLevelBitsThreshold(this, false);
     }
 
     /**
-     * Create a child OrderedChunk where this OrderedChunk object as its creator.
-     * The child OrderedChunk will have the same minKey as this OrderedChunk (without duplicating the KeyBuffer data).
+     * Create a child HashChunk where this HashChunk object as its creator.
      */
-    HashChunk<K, V> createFirstChild() {
+    HashChunk<K, V> createChild() {
         HashChunk<K, V> child =
-            new HashChunk<>(maxItems, externalSize,
+            new HashChunk<>(getMaxItems(), externalSize,
                 entryHashSet.valuesMemoryManager, entryHashSet.keysMemoryManager,
                 comparator, entryHashSet.keySerializer, entryHashSet.valueSerializer);
-        child.creator.set(this);
-        child.state.set(State.INFANT);
-        // each child chunk is responsible for less hash values
-        child.lsbForSecondLevelHash =
-            this.lsbForSecondLevelHash > DEFAULT_MIN_LSB_SECOND_LEVEL ?
-                this.lsbForSecondLevelHash - 1 : this.lsbForSecondLevelHash;
-        this.hashIndexCodec = new UnionCodec(UnionCodec.INVALID_BIT_SIZE, lsbForSecondLevelHash);
+        updateBasicChild(child);
+        setChildSecondLevelBitsThreshold(child, true);
         return child;
     }
 
-    /**
-     * Create a child OrderedChunk where this OrderedChunk object as its creator.
-     * The child OrderedChunk will use a duplicate minKey of the input (allocates a new buffer).
-     */
-    HashChunk<K, V> createNextChild() {
-        HashChunk<K, V> child = new HashChunk<>(maxItems, externalSize,
-            entryHashSet.valuesMemoryManager, entryHashSet.keysMemoryManager,
-            comparator, entryHashSet.keySerializer, entryHashSet.valueSerializer);
-        child.creator.set(this);
-        child.state.set(State.INFANT);
-        // each child chunk is responsible for less hash values
-        child.lsbForSecondLevelHash =
-            this.lsbForSecondLevelHash > DEFAULT_MIN_LSB_SECOND_LEVEL ?
-                this.lsbForSecondLevelHash - 1 : this.lsbForSecondLevelHash;
-        this.hashIndexCodec = new UnionCodec(UnionCodec.INVALID_BIT_SIZE, lsbForSecondLevelHash);
-        return child;
+    private void setChildSecondLevelBitsThreshold(HashChunk chunk, boolean isChild) {
+
+        if (isChild) {
+            // each child chunk is responsible for less hash values
+            chunk.lsbForSecondLevelHash = this.lsbForSecondLevelHash > DEFAULT_MIN_LSB_SECOND_LEVEL ?
+                this.lsbForSecondLevelHash - 1 :
+                this.lsbForSecondLevelHash;
+        }
+
+        // This is the desired separation of the number of bits serving the first and second level
+        // hash. However chunk can only absorb indexes up to maxItems size.
+        int maxItems = getMaxItems();
+        // calculate log2 maxItems indirectly, using log() method
+        int possibleLsbNumber = (int) (Math.log(maxItems) / Math.log(2));
+        chunk.lsbForSecondLevelHash = Math.min(chunk.lsbForSecondLevelHash, possibleLsbNumber);
+        chunk.hashIndexCodec =
+            new UnionCodec(chunk.lsbForSecondLevelHash, // the size of the first, as these are LSBs
+                UnionCodec.INVALID_BIT_SIZE, Integer.SIZE);
     }
 
     /********************************************************************************************/
@@ -147,10 +117,9 @@ class HashChunk<K, V> {
      * See {@code EntryOrderedSet.allocateEntryAndWriteKey(ThreadContext)} for more information
      */
     boolean allocateEntryAndWriteKey(ThreadContext ctx, K key) {
-        //TODO: need to provide the hash function and calculate the bits
-        int fullHash = key.hashCode();
-        int hashIndex = 11; //TODO: Fix
-        return entryHashSet.allocateEntryAndWriteKey(ctx, key, hashIndex, fullHash);
+        int keyHash = key.hashCode();
+        return entryHashSet.allocateEntryAndWriteKey(
+            ctx, key, calculateEntryIdx(key, keyHash), keyHash);
     }
 
     /**
@@ -177,9 +146,9 @@ class HashChunk<K, V> {
     /********************************************************************************************/
     /*-----------------------  Methods for looking up item in this chunk -----------------------*/
 
-    private int calculateHashIdx(K key) {
-        int hashNumber = key.hashCode();
-        return 0;
+    private int calculateEntryIdx(K key, int keyHash) {
+        // first and not second, because these are actually the least significant bits
+        return hashIndexCodec.getFirst(keyHash);
     }
 
     /**
@@ -220,38 +189,14 @@ class HashChunk<K, V> {
      * @param key the key to look up
      */
     void lookUp(ThreadContext ctx, K key) {
-        int hashNumber = key.hashCode();
-        int hashIdx = hashNumber % lsbForSecondLevelHash; //TODO: to be changed
-        entryHashSet.lookUp(ctx, key, hashIdx, hashNumber);
+        int keyHash = key.hashCode();
+        entryHashSet.lookUp(ctx, key, calculateEntryIdx(key, keyHash), keyHash);
         return;
     }
 
     /********************************************************************************************/
     /*---------- Methods for managing the put/remove path of the keys and values  --------------*/
 
-    /**
-     * publish operation into thread array
-     * if CAS didn't succeed then this means that a rebalancer got here first and entry is frozen
-     *
-     * @return result of CAS
-     **/
-    boolean publish() {
-        pendingOps.incrementAndGet();
-        State currentState = state.get();
-        if (currentState == State.FROZEN || currentState == State.RELEASED) {
-            pendingOps.decrementAndGet();
-            return false;
-        }
-        return true;
-    }
-
-    /**
-     * unpublish operation from thread array
-     * if CAS didn't succeed then this means that a rebalancer did this already
-     **/
-    void unpublish() {
-        pendingOps.decrementAndGet();
-    }
 
     /**
      * As written in {@code writeValueFinish(ctx)}, when changing an entry, the value reference is CASed first and
@@ -313,40 +258,8 @@ class HashChunk<K, V> {
     /********************************************************************************************/
     /*------------------------- Methods that are used for rebalance  ---------------------------*/
 
-    int getMaxItems() {
-        return maxItems;
-    }
-
-    /**
-     * Engage the chunk to a rebalancer r.
-     *
-     * @param r -- a rebalancer to engage with
-     */
-    void engage(Rebalancer<K, V> r) {
-        rebalancer.compareAndSet(null, r);
-    }
-
-    /**
-     * Checks whether the chunk is engaged with a given rebalancer.
-     *
-     * @param r -- a rebalancer object. If r is null, verifies that the chunk is not engaged to any rebalancer
-     * @return true if the chunk is engaged with r, false otherwise
-     */
-    boolean isEngaged(Rebalancer<K, V> r) {
-        return rebalancer.get() == r;
-    }
-
-    /**
-     * Fetch a rebalancer engaged with the chunk.
-     *
-     * @return rebalancer object or null if not engaged.
-     */
-    Rebalancer<K, V> getRebalancer() {
-        return rebalancer.get();
-    }
-
     boolean shouldRebalance() {
-        //TODO: add new code here
+        //TODO: no rebalance for now, add later
         return false;
     }
 
@@ -364,54 +277,13 @@ class HashChunk<K, V> {
     final int copyPartOfEntries(
         ValueBuffer tempValue, HashChunk<K, V> srcOrderedChunk, final int srcEntryIdx, int maxCapacity) {
 
-        //TODO: add new code here
+        //TODO: add rebalance code here
         return 0;
     }
 
-
-    /********************************************************************************************/
-    /*----------------------- Methods for managing the chunk's state  --------------------------*/
-
-    State state() {
-        return state.get();
-    }
-
-    HashChunk<K, V> creator() {
-        return creator.get();
-    }
-
-    private void setState(State state) {
-        this.state.set(state);
-    }
-
-    void normalize() {
-        state.compareAndSet(State.INFANT, State.NORMAL);
-        creator.set(null);
-        // using fence so other puts can continue working immediately on this chunk
-        UnsafeUtils.UNSAFE.storeFence();
-    }
-
-    /**
-     * freezes chunk so no more changes can be done to it (marks pending items as frozen)
-     */
-    void freeze() {
-        setState(State.FROZEN); // prevent new puts to this chunk
-        while (pendingOps.get() != 0) {
-            assert Boolean.TRUE;
-        }
-    }
-
-    /**
-     * try to change the state from frozen to released
-     */
-    void release() {
-        state.compareAndSet(State.FROZEN, State.RELEASED);
-    }
-
-
     /********************************************************************************************/
     /*--------------------------------- Iterators Constructors ---------------------------------*/
-
+    // TODO: update hash iterator later
     /**
      * Ascending iterator from the beginning of the chunk. The end boundary is given by parameter
      * key "to" might not be in this chunk. Parameter nextChunkMinKey - is the minimal key of the
@@ -554,92 +426,4 @@ class HashChunk<K, V> {
             return c < 0 || (c == 0 && !endBoundInclusive);
         }
     }
-
-    /**
-     * just a simple stack of int, implemented with int array
-     */
-
-    static class IntStack {
-
-        private final int[] stack;
-        private int top;
-
-        IntStack(int size) {
-            stack = new int[size];
-            top = 0;
-        }
-
-        void push(int i) {
-            stack[top] = i;
-            top++;
-        }
-
-        int pop() {
-            if (empty()) {
-                throw new EmptyStackException();
-            }
-            top--;
-            return stack[top];
-        }
-
-        boolean empty() {
-            return top == 0;
-        }
-
-        int size() {
-            return top;
-        }
-
-    }
-
-    /*-------------- Statistics --------------*/
-
-    /**
-     * This class contains information about chunk utilization.
-     */
-    static class Statistics {
-        private final AtomicInteger addedCount = new AtomicInteger(0);
-        private int initialSortedCount = 0;
-
-        /**
-         * Initial sorted count here is immutable after chunk re-balance
-         */
-        void updateInitialSortedCount(int sortedCount) {
-            this.initialSortedCount = sortedCount;
-        }
-
-        /**
-         * @return number of items chunk will contain after compaction.
-         */
-        int getCompactedCount() {
-            return initialSortedCount + getAddedCount();
-        }
-
-        /**
-         * Incremented when put a key that was removed before
-         */
-        void incrementAddedCount() {
-            addedCount.incrementAndGet();
-        }
-
-        /**
-         * Decrement when remove a key that was put before
-         */
-        void decrementAddedCount() {
-            addedCount.decrementAndGet();
-        }
-
-        int getAddedCount() {
-            return addedCount.get();
-        }
-
-    }
-
-    /**
-     * @return statistics object containing approximate utilization information.
-     */
-    Statistics getStatistics() {
-        return statistics;
-    }
-
 }
