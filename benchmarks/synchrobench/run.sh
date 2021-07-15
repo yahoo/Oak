@@ -29,18 +29,21 @@ declare -A benchmarks=(
   ["skip-list"]="JavaSkipListMap"
   ["oak"]="OakMyBufferMap"
   ["offheap-list"]="OffHeapList"
+  ["concurrent-hash-map"]="JavaHashMap"
 )
 
 declare -A heap_limit=(
   ["oak"]="12g"
   ["offheap-list"]="12g"
   ["skip-list"]="36g"
+  ["concurrent-hash-map"]="36g"
 )
 
 declare -A direct_limit=(
   ["oak"]="24g"
   ["offheap-list"]="24g"
-  ["skip-list"]="1m" #when running CSLM some off-heap memory is still required to unrelated java.util.zip.ZipFile
+  ["skip-list"]="1m" #when running CSLM/CHM some off-heap memory is still required to unrelated java.util.zip.ZipFile
+  ["concurrent-hash-map"]="1m"
 )
 
 declare -A gc_cmd_args=(
