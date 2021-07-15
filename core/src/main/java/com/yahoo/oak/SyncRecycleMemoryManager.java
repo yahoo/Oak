@@ -122,7 +122,7 @@ class SyncRecycleMemoryManager implements MemoryManager {
         // the version takes specific number of bits (including delete bit)
         // version increasing needs to restart once the maximal number of bits is reached
         int curVer = globalVersionNumber.get();
-        if (curVer == ReferenceCodecSyncRecycle.LAST_VALID_VERSION) {
+        if (curVer == rc.lastValidVersion) {
             globalVersionNumber.compareAndSet(curVer, VERS_INIT_VALUE);
         } else {
             globalVersionNumber.compareAndSet(curVer, curVer + 1);

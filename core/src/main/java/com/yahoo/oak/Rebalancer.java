@@ -47,7 +47,7 @@ class Rebalancer<K, V> {
         this.first = orderedChunk;
         last = orderedChunk;
         chunksInRange = 1;
-        itemsInRange = first.getStatistics().getCompactedCount();
+        itemsInRange = first.getStatistics().getTotalCount();
     }
 
     /*-------------- Methods --------------*/
@@ -173,7 +173,7 @@ class Rebalancer<K, V> {
         // use statistics to find out how much is left to copy
         while (iter.hasNext() && counter < maxCount) {
             OrderedChunk<K, V> c = iter.next();
-            counter += c.getStatistics().getCompactedCount();
+            counter += c.getStatistics().getTotalCount();
             if (firstChunk) {
                 counter -= entriesLowThreshold;
                 firstChunk = false;
@@ -214,7 +214,7 @@ class Rebalancer<K, V> {
             return null;
         }
 
-        int newItems = candidate.getStatistics().getCompactedCount();
+        int newItems = candidate.getStatistics().getTotalCount();
         int totalItems = itemsInRange + newItems;
         // TODO think if this makes sense
         int chunksAfterMerge = (int) Math.ceil(((double) totalItems) / maxAfterMergeItems);
@@ -239,7 +239,7 @@ class Rebalancer<K, V> {
     }
 
     private void addToCounters(OrderedChunk<K, V> orderedChunk) {
-        itemsInRange += orderedChunk.getStatistics().getCompactedCount();
+        itemsInRange += orderedChunk.getStatistics().getTotalCount();
         chunksInRange++;
     }
 
@@ -251,8 +251,8 @@ class Rebalancer<K, V> {
     private boolean isCandidate(OrderedChunk<K, V> orderedChunk) {
         // do not take chunks that are engaged with another rebalancer or infant
         return orderedChunk != null && orderedChunk.isEngaged(null) && (
-            orderedChunk.state() != OrderedChunk.State.INFANT) &&
-                (orderedChunk.state() != OrderedChunk.State.RELEASED);
+            orderedChunk.state() != BasicChunk.State.INFANT) &&
+                (orderedChunk.state() != BasicChunk.State.RELEASED);
     }
 
     private List<OrderedChunk<K, V>> createEngagedList() {

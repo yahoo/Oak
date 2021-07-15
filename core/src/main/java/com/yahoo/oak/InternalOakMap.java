@@ -321,31 +321,31 @@ class InternalOakMap<K, V> {
             skiplist.remove(engagedToRemove.minKey, engagedToRemove); // conditional remove is used
         }
 
-        // now after removing old chunks we can start normalizing
-        firstChild.normalize();
-
         // for simplicity -  naive lock implementation
         // can be implemented without locks using versions on next pointer in skiplist
         while (iterChildren.hasNext()) {
             OrderedChunk<K, V> childToAdd = iterChildren.next();
             synchronized (childToAdd) {
-                if (childToAdd.state() == OrderedChunk.State.INFANT) { // make sure it wasn't add before
+                if (childToAdd.state() == BasicChunk.State.INFANT) { // make sure it wasn't add before
                     skiplist.putIfAbsent(childToAdd.minKey, childToAdd);
                     childToAdd.normalize();
                 }
                 // has a built in fence, so no need to add one here
             }
         }
+
+        // now after removing old chunks and updating the skiplist, we can start normalizing
+        firstChild.normalize();
     }
 
     private boolean inTheMiddleOfRebalance(OrderedChunk<K, V> c) {
-        OrderedChunk.State state = c.state();
-        if (state == OrderedChunk.State.INFANT) {
+        BasicChunk.State state = c.state();
+        if (state == BasicChunk.State.INFANT) {
             // the infant is already connected so rebalancer won't add this put
-            rebalance(c.creator());
+            rebalance((OrderedChunk<K, V>) c.creator());
             return true;
         }
-        if (state == OrderedChunk.State.FROZEN || state == OrderedChunk.State.RELEASED) {
+        if (state == BasicChunk.State.FROZEN || state == BasicChunk.State.RELEASED) {
             rebalance(c);
             return true;
         }
@@ -1105,7 +1105,7 @@ class InternalOakMap<K, V> {
                 }
 
                 final OrderedChunk<K, V> c = state.getOrderedChunk();
-                if (c.state() == OrderedChunk.State.RELEASED) {
+                if (c.state() == BasicChunk.State.RELEASED) {
                     initAfterRebalance();
                     continue;
                 }
@@ -1150,7 +1150,7 @@ class InternalOakMap<K, V> {
                 }
 
                 final OrderedChunk<K, V> c = state.getOrderedChunk();
-                if (c.state() == OrderedChunk.State.RELEASED) {
+                if (c.state() == BasicChunk.State.RELEASED) {
                     initAfterRebalance();
                     continue;
                 }

@@ -280,10 +280,6 @@ public class EntryHashSetTest {
         Assert.assertFalse(ctx.isValueValid());
 
         assert ehs.deleteValueFinish(ctx);
-        assert ctx.entryIndex == 7 && ctx.entryState == EntryArray.EntryState.DELETED
-            && ctx.key.getSlice().getReference() == memoryManager.getInvalidReference()
-            && ctx.value.getSlice().getReference() == memoryManager.getInvalidReference()
-            && !ctx.isValueValid() && !ctx.isKeyValid();
         Assert.assertEquals(ctx.entryIndex, 7);
         Assert.assertEquals(ctx.entryState, EntryArray.EntryState.DELETED);
         Assert.assertEquals(ctx.key.getSlice().getReference(), memoryManager.getInvalidReference());
@@ -303,7 +299,8 @@ public class EntryHashSetTest {
         Assert.assertFalse(ctx.isKeyValid());
 
         //insert on top of the deleted entry
-        assert ehs.allocateEntryAndWriteKey(ctx, new Integer(5), 7 /*000111*/, 39 /*100111*/ );
+        Integer key = new Integer(5);
+        assert ehs.allocateEntryAndWriteKey(ctx, key, 7 /*000111*/, key.hashCode() /*100111*/ );
         Assert.assertEquals(ctx.entryIndex, 7);
         Assert.assertEquals(ctx.entryState, EntryArray.EntryState.DELETED);
         Assert.assertNotEquals(ctx.key.getSlice().getReference(), memoryManager.getInvalidReference());
@@ -323,6 +320,77 @@ public class EntryHashSetTest {
 
         // commit the value, insert linearization points
         assert ehs.writeValueCommit(ctx) == ValueUtils.ValueResult.TRUE;
+
+        ctx.invalidate();
+
+        // second delete
+        // delete firstly inserted entries, first look for a key and mark its value as deleted
+        assert ehs.lookUp(ctx, key, 7 /*000111*/, key.hashCode() );
+        Assert.assertEquals(ctx.entryIndex, 7);
+        Assert.assertEquals(ctx.entryState, EntryArray.EntryState.VALID);
+        Assert.assertNotEquals(ctx.key.getSlice().getReference(), memoryManager.getInvalidReference());
+        Assert.assertNotEquals(ctx.value.getSlice().getReference(), memoryManager.getInvalidReference());
+        Assert.assertEquals(ctx.newValue.getSlice().getReference(), memoryManager.getInvalidReference());
+        Assert.assertTrue(ctx.isValueValid());
+
+        result = valueOperator.transform(new Result(), ctx.value, buf -> serializer.deserialize(buf));
+        Assert.assertEquals(ValueUtils.ValueResult.TRUE, result.operationResult);
+        Assert.assertEquals(50, ((Integer) result.value).intValue());
+
+        vr = ctx.value.s.logicalDelete();
+        assert vr == ValueUtils.ValueResult.TRUE;
+
+        // look for the entry again, to ensure the state is delete not finalize
+        // delete some entries, first look for a key and mark its value as deleted
+        assert !ehs.lookUp(ctx, key, 7 /*000111*/, key.hashCode() );
+        Assert.assertEquals(ctx.entryIndex, 7);
+        Assert.assertEquals(ctx.entryState, EntryArray.EntryState.DELETED_NOT_FINALIZED);
+        Assert.assertNotEquals(ctx.key.getSlice().getReference(), memoryManager.getInvalidReference());
+        Assert.assertNotEquals(ctx.value.getSlice().getReference(), memoryManager.getInvalidReference());
+        Assert.assertEquals(ctx.newValue.getSlice().getReference(), memoryManager.getInvalidReference());
+        Assert.assertFalse(ctx.isValueValid());
+
+        assert ehs.deleteValueFinish(ctx);
+        Assert.assertEquals(ctx.entryIndex, 7);
+        Assert.assertEquals(ctx.entryState, EntryArray.EntryState.DELETED);
+        Assert.assertEquals(ctx.key.getSlice().getReference(), memoryManager.getInvalidReference());
+        Assert.assertEquals(ctx.value.getSlice().getReference(), memoryManager.getInvalidReference());
+        Assert.assertEquals(ctx.newValue.getSlice().getReference(), memoryManager.getInvalidReference());
+        Assert.assertFalse(ctx.isValueValid());
+        Assert.assertFalse(ctx.isKeyValid());
+
+        //look for the key once again to check it is not found
+        assert !ehs.lookUp(ctx, key, 7, key.hashCode() );
+        Assert.assertEquals(ctx.entryIndex, EntryArray.INVALID_ENTRY_INDEX);
+        Assert.assertEquals(ctx.entryState, EntryArray.EntryState.UNKNOWN);
+        Assert.assertEquals(ctx.key.getSlice().getReference(), memoryManager.getInvalidReference());
+        Assert.assertEquals(ctx.value.getSlice().getReference(), memoryManager.getInvalidReference());
+        Assert.assertEquals(ctx.newValue.getSlice().getReference(), memoryManager.getInvalidReference());
+        Assert.assertFalse(ctx.isValueValid());
+        Assert.assertFalse(ctx.isKeyValid());
+
+        //insert on top of the deleted entry
+        assert ehs.allocateEntryAndWriteKey(ctx, key, 7, key.hashCode() );
+        Assert.assertEquals(ctx.entryIndex, 7);
+        Assert.assertEquals(ctx.entryState, EntryArray.EntryState.DELETED);
+        Assert.assertNotEquals(ctx.key.getSlice().getReference(), memoryManager.getInvalidReference());
+        Assert.assertNotEquals(ctx.value.getSlice().getReference(), memoryManager.getInvalidReference());
+        Assert.assertEquals(ctx.newValue.getSlice().getReference(), memoryManager.getInvalidReference());
+        Assert.assertTrue(memoryManager.isReferenceDeleted(ctx.value.getSlice().getReference()));
+
+        // simple value allocation
+        ehs.allocateValue(ctx, new Integer(50), false);
+        Assert.assertEquals(ctx.entryIndex, 7);
+        Assert.assertEquals(ctx.entryState, EntryArray.EntryState.DELETED);
+        Assert.assertNotEquals(ctx.key.getSlice().getReference(), memoryManager.getInvalidReference());
+        Assert.assertNotEquals(ctx.value.getSlice().getReference(), memoryManager.getInvalidReference());
+        Assert.assertNotEquals(ctx.newValue.getSlice().getReference(), memoryManager.getInvalidReference());
+        Assert.assertTrue(memoryManager.isReferenceDeleted(ctx.value.getSlice().getReference()));
+        Assert.assertTrue(ehs.getCollisionChainLength() > EntryHashSet.DEFAULT_COLLISION_CHAIN_LENGTH);
+
+        // commit the value, insert linearization points
+        assert ehs.writeValueCommit(ctx) == ValueUtils.ValueResult.TRUE;
+
 
     }
 

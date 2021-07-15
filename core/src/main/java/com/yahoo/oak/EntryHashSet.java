@@ -70,7 +70,8 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
     // use union codec to encode key hash integer (first) with its update counter (second)
     private final UnionCodec hashCodec = new UnionCodec(
         KEY_HASH_BITS, // bits# to represent full hash number as integer, bits# to represent update
-        UnionCodec.INVALID_BIT_SIZE); // counter are calculated upon previous parameters (also int)
+        UnionCodec.INVALID_BIT_SIZE, // counter are calculated upon previous parameters (also int
+        Long.SIZE);
 
     /*----------------- Constructor -------------------*/
     /**
@@ -242,13 +243,17 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
             // entry's key is read into ctx.tempKey as a side effect
             ctx.entryState = getEntryState(ctx, ctx.entryIndex, key, keyHash);
 
+            if (ctx.entryState == EntryState.UNKNOWN) {
+                return false; // there is no such a key and there is no need to look forward
+            }
+
             // value and key slices are read during getEntryState() unless the entry is
             // fully deleted (EntryState.DELETED) in this case we cannot compare the key (!)
             // also deletion linearization point is checked during getEntryState()
             if (ctx.entryState != EntryState.DELETED &&
                 isKeyAndEntryKeyEqual(ctx.key, key, ctx.entryIndex, keyHash)) {
                 // EntryState.VALID --> the key is found
-                // DELETED_NOT_FINALIZED/UNKNOWN --> key doesn't exists
+                // DELETED_NOT_FINALIZED --> key doesn't exists
                 //                      and there is no need to continue to check next entries
                 // INSERT_NOT_FINALIZED --> before linearization point, key doesn't exist
                 // when more than unique keys can be concurrently inserted, need to check further!
@@ -454,6 +459,9 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
      *  references as deleted is unique and so the slice releases
      */
     boolean deleteValueFinish(ThreadContext ctx) {
+
+        assert ctx.entryState == EntryState.DELETED_NOT_FINALIZED;
+
         if (valuesMemoryManager.isReferenceDeleted(ctx.value.getSlice().getReference())
             && getKeyHash(ctx.entryIndex) == INVALID_KEY_HASH) {
             // entry is already deleted
@@ -461,8 +469,6 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
             ctx.entryState = EntryState.DELETED;
             return false;
         }
-
-        assert ctx.entryState == EntryState.DELETED_NOT_FINALIZED;
 
         // marking the delete bit in the key's off-heap header (only one true setter gets result TRUE)
         // The marking happens only when no lock is taken, otherwise busy waits
