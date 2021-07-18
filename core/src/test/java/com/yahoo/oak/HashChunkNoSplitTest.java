@@ -30,7 +30,7 @@ public class HashChunkNoSplitTest {
 
         ctx.invalidate();
 
-        // look for a key on an empty chunk
+        // look for a key that should be existing in the chunk
         c.lookUp(ctx, key);
         Assert.assertFalse(ctx.isKeyValid());
         Assert.assertFalse(ctx.isValueValid());
@@ -95,6 +95,8 @@ public class HashChunkNoSplitTest {
         ThreadContext ctx = new ThreadContext(memoryManager, memoryManager);
         Integer keySmall = new Integer(5);
         Integer keyBig = new Integer( 12345678);
+        Integer keyZero = new Integer(0);
+        Integer keyNegative = new Integer(-123);
 
         // create new Hash Chunk
         HashChunk c = new HashChunk(
@@ -104,6 +106,43 @@ public class HashChunkNoSplitTest {
         // PUT including GET
         put(ctx, c, keySmall);
         put(ctx, c, keyBig);
+        put(ctx, c, keyZero);
+        put(ctx, c, keyNegative);
+
+        // DELETE
+        // delete firstly inserted entries, first look for a key and mark its value as deleted
+        c.lookUp(ctx, keyBig);
+        Assert.assertNotEquals(ctx.entryIndex, EntryArray.INVALID_ENTRY_INDEX);
+        Assert.assertEquals(ctx.entryState, EntryArray.EntryState.VALID);
+        Assert.assertNotEquals(ctx.key.getSlice().getReference(), memoryManager.getInvalidReference());
+        Assert.assertNotEquals(ctx.value.getSlice().getReference(), memoryManager.getInvalidReference());
+        Assert.assertEquals(ctx.newValue.getSlice().getReference(), memoryManager.getInvalidReference());
+        Assert.assertTrue(ctx.isValueValid());
+
+        Result result = valueOperator.transform(new Result(), ctx.value, buf -> serializer.deserialize(buf));
+        Assert.assertEquals(ValueUtils.ValueResult.TRUE, result.operationResult);
+        Assert.assertEquals(keyBig + 1, ((Integer) result.value).intValue());
+
+        ValueUtils.ValueResult vr = ctx.value.s.logicalDelete();
+        assert vr == ValueUtils.ValueResult.TRUE;
+
+        // look for the entry again, to ensure the state is delete not finalize
+        // delete some entries, first look for a key and mark its value as deleted
+        c.lookUp(ctx, keyBig);
+        Assert.assertEquals(ctx.entryState, EntryArray.EntryState.DELETED_NOT_FINALIZED);
+        Assert.assertNotEquals(ctx.key.getSlice().getReference(), memoryManager.getInvalidReference());
+        Assert.assertNotEquals(ctx.value.getSlice().getReference(), memoryManager.getInvalidReference());
+        Assert.assertEquals(ctx.newValue.getSlice().getReference(), memoryManager.getInvalidReference());
+        Assert.assertFalse(ctx.isValueValid());
+
+        // expect false because no rebalance should be requested. Includes publish/unpublish
+        assert !c.finalizeDeletion(ctx);
+        Assert.assertEquals(ctx.entryState, EntryArray.EntryState.DELETED);
+        Assert.assertEquals(ctx.key.getSlice().getReference(), memoryManager.getInvalidReference());
+        Assert.assertEquals(ctx.value.getSlice().getReference(), memoryManager.getInvalidReference());
+        Assert.assertEquals(ctx.newValue.getSlice().getReference(), memoryManager.getInvalidReference());
+        Assert.assertFalse(ctx.isValueValid());
+        Assert.assertFalse(ctx.isKeyValid());
 
     }
 

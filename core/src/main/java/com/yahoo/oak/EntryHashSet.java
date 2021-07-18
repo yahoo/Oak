@@ -53,11 +53,17 @@ import java.util.concurrent.atomic.AtomicInteger;
 class EntryHashSet<K, V> extends EntryArray<K, V> {
 
     /*-------------- Constants --------------*/
-    static final int INVALID_KEY_HASH = 0; // because memory is initially zeroed
+
     static final int DEFAULT_COLLISION_CHAIN_LENGTH = 3;
     // HASH - the key hash of this entry (long includes the update counter)
     private static final int HASH_FIELD_OFFSET = 2;
-    private static final int KEY_HASH_BITS = 32; // Hash needs to be an integer
+    private static final int KEY_HASH_BITS = 33; // Hash needs to be an integer + INVALID_KEY_HASH
+
+    // key hash may have any positive integer value including zero. However, initially
+    // all array's memory is zeroed, including key hashes and their update counters.
+    // The following INVALID_KEY_HASH is relevant only when the update counter is non-zero.
+    static final int INVALID_KEY_HASH = (1 << (KEY_HASH_BITS - 1));
+
     // Additional field to keep key hash + its update counter (additional to the key and value reference fields)
     // # of additional primitive fields in each item of entries array
     private static final int ADDITIONAL_FIELDS = 1;
@@ -108,15 +114,20 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
     }
 
     /**
-     * isKeyHashValid checks the key hash itself disregarding the update counter
+     * isKeyHashValid checks the key hash itself disregarding the update counter, when it is above zero.
+     *
+     * key hash may have any positive integer value including zero. However, initially
+     * all array's memory is zeroed, including key hashes and their update counters.
+     * The INVALID_KEY_HASH is relevant only when the update counter is non-zero.
      */
     private boolean isKeyHashValid(int ei) {
-        return (getKeyHash(ei) != INVALID_KEY_HASH);
+
+        return (getKeyHashAndUpdateCounter(ei) == 0) || (getKeyHash(ei) != INVALID_KEY_HASH);
     }
 
     /**
      * setKeyHashAndUpdateCounter sets the key hash (of the entry given by entry index "ei")
-     * to be the "hash". Long parameter "hash" must include the update counter!
+     * to be the "hash". Long parameter "hash" must include the update counter (with value 1 at least)!
      * To be used while rebalance, during normal path only CAS is used.
      */
     private void setKeyHashAndUpdateCounter(int ei, long hash) {
@@ -155,9 +166,11 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
      */
     private boolean isKeyAndEntryKeyEqual(KeyBuffer tempKeyBuff, K key, int idx, int keyHash) {
         // check the key's hash comparison first
-        int entryKeyHash = getKeyHash(idx);
-        if (entryKeyHash != INVALID_KEY_HASH && entryKeyHash != keyHash) {
-            return false;
+        if (isKeyHashValid(idx)) {
+            int entryKeyHash = getKeyHash(idx);
+            if (entryKeyHash != keyHash) {
+                return false;
+            }
         }
         return (0 == comparator.compareKeyAndSerializedKey(key, tempKeyBuff));
     }
@@ -165,16 +178,16 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
     /* Check the state of the entry in `idx`
     ** Assume upon invocation that ctx.value, ctx.key, and ctx.keyHash are invalidated
     ** At the end:
-    ** If output is  EntryState.UNKNOWN --> ctx.key, ctx.value, ctx.keyHash remain untouched
+    ** If output is  EntryState.UNKNOWN --> ctx.key, ctx.value remain untouched
     ** If output is  EntryState.DELETED_NOT_FINALIZED/DELETED/INSERT_NOT_FINALIZED/VALID
     ** --> ctx.key, ctx.value, ctx.keyHash keep the data of the entry's key, value, and key hash
      */
     private EntryState getEntryState(ThreadContext ctx, int idx, K key, int keyHash) {
 
+        ctx.keyHash = getKeyHashAndUpdateCounter(idx);
         if (getKeyReference(idx) == keysMemoryManager.getInvalidReference()) {
             return EntryState.UNKNOWN;
         }
-        ctx.keyHash = getKeyHashAndUpdateCounter(idx);
         // entry was used already, is value deleted?
         // the linearization point of deletion is marking the value off-heap
         // isValueDeleted checks the reference first (for being invalid or deleted) than the off-heap header
@@ -463,7 +476,7 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
         assert ctx.entryState == EntryState.DELETED_NOT_FINALIZED;
 
         if (valuesMemoryManager.isReferenceDeleted(ctx.value.getSlice().getReference())
-            && getKeyHash(ctx.entryIndex) == INVALID_KEY_HASH) {
+            && !isKeyHashValid(ctx.entryIndex)) {
             // entry is already deleted
             // value reference is marked deleted and key hash is invalid, the last stages are done
             ctx.entryState = EntryState.DELETED;

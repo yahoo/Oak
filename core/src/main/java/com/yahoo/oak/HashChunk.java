@@ -74,6 +74,10 @@ class HashChunk<K, V> extends BasicChunk<K, V> {
                 UnionCodec.INVALID_BIT_SIZE, Integer.SIZE);
     }
 
+    private int calculateKeyHash(K key) {
+        int hashKey = key.hashCode(); // hash can be positive, zero or negative
+        return Math.abs(hashKey); // EntryHashSet doesn't accept negative hashes
+    }
     /********************************************************************************************/
     /*-----------------------------  Wrappers for EntryOrderedSet methods -----------------------------*/
 
@@ -117,7 +121,7 @@ class HashChunk<K, V> extends BasicChunk<K, V> {
      * See {@code EntryOrderedSet.allocateEntryAndWriteKey(ThreadContext)} for more information
      */
     boolean allocateEntryAndWriteKey(ThreadContext ctx, K key) {
-        int keyHash = key.hashCode();
+        int keyHash = calculateKeyHash(key);
         return entryHashSet.allocateEntryAndWriteKey(
             ctx, key, calculateEntryIdx(key, keyHash), keyHash);
     }
@@ -189,7 +193,7 @@ class HashChunk<K, V> extends BasicChunk<K, V> {
      * @param key the key to look up
      */
     void lookUp(ThreadContext ctx, K key) {
-        int keyHash = key.hashCode();
+        int keyHash = calculateKeyHash(key);
         entryHashSet.lookUp(ctx, key, calculateEntryIdx(key, keyHash), keyHash);
         return;
     }
