@@ -88,7 +88,9 @@ public class HashChunkNoSplitTest {
         Assert.assertTrue(ctx.isKeyValid());
         Assert.assertEquals(vr, ValueUtils.ValueResult.TRUE);
         Assert.assertNotEquals(ctx.key.getSlice().getReference(), memoryManager.getInvalidReference());
-        Assert.assertEquals(ctx.value.getSlice().getReference(), memoryManager.getInvalidReference());
+        if (!concurrent) {
+            Assert.assertEquals(ctx.value.getSlice().getReference(), memoryManager.getInvalidReference());
+        }
         Assert.assertNotEquals(ctx.newValue.getSlice().getReference(), memoryManager.getInvalidReference());
         if (!concurrent) {
             Assert.assertEquals(c.externalSize.get(), numberOfMappingsBefore + 1); // one mapping is allocated
