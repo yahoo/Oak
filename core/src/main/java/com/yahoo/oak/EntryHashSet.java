@@ -54,7 +54,7 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
 
     /*-------------- Constants --------------*/
 
-    static final int DEFAULT_COLLISION_CHAIN_LENGTH = 3;
+    static final int DEFAULT_COLLISION_CHAIN_LENGTH = 4;
     // HASH - the key hash of this entry (long includes the update counter)
     private static final int HASH_FIELD_OFFSET = 2;
     private static final int KEY_HASH_BITS = 32; // Hash needs to be an integer

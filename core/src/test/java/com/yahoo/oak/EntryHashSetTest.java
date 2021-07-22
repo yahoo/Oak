@@ -83,6 +83,32 @@ public class EntryHashSetTest {
 
         assert ehs.writeValueCommit(ctx) == ValueUtils.ValueResult.TRUE;
 
+
+        // insert yet another different key with the same hash idx and the same full hash idx
+        // (without exceeding (but reaching) the default collision escape number)
+        assert ehs.allocateEntryAndWriteKey(ctx, new Integer(55), 7 /*000111*/, 23 /*010111*/ );
+        Assert.assertEquals(ctx.entryIndex, 10);
+        Assert.assertEquals(ctx.entryState, EntryArray.EntryState.UNKNOWN);
+        Assert.assertNotEquals(ctx.key.getSlice().getReference(), memoryManager.getInvalidReference());
+        Assert.assertEquals(ctx.value.getSlice().getReference(), memoryManager.getInvalidReference());
+        Assert.assertEquals(ctx.newValue.getSlice().getReference(), memoryManager.getInvalidReference());
+        Assert.assertEquals(ehs.getCollisionChainLength(), EntryHashSet.DEFAULT_COLLISION_CHAIN_LENGTH);
+
+        // add value allocation
+        ehs.allocateValue(ctx, new Integer(550), false);
+        Assert.assertEquals(ctx.entryIndex, 10);
+        Assert.assertEquals(ctx.entryState, EntryArray.EntryState.UNKNOWN);
+        Assert.assertNotEquals(ctx.key.getSlice().getReference(), memoryManager.getInvalidReference());
+        Assert.assertEquals(ctx.value.getSlice().getReference(), memoryManager.getInvalidReference());
+        Assert.assertNotEquals(ctx.newValue.getSlice().getReference(), memoryManager.getInvalidReference());
+        Assert.assertEquals(ehs.getCollisionChainLength(), EntryHashSet.DEFAULT_COLLISION_CHAIN_LENGTH);
+
+        assert ehs.writeValueCommit(ctx) == ValueUtils.ValueResult.TRUE;
+
+
+
+
+
         // insert different key with the same hash idx and the same full hash idx
         // (exceeding default collision escape number, but not all having the same full hash)
         // should fail to request a rebalance
@@ -116,7 +142,7 @@ public class EntryHashSetTest {
 
         // simple one insert, different hashIdx, same full hash idx
         assert ehs.allocateEntryAndWriteKey(ctx, new Integer(4), 10 /*000111*/, 23 /*100111*/ );
-        Assert.assertEquals(ctx.entryIndex, 10);
+        Assert.assertEquals(ctx.entryIndex, 11);
         Assert.assertEquals(ctx.entryState, EntryArray.EntryState.UNKNOWN);
         Assert.assertNotEquals(ctx.key.getSlice().getReference(), memoryManager.getInvalidReference());
         Assert.assertEquals(ctx.value.getSlice().getReference(), memoryManager.getInvalidReference());
@@ -124,7 +150,7 @@ public class EntryHashSetTest {
 
         // add value allocation
         ehs.allocateValue(ctx, new Integer(40), false);
-        Assert.assertEquals(ctx.entryIndex, 10);
+        Assert.assertEquals(ctx.entryIndex, 11);
         Assert.assertEquals(ctx.entryState, EntryArray.EntryState.UNKNOWN);
         Assert.assertEquals(ehs.getCollisionChainLength(), EntryHashSet.DEFAULT_COLLISION_CHAIN_LENGTH);
         Assert.assertNotEquals(ctx.key.getSlice().getReference(), memoryManager.getInvalidReference());
@@ -137,7 +163,7 @@ public class EntryHashSetTest {
         // (exceeding default collision escape number, triplet having the same full hash)
         // should not fail and increase collision escapes
         assert (ehs.allocateEntryAndWriteKey(ctx, new Integer(35), 8 /*000111*/, 23 /*010111*/ ));
-        Assert.assertEquals(ctx.entryIndex, 11);
+        Assert.assertEquals(ctx.entryIndex, 12);
         Assert.assertEquals(ctx.entryState, EntryArray.EntryState.UNKNOWN);
         Assert.assertTrue(ehs.getCollisionChainLength() > EntryHashSet.DEFAULT_COLLISION_CHAIN_LENGTH);
         Assert.assertNotEquals(ctx.key.getSlice().getReference(), memoryManager.getInvalidReference());
@@ -146,7 +172,7 @@ public class EntryHashSetTest {
 
         // add value allocation
         ehs.allocateValue(ctx, new Integer(350), false);
-        Assert.assertEquals(ctx.entryIndex, 11);
+        Assert.assertEquals(ctx.entryIndex, 12);
         Assert.assertEquals(ctx.entryState, EntryArray.EntryState.UNKNOWN);
         Assert.assertTrue(ehs.getCollisionChainLength() > EntryHashSet.DEFAULT_COLLISION_CHAIN_LENGTH);
         Assert.assertNotEquals(ctx.key.getSlice().getReference(), memoryManager.getInvalidReference());
@@ -217,11 +243,11 @@ public class EntryHashSetTest {
 
         // look for a key on within increased 'collision escapes' distance -> should be found
         assert ehs.lookUp(ctx, new Integer(35), 8 /*000111*/, 23 /*010111*/ );
-        assert ctx.entryIndex == 11 && ctx.entryState == EntryArray.EntryState.VALID
+        assert ctx.entryIndex == 12 && ctx.entryState == EntryArray.EntryState.VALID
             && ctx.key.getSlice().getReference() != memoryManager.getInvalidReference()
             && ctx.value.getSlice().getReference() != memoryManager.getInvalidReference()
             && ctx.isValueValid();
-        Assert.assertEquals(ctx.entryIndex, 11);
+        Assert.assertEquals(ctx.entryIndex, 12);
         Assert.assertEquals(ctx.entryState, EntryArray.EntryState.VALID);
         Assert.assertNotEquals(ctx.key.getSlice().getReference(), memoryManager.getInvalidReference());
         Assert.assertNotEquals(ctx.value.getSlice().getReference(), memoryManager.getInvalidReference());
