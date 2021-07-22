@@ -44,7 +44,13 @@ public class HashChunkNoSplitTest {
         // allocate an entry and write the key there
         // (true should be returned, no rebalance should be requested)
         assert c.allocateEntryAndWriteKey(ctx, key);
-        Assert.assertEquals(ctx.entryState, EntryArray.EntryState.UNKNOWN);
+        if (concurrent) { // for concurrency the entry state can be also deleted
+            // (from this or other key being previously inserted and fully deleted)
+            Assert.assertTrue(ctx.entryState == EntryArray.EntryState.DELETED
+                || ctx.entryState == EntryArray.EntryState.UNKNOWN);
+        } else {
+            Assert.assertEquals(ctx.entryState, EntryArray.EntryState.UNKNOWN);
+        }
         Assert.assertTrue(ctx.isKeyValid());
         Assert.assertFalse(ctx.isValueValid());
         Assert.assertNotEquals(ctx.key.getSlice().getReference(), memoryManager.getInvalidReference());
@@ -62,7 +68,8 @@ public class HashChunkNoSplitTest {
         // allocate and write the value
         c.allocateValue(ctx, key + 1, false);
         Assert.assertTrue(ctx.entryState == EntryArray.EntryState.INSERT_NOT_FINALIZED
-            || ctx.entryState == EntryArray.EntryState.UNKNOWN);
+            || ctx.entryState == EntryArray.EntryState.UNKNOWN
+            || ctx.entryState == EntryArray.EntryState.DELETED);
         Assert.assertTrue(ctx.isKeyValid());
         Assert.assertNotEquals(ctx.key.getSlice().getReference(), memoryManager.getInvalidReference());
         Assert.assertNotEquals(ctx.newValue.getSlice().getReference(), memoryManager.getInvalidReference());
@@ -184,6 +191,7 @@ public class HashChunkNoSplitTest {
     public void testSimpleMultiThread() throws InterruptedException {
 
         ThreadContext ctx = new ThreadContext(memoryManager, memoryManager);
+        int numberOfMappingsBefore = c.externalSize.get();
 
         Integer keyFirst = new Integer(5);
         Integer keySecond = new Integer(6);
@@ -266,6 +274,8 @@ public class HashChunkNoSplitTest {
         c.lookUp(ctx, keySecondNegative);
         Assert.assertTrue(ctx.isKeyValid());
         Assert.assertTrue(ctx.isValueValid());
+
+        Assert.assertEquals(c.externalSize.get(), numberOfMappingsBefore + 3); // no mapping is yet allocated
     }
 
 }
