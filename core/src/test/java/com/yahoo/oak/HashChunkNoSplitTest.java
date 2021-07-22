@@ -187,6 +187,7 @@ public class HashChunkNoSplitTest {
 
         Integer keyFirst = new Integer(5);
         Integer keySecond = new Integer(6);
+        Integer keyThird = new Integer(7);
         Integer keyFirstNegative = new Integer(-5); // same hash as 5
         Integer keySecondNegative = new Integer(-6); // same hash as 6
 
@@ -205,6 +206,20 @@ public class HashChunkNoSplitTest {
             c.lookUp(ctxInserter, keySecond);
             Assert.assertTrue(ctxInserter.isKeyValid());
             Assert.assertTrue(ctxInserter.isValueValid());
+            c.lookUp(ctxInserter, keyFirst);
+            Assert.assertTrue(ctxInserter.isKeyValid());
+            Assert.assertTrue(ctxInserter.isValueValid());
+
+            putNotExisting(keyThird, ctxInserter, true);
+            c.lookUp(ctxInserter, keyThird);
+            Assert.assertTrue(ctxInserter.isKeyValid());
+            Assert.assertTrue(ctxInserter.isValueValid());
+
+            deleteExisting(keyThird, ctxInserter);
+            c.lookUp(ctxInserter, keyThird);
+            Assert.assertFalse(ctxInserter.isKeyValid());
+            Assert.assertFalse(ctxInserter.isValueValid());
+
         });
 
         inserter.start();
@@ -225,6 +240,11 @@ public class HashChunkNoSplitTest {
         Assert.assertTrue(ctx.isKeyValid());
         Assert.assertTrue(ctx.isValueValid());
 
+        deleteExisting(keyFirstNegative, ctx);
+        c.lookUp(ctx, keyFirstNegative);
+        Assert.assertFalse(ctx.isKeyValid());
+        Assert.assertFalse(ctx.isValueValid());
+
         inserter.join();
 
         // Not-concurrently look for all keys that should be existing in the chunk
@@ -235,10 +255,13 @@ public class HashChunkNoSplitTest {
         c.lookUp(ctx, keySecond);
         Assert.assertTrue(ctx.isKeyValid());
         Assert.assertTrue(ctx.isValueValid());
+        c.lookUp(ctx, keyThird);
+        Assert.assertFalse(ctx.isKeyValid());
+        Assert.assertFalse(ctx.isValueValid());
         // look for a key that should be existing in the chunk
         c.lookUp(ctx, keyFirstNegative);
-        Assert.assertTrue(ctx.isKeyValid());
-        Assert.assertTrue(ctx.isValueValid());
+        Assert.assertFalse(ctx.isKeyValid());
+        Assert.assertFalse(ctx.isValueValid());
         // look for a key that should be existing in the chunk
         c.lookUp(ctx, keySecondNegative);
         Assert.assertTrue(ctx.isKeyValid());
