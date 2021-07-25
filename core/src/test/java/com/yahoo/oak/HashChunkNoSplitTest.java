@@ -16,15 +16,20 @@ import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class HashChunkNoSplitTest {
-    private static final int MAX_ITEMS_PER_CHUNK = 20;
+    private static final int MAX_ITEMS_PER_CHUNK = 32;
     private final ValueUtils valueOperator = new ValueUtils();
-    final NativeMemoryAllocator allocator = new NativeMemoryAllocator(128);
-    SyncRecycleMemoryManager memoryManager = new SyncRecycleMemoryManager(allocator);
-    OakIntSerializer serializer = new OakIntSerializer();
+    private final NativeMemoryAllocator allocator = new NativeMemoryAllocator(128);
+    private final SyncRecycleMemoryManager memoryManager = new SyncRecycleMemoryManager(allocator);
+    private final OakIntSerializer serializer = new OakIntSerializer();
+
+    private final UnionCodec hashIndexCodec =
+        new UnionCodec(5, // the size of the first, as these are LSBs
+            UnionCodec.INVALID_BIT_SIZE, Integer.SIZE); // the second (MSB) will be calculated
+
 
     private final HashChunk c = new HashChunk(
         MAX_ITEMS_PER_CHUNK, new AtomicInteger(0), memoryManager, memoryManager,
-        new OakIntComparator(), serializer, serializer);
+        new OakIntComparator(), serializer, serializer, hashIndexCodec);
 
     // the put flow done by InternalOakHashMap
     private void putNotExisting(Integer key, ThreadContext ctx, boolean concurrent) {

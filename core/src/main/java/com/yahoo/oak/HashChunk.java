@@ -11,67 +11,47 @@ import java.util.concurrent.atomic.AtomicInteger;
 class HashChunk<K, V> extends BasicChunk<K, V> {
     // HashChunk takes a number of least significant bits from the full key hash
     // to provide as an index in the EntryHashSet
-    private static final int DEFAULT_MAX_LSB_SECOND_LEVEL = 12; // per MAX_HASH_ITEMS_DEFAULT
-    private static final int DEFAULT_MIN_LSB_SECOND_LEVEL = 4;
-    private int lsbForSecondLevelHash = DEFAULT_MAX_LSB_SECOND_LEVEL;
-    private UnionCodec hashIndexCodec;
-
-    // defaults
-    public static final int MAX_HASH_ITEMS_DEFAULT = 4096; // 2^DEFAULT_MAX_LSB_SECOND_LEVEL
+    private UnionCodec hashIndexCodec; // to be given
 
     /*-------------- Members --------------*/
     private final EntryHashSet<K, V> entryHashSet;
 
     /*-------------- Constructors --------------*/
     /**
-     * This constructor is only used when creating the first ever chunk (without a creator).
+     * This constructor is only used when creating the first ever chunk/chunks (without a creator).
      * The caller might set the creator before returning the HashChunk to the user.
      *
      * @param maxItems  is the size of the entries array (not all the entries are going to be in use)
      *                  IMPORTANT!: it is better to be a power of two,
      *                  if not the rest of the entries are going to be waisted
+     * @param hashIndexCodec the codec initiated with the right amount of the least significant bits,
+     *                       to be used to get index from the key hash
      */
     HashChunk(int maxItems, AtomicInteger externalSize, MemoryManager vMM, MemoryManager kMM,
         OakComparator<K> comparator, OakSerializer<K> keySerializer,
-        OakSerializer<V> valueSerializer) {
+        OakSerializer<V> valueSerializer, UnionCodec hashIndexCodec) {
 
         super(maxItems, externalSize, comparator);
-        this.entryHashSet =
-            new EntryHashSet<>(vMM, kMM, maxItems, keySerializer, valueSerializer, comparator);
-        setChildSecondLevelBitsThreshold(this, false);
+        assert Math.pow( 2, hashIndexCodec.getFirstBitSize() ) <= maxItems ;
+        assert hashIndexCodec != null;
+
+        this.hashIndexCodec = hashIndexCodec;
+        this.entryHashSet = // must be called after setSecondLevelBitsThreshold
+            new EntryHashSet<>(vMM, kMM, getMaxItems(), keySerializer, valueSerializer,
+                comparator);
     }
 
     /**
      * Create a child HashChunk where this HashChunk object as its creator.
      */
-    HashChunk<K, V> createChild() {
+    HashChunk<K, V> createChild(UnionCodec hashIndexCodec) {
         HashChunk<K, V> child =
             new HashChunk<>(getMaxItems(), externalSize,
                 entryHashSet.valuesMemoryManager, entryHashSet.keysMemoryManager,
-                comparator, entryHashSet.keySerializer, entryHashSet.valueSerializer);
+                comparator, entryHashSet.keySerializer, entryHashSet.valueSerializer,
+                hashIndexCodec);
         updateBasicChild(child);
-        setChildSecondLevelBitsThreshold(child, true);
         return child;
-    }
-
-    private void setChildSecondLevelBitsThreshold(HashChunk chunk, boolean isChild) {
-
-        if (isChild) {
-            // each child chunk is responsible for less hash values
-            chunk.lsbForSecondLevelHash = this.lsbForSecondLevelHash > DEFAULT_MIN_LSB_SECOND_LEVEL ?
-                this.lsbForSecondLevelHash - 1 :
-                this.lsbForSecondLevelHash;
-        }
-
-        // This is the desired separation of the number of bits serving the first and second level
-        // hash. However chunk can only absorb indexes up to maxItems size.
-        int maxItems = getMaxItems();
-        // calculate log2 maxItems indirectly, using log() method
-        int possibleLsbNumber = (int) (Math.log(maxItems) / Math.log(2));
-        chunk.lsbForSecondLevelHash = Math.min(chunk.lsbForSecondLevelHash, possibleLsbNumber);
-        chunk.hashIndexCodec =
-            new UnionCodec(chunk.lsbForSecondLevelHash, // the size of the first, as these are LSBs
-                UnionCodec.INVALID_BIT_SIZE, Integer.SIZE);
     }
 
     private int calculateKeyHash(K key) {

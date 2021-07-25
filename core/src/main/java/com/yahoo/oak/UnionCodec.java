@@ -196,4 +196,16 @@ class UnionCodec {
         return  (int) ((union >>> thirdShift) & thirdMask);
     }
 
+    int getFirstBitSize() {
+        return firstBitSize;
+    }
+
+    int getSecondBitSize() {
+        return secondBitSize;
+    }
+
+    int getThirdBitSize() {
+        return thirdBitSize;
+    }
+
 }
