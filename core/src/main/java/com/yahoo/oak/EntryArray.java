@@ -409,7 +409,7 @@ public class EntryArray<K, V> {
     void writeKey(K key, KeyBuffer keyBuffer) {
         int keySize = keySerializer.calculateSize(key);
         keyBuffer.getSlice().allocate(keySize, false);
-        assert keyBuffer.isInitiated();
+        assert keyBuffer.isAssociated();
         ScopedWriteBuffer.serialize(keyBuffer.getSlice(), key, keySerializer);
     }
 

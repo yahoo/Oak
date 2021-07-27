@@ -31,7 +31,7 @@ class ReferenceCodecSyncRecycle extends ReferenceCodec {
             = (INVALID_REFERENCE | (VERSION_DELETE_BIT_MASK << BITS_FOR_MAXIMUM_RAM));
 
     // number of allowed bits for version (-1 for delete bit) set to one
-    final int lastValidVersion;
+    static final int LAST_VALID_VERSION = (int) mask(Long.SIZE - BITS_FOR_MAXIMUM_RAM - 1);
 
     /**
      * Initialize the codec with offset in the size of block.
@@ -43,9 +43,8 @@ class ReferenceCodecSyncRecycle extends ReferenceCodec {
      */
     ReferenceCodecSyncRecycle(long blockSize, BlockMemoryAllocator allocator) {
         super(BITS_FOR_MAXIMUM_RAM - ReferenceCodec.requiredBits(blockSize),
-            ReferenceCodec.requiredBits(blockSize), INVALID_BIT_SIZE);
+            ReferenceCodec.requiredBits(blockSize), AUTO_CALCULATE_BIT_SIZE);
         // and the rest goes for version (currently 22 bits)
-        this.lastValidVersion = (int) mask(Long.SIZE - BITS_FOR_MAXIMUM_RAM - 1);
     }
 
     @Override

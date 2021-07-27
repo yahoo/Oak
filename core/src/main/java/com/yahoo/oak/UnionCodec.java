@@ -13,7 +13,8 @@ package com.yahoo.oak;
  * (As negatives have prefix of ones.)
  */
 class UnionCodec {
-    static final int INVALID_BIT_SIZE = -1;
+    static final int AUTO_CALCULATE_BIT_SIZE = -1;
+    private static final int INVALID_THIRD_VALUE = 0;
 
     private int firstBitSize = 0;
     private int secondBitSize = 0;
@@ -43,18 +44,18 @@ class UnionCodec {
     protected UnionCodec(int firstBitSizeLimit, int secondBitSizeLimit, int thirdBitSizeLimit,
         int unionSizeInBits) {
 
-        if (thirdBitSizeLimit == INVALID_BIT_SIZE) {
-            assert (secondBitSizeLimit != INVALID_BIT_SIZE) && (firstBitSizeLimit != INVALID_BIT_SIZE);
+        if (thirdBitSizeLimit == AUTO_CALCULATE_BIT_SIZE) {
+            assert (secondBitSizeLimit != AUTO_CALCULATE_BIT_SIZE) && (firstBitSizeLimit != AUTO_CALCULATE_BIT_SIZE);
             this.firstBitSize = firstBitSizeLimit;
             this.secondBitSize = secondBitSizeLimit;
             this.thirdBitSize = unionSizeInBits - firstBitSize - secondBitSize;
-        } else if (secondBitSizeLimit == INVALID_BIT_SIZE) {
+        } else if (secondBitSizeLimit == AUTO_CALCULATE_BIT_SIZE) {
             // thirdBitSizeLimit is valid
-            assert (firstBitSizeLimit != INVALID_BIT_SIZE);
+            assert (firstBitSizeLimit != AUTO_CALCULATE_BIT_SIZE);
             this.firstBitSize = firstBitSizeLimit;
             this.thirdBitSize = thirdBitSizeLimit;
             this.secondBitSize = unionSizeInBits - firstBitSize - thirdBitSize;
-        } else if (firstBitSizeLimit == INVALID_BIT_SIZE) {
+        } else if (firstBitSizeLimit == AUTO_CALCULATE_BIT_SIZE) {
             this.secondBitSize = secondBitSizeLimit;
             this.thirdBitSize = thirdBitSizeLimit;
             this.firstBitSize = unionSizeInBits - secondBitSize - thirdBitSize;
@@ -86,11 +87,11 @@ class UnionCodec {
      */
     protected UnionCodec(int firstBitSizeLimit, int secondBitSizeLimit, int unionSizeInBits) {
 
-        if (secondBitSizeLimit == INVALID_BIT_SIZE) {
-            assert (firstBitSizeLimit != INVALID_BIT_SIZE);
+        if (secondBitSizeLimit == AUTO_CALCULATE_BIT_SIZE) {
+            assert (firstBitSizeLimit != AUTO_CALCULATE_BIT_SIZE);
             this.firstBitSize = firstBitSizeLimit;
             this.secondBitSize = unionSizeInBits - firstBitSize;
-        } else if (firstBitSizeLimit == INVALID_BIT_SIZE) {
+        } else if (firstBitSizeLimit == AUTO_CALCULATE_BIT_SIZE) {
             this.secondBitSize = secondBitSizeLimit;
             this.firstBitSize = unionSizeInBits - secondBitSize;
         }
@@ -106,8 +107,8 @@ class UnionCodec {
         this.secondMask = mask(this.secondBitSize);
 
         // invalidate third part parameters
-        this.thirdShift = INVALID_BIT_SIZE;
-        this.thirdMask  = INVALID_BIT_SIZE;
+        this.thirdShift = INVALID_THIRD_VALUE;
+        this.thirdMask  = INVALID_THIRD_VALUE;
     }
 
     /*--------- Static helpers ---------*/
@@ -120,8 +121,8 @@ class UnionCodec {
         return (int) Math.ceil(Math.log(size) / Math.log(2));
     }
 
-    protected long mask(int size) {
-        return (unionSizeInBits == Long.SIZE) ? (1L << size) - 1L : (1 << size) - 1 ;
+    static long mask(int size) {
+        return (1L << size) - 1L;
     }
 
     @Override

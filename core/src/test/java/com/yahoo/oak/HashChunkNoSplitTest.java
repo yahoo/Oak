@@ -24,7 +24,7 @@ public class HashChunkNoSplitTest {
 
     private final UnionCodec hashIndexCodec =
         new UnionCodec(5, // the size of the first, as these are LSBs
-            UnionCodec.INVALID_BIT_SIZE, Integer.SIZE); // the second (MSB) will be calculated
+            UnionCodec.AUTO_CALCULATE_BIT_SIZE, Integer.SIZE); // the second (MSB) will be calculated
 
 
     private final HashChunk c = new HashChunk(

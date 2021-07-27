@@ -62,14 +62,16 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
 
     // key hash may have any integer value including zero. However, initially
     // all array's memory is zeroed, including key hashes and their update counters.
-    static final long INVALID_KEY_HASH = 0L;
+    // This is invalid field for the entire keyHash field including update counter.
+    // Used for ThreadContext initialization only
+    static final long INVALID_KEY_HASH_AND_UPD_CNT = 0L;
 
     // Additional field to keep key hash + its update counter (additional to the key and value reference fields)
     // # of additional primitive fields in each item of entries array
     private static final int ADDITIONAL_FIELDS = 1;
 
     // number of entries candidates to try in case of collision
-    private AtomicInteger collisionChainLength = new AtomicInteger(DEFAULT_COLLISION_CHAIN_LENGTH);
+    private final AtomicInteger collisionChainLength = new AtomicInteger(DEFAULT_COLLISION_CHAIN_LENGTH);
 
     private final OakComparator<K> comparator;
 
@@ -77,7 +79,7 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
     private static final UnionCodec HASH_CODEC = new UnionCodec(
         KEY_HASH_BITS, // bits# to represent key hash as any integer
         UPDATE_COUNTER_BITS, // bits# to represent update counter in less than an integer
-        UnionCodec.INVALID_BIT_SIZE, // invalid bit
+        UnionCodec.AUTO_CALCULATE_BIT_SIZE, // invalid bit
         Long.SIZE);
 
     /*----------------- Constructor -------------------*/
@@ -143,7 +145,7 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
     private boolean casKeyHashAndUpdateCounter(int ei, long oldKeyHash, int newKeyHash) {
         // extract the updates counter from the old hash and increase it and to add to the new hash
         int updCnt = HASH_CODEC.getSecond(oldKeyHash);
-        long newFullHashField = HASH_CODEC.encode(newKeyHash, ++updCnt, 0);
+        long newFullHashField = HASH_CODEC.encode(newKeyHash, updCnt + 1, 0);
         return casEntryFieldLong(ei, HASH_FIELD_OFFSET, oldKeyHash, newFullHashField);
     }
 
@@ -157,7 +159,7 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
         // extract the updates counter from the old hash and increase it and to add to the new hash
         int updCnt = HASH_CODEC.getSecond(oldKeyHash);
         int keyHash = HASH_CODEC.getFirst(oldKeyHash);
-        long newKeyHash = HASH_CODEC.encode(keyHash, ++updCnt, 1);
+        long newKeyHash = HASH_CODEC.encode(keyHash, updCnt + 1, 1);
         return casEntryFieldLong(ei, HASH_FIELD_OFFSET, oldKeyHash, newKeyHash);
     }
 
@@ -187,10 +189,8 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
                 return false;
             }
         }
-        if (!tempKeyBuff.isInitiated()) {
-            assert false;
-        }
-        assert tempKeyBuff.isInitiated();
+
+        assert tempKeyBuff.isAssociated();
         return (0 == comparator.compareKeyAndSerializedKey(key, tempKeyBuff));
     }
 
@@ -203,7 +203,7 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
      */
     private EntryState getEntryState(ThreadContext ctx, int idx, K key, int keyHash) {
 
-        ctx.keyHash = getKeyHashAndUpdateCounter(idx);
+        ctx.keyHashAndUpdateCnt = getKeyHashAndUpdateCounter(idx);
         if (getKeyReference(idx) == keysMemoryManager.getInvalidReference()) {
             return EntryState.UNKNOWN;
         }
@@ -453,7 +453,7 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
 
             // key reference CASed (only one should succeed) write the entry's key hash,
             // because it is used for keys comparison (invalid key hash is not used for comparison)
-            if ( casKeyHashAndUpdateCounter(ctx.entryIndex, ctx.keyHash, keyHash) ) {
+            if ( casKeyHashAndUpdateCounter(ctx.entryIndex, ctx.keyHashAndUpdateCnt, keyHash) ) {
                 return true;
             } else {
                 // someone else proceeded with the same key if key hash is deleted we are totally late
@@ -540,7 +540,7 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
             ctx.key.invalidate();
         }
 
-        if (invalidateKeyHashAndUpdateCounter(ctx.entryIndex, ctx.keyHash)) {
+        if (invalidateKeyHashAndUpdateCounter(ctx.entryIndex, ctx.keyHashAndUpdateCnt)) {
             numOfEntries.getAndDecrement();
             ctx.entryState = EntryState.DELETED;
         }

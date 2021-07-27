@@ -11,7 +11,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 class HashChunk<K, V> extends BasicChunk<K, V> {
     // HashChunk takes a number of least significant bits from the full key hash
     // to provide as an index in the EntryHashSet
-    private UnionCodec hashIndexCodec; // to be given
+    private final UnionCodec hashIndexCodec; // to be given
 
     /*-------------- Members --------------*/
     private final EntryHashSet<K, V> entryHashSet;
@@ -33,7 +33,6 @@ class HashChunk<K, V> extends BasicChunk<K, V> {
 
         super(maxItems, externalSize, comparator);
         assert Math.pow( 2, hashIndexCodec.getFirstBitSize() ) <= maxItems ;
-        assert hashIndexCodec != null;
 
         this.hashIndexCodec = hashIndexCodec;
         this.entryHashSet = // must be called after setSecondLevelBitsThreshold
@@ -54,43 +53,44 @@ class HashChunk<K, V> extends BasicChunk<K, V> {
         return child;
     }
 
-    private int calculateKeyHash(K key) {
+    private int calculateKeyHash(K key, ThreadContext ctx) {
         int hashKey = key.hashCode(); // hash can be positive, zero or negative
-        return Math.abs(hashKey); // EntryHashSet doesn't accept negative hashes
+        ctx.operationKeyHash = Math.abs(hashKey); // EntryHashSet doesn't accept negative hashes
+        return ctx.operationKeyHash;
     }
     /********************************************************************************************/
     /*-----------------------------  Wrappers for EntryOrderedSet methods -----------------------------*/
 
     /**
-     * See {@code EntryOrderedSet.isValueRefValidAndNotDeleted(int)} for more information
+     * See {@code EntryHashSet.isValueRefValidAndNotDeleted(int)} for more information
      */
     boolean isValueRefValidAndNotDeleted(int ei) {
         return entryHashSet.isValueRefValidAndNotDeleted(ei);
     }
 
     /**
-     * See {@code EntryOrderedSet.readKey(ThreadContext)} for more information
+     * See {@code EntryHashSet.readKey(ThreadContext)} for more information
      */
     void readKey(ThreadContext ctx) {
         entryHashSet.readKey(ctx);
     }
 
     /**
-     * See {@code EntryOrderedSet.readValue(ThreadContext)} for more information
+     * See {@code EntryHashSet.readValue(ThreadContext)} for more information
      */
     void readValue(ThreadContext ctx) {
         entryHashSet.readValue(ctx);
     }
 
     /**
-     * See {@code EntryOrderedSet.readKey(KeyBuffer)} for more information
+     * See {@code EntryHashSet.readKey(KeyBuffer)} for more information
      */
     boolean readKeyFromEntryIndex(KeyBuffer key, int ei) {
         return entryHashSet.readKey(key, ei);
     }
 
     /**
-     * See {@code EntryOrderedSet.readValue(ValueBuffer)} for more information
+     * See {@code EntryHashSet.readValue(ValueBuffer)} for more information
      */
     boolean readValueFromEntryIndex(ValueBuffer value, int ei) {
         return entryHashSet.readValue(value, ei);
@@ -98,30 +98,30 @@ class HashChunk<K, V> extends BasicChunk<K, V> {
 
     /**
      * Writes the key off-heap and allocates an entry with the reference pointing to the given key
-     * See {@code EntryOrderedSet.allocateEntryAndWriteKey(ThreadContext)} for more information
+     * See {@code EntryHashSet.allocateEntryAndWriteKey(ThreadContext)} for more information
      */
     boolean allocateEntryAndWriteKey(ThreadContext ctx, K key) {
-        int keyHash = calculateKeyHash(key);
+        int keyHash = calculateKeyHash(key, ctx);
         return entryHashSet.allocateEntryAndWriteKey(
             ctx, key, calculateEntryIdx(key, keyHash), keyHash);
     }
 
     /**
-     * See {@code EntryOrderedSet.allocateValue(ThreadContext)} for more information
+     * See {@code EntryHashSet.allocateValue(ThreadContext)} for more information
      */
     void allocateValue(ThreadContext ctx, V value, boolean writeForMove) {
         entryHashSet.allocateValue(ctx, value, writeForMove);
     }
 
     /**
-     * See {@code EntryOrderedSet.releaseKey(ThreadContext)} for more information
+     * See {@code EntryHashSet.releaseKey(ThreadContext)} for more information
      */
     void releaseKey(ThreadContext ctx) {
         entryHashSet.releaseKey(ctx);
     }
 
     /**
-     * See {@code EntryOrderedSet.releaseNewValue(ThreadContext)} for more information
+     * See {@code EntryHashSet.releaseNewValue(ThreadContext)} for more information
      */
     void releaseNewValue(ThreadContext ctx) {
         entryHashSet.releaseNewValue(ctx);
@@ -173,9 +173,8 @@ class HashChunk<K, V> extends BasicChunk<K, V> {
      * @param key the key to look up
      */
     void lookUp(ThreadContext ctx, K key) {
-        int keyHash = calculateKeyHash(key);
+        int keyHash = calculateKeyHash(key, ctx);
         entryHashSet.lookUp(ctx, key, calculateEntryIdx(key, keyHash), keyHash);
-        return;
     }
 
     /********************************************************************************************/

@@ -25,7 +25,7 @@ class ScopedReadBuffer implements OakScopedReadBuffer, OakUnsafeDirectBuffer {
     }
 
     protected long getDataAddress(int index) {
-        assert isInitiated();
+        assert isAssociated();
         if (index < 0 || index >= getLength()) {
             throw new IndexOutOfBoundsException(String.format("Index %s is out of bound (length: %s)",
                     index, getLength()));
@@ -37,7 +37,7 @@ class ScopedReadBuffer implements OakScopedReadBuffer, OakUnsafeDirectBuffer {
         s.invalidate();
     }
 
-    protected boolean isInitiated() {
+    protected boolean isAssociated() {
         return s.isAssociated();
     }
 

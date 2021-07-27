@@ -58,7 +58,7 @@ class SeqExpandMemoryManager implements MemoryManager  {
      *
      */
     private final ReferenceCodec rc = new ReferenceCodec(
-        ReferenceCodec.INVALID_BIT_SIZE, // bits# to represent block id are calculated upon other parameters
+        ReferenceCodec.AUTO_CALCULATE_BIT_SIZE, // bits# to represent block id are calculated upon other parameters
         ReferenceCodec.requiredBits(BlocksPool.getInstance().blockSize()),   // bits# to represent offset
         ReferenceCodec.requiredBits(BlocksPool.getInstance().blockSize()));  // bits# to represent length
 
