@@ -25,7 +25,7 @@ import java.util.function.Consumer;
 public class MultiThreadTest {
 
     private static final int NUM_THREADS = 31;
-    private static final long TIME_LIMIT_IN_SECONDS = 60;
+    private static final long TIME_LIMIT_IN_SECONDS = 80;
 
     private static final int MAX_ITEMS_PER_CHUNK = 2048;
 

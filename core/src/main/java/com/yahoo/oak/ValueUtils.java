@@ -43,17 +43,17 @@ class ValueUtils {
     }
 
     /**
-     * @see #exchange(Chunk, ThreadContext, Object, OakTransformer, OakSerializer, InternalOakMap)
+     * @see #exchange(OrderedChunk, ThreadContext, Object, OakTransformer, OakSerializer, InternalOakMap)
      * Does not return the value previously written off-heap
      */
-    <V> ValueResult put(Chunk<?, V> chunk, ThreadContext ctx, V newVal, OakSerializer<V> serializer,
+    <V> ValueResult put(OrderedChunk<?, V> orderedChunk, ThreadContext ctx, V newVal, OakSerializer<V> serializer,
         InternalOakMap internalOakMap) {
 
         ValueResult result = ctx.value.s.lockWrite();
         if (result != ValueResult.TRUE) {
             return result;
         }
-        result = innerPut(chunk, ctx, newVal, serializer, internalOakMap);
+        result = innerPut(orderedChunk, ctx, newVal, serializer, internalOakMap);
         // in case move happened: ctx.valueSlice might be set to a new slice.
         // Alternatively, if returned result is RETRY, a rebalance might be needed
         // or the entry might be updated by someone else, need to retry
@@ -61,20 +61,22 @@ class ValueUtils {
         return result;
     }
 
-    private <V> ValueResult innerPut(Chunk<?, V> chunk, ThreadContext ctx, V newVal, OakSerializer<V> serializer,
+    private <V> ValueResult innerPut(
+        OrderedChunk<?, V> orderedChunk, ThreadContext ctx, V newVal, OakSerializer<V> serializer,
         InternalOakMap internalOakMap) {
+
         int capacity = serializer.calculateSize(newVal);
         if (capacity > ctx.value.getLength()) {
-            return moveValue(chunk, ctx, internalOakMap, newVal);
+            return moveValue(orderedChunk, ctx, internalOakMap, newVal);
         }
         ScopedWriteBuffer.serialize(ctx.value.s, newVal, serializer);
         return ValueResult.TRUE;
     }
 
     private <V> ValueResult moveValue(
-        Chunk<?, V> chunk, ThreadContext ctx, InternalOakMap internalOakMap, V newVal) {
+        OrderedChunk<?, V> orderedChunk, ThreadContext ctx, InternalOakMap internalOakMap, V newVal) {
 
-        boolean moved = internalOakMap.overwriteExistingValueForMove(ctx, newVal, chunk);
+        boolean moved = internalOakMap.overwriteExistingValueForMove(ctx, newVal, orderedChunk);
         if (!moved) {
             // rebalance was needed or the entry was updated by someone else, need to retry
             return ValueResult.RETRY;
@@ -169,7 +171,7 @@ class ValueUtils {
      * If the value moves, the old slice is marked as moved and freed.
      *
      * @param <V>                         the type of the value
-     * @param chunk                       the chunk with the entry to which the value is linked to
+     * @param orderedChunk                       the orderedChunk with the entry to which the value is linked to
      * @param ctx                         has the entry index and its value
      * @param value                       the new value to write
      * @param valueDeserializeTransformer used to read the previous value
@@ -183,7 +185,7 @@ class ValueUtils {
      * was written before the exchange.
      */
     <V> Result exchange(
-        Chunk<?, V> chunk, ThreadContext ctx, V value, OakTransformer<V> valueDeserializeTransformer,
+        OrderedChunk<?, V> orderedChunk, ThreadContext ctx, V value, OakTransformer<V> valueDeserializeTransformer,
         OakSerializer<V> serializer, InternalOakMap internalOakMap) {
 
         ValueResult result = ctx.value.s.lockWrite();
@@ -194,7 +196,7 @@ class ValueUtils {
         if (valueDeserializeTransformer != null) {
             oldValue = valueDeserializeTransformer.apply(ctx.value);
         }
-        result = innerPut(chunk, ctx, value, serializer, internalOakMap);
+        result = innerPut(orderedChunk, ctx, value, serializer, internalOakMap);
         // in case move happened: ctx.value might be set to a new slice.
         // Alternatively, if returned result is RETRY, a rebalance might be needed
         // or the entry might be updated by someone else, need to retry
@@ -209,10 +211,10 @@ class ValueUtils {
      * {@code FAILURE} if the value is deleted or if the actual value referenced in {@code ctx} does not equal to
      * {@code expected}
      * {@code RETRY} for the same reasons as exchange
-     * @see #exchange(Chunk, ThreadContext, Object, OakTransformer, OakSerializer, InternalOakMap)
+     * @see #exchange(OrderedChunk, ThreadContext, Object, OakTransformer, OakSerializer, InternalOakMap)
      */
     <V> ValueResult compareExchange(
-        Chunk<?, V> chunk, ThreadContext ctx, V expected, V value,
+        OrderedChunk<?, V> orderedChunk, ThreadContext ctx, V expected, V value,
         OakTransformer<V> valueDeserializeTransformer, OakSerializer<V> serializer,
         InternalOakMap internalOakMap) {
 
@@ -225,7 +227,7 @@ class ValueUtils {
             ctx.value.s.unlockWrite();
             return ValueResult.FALSE;
         }
-        result = innerPut(chunk, ctx, value, serializer, internalOakMap);
+        result = innerPut(orderedChunk, ctx, value, serializer, internalOakMap);
         // in case move happened: ctx.value might be set to a new allocation.
         // Alternatively, if returned result is RETRY, a rebalance might be needed
         // or the entry might be updated by someone else, need to retry

@@ -13,7 +13,8 @@ package com.yahoo.oak;
  * (As negatives have prefix of ones.)
  */
 class UnionCodec {
-    static final int INVALID_BIT_SIZE = -1;
+    static final int AUTO_CALCULATE_BIT_SIZE = -1;
+    private static final int INVALID_THIRD_VALUE = 0;
 
     private int firstBitSize = 0;
     private int secondBitSize = 0;
@@ -26,6 +27,8 @@ class UnionCodec {
     private final long secondMask;
     private final long thirdMask;
 
+    private final int unionSizeInBits;
+
     /*------- Constructor -------*/
 
     /**
@@ -36,27 +39,31 @@ class UnionCodec {
      * @param secondBitSizeLimit an upper limit on the size of the second parameter (exclusive)
      *                          if invalid calculate according to other two limits
      * @param thirdBitSizeLimit an upper limit on the size of the third parameter (exclusive)
+     * @param unionSizeInBits   the size of the entire union in bits, either Long or Integer
      */
-    protected UnionCodec(int firstBitSizeLimit, int secondBitSizeLimit, int thirdBitSizeLimit) {
+    protected UnionCodec(int firstBitSizeLimit, int secondBitSizeLimit, int thirdBitSizeLimit,
+        int unionSizeInBits) {
 
-        if (thirdBitSizeLimit == INVALID_BIT_SIZE) {
-            assert (secondBitSizeLimit != INVALID_BIT_SIZE) && (firstBitSizeLimit != INVALID_BIT_SIZE);
+        if (thirdBitSizeLimit == AUTO_CALCULATE_BIT_SIZE) {
+            assert (secondBitSizeLimit != AUTO_CALCULATE_BIT_SIZE) && (firstBitSizeLimit != AUTO_CALCULATE_BIT_SIZE);
             this.firstBitSize = firstBitSizeLimit;
             this.secondBitSize = secondBitSizeLimit;
-            this.thirdBitSize = Long.SIZE - firstBitSize - secondBitSize;
-        } else if (secondBitSizeLimit == INVALID_BIT_SIZE) {
+            this.thirdBitSize = unionSizeInBits - firstBitSize - secondBitSize;
+        } else if (secondBitSizeLimit == AUTO_CALCULATE_BIT_SIZE) {
             // thirdBitSizeLimit is valid
-            assert (firstBitSizeLimit != INVALID_BIT_SIZE);
+            assert (firstBitSizeLimit != AUTO_CALCULATE_BIT_SIZE);
             this.firstBitSize = firstBitSizeLimit;
             this.thirdBitSize = thirdBitSizeLimit;
-            this.secondBitSize = Long.SIZE - firstBitSize - thirdBitSize;
-        } else if (firstBitSizeLimit == INVALID_BIT_SIZE) {
+            this.secondBitSize = unionSizeInBits - firstBitSize - thirdBitSize;
+        } else if (firstBitSizeLimit == AUTO_CALCULATE_BIT_SIZE) {
             this.secondBitSize = secondBitSizeLimit;
             this.thirdBitSize = thirdBitSizeLimit;
-            this.firstBitSize = Long.SIZE - secondBitSize - thirdBitSize;
+            this.firstBitSize = unionSizeInBits - secondBitSize - thirdBitSize;
         }
 
-        assert (this.firstBitSize > 0 || this.secondBitSize > 0 || this.thirdBitSize > 0) :
+        this.unionSizeInBits = unionSizeInBits;
+
+        assert (this.firstBitSize >= 0 || this.secondBitSize >= 0 || this.thirdBitSize >= 0) :
             String.format(
                 "Not enough bits to encode: firstBitSizeLimit=%,d, secondBitSizeLimit=%,d.",
                 firstBitSizeLimit, secondBitSizeLimit);
@@ -76,22 +83,23 @@ class UnionCodec {
      * @param firstBitSizeLimit an upper limit on the size of the first parameter (exclusive)
      *                          if invalid calculate according to other two limits
      * @param secondBitSizeLimit an upper limit on the size of the second parameter (exclusive)
-     *                          if invalid calculate according to other two limits
+     * @param unionSizeInBits
      */
-    protected UnionCodec(int firstBitSizeLimit, int secondBitSizeLimit) {
+    protected UnionCodec(int firstBitSizeLimit, int secondBitSizeLimit, int unionSizeInBits) {
 
-        if (secondBitSizeLimit == INVALID_BIT_SIZE) {
-            assert (firstBitSizeLimit != INVALID_BIT_SIZE);
+        if (secondBitSizeLimit == AUTO_CALCULATE_BIT_SIZE) {
+            assert (firstBitSizeLimit != AUTO_CALCULATE_BIT_SIZE);
             this.firstBitSize = firstBitSizeLimit;
-            this.secondBitSize = Long.SIZE - firstBitSize;
-        } else if (firstBitSizeLimit == INVALID_BIT_SIZE) {
+            this.secondBitSize = unionSizeInBits - firstBitSize;
+        } else if (firstBitSizeLimit == AUTO_CALCULATE_BIT_SIZE) {
             this.secondBitSize = secondBitSizeLimit;
-            this.firstBitSize = Long.SIZE - secondBitSize;
+            this.firstBitSize = unionSizeInBits - secondBitSize;
         }
 
+        this.unionSizeInBits = unionSizeInBits;
         assert (this.firstBitSize > 0 || this.secondBitSize > 0) :
             String.format(
-                "Not enough bits to encode a reference: firstBitSizeLimit=%,d, secondBitSizeLimit=%,d.",
+                "Not enough bits to encode a union: firstBitSizeLimit=%,d, secondBitSizeLimit=%,d.",
                 firstBitSizeLimit, secondBitSizeLimit);
 
         this.secondShift = this.firstBitSize;
@@ -99,8 +107,8 @@ class UnionCodec {
         this.secondMask = mask(this.secondBitSize);
 
         // invalidate third part parameters
-        this.thirdShift = INVALID_BIT_SIZE;
-        this.thirdMask  = INVALID_BIT_SIZE;
+        this.thirdShift = INVALID_THIRD_VALUE;
+        this.thirdMask  = INVALID_THIRD_VALUE;
     }
 
     /*--------- Static helpers ---------*/
@@ -113,7 +121,7 @@ class UnionCodec {
         return (int) Math.ceil(Math.log(size) / Math.log(2));
     }
 
-    protected static long mask(int size) {
+    static long mask(int size) {
         return (1L << size) - 1L;
     }
 
@@ -165,15 +173,40 @@ class UnionCodec {
         return firstPart | secondPart | thirdPart;
     }
 
-    int getFirst(final long reference) {
-        return  (int) (reference & firstMask);
+    int getFirst(final long union) {
+        return  (int) (union & firstMask);
     }
 
-    int getSecond(final long reference) {
-        return  (int) ((reference >>> secondShift) & secondMask);
+    int getFirst(final int union) {
+        return  (int) (union & firstMask);
     }
 
-    int getThird(final long reference) {
-        return  (int) ((reference >>> thirdShift) & thirdMask);
+    int getSecond(final long union) {
+        return  (int) ((union >>> secondShift) & secondMask);
     }
+
+    int getSecond(final int union) {
+        return  (int) ((union >>> secondShift) & secondMask);
+    }
+
+    int getThird(final long union) {
+        return  (int) ((union >>> thirdShift) & thirdMask);
+    }
+
+    int getThird(final int union) {
+        return  (int) ((union >>> thirdShift) & thirdMask);
+    }
+
+    int getFirstBitSize() {
+        return firstBitSize;
+    }
+
+    int getSecondBitSize() {
+        return secondBitSize;
+    }
+
+    int getThirdBitSize() {
+        return thirdBitSize;
+    }
+
 }

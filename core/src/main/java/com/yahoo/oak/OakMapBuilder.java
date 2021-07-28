@@ -39,7 +39,7 @@ public class OakMapBuilder<K, V> {
 
         this.comparator = comparator;
 
-        this.chunkMaxItems = Chunk.MAX_ITEMS_DEFAULT;
+        this.chunkMaxItems = OrderedChunk.ORDERED_CHUNK_MAX_ITEMS_DEFAULT;
         this.memoryCapacity = MAX_MEM_CAPACITY;
         this.memoryAllocator = null;
         this.preferredBlockSizeBytes = null;
@@ -92,13 +92,13 @@ public class OakMapBuilder<K, V> {
 
     private void checkPreconditions() {
         if (comparator == null) {
-            throw new IllegalStateException("Must provide a non-null comparator to build the OakHashMap");
+            throw new IllegalStateException("Must provide a non-null comparator to build the Oak");
         }
         if (keySerializer == null) {
-            throw new IllegalStateException("Must provide a non-null key serializer to build the OakHashMap");
+            throw new IllegalStateException("Must provide a non-null key serializer to build the Oak");
         }
         if (valueSerializer == null) {
-            throw new IllegalStateException("Must provide a non-null value serializer to build the OakHashMap");
+            throw new IllegalStateException("Must provide a non-null value serializer to build the Oak");
         }
     }
 

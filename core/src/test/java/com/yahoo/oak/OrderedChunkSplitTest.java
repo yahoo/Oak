@@ -14,7 +14,7 @@ import org.junit.Test;
 import java.lang.reflect.Field;
 import java.util.concurrent.ConcurrentSkipListMap;
 
-public class ChunkSplitTest {
+public class OrderedChunkSplitTest {
     private static final int MAX_ITEMS_PER_CHUNK = 10;
 
     @Test
@@ -34,8 +34,9 @@ public class ChunkSplitTest {
 
         Field skipListField = internalOakMap.getClass().getDeclaredField("skiplist");
         skipListField.setAccessible(true);
-        ConcurrentSkipListMap<Object, Chunk<String, String>> skipList = (ConcurrentSkipListMap<Object, Chunk<String,
-                String>>) skipListField.get(internalOakMap);
+        ConcurrentSkipListMap<Object, OrderedChunk<String, String>> skipList =
+            (ConcurrentSkipListMap<Object, OrderedChunk<String,
+                        String>>) skipListField.get(internalOakMap);
         Assert.assertTrue(skipList.size() > 1);
         oak.close();
     }

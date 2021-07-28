@@ -34,7 +34,7 @@ class ReferenceCodec extends UnionCodec {
      * @param thirdBitSizeLimit an upper limit on the size of the third parameter (exclusive)
      */
     protected ReferenceCodec(int firstBitSizeLimit, int secondBitSizeLimit, int thirdBitSizeLimit) {
-        super(firstBitSizeLimit, secondBitSizeLimit, thirdBitSizeLimit);
+        super(firstBitSizeLimit, secondBitSizeLimit, thirdBitSizeLimit, Long.SIZE);
     }
 
     /**
@@ -47,7 +47,7 @@ class ReferenceCodec extends UnionCodec {
      *                          if invalid calculate according to other two limits
      */
     protected ReferenceCodec(int firstBitSizeLimit, int secondBitSizeLimit) {
-        super(firstBitSizeLimit, secondBitSizeLimit);
+        super(firstBitSizeLimit, secondBitSizeLimit, Long.SIZE);
     }
 
     /*------- Internal helpers -------*/

@@ -42,8 +42,12 @@ class ThreadContext {
      */
     boolean isNewValueForMove;
 
-    /* The key hash of the found (serialized) entry's key. Relevant and used only for OakHash */
-    long keyHash;
+    /* The key hash and update counter of the found (serialized) entry's key.
+     * Relevant and used only for OakHash */
+    long keyHashAndUpdateCnt;
+
+    /* The key hash of the key being inserted/deleted/looked-for by this thread. Relevant and used only for OakHash */
+    int operationKeyHash;
 
     /*-----------------------------------------------------------
      * Result Context
@@ -70,7 +74,7 @@ class ThreadContext {
         this.tempKey = new KeyBuffer(kmm.getEmptySlice());
         this.tempValue = new ValueBuffer(vmm.getEmptySlice());
 
-        this.keyHash = EntryHashSet.INVALID_KEY_HASH;
+        this.keyHashAndUpdateCnt = EntryHashSet.INVALID_KEY_HASH_AND_UPD_CNT;
     }
 
     void invalidate() {
@@ -81,7 +85,7 @@ class ThreadContext {
         result.invalidate();
         entryState = EntryArray.EntryState.UNKNOWN;
         isNewValueForMove = false;
-        this.keyHash = EntryHashSet.INVALID_KEY_HASH;
+        this.keyHashAndUpdateCnt = EntryHashSet.INVALID_KEY_HASH_AND_UPD_CNT;
         // No need to invalidate the temporary buffers
     }
 
@@ -102,7 +106,7 @@ class ThreadContext {
      * @return does the entry have a valid key
      */
     boolean isKeyValid() {
-        return key.isInitiated();
+        return key.isAssociated();
     }
 
     /**

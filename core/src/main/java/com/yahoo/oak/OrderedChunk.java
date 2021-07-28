@@ -10,21 +10,12 @@ import java.util.EmptyStackException;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicMarkableReference;
-import java.util.concurrent.atomic.AtomicReference;
 
-class Chunk<K, V> {
+class OrderedChunk<K, V> extends BasicChunk<K, V> {
     // an entry with NONE_NEXT as its next pointer, points to a null entry
     static final int NONE_NEXT = EntryArray.INVALID_ENTRY_INDEX;
 
     /*-------------- Constants --------------*/
-
-    enum State {
-        INFANT,
-        NORMAL,
-        FROZEN,
-        RELEASED
-    }
-
     // used for checking if rebalance is needed
     private static final double REBALANCE_PROB_PERC = 30;
     private static final double SORTED_REBALANCE_RATIO = 2;
@@ -32,59 +23,38 @@ class Chunk<K, V> {
     private static final double MAX_IDLE_ENTRIES_FACTOR = 5;
 
     // defaults
-    public static final int MAX_ITEMS_DEFAULT = 4096;
+    public static final int ORDERED_CHUNK_MAX_ITEMS_DEFAULT = 4096;
 
     /*-------------- Members --------------*/
-
     KeyBuffer minKey;       // minimal key that can be put in this chunk
-    AtomicMarkableReference<Chunk<K, V>> next;
-    OakComparator<K> comparator;
-
-    // in split/compact process, represents parent of split (can be null!)
-    private final AtomicReference<Chunk<K, V>> creator;
-    // chunk can be in the following states: normal, frozen or infant(has a creator)
-    private final AtomicReference<State> state;
-    private final AtomicReference<Rebalancer<K, V>> rebalancer;
+    AtomicMarkableReference<OrderedChunk<K, V>> next;
     private final EntryOrderedSet<K, V> entryOrderedSet;
 
-    private final AtomicInteger pendingOps;
-
-    private final Statistics statistics;
     // # of sorted items at entry-array's beginning (resulting from split)
     private final AtomicInteger sortedCount;
-    private final int maxItems;
-    AtomicInteger externalSize; // for updating oak's size (reference to one global per Oak size)
 
     /*-------------- Constructors --------------*/
-
     /**
-     * This constructor is only used internally to instantiate a Chunk without a creator and a min-key.
-     * The caller should set the creator and min-key before returning the Chunk to the user.
+     * This constructor is only used internally to instantiate a OrderedChunk without a creator and a min-key.
+     * The caller should set the creator and min-key before returning the OrderedChunk to the user.
      */
-    private Chunk(int maxItems, AtomicInteger externalSize, MemoryManager vMM, MemoryManager kMM,
+    private OrderedChunk(int maxItems, AtomicInteger externalSize, MemoryManager vMM, MemoryManager kMM,
         OakComparator<K> comparator, OakSerializer<K> keySerializer,
         OakSerializer<V> valueSerializer) {
-        this.maxItems = maxItems;
-        this.externalSize = externalSize;
-        this.comparator = comparator;
+        super(maxItems, externalSize, comparator);
         this.entryOrderedSet =
             new EntryOrderedSet<>(vMM, kMM, maxItems, keySerializer, valueSerializer);
         // sortedCount keeps the number of  subsequent and ordered entries in the entries array,
         // which are subject to binary search
         this.sortedCount = new AtomicInteger(0);
         this.minKey = new KeyBuffer(kMM.getEmptySlice());
-        this.creator = new AtomicReference<>(null);
-        this.state = new AtomicReference<>(State.NORMAL);
         this.next = new AtomicMarkableReference<>(null, false);
-        this.pendingOps = new AtomicInteger();
-        this.rebalancer = new AtomicReference<>(null); // to be updated on rebalance
-        this.statistics = new Statistics();
     }
 
     /**
-     * This constructor is only used when creating the first chunk (without a creator).
+     * This constructor is only used when creating the first ever chunk (without a creator).
      */
-    Chunk(K minKey, int maxItems, AtomicInteger externalSize, MemoryManager vMM, MemoryManager kMM,
+    OrderedChunk(K minKey, int maxItems, AtomicInteger externalSize, MemoryManager vMM, MemoryManager kMM,
         OakComparator<K> comparator, OakSerializer<K> keySerializer,
         OakSerializer<V> valueSerializer) {
 
@@ -93,30 +63,29 @@ class Chunk<K, V> {
     }
 
     /**
-     * Create a child Chunk where this Chunk object as its creator.
-     * The child Chunk will have the same minKey as this Chunk (without duplicating the KeyBuffer data).
+     * Create a child OrderedChunk where this OrderedChunk object as its creator.
+     * The child OrderedChunk will have the same minKey as this OrderedChunk
+     * (without duplicating the KeyBuffer data).
      */
-    Chunk<K, V> createFirstChild() {
-        Chunk<K, V> child =
-            new Chunk<>(maxItems, externalSize,
+    OrderedChunk<K, V> createFirstChild() {
+        OrderedChunk<K, V> child =
+            new OrderedChunk<>(getMaxItems(), externalSize,
                 entryOrderedSet.valuesMemoryManager, entryOrderedSet.keysMemoryManager,
                 comparator, entryOrderedSet.keySerializer, entryOrderedSet.valueSerializer);
-        child.creator.set(this);
-        child.state.set(State.INFANT);
+        updateBasicChild(child);
         child.minKey.copyFrom(this.minKey);
         return child;
     }
 
     /**
-     * Create a child Chunk where this Chunk object as its creator.
-     * The child Chunk will use a duplicate minKey of the input (allocates a new buffer).
+     * Create a child OrderedChunk where this OrderedChunk object as its creator.
+     * The child OrderedChunk will use a duplicate minKey of the input (allocates a new buffer).
      */
-    Chunk<K, V> createNextChild(KeyBuffer minKey) {
-        Chunk<K, V> child = new Chunk<>(maxItems, externalSize,
+    OrderedChunk<K, V> createNextChild(KeyBuffer minKey) {
+        OrderedChunk<K, V> child = new OrderedChunk<>(getMaxItems(), externalSize,
             entryOrderedSet.valuesMemoryManager, entryOrderedSet.keysMemoryManager,
             comparator, entryOrderedSet.keySerializer, entryOrderedSet.valueSerializer);
-        child.creator.set(this);
-        child.state.set(State.INFANT);
+        updateBasicChild(child);
         duplicateKeyBuffer(minKey, child.minKey);
         return child;
     }
@@ -366,34 +335,7 @@ class Chunk<K, V> {
         return start == -1 ? NONE_NEXT : start;
     }
 
-
-    /********************************************************************************************/
     /*---------- Methods for managing the put/remove path of the keys and values  --------------*/
-
-    /**
-     * publish operation into thread array
-     * if CAS didn't succeed then this means that a rebalancer got here first and entry is frozen
-     *
-     * @return result of CAS
-     **/
-    boolean publish() {
-        pendingOps.incrementAndGet();
-        State currentState = state.get();
-        if (currentState == State.FROZEN || currentState == State.RELEASED) {
-            pendingOps.decrementAndGet();
-            return false;
-        }
-        return true;
-    }
-
-    /**
-     * unpublish operation from thread array
-     * if CAS didn't succeed then this means that a rebalancer did this already
-     **/
-    void unpublish() {
-        pendingOps.decrementAndGet();
-    }
-
     /**
      * As written in {@code writeValueFinish(ctx)}, when changing an entry, the value reference is CASed first and
      * later the value version, and the same applies when removing a value. However, there is another step before
@@ -533,42 +475,7 @@ class Chunk<K, V> {
         return ValueUtils.ValueResult.TRUE;
     }
 
-
-    /********************************************************************************************/
     /*------------------------- Methods that are used for rebalance  ---------------------------*/
-
-    int getMaxItems() {
-        return maxItems;
-    }
-
-    /**
-     * Engage the chunk to a rebalancer r.
-     *
-     * @param r -- a rebalancer to engage with
-     */
-    void engage(Rebalancer<K, V> r) {
-        rebalancer.compareAndSet(null, r);
-    }
-
-    /**
-     * Checks whether the chunk is engaged with a given rebalancer.
-     *
-     * @param r -- a rebalancer object. If r is null, verifies that the chunk is not engaged to any rebalancer
-     * @return true if the chunk is engaged with r, false otherwise
-     */
-    boolean isEngaged(Rebalancer<K, V> r) {
-        return rebalancer.get() == r;
-    }
-
-    /**
-     * Fetch a rebalancer engaged with the chunk.
-     *
-     * @return rebalancer object or null if not engaged.
-     */
-    Rebalancer<K, V> getRebalancer() {
-        return rebalancer.get();
-    }
-
     boolean shouldRebalance() {
         // perform actual check only in pre defined percentage of puts
         if (ThreadLocalRandom.current().nextInt(100) > REBALANCE_PROB_PERC) {
@@ -580,30 +487,31 @@ class Chunk<K, V> {
             return false;
         }
         int numOfEntries = entryOrderedSet.getNumOfEntries();
-        int numOfItems = statistics.getCompactedCount();
+        int numOfItems = statistics.getTotalCount();
         int sortedCount = this.sortedCount.get();
         // Reasons for executing a rebalance:
         // 1. There are no sorted keys and the total number of entries is above a certain threshold.
         // 2. There are sorted keys, but the total number of unsorted keys is too big.
         // 3. Out of the occupied entries, there are not enough actual items.
-        return (sortedCount == 0 && (numOfEntries * MAX_ENTRIES_FACTOR) > maxItems)
+        return (sortedCount == 0 && (numOfEntries * MAX_ENTRIES_FACTOR) > getMaxItems())
                 || (sortedCount > 0 && (sortedCount * SORTED_REBALANCE_RATIO) < numOfEntries)
-                || ((numOfEntries * MAX_IDLE_ENTRIES_FACTOR) > maxItems
+                || ((numOfEntries * MAX_IDLE_ENTRIES_FACTOR) > getMaxItems()
                     && (numOfItems * MAX_IDLE_ENTRIES_FACTOR) < numOfEntries);
     }
 
     /**
-     * Copies entries from srcChunk (starting srcEntryIdx) to this chunk,
+     * Copies entries from srcOrderedChunk (starting srcEntryIdx) to this chunk,
      * performing entries sorting on the fly (delete entries that are removed as well).
      *
      * @param tempValue   a reusable buffer object for internal temporary usage
-     * @param srcChunk    chunk to copy from
+     * @param srcOrderedChunk    chunk to copy from
      * @param srcEntryIdx start position for copying
      * @param maxCapacity max number of entries "this" chunk can contain after copy
-     * @return entry index of next to the last copied entry (in the srcChunk),
+     * @return entry index of next to the last copied entry (in the srcOrderedChunk),
      *         NONE_NEXT if all items were copied
      */
-    final int copyPartOfEntries(ValueBuffer tempValue, Chunk<K, V> srcChunk, final int srcEntryIdx, int maxCapacity) {
+    final int copyPartOfEntries(
+        ValueBuffer tempValue, OrderedChunk<K, V> srcOrderedChunk, final int srcEntryIdx, int maxCapacity) {
 
         if (srcEntryIdx == NONE_NEXT) {
             return NONE_NEXT;
@@ -617,7 +525,7 @@ class Chunk<K, V> {
             return srcEntryIdx;
         }
         // assuming that all chunks are bounded with same number of entries to hold
-        assert srcEntryIdx <= maxItems;
+        assert srcEntryIdx <= getMaxItems();
 
         // set the next entry index (previous entry or head) from where we start to copy
         // if sortedThisEntryIndex is one (first entry to be occupied on this chunk)
@@ -635,10 +543,10 @@ class Chunk<K, V> {
 
         // copy entry by entry traversing the source linked list
         int curEntryIdx = srcEntryIdx;
-        while (entryOrderedSet.copyEntry(tempValue, srcChunk.entryOrderedSet, curEntryIdx)) {
+        while (entryOrderedSet.copyEntry(tempValue, srcOrderedChunk.entryOrderedSet, curEntryIdx)) {
             // the source entry was either copied or disregarded as deleted
             // anyway move to next source entry (according to the linked list)
-            curEntryIdx = srcChunk.entryOrderedSet.getNextEntryIndex(curEntryIdx);
+            curEntryIdx = srcOrderedChunk.entryOrderedSet.getNextEntryIndex(curEntryIdx);
 
             // if entry was ignored as deleted (no change in this EntryOrderedSet num of entries), continue
             if (thisNumOfEntries == entryOrderedSet.getNumOfEntries()) {
@@ -671,7 +579,7 @@ class Chunk<K, V> {
 
         // sorted count keeps the number of sorted entries
         sortedCount.set(thisNumOfEntries);
-        statistics.updateInitialSortedCount(sortedCount.get());
+        statistics.updateInitialCount(sortedCount.get());
 
         // check the validity of the new entryOrderedSet
         assert entryOrderedSet.isEntrySetValidAfterRebalance();
@@ -679,52 +587,12 @@ class Chunk<K, V> {
         return curEntryIdx; // if NONE_NEXT then we finished copying old chunk, else we reached max in new chunk
     }
 
-
-    /********************************************************************************************/
-    /*----------------------- Methods for managing the chunk's state  --------------------------*/
-
-    State state() {
-        return state.get();
-    }
-
-    Chunk<K, V> creator() {
-        return creator.get();
-    }
-
-    private void setState(State state) {
-        this.state.set(state);
-    }
-
-    void normalize() {
-        state.compareAndSet(State.INFANT, State.NORMAL);
-        creator.set(null);
-        // using fence so other puts can continue working immediately on this chunk
-        UnsafeUtils.UNSAFE.storeFence();
-    }
-
-    /**
-     * freezes chunk so no more changes can be done to it (marks pending items as frozen)
-     */
-    void freeze() {
-        setState(State.FROZEN); // prevent new puts to this chunk
-        while (pendingOps.get() != 0) {
-            assert Boolean.TRUE;
-        }
-    }
-
-    /**
-     * try to change the state from frozen to released
-     */
-    void release() {
-        state.compareAndSet(State.FROZEN, State.RELEASED);
-    }
-
     /**
      * marks this chunk's next pointer so this chunk is marked as deleted
      *
      * @return the next chunk pointed to once marked (will not change)
      */
-    Chunk<K, V> markAndGetNext() {
+    OrderedChunk<K, V> markAndGetNext() {
         // new chunks are ready, we mark frozen chunk's next pointer so it won't change
         // since next pointer can be changed by other split operations we need to do this in a loop - until we succeed
         while (true) {
@@ -734,7 +602,7 @@ class Chunk<K, V> {
                 return next.getReference();
             } else { // otherwise try to mark it
                 // read chunk's current next
-                Chunk<K, V> savedNext = next.getReference();
+                OrderedChunk<K, V> savedNext = next.getReference();
 
                 // try to mark next while keeping the same next chunk - using CAS
                 // if we succeeded then the next pointer we remembered is set and will not change - return it
@@ -788,7 +656,7 @@ class Chunk<K, V> {
     }
 
     /********************************************************************************************/
-    /*------ Base Class for Chunk Iterators (keeps all the common fields and methods) ----------*/
+    /*------ Base Class for OrderedChunk Iterators (keeps all the common fields and methods) ----------*/
 
     // specifier whether the end boundary check needs to be performed on the current scan output
     enum IterEndBoundCheck {
@@ -958,7 +826,7 @@ class Chunk<K, V> {
         private final IntStack stack;
         private final K from;
         private boolean fromInclusive;
-        private final int skipEntriesForBiggerStack = Math.max(1, maxItems / 10); // 1 is the lowest possible value
+        private final int skipEntriesForBiggerStack = Math.max(1, getMaxItems() / 10); // 1 is the lowest possible value
 
         DescendingIter(ThreadContext ctx, K to, boolean toInclusive) {
             KeyBuffer tempKeyBuff = ctx.tempKey;
@@ -1170,55 +1038,4 @@ class Chunk<K, V> {
         }
 
     }
-
-    /*-------------- Statistics --------------*/
-
-    /**
-     * This class contains information about chunk utilization.
-     */
-    static class Statistics {
-        private final AtomicInteger addedCount = new AtomicInteger(0);
-        private int initialSortedCount = 0;
-
-        /**
-         * Initial sorted count here is immutable after chunk re-balance
-         */
-        void updateInitialSortedCount(int sortedCount) {
-            this.initialSortedCount = sortedCount;
-        }
-
-        /**
-         * @return number of items chunk will contain after compaction.
-         */
-        int getCompactedCount() {
-            return initialSortedCount + getAddedCount();
-        }
-
-        /**
-         * Incremented when put a key that was removed before
-         */
-        void incrementAddedCount() {
-            addedCount.incrementAndGet();
-        }
-
-        /**
-         * Decrement when remove a key that was put before
-         */
-        void decrementAddedCount() {
-            addedCount.decrementAndGet();
-        }
-
-        int getAddedCount() {
-            return addedCount.get();
-        }
-
-    }
-
-    /**
-     * @return statistics object containing approximate utilization information.
-     */
-    Statistics getStatistics() {
-        return statistics;
-    }
-
 }
