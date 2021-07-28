@@ -63,7 +63,7 @@ class UnionCodec {
 
         this.unionSizeInBits = unionSizeInBits;
 
-        assert (this.firstBitSize > 0 || this.secondBitSize > 0 || this.thirdBitSize > 0) :
+        assert (this.firstBitSize >= 0 || this.secondBitSize >= 0 || this.thirdBitSize >= 0) :
             String.format(
                 "Not enough bits to encode: firstBitSizeLimit=%,d, secondBitSizeLimit=%,d.",
                 firstBitSizeLimit, secondBitSizeLimit);

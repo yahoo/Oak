@@ -79,7 +79,7 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
     private static final UnionCodec HASH_CODEC = new UnionCodec(
         KEY_HASH_BITS, // bits# to represent key hash as any integer
         UPDATE_COUNTER_BITS, // bits# to represent update counter in less than an integer
-        UnionCodec.AUTO_CALCULATE_BIT_SIZE, // invalid bit
+        UnionCodec.AUTO_CALCULATE_BIT_SIZE, // valid bit
         Long.SIZE);
 
     /*----------------- Constructor -------------------*/
@@ -117,14 +117,14 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
     }
 
     /**
-     * isKeyHashValid checks the key hash invalid bit, disregarding the update counter, when it is above zero.
+     * isKeyHashValid checks the key hash valid bit, disregarding the update counter, when it is above zero.
      *
      * key hash may have any integer value including zero. However, initially
      * all array's memory is zeroed, including key hashes and their update counters.
      */
     private boolean isKeyHashValid(int ei) {
         long keyHashField = getKeyHashAndUpdateCounter(ei);
-        return (keyHashField != 0) && (HASH_CODEC.getThird(keyHashField) == 0);
+        return (keyHashField != 0) && (HASH_CODEC.getThird(keyHashField) == 1);
     }
 
     /**
@@ -145,7 +145,8 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
     private boolean casKeyHashAndUpdateCounter(int ei, long oldKeyHash, int newKeyHash) {
         // extract the updates counter from the old hash and increase it and to add to the new hash
         int updCnt = HASH_CODEC.getSecond(oldKeyHash);
-        long newFullHashField = HASH_CODEC.encode(newKeyHash, updCnt + 1, 0);
+        long newFullHashField = // last one, means setting the valid bit
+            HASH_CODEC.encode(newKeyHash, updCnt + 1, 1);
         return casEntryFieldLong(ei, HASH_FIELD_OFFSET, oldKeyHash, newFullHashField);
     }
 
@@ -159,7 +160,8 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
         // extract the updates counter from the old hash and increase it and to add to the new hash
         int updCnt = HASH_CODEC.getSecond(oldKeyHash);
         int keyHash = HASH_CODEC.getFirst(oldKeyHash);
-        long newKeyHash = HASH_CODEC.encode(keyHash, updCnt + 1, 1);
+        long newKeyHash = // last zero, means re-setting the valid bit
+            HASH_CODEC.encode(keyHash, updCnt + 1, 0);
         return casEntryFieldLong(ei, HASH_FIELD_OFFSET, oldKeyHash, newKeyHash);
     }
 

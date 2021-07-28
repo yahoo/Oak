@@ -24,6 +24,13 @@ class HashChunk<K, V> extends BasicChunk<K, V> {
      * @param maxItems  is the size of the entries array (not all the entries are going to be in use)
      *                  IMPORTANT!: it is better to be a power of two,
      *                  if not the rest of the entries are going to be waisted
+     *
+     * Why do we allow parameter maxItems, and not rely only on hashIndexCodec.getFirstBitSize()
+     * in the power of 2? As general HashChunk can be bigger than 2^bitSize. For example, it can
+     * be defined that the "calculated" keyHash (index in the entry array) will always be even, and
+     * odd entries will be for the collisions only. There can be a reason to do bigger chunk and not
+     * to enlarge the FirstLevelHashArray.
+     *
      * @param hashIndexCodec the codec initiated with the right amount of the least significant bits,
      *                       to be used to get index from the key hash
      */
