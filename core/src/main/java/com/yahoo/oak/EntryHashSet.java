@@ -236,7 +236,7 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
 
         // read current key slice (value is read during delete check)
         if (!readKey(ctx.key, ctx.entryIndex)) {
-            // key is deleted (was already checked for being invalid, cannot turn to be invalid again)
+            // key is deleted (was already checked for being valid, cannot turn to be invalid again)
             // check that key hash is invalidated, because it is the last stage of deletion
             return isKeyHashValid(idx) ? EntryState.DELETED_NOT_FINALIZED : EntryState.DELETED;
         }

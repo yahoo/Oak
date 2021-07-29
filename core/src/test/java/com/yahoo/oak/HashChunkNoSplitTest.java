@@ -16,7 +16,7 @@ import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class HashChunkNoSplitTest {
-    private static final int MAX_ITEMS_PER_CHUNK = 32;
+    private static final int MAX_ITEMS_PER_CHUNK = 64;
     private final ValueUtils valueOperator = new ValueUtils();
     private final NativeMemoryAllocator allocator = new NativeMemoryAllocator(128);
     private final SyncRecycleMemoryManager memoryManager = new SyncRecycleMemoryManager(allocator);
@@ -304,12 +304,6 @@ public class HashChunkNoSplitTest {
 
         ThreadContext ctx = new ThreadContext(memoryManager, memoryManager);
         int numberOfMappingsBefore = c.externalSize.get();
-
-        Integer keyFirst = new Integer(5);
-        Integer keySecond = new Integer(6);
-        Integer keyThird = new Integer(7);
-        Integer keyFirstNegative = new Integer(-5); // same hash as 5
-        Integer keySecondNegative = new Integer(-6); // same hash as 6
 
         // Parties: test thread and inserter thread
         CyclicBarrier barrier = new CyclicBarrier(2);

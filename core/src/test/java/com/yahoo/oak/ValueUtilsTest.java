@@ -139,24 +139,25 @@ public class ValueUtilsTest {
         for (int i = 0; i < randomValues.length; i++) {
             randomValues[i] = random.nextInt();
         }
-        Assert.assertEquals(ValueUtils.ValueResult.TRUE, valueOperator.put(null, ctx, 10, new OakSerializer<Integer>() {
-            @Override
-            public void serialize(Integer object, OakScopedWriteBuffer targetBuffer) {
-                for (int i = 0; i < randomValues.length; i++) {
-                    targetBuffer.putInt(i * Integer.BYTES, randomValues[i]);
+        Assert.assertEquals(ValueUtils.ValueResult.TRUE,
+            valueOperator.put(null, ctx, 10, new OakSerializer<Integer>() {
+                @Override
+                public void serialize(Integer object, OakScopedWriteBuffer targetBuffer) {
+                    for (int i = 0; i < randomValues.length; i++) {
+                        targetBuffer.putInt(i * Integer.BYTES, randomValues[i]);
+                    }
                 }
-            }
 
-            @Override
-            public Integer deserialize(OakScopedReadBuffer byteBuffer) {
-                return null;
-            }
+                @Override
+                public Integer deserialize(OakScopedReadBuffer byteBuffer) {
+                    return null;
+                }
 
-            @Override
-            public int calculateSize(Integer object) {
-                return 0;
-            }
-        }));
+                @Override
+                public int calculateSize(Integer object) {
+                    return 0;
+                }
+            }));
         Assert.assertEquals(randomValues[0], getInt(0));
         Assert.assertEquals(randomValues[1], getInt(4));
         Assert.assertEquals(randomValues[2], getInt(8));
