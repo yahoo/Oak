@@ -235,7 +235,11 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
         }
 
         // read current key slice (value is read during delete check)
-        readKey(ctx.key, ctx.entryIndex);
+        if (!readKey(ctx.key, ctx.entryIndex)) {
+            // key is deleted (was already checked for being invalid, cannot turn to be invalid again)
+            // check that key hash is invalidated, because it is the last stage of deletion
+            return isKeyHashValid(idx) ? EntryState.DELETED_NOT_FINALIZED : EntryState.DELETED;
+        }
 
         // value is either invalid or valid (but not deleted), can be in progress of being inserted
         if (isValueRefValidAndNotDeleted(idx)) {
@@ -286,9 +290,11 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
             }
 
             // value and key slices are read during getEntryState() unless the entry is
-            // fully deleted (EntryState.DELETED) in this case we cannot compare the key (!)
+            // deleted (EntryState.DELETED/EntryState.DELETED_NOT_FINALIZED)
+            // in this case we cannot compare the key (!)
             // also deletion linearization point is checked during getEntryState()
             if (ctx.entryState != EntryState.DELETED &&
+                ctx.entryState != EntryState.DELETED_NOT_FINALIZED &&
                 isKeyAndEntryKeyEqual(ctx.key, key, ctx.entryIndex, keyHash)) {
                 // EntryState.VALID --> the key is found
                 // DELETED_NOT_FINALIZED --> key doesn't exists
@@ -498,8 +504,6 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
      *  references as deleted is unique and so the slice releases
      */
     boolean deleteValueFinish(ThreadContext ctx) {
-
-        assert ctx.entryState == EntryState.DELETED_NOT_FINALIZED;
 
         if (valuesMemoryManager.isReferenceDeleted(ctx.value.getSlice().getReference())
             && !isKeyHashValid(ctx.entryIndex)) {

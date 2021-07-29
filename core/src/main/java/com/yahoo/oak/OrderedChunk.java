@@ -146,6 +146,7 @@ class OrderedChunk<K, V> extends BasicChunk<K, V> {
      * Writes the key off-heap and allocates an entry with the reference pointing to the given key
      * See {@code EntryOrderedSet.allocateEntryAndWriteKey(ThreadContext)} for more information
      */
+    @Override
     boolean allocateEntryAndWriteKey(ThreadContext ctx, K key) {
         return entryOrderedSet.allocateEntryAndWriteKey(ctx, key);
     }
@@ -153,6 +154,7 @@ class OrderedChunk<K, V> extends BasicChunk<K, V> {
     /**
      * See {@code EntryOrderedSet.allocateValue(ThreadContext)} for more information
      */
+    @Override
     void allocateValue(ThreadContext ctx, V value, boolean writeForMove) {
         entryOrderedSet.allocateValue(ctx, value, writeForMove);
     }
@@ -160,6 +162,7 @@ class OrderedChunk<K, V> extends BasicChunk<K, V> {
     /**
      * See {@code EntryOrderedSet.releaseKey(ThreadContext)} for more information
      */
+    @Override
     void releaseKey(ThreadContext ctx) {
         entryOrderedSet.releaseKey(ctx);
     }
@@ -167,6 +170,7 @@ class OrderedChunk<K, V> extends BasicChunk<K, V> {
     /**
      * See {@code EntryOrderedSet.releaseNewValue(ThreadContext)} for more information
      */
+    @Override
     void releaseNewValue(ThreadContext ctx) {
         entryOrderedSet.releaseNewValue(ctx);
     }
@@ -462,6 +466,7 @@ class OrderedChunk<K, V> extends BasicChunk<K, V> {
      *            the old and new value versions.
      * @return true if the value reference was CASed successfully.
      */
+    @Override
     ValueUtils.ValueResult linkValue(ThreadContext ctx) {
         if (entryOrderedSet.writeValueCommit(ctx) == ValueUtils.ValueResult.FALSE) {
             return ValueUtils.ValueResult.FALSE;

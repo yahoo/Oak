@@ -156,7 +156,7 @@ public class ValueUtilsTest {
             public int calculateSize(Integer object) {
                 return 0;
             }
-        }, null));
+        }));
         Assert.assertEquals(randomValues[0], getInt(0));
         Assert.assertEquals(randomValues[1], getInt(4));
         Assert.assertEquals(randomValues[2], getInt(8));
@@ -179,7 +179,7 @@ public class ValueUtilsTest {
             public int calculateSize(Integer object) {
                 return 0;
             }
-        }, null);
+        });
     }
 
     @Test(expected = IndexOutOfBoundsException.class)
@@ -199,7 +199,7 @@ public class ValueUtilsTest {
             public int calculateSize(Integer object) {
                 return 0;
             }
-        }, null);
+        });
     }
 
     @Test
@@ -233,7 +233,7 @@ public class ValueUtilsTest {
                 public int calculateSize(Integer object) {
                     return 0;
                 }
-            }, null);
+            });
         });
         s.getSlice().lockRead();
         putter.start();
@@ -287,7 +287,7 @@ public class ValueUtilsTest {
                 public int calculateSize(Integer object) {
                     return 0;
                 }
-            }, null);
+            });
         });
         s.getSlice().lockWrite();
         putter.start();
@@ -307,15 +307,13 @@ public class ValueUtilsTest {
     @Test
     public void cannotPutInDeletedValueTest() {
         s.getSlice().logicalDelete();
-        Assert.assertEquals(ValueUtils.ValueResult.FALSE, valueOperator.put(null, ctx, null, null,
-            null));
+        Assert.assertEquals(ValueUtils.ValueResult.FALSE, valueOperator.put(null, ctx, null, null));
     }
 
     @Test
     public void cannotPutToValueOfDifferentVersionTest() {
         ((BlockAllocationSlice) s.getSlice()).associateMMAllocation(2, -1);
-        Assert.assertEquals(ValueUtils.ValueResult.RETRY, valueOperator.put(null, ctx, null, null,
-            null));
+        Assert.assertEquals(ValueUtils.ValueResult.RETRY, valueOperator.put(null, ctx, null, null));
     }
 
     @Test

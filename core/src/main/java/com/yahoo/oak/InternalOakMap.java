@@ -442,10 +442,13 @@ class InternalOakMap<K, V> {
             // then this put changes the slice pointed by this value reference.
             if (ctx.isValueValid()) {
                 // there is a value and it is not deleted
-                Result res = valueOperator.exchange(c, ctx, value, transformer, valueSerializer,
-                    this);
+                Result res = valueOperator.exchange(c, ctx, value, transformer, valueSerializer);
                 if (res.operationResult == ValueUtils.ValueResult.TRUE) {
                     return (V) res.value;
+                }
+                // it might be that this chunk is proceeding with rebalance -> help
+                if (c.state() == BasicChunk.State.FROZEN) {
+                    rebalance(c);
                 }
                 // Exchange failed because the value was deleted/moved between lookup and exchange. Continue with
                 // insertion.
@@ -866,10 +869,13 @@ class InternalOakMap<K, V> {
             }
 
             // will return null if the value is deleted
-            Result result = valueOperator.exchange(c, ctx, value, valueDeserializeTransformer, valueSerializer,
-                this);
+            Result result = valueOperator.exchange(c, ctx, value, valueDeserializeTransformer, valueSerializer);
             if (result.operationResult != ValueUtils.ValueResult.RETRY) {
                 return (V) result.value;
+            }
+            // it might be that this chunk is proceeding with rebalance -> help
+            if (c.state() == BasicChunk.State.FROZEN) {
+                rebalance(c);
             }
         }
 
@@ -887,8 +893,12 @@ class InternalOakMap<K, V> {
             }
 
             ValueUtils.ValueResult res = valueOperator.compareExchange(c, ctx, oldValue, newValue,
-                    valueDeserializeTransformer, valueSerializer, this);
+                    valueDeserializeTransformer, valueSerializer);
             if (res == ValueUtils.ValueResult.RETRY) {
+                // it might be that this chunk is proceeding with rebalance -> help
+                if (c.state() == BasicChunk.State.FROZEN) {
+                    rebalance(c);
+                }
                 continue;
             }
             return res == ValueUtils.ValueResult.TRUE;
