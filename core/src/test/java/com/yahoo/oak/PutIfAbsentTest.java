@@ -26,7 +26,7 @@ import java.util.function.Supplier;
 @RunWith(Parameterized.class)
 public class PutIfAbsentTest {
     private static final int NUM_THREADS = 31;
-    private static final long TIME_LIMIT_IN_SECONDS = 15;
+    private static final long TIME_LIMIT_IN_SECONDS = 25;
     private static final int NUM_KEYS = 100000;
 
     private ConcurrentZCMap<Integer, Integer> oak;
