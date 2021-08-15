@@ -172,31 +172,6 @@ class InternalOakMap<K, V> {
         return curr;
     }
 
-    boolean overwriteExistingValueForMove(ThreadContext ctx, V newVal, OrderedChunk<K, V> c) {
-        // given old entry index (inside ctx) and new value, while old value is locked,
-        // allocate new value, new value is going to be locked as well, write the new value
-        c.allocateValue(ctx, newVal, true);
-
-        // in order to connect/overwrite the old entry to point to new value
-        // we need to publish as in the normal write process
-        if (!c.publish()) {
-            c.releaseNewValue(ctx);
-            rebalance(c);
-            return false;
-        }
-
-        // updating the old entry index
-        if (c.linkValue(ctx) != ValueUtils.ValueResult.TRUE) {
-            c.releaseNewValue(ctx);
-            c.unpublish();
-            return false;
-        }
-
-        c.unpublish();
-        checkRebalance(c);
-        return true;
-    }
-
     /**
      * @param c - OrderedChunk to rebalance
      */

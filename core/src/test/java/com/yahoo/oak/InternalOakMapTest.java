@@ -75,6 +75,15 @@ public class InternalOakMapTest {
 
         Assert.assertNull(results[0]);
         Assert.assertNotEquals(results[1], results[2]);
+
+        OakUnscopedBuffer maxK = testMap.getMaxKey();
+        int intMaxK = maxK.transform(OakCommonBuildersFactory.DEFAULT_INT_SERIALIZER::deserialize);
+        Assert.assertEquals(1, intMaxK);
+
+        OakUnscopedBuffer minK = testMap.getMinKey();
+        int intMinK = minK.transform(OakCommonBuildersFactory.DEFAULT_INT_SERIALIZER::deserialize);
+        Assert.assertEquals(1, intMinK);
+
     }
 
     @Test
