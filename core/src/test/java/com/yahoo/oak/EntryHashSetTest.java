@@ -12,8 +12,6 @@ import com.yahoo.oak.common.integer.OakIntSerializer;
 import org.junit.Assert;
 import org.junit.Test;
 
-
-
 public class EntryHashSetTest {
     private final ValueUtils valueOperator = new ValueUtils();
 
@@ -417,8 +415,15 @@ public class EntryHashSetTest {
         assert vr == ValueUtils.ValueResult.TRUE;
         ctx.entryState = EntryArray.EntryState.DELETED_NOT_FINALIZED;
 
+        assert ehs.isEntryDeleted(ctx.tempValue, 7);
+
         //try to insert on top of the not fully deleted entry!
         assert ehs.allocateEntryAndWriteKey(ctx, key, 7, key.hashCode() );
+
+        Assert.assertThrows(IllegalArgumentException.class, () -> {
+            //Test access out of entry index bounds
+            ehs.allocateEntryAndWriteKey(ctx, key, 7123456, key.hashCode() );
+        });
 
     }
 
