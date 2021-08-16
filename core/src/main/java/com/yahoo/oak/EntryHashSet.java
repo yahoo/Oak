@@ -128,15 +128,6 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
     }
 
     /**
-     * setKeyHashAndUpdateCounter sets the key hash (of the entry given by entry index "ei")
-     * to be the "hash". Long parameter "hash" must include the update counter (with value 1 at least)!
-     * To be used while rebalance, during normal path only CAS is used.
-     */
-    private void setKeyHashAndUpdateCounter(int ei, long hash) {
-        setEntryFieldLong(ei, HASH_FIELD_OFFSET, hash);
-    }
-
-    /**
      * casKeyHashAndUpdateCounter CAS the key hash including the update counter
      * (of the entry given by entry index "ei") to be
      * the `newKeyHash` only if it was `oldKeyHash`, the update counter incorporated inside
@@ -352,6 +343,8 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
                 case DELETED_NOT_FINALIZED:
                     deleteValueFinish(ctx); //TODO: invocation must be within chunk publishing scope!
                     // deleteValueFinish() also changes the entry state to DELETED
+                    // get the entry state again to get the deleted key & value references into context
+                    ctx.entryState = getEntryState(ctx, ctx.entryIndex, key, keyHash);
                     // deliberate break through
                 case DELETED: // deliberate break through
                 case UNKNOWN:
