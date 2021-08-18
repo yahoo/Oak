@@ -211,6 +211,12 @@ class InternalOakMap<K, V> {
         }
     }
 
+    private void helpRebalanceIfInProgress(OrderedChunk<K, V> c) {
+        if (c.state() == BasicChunk.State.FROZEN) {
+            rebalance(c);
+        }
+    }
+
     private void connectToChunkList(List<OrderedChunk<K, V>> engaged, List<OrderedChunk<K, V>> children) {
 
         updateLastChild(engaged, children);
@@ -422,9 +428,7 @@ class InternalOakMap<K, V> {
                     return (V) res.value;
                 }
                 // it might be that this chunk is proceeding with rebalance -> help
-                if (c.state() == BasicChunk.State.FROZEN) {
-                    rebalance(c);
-                }
+                helpRebalanceIfInProgress(c);
                 // Exchange failed because the value was deleted/moved between lookup and exchange. Continue with
                 // insertion.
                 continue;
@@ -849,9 +853,7 @@ class InternalOakMap<K, V> {
                 return (V) result.value;
             }
             // it might be that this chunk is proceeding with rebalance -> help
-            if (c.state() == BasicChunk.State.FROZEN) {
-                rebalance(c);
-            }
+            helpRebalanceIfInProgress(c);
         }
 
         throw new RuntimeException("replace failed: reached retry limit (1024).");
@@ -871,9 +873,7 @@ class InternalOakMap<K, V> {
                     valueDeserializeTransformer, valueSerializer);
             if (res == ValueUtils.ValueResult.RETRY) {
                 // it might be that this chunk is proceeding with rebalance -> help
-                if (c.state() == BasicChunk.State.FROZEN) {
-                    rebalance(c);
-                }
+                helpRebalanceIfInProgress(c);
                 continue;
             }
             return res == ValueUtils.ValueResult.TRUE;
