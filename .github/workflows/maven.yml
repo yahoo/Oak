@@ -20,7 +20,9 @@ jobs:
     - name: Run tests
       run: mvn test -Dstyle.color=always
     - name: Run tests with test-coverage analysis (slower)
+      # Skip some tests due to timeouts
       run: mvn test -pl :oak -Djacoco.skip=false -Dstyle.color=always
+           -Dtest=!com.yahoo.oak.ComputeTest,!com.yahoo.oak.PutIfAbsentTest
     - name: Setup diff-test-coverage
       run: npm install @connectis/diff-test-coverage@1.5.3
     - name: Validate test-coverage
