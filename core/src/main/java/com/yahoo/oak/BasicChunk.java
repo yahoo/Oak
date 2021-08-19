@@ -9,7 +9,7 @@ package com.yahoo.oak;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
-class BasicChunk<K, V> {
+abstract class BasicChunk<K, V> {
 
     /*-------------- Constants --------------*/
     enum State {
@@ -115,6 +115,39 @@ class BasicChunk<K, V> {
         return rebalancer.get();
     }
 
+    /*----------------------- Abstract Methods  --------------------------*/
+    /**
+     * See concrete implementation for more information
+     */
+    abstract void releaseKey(ThreadContext ctx);
+
+    /**
+     * See concrete implementation for more information
+     */
+    abstract void releaseNewValue(ThreadContext ctx);
+
+    /**
+     * Writes the key off-heap and allocates an entry with the reference pointing to the given key
+     * See concrete implementation for more information
+     */
+    abstract boolean allocateEntryAndWriteKey(ThreadContext ctx, K key);
+
+    /**
+     * See concrete implementation for more information
+     */
+    abstract void allocateValue(ThreadContext ctx, V value, boolean writeForMove);
+
+    /**
+     * This function does the physical CAS of the value reference, which is the
+     * Linearization Point of the insertion (for any chunk) to complete the insertion
+     *
+     * @param ctx The context that follows the operation since the key was found/created.
+     *            Holds the entry to which the value reference is linked, the old and new value references and
+     *            the old and new value versions.
+     * @return true if the value reference was CASed successfully.
+     */
+    abstract ValueUtils.ValueResult linkValue(ThreadContext ctx);
+
     /*----------------------- Methods for managing the chunk's state  --------------------------*/
     /* To normalize the chunk once its split/merge/rebalance is finished */
     void normalize() {
@@ -151,6 +184,30 @@ class BasicChunk<K, V> {
      */
     void release() {
         state.compareAndSet(State.FROZEN, State.RELEASED);
+    }
+
+    /*-------------- Methods for managing existing value (for ValueUtils) --------------*/
+    boolean overwriteExistingValueForMove(ThreadContext ctx, V newVal) {
+        // given old entry index (inside ctx) and new value, while old value is locked,
+        // allocate new value, new value is going to be locked as well, write the new value
+        allocateValue(ctx, newVal, true);
+
+        // in order to connect/overwrite the old entry to point to new value
+        // we need to publish as in the normal write process
+        if (!publish()) {
+            releaseNewValue(ctx);
+            return false;
+        }
+
+        // updating the old entry index
+        if (linkValue(ctx) != ValueUtils.ValueResult.TRUE) {
+            releaseNewValue(ctx);
+            unpublish();
+            return false;
+        }
+
+        unpublish();
+        return true;
     }
 
     /*-------------- Statistics --------------*/

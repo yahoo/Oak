@@ -107,6 +107,7 @@ class HashChunk<K, V> extends BasicChunk<K, V> {
      * Writes the key off-heap and allocates an entry with the reference pointing to the given key
      * See {@code EntryHashSet.allocateEntryAndWriteKey(ThreadContext)} for more information
      */
+    @Override
     boolean allocateEntryAndWriteKey(ThreadContext ctx, K key) {
         int keyHash = calculateKeyHash(key, ctx);
         return entryHashSet.allocateEntryAndWriteKey(
@@ -116,6 +117,7 @@ class HashChunk<K, V> extends BasicChunk<K, V> {
     /**
      * See {@code EntryHashSet.allocateValue(ThreadContext)} for more information
      */
+    @Override
     void allocateValue(ThreadContext ctx, V value, boolean writeForMove) {
         entryHashSet.allocateValue(ctx, value, writeForMove);
     }
@@ -123,6 +125,7 @@ class HashChunk<K, V> extends BasicChunk<K, V> {
     /**
      * See {@code EntryHashSet.releaseKey(ThreadContext)} for more information
      */
+    @Override
     void releaseKey(ThreadContext ctx) {
         entryHashSet.releaseKey(ctx);
     }
@@ -130,6 +133,7 @@ class HashChunk<K, V> extends BasicChunk<K, V> {
     /**
      * See {@code EntryHashSet.releaseNewValue(ThreadContext)} for more information
      */
+    @Override
     void releaseNewValue(ThreadContext ctx) {
         entryHashSet.releaseNewValue(ctx);
     }
@@ -231,6 +235,7 @@ class HashChunk<K, V> extends BasicChunk<K, V> {
      *            the old and new value versions.
      * @return true if the value reference was CASed successfully.
      */
+    @Override
     ValueUtils.ValueResult linkValue(ThreadContext ctx) {
         if (entryHashSet.writeValueCommit(ctx) == ValueUtils.ValueResult.FALSE) {
             return ValueUtils.ValueResult.FALSE;
@@ -274,146 +279,5 @@ class HashChunk<K, V> extends BasicChunk<K, V> {
     /********************************************************************************************/
     /*--------------------------------- Iterators Constructors ---------------------------------*/
     // TODO: update hash iterator later
-    /**
-     * Ascending iterator from the beginning of the chunk. The end boundary is given by parameter
-     * key "to" might not be in this chunk. Parameter nextChunkMinKey - is the minimal key of the
-     * next chunk, all current and future keys of this chunk are less than nextChunkMinKey
-     */
-    AscendingIter ascendingIter(ThreadContext ctx, K to, boolean toInclusive,
-        OakScopedReadBuffer nextChunkMinKey) {
-        return new AscendingIter(ctx, to, toInclusive, nextChunkMinKey);
-    }
 
-    /**
-     * Ascending iterator from key "from" given as parameter.
-     * The end boundary is given by parameter key "to", but it might not be in this chunk.
-     * Parameter nextChunkMinKey - is the minimal key of the next chunk,
-     * all current and future keys of this chunk are less than nextChunkMinKey
-     */
-    AscendingIter ascendingIter(ThreadContext ctx, K from, boolean fromInclusive, K to,
-        boolean toInclusive, OakScopedReadBuffer nextChunkMinKey) {
-        return new AscendingIter(ctx, from, fromInclusive, to, toInclusive, nextChunkMinKey);
-    }
-
-    /********************************************************************************************/
-    /*------ Base Class for OrderedChunk Iterators (keeps all the common fields and methods) ----------*/
-
-    // specifier whether the end boundary check needs to be performed on the current scan output
-    enum IterEndBoundCheck {
-        NEVER_END_BOUNDARY_CHECK,
-        MID_END_BOUNDARY_CHECK,
-        ALWAYS_END_BOUNDARY_CHECK
-    }
-
-    abstract class ChunkIter {
-        protected int next;         // index of the next entry to be returned
-        protected K endBound;       // stop bound key, or null if no stop bound
-        protected boolean endBoundInclusive;  // inclusion flag for "to"
-
-        protected IterEndBoundCheck isEndBoundCheckNeeded = IterEndBoundCheck.NEVER_END_BOUNDARY_CHECK;
-
-        abstract boolean hasNext();
-
-        /** Returns the index of the entry that should be returned next by the iterator.
-         ** NONE_NEXT is returned when iterator came to its end.
-         **/
-        abstract int next(ThreadContext ctx);
-
-        boolean isBoundCheckNeeded() {
-            return isEndBoundCheckNeeded == IterEndBoundCheck.ALWAYS_END_BOUNDARY_CHECK;
-        };
-
-        /* Checks if the given 'boundKey' key is beyond the scope of the given scan,
-        ** meaning that scan is near to its end.
-        ** For descending scan it is the low key, for ascending scan it is the high.
-        **/
-        abstract boolean isKeyOutOfEndBound(OakScopedReadBuffer boundKey);
-
-        protected void setIsEndBoundCheckNeeded(
-            ThreadContext ctx, K to, boolean toInclusive, OakScopedReadBuffer chunkBoundaryKey) {
-            this.endBound = to;
-            this.endBoundInclusive = toInclusive;
-
-            if (this.endBound == null || !isKeyOutOfEndBound(chunkBoundaryKey)) {
-                // isEndBoundCheckNeeded is NEVER_END_BOUNDARY_CHECK by default
-                return;
-            }
-
-            // generally there is a need for the boundary check, but maybe delay it to the middle
-            // of the chunk. isEndBoundCheckNeeded value can still be changed
-            isEndBoundCheckNeeded = IterEndBoundCheck.ALWAYS_END_BOUNDARY_CHECK;
-        }
-    }
-
-    /********************************************************************************************/
-    /*------------------------------- Iterators Implementations --------------------------------*/
-    class AscendingIter extends ChunkIter {
-
-        AscendingIter(ThreadContext ctx, K to, boolean toInclusive,
-            OakScopedReadBuffer nextChunkMinKey) {
-            next = 0;
-            next = advanceNextIndexNoBound(next, ctx);
-            setIsEndBoundCheckNeeded(ctx, to, toInclusive, nextChunkMinKey);
-        }
-
-        AscendingIter(ThreadContext ctx, K from, boolean fromInclusive, K to, boolean toInclusive,
-            OakScopedReadBuffer nextChunkMinKey) {
-            KeyBuffer tempKeyBuff = ctx.tempKey;
-            next = 0;
-        }
-
-        private void advance(ThreadContext ctx) {
-            next++;
-            // if there is no need to check the end-boundary on this chunk (IterEndBoundCheck.NEVER_END_BOUNDARY_CHECK),
-            // or if the caller will check the end-boundary (IterEndBoundCheck.ALWAYS_END_BOUNDARY_CHECK),
-            // then advance next without additional checks
-            if (isEndBoundCheckNeeded != IterEndBoundCheck.MID_END_BOUNDARY_CHECK) {
-                advanceNextIndexNoBound(next, ctx);
-            } else {
-                next = advanceNextIndex(next, ctx);
-            }
-        }
-
-        @Override
-        public boolean hasNext() {
-            return true;
-        }
-
-        @Override
-        public int next(ThreadContext ctx) {
-            int toReturn = next;
-            advance(ctx);
-            return toReturn;
-        }
-
-        private int advanceNextIndex(final int entryIndex, ThreadContext ctx) {
-            int next = entryIndex;
-            while (!entryHashSet.isValueRefValidAndNotDeleted(next)) {
-                next++;
-            }
-            return next;
-        }
-
-        private int advanceNextIndexNoBound(final int entryIndex, ThreadContext ctx) {
-            int next = entryIndex;
-            while (!entryHashSet.isValueRefValidAndNotDeleted(next)) {
-                next++;
-            }
-            return next;
-        }
-
-        @Override
-        protected boolean isKeyOutOfEndBound(OakScopedReadBuffer key) {
-            if (endBound == null) {
-                return false;
-            }
-            if (key == null) {
-                // we are on the last chunk and 'to' is not null
-                return true;
-            }
-            int c = comparator.compareKeyAndSerializedKey(endBound, key);
-            // return true if endBound<key or endBound==key and the scan was not endBoundInclusive
-            return c < 0 || (c == 0 && !endBoundInclusive);
-        }
-    }
 }

@@ -172,31 +172,6 @@ class InternalOakMap<K, V> {
         return curr;
     }
 
-    boolean overwriteExistingValueForMove(ThreadContext ctx, V newVal, OrderedChunk<K, V> c) {
-        // given old entry index (inside ctx) and new value, while old value is locked,
-        // allocate new value, new value is going to be locked as well, write the new value
-        c.allocateValue(ctx, newVal, true);
-
-        // in order to connect/overwrite the old entry to point to new value
-        // we need to publish as in the normal write process
-        if (!c.publish()) {
-            c.releaseNewValue(ctx);
-            rebalance(c);
-            return false;
-        }
-
-        // updating the old entry index
-        if (c.linkValue(ctx) != ValueUtils.ValueResult.TRUE) {
-            c.releaseNewValue(ctx);
-            c.unpublish();
-            return false;
-        }
-
-        c.unpublish();
-        checkRebalance(c);
-        return true;
-    }
-
     /**
      * @param c - OrderedChunk to rebalance
      */
@@ -232,6 +207,12 @@ class InternalOakMap<K, V> {
 
     private void checkRebalance(OrderedChunk<K, V> c) {
         if (c.shouldRebalance()) {
+            rebalance(c);
+        }
+    }
+
+    private void helpRebalanceIfInProgress(OrderedChunk<K, V> c) {
+        if (c.state() == BasicChunk.State.FROZEN) {
             rebalance(c);
         }
     }
@@ -442,11 +423,12 @@ class InternalOakMap<K, V> {
             // then this put changes the slice pointed by this value reference.
             if (ctx.isValueValid()) {
                 // there is a value and it is not deleted
-                Result res = valueOperator.exchange(c, ctx, value, transformer, valueSerializer,
-                    this);
+                Result res = valueOperator.exchange(c, ctx, value, transformer, valueSerializer);
                 if (res.operationResult == ValueUtils.ValueResult.TRUE) {
                     return (V) res.value;
                 }
+                // it might be that this chunk is proceeding with rebalance -> help
+                helpRebalanceIfInProgress(c);
                 // Exchange failed because the value was deleted/moved between lookup and exchange. Continue with
                 // insertion.
                 continue;
@@ -866,11 +848,12 @@ class InternalOakMap<K, V> {
             }
 
             // will return null if the value is deleted
-            Result result = valueOperator.exchange(c, ctx, value, valueDeserializeTransformer, valueSerializer,
-                this);
+            Result result = valueOperator.exchange(c, ctx, value, valueDeserializeTransformer, valueSerializer);
             if (result.operationResult != ValueUtils.ValueResult.RETRY) {
                 return (V) result.value;
             }
+            // it might be that this chunk is proceeding with rebalance -> help
+            helpRebalanceIfInProgress(c);
         }
 
         throw new RuntimeException("replace failed: reached retry limit (1024).");
@@ -887,8 +870,10 @@ class InternalOakMap<K, V> {
             }
 
             ValueUtils.ValueResult res = valueOperator.compareExchange(c, ctx, oldValue, newValue,
-                    valueDeserializeTransformer, valueSerializer, this);
+                    valueDeserializeTransformer, valueSerializer);
             if (res == ValueUtils.ValueResult.RETRY) {
+                // it might be that this chunk is proceeding with rebalance -> help
+                helpRebalanceIfInProgress(c);
                 continue;
             }
             return res == ValueUtils.ValueResult.TRUE;

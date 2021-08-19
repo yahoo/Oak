@@ -16,7 +16,7 @@ import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class HashChunkNoSplitTest {
-    private static final int MAX_ITEMS_PER_CHUNK = 32;
+    private static final int MAX_ITEMS_PER_CHUNK = 64;
     private final ValueUtils valueOperator = new ValueUtils();
     private final NativeMemoryAllocator allocator = new NativeMemoryAllocator(128);
     private final SyncRecycleMemoryManager memoryManager = new SyncRecycleMemoryManager(allocator);
@@ -127,7 +127,7 @@ public class HashChunkNoSplitTest {
         return;
     }
 
-    private void deleteExisting(Integer key, ThreadContext ctx) {
+    private void deleteExisting(Integer key, ThreadContext ctx, boolean concurrent) {
         // delete firstly inserted entries, first look for a key and mark its value as deleted
         c.lookUp(ctx, key);
         Assert.assertNotEquals(ctx.entryIndex, EntryArray.INVALID_ENTRY_INDEX);
@@ -143,15 +143,7 @@ public class HashChunkNoSplitTest {
 
         ValueUtils.ValueResult vr = ctx.value.s.logicalDelete();
         assert vr == ValueUtils.ValueResult.TRUE;
-
-        // look for the entry again, to ensure the state is delete not finalize
-        // delete some entries, first look for a key and mark its value as deleted
-        c.lookUp(ctx, key);
-        Assert.assertEquals(ctx.entryState, EntryArray.EntryState.DELETED_NOT_FINALIZED);
-        Assert.assertNotEquals(ctx.key.getSlice().getReference(), memoryManager.getInvalidReference());
-        Assert.assertNotEquals(ctx.value.getSlice().getReference(), memoryManager.getInvalidReference());
-        Assert.assertEquals(ctx.newValue.getSlice().getReference(), memoryManager.getInvalidReference());
-        Assert.assertFalse(ctx.isValueValid());
+        ctx.entryState = EntryArray.EntryState.DELETED_NOT_FINALIZED;
 
         // expect false because no rebalance should be requested. Includes publish/unpublish
         assert !c.finalizeDeletion(ctx);
@@ -186,11 +178,11 @@ public class HashChunkNoSplitTest {
         putNotExisting(keySmallNegative, ctx, false);
 
         // DELETE
-        deleteExisting(keySmall, ctx);
-        deleteExisting(keyBig, ctx);
-        deleteExisting(keyZero, ctx);
-        deleteExisting(keyNegative, ctx);
-        deleteExisting(keySmallNegative, ctx);
+        deleteExisting(keySmall, ctx, false);
+        deleteExisting(keyBig, ctx, false);
+        deleteExisting(keyZero, ctx, false);
+        deleteExisting(keyNegative, ctx, false);
+        deleteExisting(keySmallNegative, ctx, false);
 
     }
 
@@ -221,16 +213,29 @@ public class HashChunkNoSplitTest {
             c.lookUp(ctxInserter, keySecond);
             Assert.assertTrue(ctxInserter.isKeyValid());
             Assert.assertTrue(ctxInserter.isValueValid());
+            Result result = valueOperator.transform(
+                new Result(), ctxInserter.value, buf -> serializer.deserialize(buf));
+            Assert.assertEquals(ValueUtils.ValueResult.TRUE, result.operationResult);
+            Assert.assertEquals(keySecond + 1, ((Integer) result.value).intValue());
+
             c.lookUp(ctxInserter, keyFirst);
             Assert.assertTrue(ctxInserter.isKeyValid());
             Assert.assertTrue(ctxInserter.isValueValid());
+            result = valueOperator.transform(
+                new Result(), ctxInserter.value, buf -> serializer.deserialize(buf));
+            Assert.assertEquals(ValueUtils.ValueResult.TRUE, result.operationResult);
+            Assert.assertEquals(keyFirst + 1, ((Integer) result.value).intValue());
 
             putNotExisting(keyThird, ctxInserter, true);
             c.lookUp(ctxInserter, keyThird);
             Assert.assertTrue(ctxInserter.isKeyValid());
             Assert.assertTrue(ctxInserter.isValueValid());
+            result = valueOperator.transform(
+                new Result(), ctxInserter.value, buf -> serializer.deserialize(buf));
+            Assert.assertEquals(ValueUtils.ValueResult.TRUE, result.operationResult);
+            Assert.assertEquals(keyThird + 1, ((Integer) result.value).intValue());
 
-            deleteExisting(keyThird, ctxInserter);
+            deleteExisting(keyThird, ctxInserter, true);
             c.lookUp(ctxInserter, keyThird);
             Assert.assertFalse(ctxInserter.isKeyValid());
             Assert.assertFalse(ctxInserter.isValueValid());
@@ -250,12 +255,21 @@ public class HashChunkNoSplitTest {
         c.lookUp(ctx, keyFirstNegative);
         Assert.assertTrue(ctx.isKeyValid());
         Assert.assertTrue(ctx.isValueValid());
+        Result result = valueOperator.transform(
+            new Result(), ctx.value, buf -> serializer.deserialize(buf));
+        Assert.assertEquals(ValueUtils.ValueResult.TRUE, result.operationResult);
+        Assert.assertEquals(keyFirstNegative + 1, ((Integer) result.value).intValue());
+
         // look for a key that should be existing in the chunk
         c.lookUp(ctx, keySecondNegative);
         Assert.assertTrue(ctx.isKeyValid());
         Assert.assertTrue(ctx.isValueValid());
+        result = valueOperator.transform(
+            new Result(), ctx.value, buf -> serializer.deserialize(buf));
+        Assert.assertEquals(ValueUtils.ValueResult.TRUE, result.operationResult);
+        Assert.assertEquals(keySecondNegative + 1, ((Integer) result.value).intValue());
 
-        deleteExisting(keyFirstNegative, ctx);
+        deleteExisting(keyFirstNegative, ctx, true);
         c.lookUp(ctx, keyFirstNegative);
         Assert.assertFalse(ctx.isKeyValid());
         Assert.assertFalse(ctx.isValueValid());
@@ -283,6 +297,76 @@ public class HashChunkNoSplitTest {
         Assert.assertTrue(ctx.isValueValid());
 
         Assert.assertEquals(c.externalSize.get(), numberOfMappingsBefore + 3); // no mapping is yet allocated
+    }
+
+    @Test(timeout = 5000)
+    public void testMultiThread() throws InterruptedException {
+
+        ThreadContext ctx = new ThreadContext(memoryManager, memoryManager);
+        int numberOfMappingsBefore = c.externalSize.get();
+
+        // Parties: test thread and inserter thread
+        CyclicBarrier barrier = new CyclicBarrier(2);
+
+        Thread inserter = new Thread(() -> {
+            try {
+                barrier.await();
+            } catch (InterruptedException | BrokenBarrierException e) {
+                e.printStackTrace();
+            }
+            ThreadContext ctxInserter = new ThreadContext(memoryManager, memoryManager);
+            // do not start from zero, this way two threads will not insert the same key
+            // (inserting the same key simultaneously is not supported yet)
+            for (int i = 1; i < MAX_ITEMS_PER_CHUNK; i += 5 ) {
+                Integer key = new Integer(i);
+                putNotExisting(key, ctxInserter, true);
+                c.lookUp(ctxInserter, key);
+                Assert.assertTrue(ctxInserter.isKeyValid());
+                Assert.assertTrue(ctxInserter.isValueValid());
+                Result result = valueOperator.transform(
+                    new Result(), ctxInserter.value, buf -> serializer.deserialize(buf));
+                Assert.assertEquals(ValueUtils.ValueResult.TRUE, result.operationResult);
+                Assert.assertEquals(key + 1, ((Integer) result.value).intValue());
+            }
+            for (int i = 1; i < MAX_ITEMS_PER_CHUNK; i += 5 ) {
+                Integer key = new Integer(i);
+                deleteExisting(key, ctxInserter, true);
+                c.lookUp(ctxInserter, key);
+                Assert.assertFalse(ctxInserter.isKeyValid());
+                Assert.assertFalse(ctxInserter.isValueValid());
+            }
+        });
+
+        inserter.start();
+        try {
+            barrier.await();
+        } catch (InterruptedException | BrokenBarrierException e) {
+            e.printStackTrace();
+        }
+        // do not start from zero, this way two threads will not insert the same key
+        // (inserting the same key simultaneously is not supported yet)
+        for (int i = 1; i < MAX_ITEMS_PER_CHUNK; i += 5 ) {
+            Integer key = new Integer(-i);
+            putNotExisting(key, ctx, true);
+            c.lookUp(ctx, key);
+            Assert.assertTrue(ctx.isKeyValid());
+            Assert.assertTrue(ctx.isValueValid());
+            Result result = valueOperator.transform(
+                new Result(), ctx.value, buf -> serializer.deserialize(buf));
+            Assert.assertEquals(ValueUtils.ValueResult.TRUE, result.operationResult);
+            Assert.assertEquals(key + 1, ((Integer) result.value).intValue());
+        }
+        for (int i = 1; i < MAX_ITEMS_PER_CHUNK; i += 5 ) {
+            Integer key = new Integer(-i);
+            deleteExisting(key, ctx, true);
+            c.lookUp(ctx, key);
+            Assert.assertFalse(ctx.isKeyValid());
+            Assert.assertFalse(ctx.isValueValid());
+        }
+
+        inserter.join();
+
+        Assert.assertEquals(c.externalSize.get(), numberOfMappingsBefore);
     }
 
 }

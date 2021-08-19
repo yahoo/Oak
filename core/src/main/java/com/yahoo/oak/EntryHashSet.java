@@ -128,15 +128,6 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
     }
 
     /**
-     * setKeyHashAndUpdateCounter sets the key hash (of the entry given by entry index "ei")
-     * to be the "hash". Long parameter "hash" must include the update counter (with value 1 at least)!
-     * To be used while rebalance, during normal path only CAS is used.
-     */
-    private void setKeyHashAndUpdateCounter(int ei, long hash) {
-        setEntryFieldLong(ei, HASH_FIELD_OFFSET, hash);
-    }
-
-    /**
      * casKeyHashAndUpdateCounter CAS the key hash including the update counter
      * (of the entry given by entry index "ei") to be
      * the `newKeyHash` only if it was `oldKeyHash`, the update counter incorporated inside
@@ -235,7 +226,11 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
         }
 
         // read current key slice (value is read during delete check)
-        readKey(ctx.key, ctx.entryIndex);
+        if (!readKey(ctx.key, ctx.entryIndex)) {
+            // key is deleted (was already checked for being valid, cannot turn to be invalid again)
+            // check that key hash is invalidated, because it is the last stage of deletion
+            return isKeyHashValid(idx) ? EntryState.DELETED_NOT_FINALIZED : EntryState.DELETED;
+        }
 
         // value is either invalid or valid (but not deleted), can be in progress of being inserted
         if (isValueRefValidAndNotDeleted(idx)) {
@@ -286,9 +281,11 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
             }
 
             // value and key slices are read during getEntryState() unless the entry is
-            // fully deleted (EntryState.DELETED) in this case we cannot compare the key (!)
+            // deleted (EntryState.DELETED/EntryState.DELETED_NOT_FINALIZED)
+            // in this case we cannot compare the key (!)
             // also deletion linearization point is checked during getEntryState()
             if (ctx.entryState != EntryState.DELETED &&
+                ctx.entryState != EntryState.DELETED_NOT_FINALIZED &&
                 isKeyAndEntryKeyEqual(ctx.key, key, ctx.entryIndex, keyHash)) {
                 // EntryState.VALID --> the key is found
                 // DELETED_NOT_FINALIZED --> key doesn't exists
@@ -346,6 +343,8 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
                 case DELETED_NOT_FINALIZED:
                     deleteValueFinish(ctx); //TODO: invocation must be within chunk publishing scope!
                     // deleteValueFinish() also changes the entry state to DELETED
+                    // get the entry state again to get the deleted key & value references into context
+                    ctx.entryState = getEntryState(ctx, ctx.entryIndex, key, keyHash);
                     // deliberate break through
                 case DELETED: // deliberate break through
                 case UNKNOWN:
@@ -498,8 +497,6 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
      *  references as deleted is unique and so the slice releases
      */
     boolean deleteValueFinish(ThreadContext ctx) {
-
-        assert ctx.entryState == EntryState.DELETED_NOT_FINALIZED;
 
         if (valuesMemoryManager.isReferenceDeleted(ctx.value.getSlice().getReference())
             && !isKeyHashValid(ctx.entryIndex)) {

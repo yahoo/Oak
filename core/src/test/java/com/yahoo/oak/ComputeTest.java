@@ -28,7 +28,7 @@ import java.util.function.Supplier;
 public class ComputeTest {
 
     private static final int NUM_THREADS = 16;
-    private static final long TIME_LIMIT_IN_SECONDS = 60;
+    private static final long TIME_LIMIT_IN_SECONDS = 240; // was 60, changed for jacoco
 
     private static final long K = 1024;
     private static final int KEY_SIZE = 10;

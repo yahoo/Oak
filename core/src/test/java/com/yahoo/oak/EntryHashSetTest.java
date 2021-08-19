@@ -12,8 +12,6 @@ import com.yahoo.oak.common.integer.OakIntSerializer;
 import org.junit.Assert;
 import org.junit.Test;
 
-
-
 public class EntryHashSetTest {
     private final ValueUtils valueOperator = new ValueUtils();
 
@@ -292,18 +290,9 @@ public class EntryHashSetTest {
         Assert.assertEquals(ValueUtils.ValueResult.TRUE, result.operationResult);
         Assert.assertEquals(50, ((Integer) result.value).intValue());
 
-        ValueUtils.ValueResult vr = ctx.value.s.logicalDelete();
+        ValueUtils.ValueResult vr = ctx.value.s.logicalDelete(); //DELETE LINEARIZATION POINT
         assert vr == ValueUtils.ValueResult.TRUE;
-
-        // look for the entry again, to ensure the state is delete not finalize
-        // delete some entries, first look for a key and mark its value as deleted
-        assert !ehs.lookUp(ctx, new Integer(5), 7 /*000111*/, 39 /*100111*/ );
-        Assert.assertEquals(ctx.entryIndex, 7);
-        Assert.assertEquals(ctx.entryState, EntryArray.EntryState.DELETED_NOT_FINALIZED);
-        Assert.assertNotEquals(ctx.key.getSlice().getReference(), memoryManager.getInvalidReference());
-        Assert.assertNotEquals(ctx.value.getSlice().getReference(), memoryManager.getInvalidReference());
-        Assert.assertEquals(ctx.newValue.getSlice().getReference(), memoryManager.getInvalidReference());
-        Assert.assertFalse(ctx.isValueValid());
+        ctx.entryState = EntryArray.EntryState.DELETED_NOT_FINALIZED;
 
         assert ehs.deleteValueFinish(ctx);
         Assert.assertEquals(ctx.entryIndex, 7);
@@ -365,16 +354,7 @@ public class EntryHashSetTest {
 
         vr = ctx.value.s.logicalDelete();
         assert vr == ValueUtils.ValueResult.TRUE;
-
-        // look for the entry again, to ensure the state is delete not finalize
-        // delete some entries, first look for a key and mark its value as deleted
-        assert !ehs.lookUp(ctx, key, 7 /*000111*/, key.hashCode() );
-        Assert.assertEquals(ctx.entryIndex, 7);
-        Assert.assertEquals(ctx.entryState, EntryArray.EntryState.DELETED_NOT_FINALIZED);
-        Assert.assertNotEquals(ctx.key.getSlice().getReference(), memoryManager.getInvalidReference());
-        Assert.assertNotEquals(ctx.value.getSlice().getReference(), memoryManager.getInvalidReference());
-        Assert.assertEquals(ctx.newValue.getSlice().getReference(), memoryManager.getInvalidReference());
-        Assert.assertFalse(ctx.isValueValid());
+        ctx.entryState = EntryArray.EntryState.DELETED_NOT_FINALIZED;
 
         assert ehs.deleteValueFinish(ctx);
         Assert.assertEquals(ctx.entryIndex, 7);
@@ -417,6 +397,33 @@ public class EntryHashSetTest {
         // commit the value, insert linearization points
         assert ehs.writeValueCommit(ctx) == ValueUtils.ValueResult.TRUE;
 
+        // one more delete
+        // delete firstly inserted entries, first look for a key and mark its value as deleted
+        assert ehs.lookUp(ctx, key, 7, key.hashCode() );
+        Assert.assertEquals(ctx.entryIndex, 7);
+        Assert.assertEquals(ctx.entryState, EntryArray.EntryState.VALID);
+        Assert.assertNotEquals(ctx.key.getSlice().getReference(), memoryManager.getInvalidReference());
+        Assert.assertNotEquals(ctx.value.getSlice().getReference(), memoryManager.getInvalidReference());
+        Assert.assertEquals(ctx.newValue.getSlice().getReference(), memoryManager.getInvalidReference());
+        Assert.assertTrue(ctx.isValueValid());
+
+        result = valueOperator.transform(new Result(), ctx.value, buf -> serializer.deserialize(buf));
+        Assert.assertEquals(ValueUtils.ValueResult.TRUE, result.operationResult);
+        Assert.assertEquals(50, ((Integer) result.value).intValue());
+
+        vr = ctx.value.s.logicalDelete();
+        assert vr == ValueUtils.ValueResult.TRUE;
+        ctx.entryState = EntryArray.EntryState.DELETED_NOT_FINALIZED;
+
+        assert ehs.isEntryDeleted(ctx.tempValue, 7);
+
+        //try to insert on top of the not fully deleted entry!
+        assert ehs.allocateEntryAndWriteKey(ctx, key, 7, key.hashCode() );
+
+        Assert.assertThrows(IllegalArgumentException.class, () -> {
+            //Test access out of entry index bounds
+            ehs.allocateEntryAndWriteKey(ctx, key, 7123456, key.hashCode() );
+        });
 
     }
 
