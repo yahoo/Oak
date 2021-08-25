@@ -23,6 +23,11 @@ declare -A scenarios=(
   ["4f-entrySet-descend"]="--buffer -c -a 100"
   ["4f-entryStreamSet-descend"]="--buffer -c -a 100 --stream-iteration"
   ["not-random-put"]="-a 0 -u 100 --inc" #sequential puts, doesn't need to be part of the regression
+  ["put-remove"]="-a 50 -u 100"
+  ["a-put-remove-get"]="-a 25 -u 50"
+  ["b-put-remote-get"]="-a 05 -u 10"
+  ["c-put-remove-get"]="-a 25 -u 50 --buffer"
+  ["d-put-remote-get"]="-a 05 -u 10 --buffer"
 )
 
 declare -A benchmarks=(
