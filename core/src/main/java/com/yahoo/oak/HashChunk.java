@@ -61,8 +61,7 @@ class HashChunk<K, V> extends BasicChunk<K, V> {
     }
 
     private int calculateKeyHash(K key, ThreadContext ctx) {
-        int hashKey = key.hashCode(); // hash can be positive, zero or negative
-        ctx.operationKeyHash = Math.abs(hashKey); // EntryHashSet doesn't accept negative hashes
+        // hash was already calculated by hash array when looking for the chunk and kept in thread context
         return ctx.operationKeyHash;
     }
     /********************************************************************************************/
@@ -106,6 +105,7 @@ class HashChunk<K, V> extends BasicChunk<K, V> {
     /**
      * Writes the key off-heap and allocates an entry with the reference pointing to the given key
      * See {@code EntryHashSet.allocateEntryAndWriteKey(ThreadContext)} for more information
+     * Returns false if rebalance is required and true otherwise
      */
     @Override
     boolean allocateEntryAndWriteKey(ThreadContext ctx, K key) {
@@ -142,6 +142,7 @@ class HashChunk<K, V> extends BasicChunk<K, V> {
     /*-----------------------  Methods for looking up item in this chunk -----------------------*/
 
     private int calculateEntryIdx(K key, int keyHash) {
+        // hashIndexCodec in chunk (in different chunks) and in FirstLevelHashArray may differ
         // first and not second, because these are actually the least significant bits
         return hashIndexCodec.getFirst(keyHash);
     }
@@ -191,6 +192,9 @@ class HashChunk<K, V> extends BasicChunk<K, V> {
     /********************************************************************************************/
     /*---------- Methods for managing the put/remove path of the keys and values  --------------*/
 
+    void writeTemporaryKey(K key, KeyBuffer tempBuffer) {
+        entryHashSet.writeKey(key, tempBuffer);
+    }
 
     /**
      * As written in {@code writeValueFinish(ctx)}, when changing an entry, the value reference is CASed first and
@@ -206,6 +210,7 @@ class HashChunk<K, V> extends BasicChunk<K, V> {
      * IMPORTANT: whether deleteValueFinish succeeded to mark the entry's value reference as
      * deleted, or not, if there were no request to rebalance FALSE is going to be returned
      */
+    @Override
     boolean finalizeDeletion(ThreadContext ctx) {
         if (ctx.entryState != EntryArray.EntryState.DELETED_NOT_FINALIZED) {
             return false;
@@ -252,7 +257,7 @@ class HashChunk<K, V> extends BasicChunk<K, V> {
 
     /********************************************************************************************/
     /*------------------------- Methods that are used for rebalance  ---------------------------*/
-
+    @Override
     boolean shouldRebalance() {
         //TODO: no rebalance for now, add later
         return false;

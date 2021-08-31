@@ -17,56 +17,76 @@ class FirstLevelHashArray<K, V> {
     private AtomicReferenceArray<HashChunk<K, V>> chunks;
     private int msbForFirstLevelHash;
     private UnionCodec hashIndexCodec;
+    // lock protects single chunk rebalance vs hash array resize
     private final ReadWriteLock lock = new ReentrantReadWriteLock();
 
 
     /**
-     * Create the array referencing to all empty chunks.
+     * Create the array referencing to all empty chunks. Multiple array references
+     * (exactly `multipleReferenceNum`) are going to point to the same chunk, next `multipleReferenceNum`
+     * num of pointers are going to point to another chunk and so on.
      * Other creation patterns (like all the hash array entries referencing the same chunk) are possible.
      * Majority of the parameters are needed for chunk creation.
-     *
-     * @param msbForFirstLevelHash number of most significant bits to be used to calculate the
+     *  @param msbForFirstLevelHash number of most significant bits to be used to calculate the
      *                             index in the hash array. It also affects directly the size of the
      *                             array. It is going to be incorporated inside hashIndexCodec and
      *                             transferred to chunks.
+     * @param lsbForSecondLevelHash
+     * @param multipleReferenceNum number of the references to reference the same chunk,
+     *                             before switching to next chunk
      *
-     * IMPORTANT: not thread safe, should be done upon raising of OakHashMap
      */
-    FirstLevelHashArray(int msbForFirstLevelHash, AtomicInteger externalSize, MemoryManager vMM,
-        MemoryManager kMM, OakComparator<K> comparator, OakSerializer<K> keySerializer,
-        OakSerializer<V> valueSerializer) {
+    FirstLevelHashArray(int msbForFirstLevelHash, int lsbForSecondLevelHash, AtomicInteger externalSize,
+        MemoryManager vMM, MemoryManager kMM, OakComparator<K> comparator,
+        OakSerializer<K> keySerializer, OakSerializer<V> valueSerializer, int multipleReferenceNum) {
 
         // the key hash (int) separation between MSB for first level ans LSB for second level,
         // to be used by hash array and all chunks, until resize
         this.hashIndexCodec =
             new UnionCodec(UnionCodec.AUTO_CALCULATE_BIT_SIZE, // the size of the first, as these are LSBs
-                msbForFirstLevelHash, Integer.SIZE); // the second (MSB) will be msbForFirstLevelHash
+                msbForFirstLevelHash, // the second (MSB) will be msbForFirstLevelHash
+                1, // and disregard the first bit as it is the sign bit and always zero
+                Integer.SIZE);
 
         // the size of the hash array is defined by number of MSBs to be used from key hash
         int arraySize = (int) (Math.pow(2, msbForFirstLevelHash));
         this.chunks = new AtomicReferenceArray<>(arraySize);
         this.msbForFirstLevelHash = msbForFirstLevelHash;
 
+        int currentSameRefer = multipleReferenceNum;
+        HashChunk<K, V> c = null;
+        UnionCodec hashIndexCodecForChunk =
+            (lsbForSecondLevelHash == InternalOakHash.USE_DEFAULT_FIRST_TO_SECOND_BITS_PARTITION)
+                ? this.hashIndexCodec :
+                new UnionCodec(lsbForSecondLevelHash, // the size of the first, as these are LSBs
+                    UnionCodec.AUTO_CALCULATE_BIT_SIZE, Integer.SIZE); // the second (MSB) will be auto-calculated
+        int chunkSize = calculateChunkSize(lsbForSecondLevelHash);
         // initiate chunks
-        for (int i = 0; i < msbForFirstLevelHash; i++) {
-            HashChunk<K, V> c =
-                new HashChunk<>(calculateChunkSize(), externalSize, vMM, kMM, comparator,
-                    keySerializer, valueSerializer, hashIndexCodec);
+        System.out.println("Going to allocate " + chunks.length() + " chunks, of size " + chunkSize);
+        for (int i = 0; i < chunks.length(); i++) {
+            if (currentSameRefer == multipleReferenceNum) {
+                c = new HashChunk<>(chunkSize, externalSize, vMM, kMM, comparator,
+                    keySerializer, valueSerializer, hashIndexCodecForChunk);
+            }
+            System.out.print(i + " ");
             this.chunks.lazySet(i, c);
+            currentSameRefer--;
+            if (currentSameRefer == 0) {
+                currentSameRefer = multipleReferenceNum;
+            }
         }
-
     }
 
-    private int calculateChunkSize() {
+    private int calculateChunkSize(int inputLsbForSecondLevel) {
         // least significant bits remaining
-        int lsbForSecondLevel = Integer.SIZE - msbForFirstLevelHash;
+        int lsbForSecondLevel =
+            (inputLsbForSecondLevel == InternalOakHash.USE_DEFAULT_FIRST_TO_SECOND_BITS_PARTITION)
+                ? Integer.SIZE - msbForFirstLevelHash : inputLsbForSecondLevel;
         // size of HashChunk should be 2^lsbForSecondLevel
         return (int) (Math.pow(2, lsbForSecondLevel) + 1); // +1 to round up
     }
 
     private int calculateKeyHash(K key, ThreadContext ctx) {
-        int hashKey = key.hashCode(); // hash can be positive, zero or negative
-        ctx.operationKeyHash = Math.abs(hashKey); // EntryHashSet doesn't accept negative hashes
         return ctx.operationKeyHash;
     }
 
@@ -75,10 +95,16 @@ class FirstLevelHashArray<K, V> {
         return hashIndexCodec.getSecond(calculateKeyHash(key, ctx));
     }
 
-    HashChunk<K, V> findChunk(K key, ThreadContext ctx) {
+    HashChunk<K, V> findChunk(K key, ThreadContext ctx, int keyHash) {
         return chunks.get(calculateHashArrayIdx(key, ctx));
     }
 
+    HashChunk<K, V> getChunk(int index) {
+        assert 0 <= index && index < chunks.length();
+        return chunks.get(index);
+    }
+
+    // To be used when rebalance of chunk is in place
     void updateChunkInIdx(int idx, HashChunk<K, V> oldChunk, HashChunk<K, V> newChunk) {
         lock.readLock().lock();
         try {

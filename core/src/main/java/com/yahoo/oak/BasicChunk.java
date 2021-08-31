@@ -115,39 +115,6 @@ abstract class BasicChunk<K, V> {
         return rebalancer.get();
     }
 
-    /*----------------------- Abstract Methods  --------------------------*/
-    /**
-     * See concrete implementation for more information
-     */
-    abstract void releaseKey(ThreadContext ctx);
-
-    /**
-     * See concrete implementation for more information
-     */
-    abstract void releaseNewValue(ThreadContext ctx);
-
-    /**
-     * Writes the key off-heap and allocates an entry with the reference pointing to the given key
-     * See concrete implementation for more information
-     */
-    abstract boolean allocateEntryAndWriteKey(ThreadContext ctx, K key);
-
-    /**
-     * See concrete implementation for more information
-     */
-    abstract void allocateValue(ThreadContext ctx, V value, boolean writeForMove);
-
-    /**
-     * This function does the physical CAS of the value reference, which is the
-     * Linearization Point of the insertion (for any chunk) to complete the insertion
-     *
-     * @param ctx The context that follows the operation since the key was found/created.
-     *            Holds the entry to which the value reference is linked, the old and new value references and
-     *            the old and new value versions.
-     * @return true if the value reference was CASed successfully.
-     */
-    abstract ValueUtils.ValueResult linkValue(ThreadContext ctx);
-
     /*----------------------- Methods for managing the chunk's state  --------------------------*/
     /* To normalize the chunk once its split/merge/rebalance is finished */
     void normalize() {
@@ -185,6 +152,63 @@ abstract class BasicChunk<K, V> {
     void release() {
         state.compareAndSet(State.FROZEN, State.RELEASED);
     }
+
+    /*----------------------- Abstract Rebalance-related Methods  --------------------------*/
+    /**
+     * Check whether this better to be rebalanced (not a necessary). Necessary rebalance is
+     * triggered anyway regardless to this method.
+     * */
+    abstract boolean shouldRebalance();
+
+    /*----------------------- Abstract Mappings-related Methods  --------------------------*/
+    /**
+     * See concrete implementation for more information
+     */
+    abstract void releaseKey(ThreadContext ctx);
+
+    /**
+     * See concrete implementation for more information
+     */
+    abstract void releaseNewValue(ThreadContext ctx);
+
+    /**
+     * Writes the key off-heap and allocates an entry with the reference pointing to the given key
+     * See concrete implementation for more information
+     */
+    abstract boolean allocateEntryAndWriteKey(ThreadContext ctx, K key);
+
+    /**
+     * See concrete implementation for more information
+     */
+    abstract void allocateValue(ThreadContext ctx, V value, boolean writeForMove);
+
+    /**
+     * This function does the physical CAS of the value reference, which is the
+     * Linearization Point of the insertion (for any chunk) to complete the insertion
+     *
+     * @param ctx The context that follows the operation since the key was found/created.
+     *            Holds the entry to which the value reference is linked, the old and new value references and
+     *            the old and new value versions.
+     * @return true if the value reference was CASed successfully.
+     */
+    abstract ValueUtils.ValueResult linkValue(ThreadContext ctx);
+
+    /**
+     * When deleting an entry the first step is marking (CAS) the delete bit in the value's off-heap
+     * header, this is the Linearization Point (LP) of deletion.
+     * Later series of steps need to be performed to accomplish the entry deletion.
+     * This method accomplish the rest of the algorithm coming after LP.
+     * Other threads seeing a marked value call this function before they proceed (e.g.,
+     * before performing a successful {@code putIfAbsent()}).
+     *
+     * @param ctx The context that follows the operation since the key was found/created.
+     *            Holds the entry to change, the old key/value reference to CAS out,
+     *            and the current value version.
+     * @return true if a rebalance is needed
+     * IMPORTANT: whether deleteValueFinish succeeded to mark the entry's value reference as
+     * deleted, or not, if there were no request to rebalance FALSE is going to be returned
+     */
+    abstract boolean finalizeDeletion(ThreadContext ctx);
 
     /*-------------- Methods for managing existing value (for ValueUtils) --------------*/
     boolean overwriteExistingValueForMove(ThreadContext ctx, V newVal) {

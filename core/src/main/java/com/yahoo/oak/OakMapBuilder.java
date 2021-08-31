@@ -142,12 +142,16 @@ public class OakMapBuilder<K, V> {
         MemoryManager valuesMemoryManager = new SyncRecycleMemoryManager(memoryAllocator);
         MemoryManager keysMemoryManager = new SeqExpandMemoryManager(memoryAllocator);
 
+        int bitsToKeepChunkSize = (int) Math.ceil(Math.log(chunkMaxItems) / Math.log(2));
+
         checkPreconditions();
         return new OakHashMap<>(minKey,
                 keySerializer,
                 valueSerializer,
                 comparator,
-                chunkMaxItems,
+                //TODO: chunkMaxItems chunks only, to make it configurable later
+                //TODO: Size of each chunks is twice bigger
+                bitsToKeepChunkSize,
                 valuesMemoryManager,
                 keysMemoryManager);
     }

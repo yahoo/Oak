@@ -53,6 +53,10 @@ interface MemoryManager extends Closeable {
     // Slice may have different implementation for different Memory Managers
     Slice getEmptySlice();
 
+    // Returns the BlockMemoryAllocator this memory manager is based on
+    // Multiple memory managers may have the same memory allocators
+    BlockMemoryAllocator getBlockMemoryAllocator();
+
     // Used only for testing
     // returns the size of the header used in off-heap to keep Memory Manager's metadata
     @VisibleForTesting

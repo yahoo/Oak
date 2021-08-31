@@ -125,6 +125,11 @@ class SeqExpandMemoryManager implements MemoryManager  {
     }
 
     @Override
+    public BlockMemoryAllocator getBlockMemoryAllocator() {
+        return this.allocator;
+    }
+
+    @Override
     public int getHeaderSize() {
         return 0;
     }

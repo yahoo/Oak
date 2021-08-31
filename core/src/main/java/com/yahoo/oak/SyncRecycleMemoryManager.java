@@ -100,6 +100,11 @@ class SyncRecycleMemoryManager implements MemoryManager {
         return new SliceSyncRecycle();
     }
 
+    @Override
+    public BlockMemoryAllocator getBlockMemoryAllocator() {
+        return this.allocator;
+    }
+
     @VisibleForTesting
     @Override
     public int getHeaderSize() {
@@ -383,6 +388,9 @@ class SyncRecycleMemoryManager implements MemoryManager {
          * {@code RETRY} if the value was moved, or the version of the off-heap value does not match {@code version}.
          */
         public ValueUtils.ValueResult lockWrite() {
+            if (version == ReferenceCodecSyncRecycle.INVALID_VERSION) {
+                System.out.println("Version in the slice is invalid!");
+            }
             assert version != ReferenceCodecSyncRecycle.INVALID_VERSION;
             return HEADER.lockWrite(version, getMetadataAddress());
         }
@@ -408,6 +416,10 @@ class SyncRecycleMemoryManager implements MemoryManager {
          */
         public ValueUtils.ValueResult logicalDelete() {
             assert version != ReferenceCodecSyncRecycle.INVALID_VERSION;
+            if (!associated) {
+                System.out.println("Trying to delete not associated slice!");
+            }
+            assert associated;
             return HEADER.logicalDelete(version, getMetadataAddress());
         }
 

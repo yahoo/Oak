@@ -148,7 +148,9 @@ public class HashChunkNoSplitTest {
         // expect false because no rebalance should be requested. Includes publish/unpublish
         assert !c.finalizeDeletion(ctx);
         Assert.assertEquals(ctx.entryState, EntryArray.EntryState.DELETED);
-        Assert.assertEquals(ctx.key.getSlice().getReference(), memoryManager.getInvalidReference());
+        Assert.assertEquals("\nKey reference is " + ctx.key.getSlice().getReference()
+                + " and not invalid reference",
+            ctx.key.getSlice().getReference(), memoryManager.getInvalidReference());
         Assert.assertEquals(ctx.value.getSlice().getReference(), memoryManager.getInvalidReference());
         Assert.assertEquals(ctx.newValue.getSlice().getReference(), memoryManager.getInvalidReference());
         Assert.assertFalse(ctx.isValueValid());
