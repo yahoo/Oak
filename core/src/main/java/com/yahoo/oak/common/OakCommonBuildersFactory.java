@@ -9,6 +9,8 @@ package com.yahoo.oak.common;
 import com.yahoo.oak.OakComparator;
 import com.yahoo.oak.OakMapBuilder;
 import com.yahoo.oak.OakSerializer;
+import com.yahoo.oak.common.bytearray.OakByteArrayComparator;
+import com.yahoo.oak.common.bytearray.OakByteArraySerializer;
 import com.yahoo.oak.common.intbuffer.OakIntBufferComparator;
 import com.yahoo.oak.common.intbuffer.OakIntBufferSerializer;
 import com.yahoo.oak.common.integer.OakIntComparator;
@@ -43,6 +45,19 @@ public class OakCommonBuildersFactory {
     public static OakMapBuilder<String, String> getDefaultStringBuilder() {
         return new OakMapBuilder<>(
                 DEFAULT_STRING_COMPARATOR, DEFAULT_STRING_SERIALIZER, DEFAULT_STRING_SERIALIZER, "");
+    }
+
+    // #####################################################################################
+    // Byte array factories
+    // #####################################################################################
+
+    public static final OakComparator<byte[]> DEFAULT_BYTE_ARRAY_COMPARATOR = new OakByteArrayComparator();
+    public static final OakSerializer<byte[]> DEFAULT_BYTE_ARRAY_SERIALIZER = new OakByteArraySerializer();
+
+    public static OakMapBuilder<byte[], byte[]> getDefaultByteArrayBuilder() {
+        return new OakMapBuilder<>(
+                DEFAULT_BYTE_ARRAY_COMPARATOR, DEFAULT_BYTE_ARRAY_SERIALIZER, DEFAULT_BYTE_ARRAY_SERIALIZER,
+                new byte[] {});
     }
 
 
