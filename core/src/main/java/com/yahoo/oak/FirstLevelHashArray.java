@@ -35,6 +35,14 @@ class FirstLevelHashArray<K, V> {
      * @param multipleReferenceNum number of the references to reference the same chunk,
      *                             before switching to next chunk
      *
+     * The relation between FirstLevelHashArray level and Chunk level hashIndexCodecs:
+     * 1. Some MSB bits of keyHash are taken to calculate the index in the FirstLevelHashArray
+     *              to find Chunk C (using hashIndexCodec).
+     * 2. Some LSB bits of keyHash are taken to calculate the entry index in the Chunk C
+     *              (using a different hashIndexCodecForChunk).
+     * 3. As those bits are not necessarily following one another, and may be even overlapping
+     *              different hashIndexCodecs are created. If FirstLevelHashArray size changes,
+     *              hashIndexCodec is changed, but not necessarily hashIndexCodecForChunk, and visa versa
      */
     FirstLevelHashArray(int msbForFirstLevelHash, int lsbForSecondLevelHash, AtomicInteger externalSize,
         MemoryManager vMM, MemoryManager kMM, OakComparator<K> comparator,
@@ -61,14 +69,14 @@ class FirstLevelHashArray<K, V> {
                 new UnionCodec(lsbForSecondLevelHash, // the size of the first, as these are LSBs
                     UnionCodec.AUTO_CALCULATE_BIT_SIZE, Integer.SIZE); // the second (MSB) will be auto-calculated
         int chunkSize = calculateChunkSize(lsbForSecondLevelHash);
-        // initiate chunks
+        // initiate chunks, TODO: remove print
         System.out.println("Going to allocate " + chunks.length() + " chunks, of size " + chunkSize);
         for (int i = 0; i < chunks.length(); i++) {
             if (currentSameRefer == multipleReferenceNum) {
                 c = new HashChunk<>(chunkSize, externalSize, vMM, kMM, comparator,
                     keySerializer, valueSerializer, hashIndexCodecForChunk);
             }
-            System.out.print(i + " ");
+            System.out.print(i + " "); // TODO: remove print
             this.chunks.lazySet(i, c);
             currentSameRefer--;
             if (currentSameRefer == 0) {
@@ -83,7 +91,7 @@ class FirstLevelHashArray<K, V> {
             (inputLsbForSecondLevel == InternalOakHash.USE_DEFAULT_FIRST_TO_SECOND_BITS_PARTITION)
                 ? Integer.SIZE - msbForFirstLevelHash : inputLsbForSecondLevel;
         // size of HashChunk should be 2^lsbForSecondLevel
-        return (int) (Math.pow(2, lsbForSecondLevel) + 1); // +1 to round up
+        return (int) Math.ceil(Math.pow(2, lsbForSecondLevel));
     }
 
     private int calculateKeyHash(K key, ThreadContext ctx) {

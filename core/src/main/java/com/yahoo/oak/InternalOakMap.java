@@ -532,10 +532,6 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
                 continue;
             }
 
-            if (inTheMiddleOfRebalance(c)) {
-                continue;
-            }
-
             // AT THIS POINT Key wasn't found (key and value not valid) and context is updated
             if (logicallyDeleted) {
                 // This is the case where we logically deleted this entry (marked the value off-heap as deleted),
@@ -561,8 +557,18 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
             assert ctx.entryIndex != EntryArray.INVALID_ENTRY_INDEX;
             assert ctx.isValueValid();
             ctx.entryState = EntryArray.EntryState.DELETED_NOT_FINALIZED;
+
+            if (inTheMiddleOfRebalance(c)) {
+                continue;
+            }
+
+            // If finalize deletion returns true, meaning rebalance was done and there was NO
+            // attempt to finalize deletion. There is going the help anyway, by next rebalance
+            // or updater. Thus it is OK not to restart, the linearization point of logical deletion
+            // is owned by this thread anyway and old value is kept in v.
             finalizeDeletion(c, ctx); // includes publish/unpublish
-            return transformer == null ? ctx.result.withFlag(logicallyDeleted) : ctx.result.withValue(v);
+            return transformer == null ?
+                ctx.result.withFlag(ValueUtils.ValueResult.TRUE) : ctx.result.withValue(v);
         }
 
         throw new RuntimeException("remove failed: reached retry limit (1024).");

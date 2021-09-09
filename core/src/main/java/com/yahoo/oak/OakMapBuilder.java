@@ -142,6 +142,10 @@ public class OakMapBuilder<K, V> {
         MemoryManager valuesMemoryManager = new SyncRecycleMemoryManager(memoryAllocator);
         MemoryManager keysMemoryManager = new SeqExpandMemoryManager(memoryAllocator);
 
+        // Number of bits to define the chunk size is calculated from given number of items
+        // to be kept in one chunk. The number of chunks in the hash will be twice more than given
+        // number of items to be kept in one chunk
+        // TODO: make it configurable later
         int bitsToKeepChunkSize = (int) Math.ceil(Math.log(chunkMaxItems) / Math.log(2));
 
         checkPreconditions();

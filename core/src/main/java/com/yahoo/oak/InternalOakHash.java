@@ -53,12 +53,16 @@ class InternalOakHash<K, V> extends InternalOakBasics<K, V> {
      */
     private void rebalance(HashChunk<K, V> c) {
         // temporary throw an exception in order not to miss this erroneous behavior while debug
-        throw new RuntimeException("Not yet implemented rebalance of a HashChunk was requested");
+        throw new UnsupportedOperationException(
+            "Not yet implemented rebalance of a HashChunk was requested");
         //TODO: to be implemented
     }
 
     /*----------- Centralized invocation of the default hash function on the input key -----------*/
     private int calculateKeyHash(K key, ThreadContext ctx) {
+        if (ctx.operationKeyHash != EntryHashSet.INVALID_KEY_HASH) {
+            return ctx.operationKeyHash;
+        }
         // TODO: this solution is performance and memory costly! Improve later
 
         // Object.hashCode() gives bad distribution, but hash result needs to be 32 bits long
@@ -74,7 +78,7 @@ class InternalOakHash<K, V> extends InternalOakBasics<K, V> {
             0, // offset is 0 as the above created ByteBuffer starts from exact address
             tempBuffer.getLength(), 0); // default seed
 
-        hashKey = hashKey & ((1 << 32) - 1); // UnionCodec doesn't accept negative input
+        hashKey = Math.abs(hashKey); // UnionCodec doesn't accept negative input
         ctx.operationKeyHash = hashKey;
         return ctx.operationKeyHash;
     }
@@ -101,7 +105,6 @@ class InternalOakHash<K, V> extends InternalOakBasics<K, V> {
                 if (res.operationResult == ValueUtils.ValueResult.TRUE) {
                     return (V) res.value;
                 }
-                // it might be that this chunk is proceeding with rebalance -> help
                 helpRebalanceIfInProgress(c);
                 // Exchange failed because the value was deleted/moved between lookup and exchange. Continue with
                 // insertion.
@@ -215,10 +218,6 @@ class InternalOakHash<K, V> extends InternalOakBasics<K, V> {
                 continue;
             }
 
-            if (inTheMiddleOfRebalance(c)) {
-                continue;
-            }
-
             // AT THIS POINT Key was found (key and value not valid) and context is updated
             if (logicallyDeleted) {
                 // This is the case where we logically deleted this entry (marked the value off-heap as deleted),
@@ -244,15 +243,25 @@ class InternalOakHash<K, V> extends InternalOakBasics<K, V> {
             assert ctx.entryIndex != EntryArray.INVALID_ENTRY_INDEX;
             assert ctx.isValueValid();
             ctx.entryState = EntryArray.EntryState.DELETED_NOT_FINALIZED;
+
+            if (inTheMiddleOfRebalance(c)) {
+                continue;
+            }
+
+            // If finalize deletion returns true, meaning rebalance was done and there was NO
+            // attempt to finalize deletion. There is going the help anyway, by next rebalance
+            // or updater. Thus it is OK not to restart, the linearization point of logical deletion
+            // is owned by this thread anyway and old value is kept in v.
             finalizeDeletion(c, ctx); // includes publish/unpublish
-            return transformer == null ? ctx.result.withFlag(logicallyDeleted) : ctx.result.withValue(v);
+            return transformer == null ?
+                ctx.result.withFlag(ValueUtils.ValueResult.TRUE) : ctx.result.withValue(v);
         }
 
         throw new RuntimeException("remove failed: reached retry limit (1024).");
     }
 
-    // the zero-copy version of get
-    OakUnscopedBuffer get(K key) {
+    private ThreadContext keyLookUp(K key) {
+
         if (key == null) {
             throw new NullPointerException();
         }
@@ -263,7 +272,24 @@ class InternalOakHash<K, V> extends InternalOakBasics<K, V> {
         if (!ctx.isValueValid()) {
             return null;
         }
+        return ctx;
+    }
+
+    // the zero-copy version of get
+    OakUnscopedBuffer get(K key) {
+        ThreadContext ctx = keyLookUp(key);
+        if (ctx == null) {
+            return null;
+        }
         return getValueUnscopedBuffer(ctx);
+    }
+
+    <T> T getKeyTransformation(K key, OakTransformer<T> transformer) {
+        ThreadContext ctx = keyLookUp(key);
+        if (ctx == null) {
+            return null;
+        }
+        return transformer.apply(ctx.key);
     }
 
     // the non-ZC variation of the get
@@ -290,21 +316,6 @@ class InternalOakHash<K, V> extends InternalOakBasics<K, V> {
         }
 
         throw new RuntimeException("getValueTransformation failed: reached retry limit (1024).");
-    }
-
-    <T> T getKeyTransformation(K key, OakTransformer<T> transformer) {
-        if (key == null) {
-            throw new NullPointerException();
-        }
-
-        ThreadContext ctx = getThreadContext();
-        // find chunk matching key, puts this key hash into ctx.operationKeyHash
-        HashChunk<K, V> c = hashArray.findChunk(key, ctx, calculateKeyHash(key, ctx));
-        c.lookUp(ctx, key);
-        if (!ctx.isValueValid()) {
-            return null;
-        }
-        return transformer.apply(ctx.key);
     }
 
     V replace(K key, V value, OakTransformer<V> valueDeserializeTransformer) {
@@ -446,7 +457,7 @@ class InternalOakHash<K, V> extends InternalOakBasics<K, V> {
         for (int i = 0; i < MAX_RETRIES; i++) {
 
             if (i > MAX_RETRIES - 3) {
-                System.out.println("Infinite loop...");
+                System.out.println("Infinite loop..."); //TODO: remove this print
             }
 
             // find chunk matching key, puts this key hash into ctx.operationKeyHash

@@ -149,6 +149,8 @@ class NativeMemoryAllocator implements BlockMemoryAllocator {
 
     // Releases all memory allocated for this Oak (should be used as part of the Oak destruction)
     // Not thread safe, should be a single thread call. (?)
+    // TODO: use reference counter in case multiple Oak instances are based on the same allocator
+    // TODO: and only one of the Oak instances is closed
     @Override
     public void close() {
         if (!closed.compareAndSet(false, true)) {

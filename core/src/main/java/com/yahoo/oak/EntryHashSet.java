@@ -65,6 +65,7 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
     // This is invalid field for the entire keyHash field including update counter.
     // Used for ThreadContext initialization only
     static final long INVALID_KEY_HASH_AND_UPD_CNT = 0L;
+    static final int INVALID_KEY_HASH = -1; // EntryHashSet require positive hashes
 
     // Additional field to keep key hash + its update counter (additional to the key and value reference fields)
     // # of additional primitive fields in each item of entries array
@@ -228,7 +229,7 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
 
         // read current key slice (value is read during delete check)
         if (!readKey(ctx.key, ctx.entryIndex)) {
-            ctx.isNewValueForMove = true; // DEBUG! To remove later
+            ctx.isNewValueForMove = true; //TODO: DEBUG! To remove later
             // key is deleted (was already checked for being valid, cannot turn to be invalid again)
             // check that key hash is invalidated, because it is the last stage of deletion
             return isKeyHashValid(idx) ? EntryState.DELETED_NOT_FINALIZED : EntryState.DELETED;
@@ -369,14 +370,12 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
                         assert false;
                 }
                 if (goToNext || entryFound) {
-                    // break from while loop
-                    break;
+                    break; // break from while loop
                 }
                 // if none of the above, it is while loop restart due to deletion finish
-            }
+            } // end of the while loop
             if (goToNext) {
-                // go to next for loop (not while loop)
-                continue;
+                continue; // go to next for loop (not while loop)
             }
             break;
         }

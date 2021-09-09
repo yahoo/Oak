@@ -58,8 +58,9 @@ public class OakHashMap<K, V>  extends AbstractMap<K, V> implements AutoCloseabl
         // In order to use USE_DEFAULT_FIRST_TO_SECOND_BITS_PARTITION configuration
         // we need to let Java to use about 14GB of onheap memory anywhere OakHashMap is used,
         // also for testings (each test allocate and release!!!).
-        // Therefore using less here: 2^log2NumOfChunks <-- number of chunks;
+        // Therefore using less than default memory here: 2^log2NumOfChunks <-- number of chunks;
         // 2^(log2NumOfChunks*2) <-- number of entries in each chunk
+        //TODO: change preparing for Hash release
         this.internalOakHash = new InternalOakHash<>(keySerializer, valueSerializer,
             comparator, vMM, kMM,  new ValueUtils(),
             log2NumOfChunks - 2,
