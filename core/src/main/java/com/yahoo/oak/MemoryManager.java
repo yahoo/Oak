@@ -62,4 +62,9 @@ interface MemoryManager extends Closeable {
     @VisibleForTesting
     int getHeaderSize();
 
+    // Releases the underlying off-heap memory without releasing the entire structure
+    // To be used when the user structure needs to be cleared, without memory reallocation
+    // NOT THREAD SAFE!!!
+    void clear(boolean closeAllocator);
+
 }

@@ -112,6 +112,17 @@ class SyncRecycleMemoryManager implements MemoryManager {
     }
 
     @Override
+    public void clear(boolean clearAllocator) {
+        if (clearAllocator) {
+            allocator.clear();
+        }
+        for (int i = 0; i < ThreadIndexCalculator.MAX_THREADS; i++) {
+            this.releaseLists.add(new ArrayList<>(RELEASE_LIST_LIMIT));
+        }
+        globalVersionNumber.set(VERS_INIT_VALUE);
+    }
+
+    @Override
     public long allocated() {
         return allocator.allocated();
     }
@@ -191,6 +202,14 @@ class SyncRecycleMemoryManager implements MemoryManager {
             }
             assert HEADER.getOffHeapVersion(getMetadataAddress()) == allocationVersion;
             reference = encodeReference();
+        }
+
+        // zero the underlying memory (not the header) before entering the free list
+        @Override
+        protected void zeroMetadata() {
+            UnsafeUtils.setMemory(getMetadataAddress() + getHeaderSize(), // start after header
+                getAllocatedLength() - getHeaderSize(), // only metadata length
+                (byte) 0); // zero block's memory
         }
 
         /**

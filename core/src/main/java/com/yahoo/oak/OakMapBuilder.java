@@ -140,6 +140,7 @@ public class OakMapBuilder<K, V> {
         }
         //Todo assert that minkey is not null after the implmention of internalHashmap if it is throw exception??
         MemoryManager valuesMemoryManager = new SyncRecycleMemoryManager(memoryAllocator);
+        // for hash the keys are indeed deleted, thus SeqExpandMemoryManager isn't acceptable
         MemoryManager keysMemoryManager = new SeqExpandMemoryManager(memoryAllocator);
 
         // Number of bits to define the chunk size is calculated from given number of items

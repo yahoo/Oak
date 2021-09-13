@@ -7,900 +7,393 @@
 package com.yahoo.oak;
 
 /**
- * Implementation of the MurmurHash3 32-bit and 128-bit hash functions.
- *
+ * The MurmurHash3 algorithm was created by Austin Appleby and placed in the public domain.
+ * This java port was authored by Yonik Seeley and also placed into the public domain.
+ * It has been modified by Konstantin Sobolev and, you guessed it, also placed in the public domain.
+ * The author hereby disclaims copyright to this source code.
  * <p>
- * MurmurHash is a non-cryptographic hash function suitable for general hash-based lookup. The name comes from two basic
- * operations, multiply (MU) and rotate (R), used in its inner loop. Unlike cryptographic hash functions, it is not
- * specifically designed to be difficult to reverse by an adversary, making it unsuitable for cryptographic purposes.
- * </p>
- *
+ * This produces exactly the same hash values as the final C++
+ * version of MurmurHash3 and is thus suitable for producing the same hash values across
+ * platforms.
  * <p>
- * This contains a Java port of the 32-bit hash function {@code MurmurHash3_x86_32} and the 128-bit hash function
- * {@code MurmurHash3_x64_128} from Austin Applyby's original {@code c++} code in SMHasher.
- * </p>
- *
+ * The 32 bit x86 version of this hash should be the fastest variant for relatively short keys like ids.
+ * murmurhash3X64128 is a good choice for longer strings or if you need more than 32 bits of hash.
  * <p>
- * This is public domain code with no copyrights. From home page of
- * <a href="https://github.com/aappleby/smhasher">SMHasher</a>:
- * </p>
- *
- * <blockquote> "All MurmurHash versions are public domain software, and the author disclaims all copyright to their
- * code." </blockquote>
- *
- * <p>
- * Original adaption from Apache Hive. That adaption contains a {@code hash64} method that is not part of the original
- * MurmurHash3 code. It is not recommended to use these methods. They will be removed in a future release. To obtain a
- * 64-bit hash use half of the bits from the {@code hash128x64} methods using the input data converted to bytes.
- * <p>
- *
- * @see <a href="https://en.wikipedia.org/wiki/MurmurHash">MurmurHash</a>
- * @see <a href="https://github.com/aappleby/smhasher/blob/master/src/MurmurHash3.cpp"> Original MurmurHash3 c++
- *      code</a>
- * @see <a href=
- *      "https://github.com/apache/hive/blob/master/storage-api/src/java/org/apache/hive/common/util/Murmur3.java">
- *      Apache Hive Murmer3</a>
- * @since 1.13
+ * Note - The x86 and x64 versions do _not_ produce the same results, as the
+ * algorithms are optimized for their respective platforms.
  */
 public final class MurmurHash3 {
+    static final long C1 = 0x87c37b91114253d5L;
+    static final long C2 = 0x4cf5ad432745937fL;
 
-    /**
-     * A random number to use for a hash code.
-     *
-     * @deprecated This is not used internally and will be removed in a future release.
-     */
-    @Deprecated
-    public static final long NULL_HASHCODE = 2862933555777941757L;
+    /** 128 bits of state */
+    public static final class HashCode128 {
+        /** First part of the hash, use it if you only need 64-bit hash */
+        private long val1;
+        /** Second part of the hash */
+        private long val2;
 
-    /**
-     * A default seed to use for the murmur hash algorithm.
-     * Has the value {@code 104729}.
-     */
-    public static final int DEFAULT_SEED = 104729;
-
-    /** TODO Replace on Java 8 with Long.BYTES. */
-    static final int LONG_BYTES = Long.SIZE / Byte.SIZE;
-
-    /** TODO Replace on Java 8 with Integer.BYTES. */
-    static final int INTEGER_BYTES = Integer.SIZE / Byte.SIZE;
-
-    /** TODO Replace on Java 8 with Short.BYTES. */
-    static final int SHORT_BYTES = Short.SIZE / Byte.SIZE;
-
-    // Constants for 32-bit variant
-    private static final int C1_32 = 0xcc9e2d51;
-    private static final int C2_32 = 0x1b873593;
-    private static final int R1_32 = 15;
-    private static final int R2_32 = 13;
-    private static final int M_32 = 5;
-    private static final int N_32 = 0xe6546b64;
-
-    // Constants for 128-bit variant
-    private static final long C1 = 0x87c37b91114253d5L;
-    private static final long C2 = 0x4cf5ad432745937fL;
-    private static final int R1 = 31;
-    private static final int R2 = 27;
-    private static final int R3 = 33;
-    private static final int M = 5;
-    private static final int N1 = 0x52dce729;
-    private static final int N2 = 0x38495ab5;
-
-    /** No instance methods. */
-    private MurmurHash3() {
-    }
-
-    /**
-     * Generates 32-bit hash from two longs with a default seed value.
-     * This is a helper method that will produce the same result as:
-     *
-     * <pre>
-     * int offset = 0;
-     * int seed = 104729;
-     * int hash = MurmurHash3.hash32x86(ByteBuffer.allocate(16)
-     *                                            .putLong(data1)
-     *                                            .putLong(data2)
-     *                                            .array(), offset, 16, seed);
-     * </pre>
-     *
-     * @param data1 The first long to hash
-     * @param data2 The second long to hash
-     * @return The 32-bit hash
-     * @see #hash32x86(byte[], int, int, int)
-     */
-    public static int hash32(final long data1, final long data2) {
-        return hash32(data1, data2, DEFAULT_SEED);
-    }
-
-    /**
-     * Generates 32-bit hash from two longs with the given seed.
-     * This is a helper method that will produce the same result as:
-     *
-     * <pre>
-     * int offset = 0;
-     * int hash = MurmurHash3.hash32x86(ByteBuffer.allocate(16)
-     *                                            .putLong(data1)
-     *                                            .putLong(data2)
-     *                                            .array(), offset, 16, seed);
-     * </pre>
-     *
-     * @param data1 The first long to hash
-     * @param data2 The second long to hash
-     * @param seed The initial seed value
-     * @return The 32-bit hash
-     * @see #hash32x86(byte[], int, int, int)
-     */
-    public static int hash32(final long data1, final long data2, final int seed) {
-        int hash = seed;
-        final long r0 = Long.reverseBytes(data1);
-        final long r1 = Long.reverseBytes(data2);
-
-        hash = mix32((int) r0, hash);
-        hash = mix32((int) (r0 >>> 32), hash);
-        hash = mix32((int) (r1), hash);
-        hash = mix32((int) (r1 >>> 32), hash);
-
-        hash ^= LONG_BYTES * 2;
-        return fmix32(hash);
-    }
-
-    /**
-     * Generates 32-bit hash from a long with a default seed value.
-     * This is a helper method that will produce the same result as:
-     *
-     * <pre>
-     * int offset = 0;
-     * int seed = 104729;
-     * int hash = MurmurHash3.hash32x86(ByteBuffer.allocate(8)
-     *                                            .putLong(data)
-     *                                            .array(), offset, 8, seed);
-     * </pre>
-     *
-     * @param data The long to hash
-     * @return The 32-bit hash
-     * @see #hash32x86(byte[], int, int, int)
-     */
-    public static int hash32(final long data) {
-        return hash32(data, DEFAULT_SEED);
-    }
-
-    /**
-     * Generates 32-bit hash from a long with the given seed.
-     * This is a helper method that will produce the same result as:
-     *
-     * <pre>
-     * int offset = 0;
-     * int hash = MurmurHash3.hash32x86(ByteBuffer.allocate(8)
-     *                                            .putLong(data)
-     *                                            .array(), offset, 8, seed);
-     * </pre>
-     *
-     * @param data The long to hash
-     * @param seed The initial seed value
-     * @return The 32-bit hash
-     * @see #hash32x86(byte[], int, int, int)
-     */
-    public static int hash32(final long data, final int seed) {
-        int hash = seed;
-        final long r0 = Long.reverseBytes(data);
-
-        hash = mix32((int) r0, hash);
-        hash = mix32((int) (r0 >>> 32), hash);
-
-        hash ^= LONG_BYTES;
-        return fmix32(hash);
-    }
-
-    /**
-     * Generates 32-bit hash from the byte array with a default seed.
-     * This is a helper method that will produce the same result as:
-     *
-     * <pre>
-     * int offset = 0;
-     * int seed = 104729;
-     * int hash = MurmurHash3.hash32(data, offset, data.length, seed);
-     * </pre>
-     *
-     * <p>This implementation contains a sign-extension bug in the finalization step of
-     * any bytes left over from dividing the length by 4. This manifests if any of these
-     * bytes are negative.<p>
-     *
-     * @param data The input byte array
-     * @return The 32-bit hash
-     * @see #hash32(byte[], int, int, int)
-     * @deprecated Use {@link #hash32x86(byte[], int, int, int)}. This corrects the processing of trailing bytes.
-     */
-    @Deprecated
-    public static int hash32(final byte[] data) {
-        return hash32(data, 0, data.length, DEFAULT_SEED);
-    }
-
-    /**
-     * Generates 32-bit hash from a string with a default seed.
-     * <p>
-     * Before 1.14 the string was converted using default encoding.
-     * Since 1.14 the string is converted to bytes using UTF-8 encoding.
-     * </p>
-     * This is a helper method that will produce the same result as:
-     *
-     * <pre>
-     * int offset = 0;
-     * int seed = 104729;
-     * byte[] bytes = data.getBytes(StandardCharsets.UTF_8);
-     * int hash = MurmurHash3.hash32(bytes, offset, bytes.length, seed);
-     * </pre>
-     *
-     * <p>This implementation contains a sign-extension bug in the finalization step of
-     * any bytes left over from dividing the length by 4. This manifests if any of these
-     * bytes are negative.<p>
-     *
-     * @param data The input string
-     * @return The 32-bit hash
-     * @see #hash32(byte[], int, int, int)
-     * @deprecated Use {@link #hash32x86(byte[], int, int, int)} with the bytes returned from
-     * {@link String#getBytes(java.nio.charset.Charset)}. This corrects the processing of trailing bytes.
-     */
-//    @Deprecated
-//    public static int hash32(final String data) {
-//        final byte[] bytes = StringUtils.getBytesUtf8(data);
-//        return hash32(bytes, 0, bytes.length, DEFAULT_SEED);
-//    }
-
-    /**
-     * Generates 32-bit hash from the byte array with the given length and a default seed.
-     * This is a helper method that will produce the same result as:
-     *
-     * <pre>
-     * int offset = 0;
-     * int seed = 104729;
-     * int hash = MurmurHash3.hash32(data, offset, length, seed);
-     * </pre>
-     *
-     * <p>This implementation contains a sign-extension bug in the finalization step of
-     * any bytes left over from dividing the length by 4. This manifests if any of these
-     * bytes are negative.<p>
-     *
-     * @param data The input byte array
-     * @param length The length of array
-     * @return The 32-bit hash
-     * @see #hash32(byte[], int, int, int)
-     * @deprecated Use {@link #hash32x86(byte[], int, int, int)}. This corrects the processing of trailing bytes.
-     */
-    @Deprecated
-    public static int hash32(final byte[] data, final int length) {
-        return hash32(data, length, DEFAULT_SEED);
-    }
-
-    /**
-     * Generates 32-bit hash from the byte array with the given length and seed. This is a
-     * helper method that will produce the same result as:
-     *
-     * <pre>
-     * int offset = 0;
-     * int hash = MurmurHash3.hash32(data, offset, length, seed);
-     * </pre>
-     *
-     * <p>This implementation contains a sign-extension bug in the finalization step of
-     * any bytes left over from dividing the length by 4. This manifests if any of these
-     * bytes are negative.<p>
-     *
-     * @param data The input byte array
-     * @param length The length of array
-     * @param seed The initial seed value
-     * @return The 32-bit hash
-     * @see #hash32(byte[], int, int, int)
-     * @deprecated Use {@link #hash32x86(byte[], int, int, int)}. This corrects the processing of trailing bytes.
-     */
-    @Deprecated
-    public static int hash32(final byte[] data, final int length, final int seed) {
-        return hash32(data, 0, length, seed);
-    }
-
-    /**
-     * Generates 32-bit hash from the byte array with the given offset, length and seed.
-     *
-     * <p>This is an implementation of the 32-bit hash function {@code MurmurHash3_x86_32}
-     * from Austin Applyby's original MurmurHash3 {@code c++} code in SMHasher.</p>
-     *
-     * <p>This implementation contains a sign-extension bug in the finalization step of
-     * any bytes left over from dividing the length by 4. This manifests if any of these
-     * bytes are negative.<p>
-     *
-     * @param data The input byte array
-     * @param offset The offset of data
-     * @param length The length of array
-     * @param seed The initial seed value
-     * @return The 32-bit hash
-     * @deprecated Use {@link #hash32x86(byte[], int, int, int)}. This corrects the processing of trailing bytes.
-     */
-
-    public static int hash32(final byte[] data, final int offset, final int length, final int seed) {
-        int hash = seed;
-        final int nblocks = length >> 2;
-
-        // body
-        for (int i = 0; i < nblocks; i++) {
-            final int index = offset + (i << 2);
-            final int k = getLittleEndianInt(data, index);
-            hash = mix32(k, hash);
+        public HashCode128(long v1, long v2) {
+            val1 = v1;
+            val2 = v2;
         }
 
-        // tail
-        // ************
-        // Note: This fails to apply masking using 0xff to the 3 remaining bytes.
-        // ************
-        final int index = offset + (nblocks << 2);
-        int k1 = 0;
-        switch (offset + length - index) {
-            case 3:
-                k1 ^= data[index + 2] << 16;
-            case 2:
-                k1 ^= data[index + 1] << 8;
-            case 1:
-                k1 ^= data[index];
-
-                // mix functions
-                k1 *= C1_32;
-                k1 = Integer.rotateLeft(k1, R1_32);
-                k1 *= C2_32;
-                hash ^= k1;
+        public HashCode128() {
+            this(0, 0);
         }
 
-        hash ^= length;
-        return fmix32(hash);
-    }
-
-    /**
-     * Generates 32-bit hash from the byte array with a seed of zero.
-     * This is a helper method that will produce the same result as:
-     *
-     * <pre>
-     * int offset = 0;
-     * int seed = 0;
-     * int hash = MurmurHash3.hash32x86(data, offset, data.length, seed);
-     * </pre>
-     *
-     * @param data The input byte array
-     * @return The 32-bit hash
-     * @see #hash32x86(byte[], int, int, int)
-     * @since 1.14
-     */
-    public static int hash32x86(final byte[] data) {
-        return hash32x86(data, 0, data.length, 0);
-    }
-
-    /**
-     * Generates 32-bit hash from the byte array with the given offset, length and seed.
-     *
-     * <p>This is an implementation of the 32-bit hash function {@code MurmurHash3_x86_32}
-     * from Austin Applyby's original MurmurHash3 {@code c++} code in SMHasher.</p>
-     *
-     * @param data The input byte array
-     * @param offset The offset of data
-     * @param length The length of array
-     * @param seed The initial seed value
-     * @return The 32-bit hash
-     * @since 1.14
-     */
-    public static int hash32x86(final byte[] data, final int offset, final int length, final int seed) {
-        int hash = seed;
-        final int nblocks = length >> 2;
-
-        // body
-        for (int i = 0; i < nblocks; i++) {
-            final int index = offset + (i << 2);
-            final int k = getLittleEndianInt(data, index);
-            hash = mix32(k, hash);
+        public byte[] getBytes() {
+            return new byte[]{
+                (byte) val1,
+                (byte) (val1 >>> 8),
+                (byte) (val1 >>> 16),
+                (byte) (val1 >>> 24),
+                (byte) (val1 >>> 32),
+                (byte) (val1 >>> 40),
+                (byte) (val1 >>> 48),
+                (byte) (val1 >>> 56),
+                (byte) val2,
+                (byte) (val2 >>> 8),
+                (byte) (val2 >>> 16),
+                (byte) (val2 >>> 24),
+                (byte) (val2 >>> 32),
+                (byte) (val2 >>> 40),
+                (byte) (val2 >>> 48),
+                (byte) (val2 >>> 56),
+            };
         }
 
-        // tail
-        final int index = offset + (nblocks << 2);
-        int k1 = 0;
-        switch (offset + length - index) {
-            case 3:
-                k1 ^= (data[index + 2] & 0xff) << 16;
-            case 2:
-                k1 ^= (data[index + 1] & 0xff) << 8;
-            case 1:
-                k1 ^= (data[index] & 0xff);
-
-                // mix functions
-                k1 *= C1_32;
-                k1 = Integer.rotateLeft(k1, R1_32);
-                k1 *= C2_32;
-                hash ^= k1;
+        @Override
+        public boolean equals(final Object o) {
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
+            final HashCode128 pair = (HashCode128) o;
+            return val1 == pair.val1 && val2 == pair.val2;
         }
 
-        hash ^= length;
-        return fmix32(hash);
+        @Override
+        public int hashCode() {
+            return (int) (val1 * 31 + val2);
+        }
+
+        public int toInt() {
+            return (int) val1;
+        }
+
+        public long toLong() {
+            return val1;
+        }
+
+        @Override
+        public String toString() {
+            byte[] bytes = getBytes();
+            StringBuilder sb = new StringBuilder(2 * bytes.length);
+            for (byte b : bytes) {
+                sb.append(HEX_DIGITS[(b >> 4) & 0xf]).append(HEX_DIGITS[b & 0xf]);
+            }
+            return sb.toString();
+        }
+
+        public static MurmurHash3.HashCode128 fromBytes(byte[] bytes) {
+            return new HashCode128(
+                getLongLittleEndian(bytes, 0),
+                getLongLittleEndian(bytes, 8)
+            );
+        }
+
+        private static final char[] HEX_DIGITS = "0123456789abcdef".toCharArray();
     }
 
-    /**
-     * Generates 64-bit hash from a long with a default seed.
-     *
-     * <p><strong>This is not part of the original MurmurHash3 {@code c++} implementation.</strong></p>
-     *
-     * <p>This is a Murmur3-like 64-bit variant.
-     * The method does not produce the same result as either half of the hash bytes from
-     * {@linkplain #hash128x64(byte[])} with the same byte data from the {@code long}.
-     * This method will be removed in a future release.</p>
-     *
-     * <p>Note: The sign extension bug in {@link #hash64(byte[], int, int, int)} does not effect
-     * this result as the default seed is positive.</p>
-     *
-     * <p>This is a helper method that will produce the same result as:</p>
-     *
-     * <pre>
-     * int offset = 0;
-     * int seed = 104729;
-     * long hash = MurmurHash3.hash64(ByteBuffer.allocate(8)
-     *                                          .putLong(data)
-     *                                          .array(), offset, 8, seed);
-     * </pre>
-     *
-     * @param data The long to hash
-     * @return The 64-bit hash
-     * @see #hash64(byte[], int, int, int)
-     * @deprecated Not part of the MurmurHash3 implementation.
-     * Use half of the hash bytes from {@link #hash128x64(byte[])} with the bytes from the {@code long}.
-     */
-    @Deprecated
-    public static long hash64(final long data) {
-        long hash = DEFAULT_SEED;
-        long k = Long.reverseBytes(data);
-        final int length = LONG_BYTES;
-        // mix functions
-        k *= C1;
-        k = Long.rotateLeft(k, R1);
-        k *= C2;
-        hash ^= k;
-        hash = Long.rotateLeft(hash, R2) * M + N1;
-        // finalization
-        hash ^= length;
-        hash = fmix64(hash);
+    public static int fmix32(int h) {
+        int hash = h;
+        hash ^= hash >>> 16;
+        hash *= 0x85ebca6b;
+        hash ^= hash >>> 13;
+        hash *= 0xc2b2ae35;
+        hash ^= hash >>> 16;
         return hash;
     }
 
-    /**
-     * Generates 64-bit hash from an int with a default seed.
-     *
-     * <p><strong>This is not part of the original MurmurHash3 {@code c++} implementation.</strong></p>
-     *
-     * <p>This is a Murmur3-like 64-bit variant.
-     * The method does not produce the same result as either half of the hash bytes from
-     * {@linkplain #hash128x64(byte[])} with the same byte data from the {@code int}.
-     * This method will be removed in a future release.</p>
-     *
-     * <p>Note: The sign extension bug in {@link #hash64(byte[], int, int, int)} does not effect
-     * this result as the default seed is positive.</p>
-     *
-     * <p>This is a helper method that will produce the same result as:</p>
-     *
-     * <pre>
-     * int offset = 0;
-     * int seed = 104729;
-     * long hash = MurmurHash3.hash64(ByteBuffer.allocate(4)
-     *                                          .putInt(data)
-     *                                          .array(), offset, 4, seed);
-     * </pre>
-     *
-     * @param data The int to hash
-     * @return The 64-bit hash
-     * @see #hash64(byte[], int, int, int)
-     * @deprecated Not part of the MurmurHash3 implementation.
-     * Use half of the hash bytes from {@link #hash128x64(byte[])} with the bytes from the {@code int}.
-     */
-    @Deprecated
-    public static long hash64(final int data) {
-        long k1 = Integer.reverseBytes(data) & (-1L >>> 32);
-        final int length = INTEGER_BYTES;
-        long hash = DEFAULT_SEED;
-        k1 *= C1;
-        k1 = Long.rotateLeft(k1, R1);
-        k1 *= C2;
-        hash ^= k1;
-        // finalization
-        hash ^= length;
-        hash = fmix64(hash);
-        return hash;
+    public static long fmix64(long key) {
+        long k = key;
+        k ^= k >>> 33;
+        k *= 0xff51afd7ed558ccdL;
+        k ^= k >>> 33;
+        k *= 0xc4ceb9fe1a85ec53L;
+        k ^= k >>> 33;
+        return k;
     }
 
-    /**
-     * Generates 64-bit hash from a short with a default seed.
-     *
-     * <p><strong>This is not part of the original MurmurHash3 {@code c++} implementation.</strong></p>
-     *
-     * <p>This is a Murmur3-like 64-bit variant.
-     * The method does not produce the same result as either half of the hash bytes from
-     * {@linkplain #hash128x64(byte[])} with the same byte data from the {@code short}.
-     * This method will be removed in a future release.</p>
-     *
-     * <p>Note: The sign extension bug in {@link #hash64(byte[], int, int, int)} does not effect
-     * this result as the default seed is positive.</p>
-     *
-     * <p>This is a helper method that will produce the same result as:</p>
-     *
-     * <pre>
-     * int offset = 0;
-     * int seed = 104729;
-     * long hash = MurmurHash3.hash64(ByteBuffer.allocate(2)
-     *                                          .putShort(data)
-     *                                          .array(), offset, 2, seed);
-     * </pre>
-     *
-     * @param data The short to hash
-     * @return The 64-bit hash
-     * @see #hash64(byte[], int, int, int)
-     * @deprecated Not part of the MurmurHash3 implementation.
-     * Use half of the hash bytes from {@link #hash128x64(byte[])} with the bytes from the {@code short}.
-     */
-    @Deprecated
-    public static long hash64(final short data) {
-        long hash = DEFAULT_SEED;
-        long k1 = 0;
-        k1 ^= ((long) data & 0xff) << 8;
-        k1 ^= ((long) ((data & 0xFF00) >> 8) & 0xff);
-        k1 *= C1;
-        k1 = Long.rotateLeft(k1, R1);
-        k1 *= C2;
-        hash ^= k1;
-
-        // finalization
-        hash ^= SHORT_BYTES;
-        hash = fmix64(hash);
-        return hash;
+    /** Gets a long from a byte buffer in little endian byte order. */
+    public static long getLongLittleEndian(byte[] buf, int offset) {
+        return ((long) buf[offset + 7] << 56)   // no mask needed
+            | ((buf[offset + 6] & 0xffL) << 48)
+            | ((buf[offset + 5] & 0xffL) << 40)
+            | ((buf[offset + 4] & 0xffL) << 32)
+            | ((buf[offset + 3] & 0xffL) << 24)
+            | ((buf[offset + 2] & 0xffL) << 16)
+            | ((buf[offset + 1] & 0xffL) << 8)
+            | ((buf[offset] & 0xffL));        // no shift needed
     }
 
-    /**
-     * Generates 64-bit hash from a byte array with a default seed.
-     *
-     * <p><strong>This is not part of the original MurmurHash3 {@code c++} implementation.</strong></p>
-     *
-     * <p>This is a Murmur3-like 64-bit variant.
-     * The method does not produce the same result as either half of the hash bytes from
-     * {@linkplain #hash128x64(byte[])} with the same byte data.
-     * This method will be removed in a future release.</p>
-     *
-     * <p>Note: The sign extension bug in {@link #hash64(byte[], int, int, int)} does not effect
-     * this result as the default seed is positive.</p>
-     *
-     * <p>This is a helper method that will produce the same result as:</p>
-     *
-     * <pre>
-     * int offset = 0;
-     * int seed = 104729;
-     * long hash = MurmurHash3.hash64(data, offset, data.length, seed);
-     * </pre>
-     *
-     * @param data The input byte array
-     * @return The 64-bit hash
-     * @see #hash64(byte[], int, int, int)
-     * @deprecated Not part of the MurmurHash3 implementation.
-     * Use half of the hash bytes from {@link #hash128x64(byte[])}.
-     */
-    @Deprecated
-    public static long hash64(final byte[] data) {
-        return hash64(data, 0, data.length, DEFAULT_SEED);
-    }
 
-    /**
-     * Generates 64-bit hash from a byte array with the given offset and length and a default seed.
-     *
-     * <p><strong>This is not part of the original MurmurHash3 {@code c++} implementation.</strong></p>
-     *
-     * <p>This is a Murmur3-like 64-bit variant.
-     * The method does not produce the same result as either half of the hash bytes from
-     * {@linkplain #hash128x64(byte[])} with the same byte data.
-     * This method will be removed in a future release.</p>
-     *
-     * <p>Note: The sign extension bug in {@link #hash64(byte[], int, int, int)} does not effect
-     * this result as the default seed is positive.</p>
-     *
-     * <p>This is a helper method that will produce the same result as:</p>
-     *
-     * <pre>
-     * int seed = 104729;
-     * long hash = MurmurHash3.hash64(data, offset, length, seed);
-     * </pre>
-     *
-     * @param data The input byte array
-     * @param offset The offset of data
-     * @param length The length of array
-     * @return The 64-bit hash
-     * @see #hash64(byte[], int, int, int)
-     * @deprecated Not part of the MurmurHash3 implementation.
-     * Use half of the hash bytes from {@link #hash128x64(byte[], int, int, int)}.
-     */
-    @Deprecated
-    public static long hash64(final byte[] data, final int offset, final int length) {
-        return hash64(data, offset, length, DEFAULT_SEED);
-    }
+    /** Returns the MurmurHash3_x86_32 hash. */
+    public static int murmurhash3X8632(byte[] data, int offset, int len, int seed) {
 
-    /**
-     * Generates 64-bit hash from a byte array with the given offset, length and seed.
-     *
-     * <p><strong>This is not part of the original MurmurHash3 {@code c++} implementation.</strong></p>
-     *
-     * <p>This is a Murmur3-like 64-bit variant.
-     * This method will be removed in a future release.</p>
-     *
-     * <p>This implementation contains a sign-extension bug in the seed initialization.
-     * This manifests if the seed is negative.</p>
-     *
-     * <p>This algorithm processes 8 bytes chunks of data in a manner similar to the 16 byte chunks
-     * of data processed in the MurmurHash3 {@code MurmurHash3_x64_128} method. However the hash
-     * is not mixed with a hash chunk from the next 8 bytes of data. The method will not return
-     * the same value as the first or second 64-bits of the function
-     * {@link #hash128(byte[], int, int, int)}.</p>
-     *
-     * <p>Use of this method is not advised. Use the first long returned from
-     * {@link #hash128x64(byte[], int, int, int)}.<p>
-     *
-     * @param data The input byte array
-     * @param offset The offset of data
-     * @param length The length of array
-     * @param seed The initial seed value
-     * @return The 64-bit hash
-     * @deprecated Not part of the MurmurHash3 implementation.
-     * Use half of the hash bytes from {@link #hash128x64(byte[], int, int, int)}.
-     */
-    @Deprecated
-    public static long hash64(final byte[] data, final int offset, final int length, final int seed) {
-        // ************
-        // Note: This fails to apply masking using 0xffffffffL to the seed.
-        // ************
-        long hash = seed;
-        final int nblocks = length >> 3;
+        final int c1 = 0xcc9e2d51;
+        final int c2 = 0x1b873593;
 
-        // body
-        for (int i = 0; i < nblocks; i++) {
-            final int index = offset + (i << 3);
-            long k = getLittleEndianLong(data, index);
+        int h1 = seed;
+        int roundedEnd = offset + (len & 0xfffffffc);  // round down to 4 byte block
 
-            // mix functions
-            k *= C1;
-            k = Long.rotateLeft(k, R1);
-            k *= C2;
-            hash ^= k;
-            hash = Long.rotateLeft(hash, R2) * M + N1;
-        }
+        for (int i = offset; i < roundedEnd; i += 4) {
+            // little endian load order
+            int k1 = (data[i] & 0xff)
+                | ((data[i + 1] & 0xff) << 8) | ((data[i + 2] & 0xff) << 16) | (data[i + 3] << 24);
+            k1 *= c1;
+            k1 = (k1 << 15) | (k1 >>> 17);  // ROTL32(k1,15);
+            k1 *= c2;
 
-        // tail
-        long k1 = 0;
-        final int index = offset + (nblocks << 3);
-        switch (offset + length - index) {
-            case 7:
-                k1 ^= ((long) data[index + 6] & 0xff) << 48;
-            case 6:
-                k1 ^= ((long) data[index + 5] & 0xff) << 40;
-            case 5:
-                k1 ^= ((long) data[index + 4] & 0xff) << 32;
-            case 4:
-                k1 ^= ((long) data[index + 3] & 0xff) << 24;
-            case 3:
-                k1 ^= ((long) data[index + 2] & 0xff) << 16;
-            case 2:
-                k1 ^= ((long) data[index + 1] & 0xff) << 8;
-            case 1:
-                k1 ^= ((long) data[index] & 0xff);
-                k1 *= C1;
-                k1 = Long.rotateLeft(k1, R1);
-                k1 *= C2;
-                hash ^= k1;
-        }
-
-        // finalization
-        hash ^= length;
-        hash = fmix64(hash);
-
-        return hash;
-    }
-
-    /**
-     * Generates 128-bit hash from the byte array with a default seed.
-     * This is a helper method that will produce the same result as:
-     *
-     * <pre>
-     * int offset = 0;
-     * int seed = 104729;
-     * int hash = MurmurHash3.hash128(data, offset, data.length, seed);
-     * </pre>
-     *
-     * <p>Note: The sign extension bug in {@link #hash128(byte[], int, int, int)} does not effect
-     * this result as the default seed is positive.</p>
-     *
-     * @param data The input byte array
-     * @return The 128-bit hash (2 longs)
-     * @see #hash128(byte[], int, int, int)
-     */
-    public static long[] hash128(final byte[] data) {
-        return hash128(data, 0, data.length, DEFAULT_SEED);
-    }
-
-    /**
-     * Generates 128-bit hash from the byte array with a seed of zero.
-     * This is a helper method that will produce the same result as:
-     *
-     * <pre>
-     * int offset = 0;
-     * int seed = 0;
-     * int hash = MurmurHash3.hash128x64(data, offset, data.length, seed);
-     * </pre>
-     *
-     * @param data The input byte array
-     * @return The 128-bit hash (2 longs)
-     * @see #hash128x64(byte[], int, int, int)
-     * @since 1.14
-     */
-    public static long[] hash128x64(final byte[] data) {
-        return hash128x64(data, 0, data.length, 0);
-    }
-
-    /**
-     * Generates 128-bit hash from a string with a default seed.
-     * <p>
-     * Before 1.14 the string was converted using default encoding.
-     * Since 1.14 the string is converted to bytes using UTF-8 encoding.
-     * </p>
-     * This is a helper method that will produce the same result as:
-     *
-     * <pre>
-     * int offset = 0;
-     * int seed = 104729;
-     * byte[] bytes = data.getBytes(StandardCharsets.UTF_8);
-     * int hash = MurmurHash3.hash128(bytes, offset, bytes.length, seed);
-     * </pre>
-     *
-     * <p>Note: The sign extension bug in {@link #hash128(byte[], int, int, int)} does not effect
-     * this result as the default seed is positive.</p>
-     *
-     * @param data The input String
-     * @return The 128-bit hash (2 longs)
-     * @see #hash128(byte[], int, int, int)
-     * @deprecated Use {@link #hash128x64(byte[])} using the bytes returned from
-     * {@link String#getBytes(java.nio.charset.Charset)}.
-     */
-//    @Deprecated
-//    public static long[] hash128(final String data) {
-//        final byte[] bytes = StringUtils.getBytesUtf8(data);
-//        return hash128(bytes, 0, bytes.length, DEFAULT_SEED);
-//    }
-
-    /**
-     * Generates 128-bit hash from the byte array with the given offset, length and seed.
-     *
-     * <p>This is an implementation of the 128-bit hash function {@code MurmurHash3_x64_128}
-     * from Austin Applyby's original MurmurHash3 {@code c++} code in SMHasher.</p>
-     *
-     * <p>This implementation contains a sign-extension bug in the seed initialization.
-     * This manifests if the seed is negative.<p>
-     *
-     * @param data The input byte array
-     * @param offset The first element of array
-     * @param length The length of array
-     * @param seed The initial seed value
-     * @return The 128-bit hash (2 longs)
-     * @deprecated Use {@link #hash128x64(byte[], int, int, int)}. This corrects the seed initialization.
-     */
-    @Deprecated
-    public static long[] hash128(final byte[] data, final int offset, final int length, final int seed) {
-        // ************
-        // Note: This deliberately fails to apply masking using 0xffffffffL to the seed
-        // to maintain behavioral compatibility with the original version.
-        // The implicit conversion to a long will extend a negative sign
-        // bit through the upper 32-bits of the long seed. These should be zero.
-        // ************
-        return hash128x64Internal(data, offset, length, seed);
-    }
-
-    /**
-     * Generates 128-bit hash from the byte array with the given offset, length and seed.
-     *
-     * <p>This is an implementation of the 128-bit hash function {@code MurmurHash3_x64_128}
-     * from Austin Applyby's original MurmurHash3 {@code c++} code in SMHasher.</p>
-     *
-     * @param data The input byte array
-     * @param offset The first element of array
-     * @param length The length of array
-     * @param seed The initial seed value
-     * @return The 128-bit hash (2 longs)
-     * @since 1.14
-     */
-    public static long[] hash128x64(final byte[] data, final int offset, final int length, final int seed) {
-        // Use an unsigned 32-bit integer as the seed
-        return hash128x64Internal(data, offset, length, seed & 0xffffffffL);
-    }
-
-    /**
-     * Generates 128-bit hash from the byte array with the given offset, length and seed.
-     *
-     * <p>This is an implementation of the 128-bit hash function {@code MurmurHash3_x64_128}
-     * from Austin Applyby's original MurmurHash3 {@code c++} code in SMHasher.</p>
-     *
-     * @param data The input byte array
-     * @param offset The first element of array
-     * @param length The length of array
-     * @param seed The initial seed value
-     * @return The 128-bit hash (2 longs)
-     */
-    private static long[] hash128x64Internal(final byte[] data, final int offset, final int length, final long seed) {
-        long h1 = seed;
-        long h2 = seed;
-        final int nblocks = length >> 4;
-
-        // body
-        for (int i = 0; i < nblocks; i++) {
-            final int index = offset + (i << 4);
-            long k1 = getLittleEndianLong(data, index);
-            long k2 = getLittleEndianLong(data, index + 8);
-
-            // mix functions for k1
-            k1 *= C1;
-            k1 = Long.rotateLeft(k1, R1);
-            k1 *= C2;
             h1 ^= k1;
-            h1 = Long.rotateLeft(h1, R2);
-            h1 += h2;
-            h1 = h1 * M + N1;
-
-            // mix functions for k2
-            k2 *= C2;
-            k2 = Long.rotateLeft(k2, R3);
-            k2 *= C1;
-            h2 ^= k2;
-            h2 = Long.rotateLeft(h2, R1);
-            h2 += h1;
-            h2 = h2 * M + N2;
+            h1 = (h1 << 13) | (h1 >>> 19);  // ROTL32(h1,13);
+            h1 = h1 * 5 + 0xe6546b64;
         }
 
         // tail
-        long k1 = 0;
-        long k2 = 0;
-        final int index = offset + (nblocks << 4);
-        switch (offset + length - index) {
-            case 15:
-                k2 ^= ((long) data[index + 14] & 0xff) << 48;
-            case 14:
-                k2 ^= ((long) data[index + 13] & 0xff) << 40;
-            case 13:
-                k2 ^= ((long) data[index + 12] & 0xff) << 32;
-            case 12:
-                k2 ^= ((long) data[index + 11] & 0xff) << 24;
-            case 11:
-                k2 ^= ((long) data[index + 10] & 0xff) << 16;
-            case 10:
-                k2 ^= ((long) data[index + 9] & 0xff) << 8;
-            case 9:
-                k2 ^= data[index + 8] & 0xff;
-                k2 *= C2;
-                k2 = Long.rotateLeft(k2, R3);
-                k2 *= C1;
-                h2 ^= k2;
+        int k1 = 0;
 
-            case 8:
-                k1 ^= ((long) data[index + 7] & 0xff) << 56;
-            case 7:
-                k1 ^= ((long) data[index + 6] & 0xff) << 48;
-            case 6:
-                k1 ^= ((long) data[index + 5] & 0xff) << 40;
-            case 5:
-                k1 ^= ((long) data[index + 4] & 0xff) << 32;
-            case 4:
-                k1 ^= ((long) data[index + 3] & 0xff) << 24;
+        switch (len & 0x03) {
             case 3:
-                k1 ^= ((long) data[index + 2] & 0xff) << 16;
+                k1 = (data[roundedEnd + 2] & 0xff) << 16;
+                // fallthrough
             case 2:
-                k1 ^= ((long) data[index + 1] & 0xff) << 8;
+                k1 |= (data[roundedEnd + 1] & 0xff) << 8;
+                // fallthrough
             case 1:
-                k1 ^= data[index] & 0xff;
-                k1 *= C1;
-                k1 = Long.rotateLeft(k1, R1);
-                k1 *= C2;
+                k1 |= (data[roundedEnd] & 0xff);
+                k1 *= c1;
+                k1 = (k1 << 15) | (k1 >>> 17);  // ROTL32(k1,15);
+                k1 *= c2;
                 h1 ^= k1;
         }
 
         // finalization
-        h1 ^= length;
-        h2 ^= length;
+        h1 ^= len;
+
+        // fmix(h1);
+        h1 ^= h1 >>> 16;
+        h1 *= 0x85ebca6b;
+        h1 ^= h1 >>> 13;
+        h1 *= 0xc2b2ae35;
+        h1 ^= h1 >>> 16;
+
+        return h1;
+    }
+
+
+    /**
+     * Returns the MurmurHash3_x86_32 hash of the UTF-8 bytes of the String without actually encoding
+     * the string to a temporary buffer.  This is more than 2x faster than hashing the result
+     * of String.getBytes().
+     */
+    public static int murmurhash3X8632(CharSequence data, int offset, int len, int seed) {
+
+        final int c1 = 0xcc9e2d51;
+        final int c2 = 0x1b873593;
+
+        int h1 = seed;
+
+        int pos = offset;
+        int end = offset + len;
+        int k1 = 0;
+        int k2 = 0;
+        int shift = 0;
+        int bits = 0;
+        int nBytes = 0;   // length in UTF8 bytes
+
+
+        while (pos < end) {
+            int code = data.charAt(pos++);
+            if (code < 0x80) {
+                k2 = code;
+                bits = 8;
+
+                /***
+                 // optimized ascii implementation (currently slower!!! code size?)
+                 if (shift == 24) {
+                 k1 = k1 | (code << 24);
+                 k1 *= C1;
+                 k1 = (k1 << 15) | (k1 >>> 17);  // ROTL32(k1,15);
+                 k1 *= C2;
+                 h1 ^= k1;
+                 h1 = (h1 << 13) | (h1 >>> 19);  // ROTL32(h1,13);
+                 h1 = h1*5+0xe6546b64;
+                 shift = 0;
+                 nBytes += 4;
+                 k1 = 0;
+                 } else {
+                 k1 |= code << shift;
+                 shift += 8;
+                 }
+                 continue;
+                 ***/
+
+            } else if (code < 0x800) {
+                k2 = (0xC0 | (code >> 6))
+                    | ((0x80 | (code & 0x3F)) << 8);
+                bits = 16;
+            } else if (code < 0xD800 || code > 0xDFFF || pos >= end) {
+                // we check for pos>=end to encode an unpaired surrogate as 3 bytes.
+                k2 = (0xE0 | (code >> 12))
+                    | ((0x80 | ((code >> 6) & 0x3F)) << 8)
+                    | ((0x80 | (code & 0x3F)) << 16);
+                bits = 24;
+            } else {
+                // surrogate pair
+                // int utf32 = pos < end ? (int) data.charAt(pos++) : 0;
+                int utf32 = (int) data.charAt(pos++);
+                utf32 = ((code - 0xD7C0) << 10) + (utf32 & 0x3FF);
+                k2 = (0xff & (0xF0 | (utf32 >> 18)))
+                    | ((0x80 | ((utf32 >> 12) & 0x3F))) << 8
+                    | ((0x80 | ((utf32 >> 6) & 0x3F))) << 16
+                    | (0x80 | (utf32 & 0x3F)) << 24;
+                bits = 32;
+            }
+
+
+            k1 |= k2 << shift;
+
+            // int used_bits = 32 - shift;  // how many bits of k2 were used in k1.
+            // int unused_bits = bits - used_bits; //  (bits-(32-shift)) == bits+shift-32  == bits-newshift
+
+            shift += bits;
+            if (shift >= 32) {
+                // mix after we have a complete word
+
+                k1 *= c1;
+                k1 = (k1 << 15) | (k1 >>> 17);  // ROTL32(k1,15);
+                k1 *= c2;
+
+                h1 ^= k1;
+                h1 = (h1 << 13) | (h1 >>> 19);  // ROTL32(h1,13);
+                h1 = h1 * 5 + 0xe6546b64;
+
+                shift -= 32;
+                // unfortunately, java won't let you shift 32 bits off, so we need to check for 0
+                if (shift != 0) {
+                    k1 = k2 >>> (bits - shift);   // bits used == bits - newshift
+                } else {
+                    k1 = 0;
+                }
+                nBytes += 4;
+            }
+
+        } // inner
+
+        // handle tail
+        if (shift > 0) {
+            nBytes += shift >> 3;
+            k1 *= c1;
+            k1 = (k1 << 15) | (k1 >>> 17);  // ROTL32(k1,15);
+            k1 *= c2;
+            h1 ^= k1;
+        }
+
+        // finalization
+        h1 ^= nBytes;
+
+        // fmix(h1);
+        h1 ^= h1 >>> 16;
+        h1 *= 0x85ebca6b;
+        h1 ^= h1 >>> 13;
+        h1 *= 0xc2b2ae35;
+        h1 ^= h1 >>> 16;
+
+        return h1;
+    }
+
+
+    /** Returns the MurmurHash3_x64_128 hash, placing the result in "out". */
+    public static void murmurhash3X64128(byte[] key, int offset, int len, int seed, HashCode128 out) {
+        // The original algorithm does have a 32 bit unsigned seed.
+        // We have to mask to match the behavior of the unsigned types and prevent sign extension.
+        long h1 = seed & 0x00000000FFFFFFFFL;
+        long h2 = seed & 0x00000000FFFFFFFFL;
+
+
+        int roundedEnd = offset + (len & 0xFFFFFFF0);  // round down to 16 byte block
+        for (int i = offset; i < roundedEnd; i += 16) {
+            long k1 = getLongLittleEndian(key, i);
+            long k2 = getLongLittleEndian(key, i + 8);
+            k1 *= C1;
+            k1 = Long.rotateLeft(k1, 31);
+            k1 *= C2;
+            h1 ^= k1;
+            h1 = Long.rotateLeft(h1, 27);
+            h1 += h2;
+            h1 = h1 * 5 + 0x52dce729;
+            k2 *= C2;
+            k2 = Long.rotateLeft(k2, 33);
+            k2 *= C1;
+            h2 ^= k2;
+            h2 = Long.rotateLeft(h2, 31);
+            h2 += h1;
+            h2 = h2 * 5 + 0x38495ab5;
+        }
+
+        long k1 = 0;
+        long k2 = 0;
+
+        switch (len & 15) {
+            case 15:
+                k2 = (key[roundedEnd + 14] & 0xffL) << 48;
+            case 14:
+                k2 |= (key[roundedEnd + 13] & 0xffL) << 40;
+            case 13:
+                k2 |= (key[roundedEnd + 12] & 0xffL) << 32;
+            case 12:
+                k2 |= (key[roundedEnd + 11] & 0xffL) << 24;
+            case 11:
+                k2 |= (key[roundedEnd + 10] & 0xffL) << 16;
+            case 10:
+                k2 |= (key[roundedEnd + 9] & 0xffL) << 8;
+            case 9:
+                k2 |= (key[roundedEnd + 8] & 0xffL);
+                k2 *= C2;
+                k2 = Long.rotateLeft(k2, 33);
+                k2 *= C1;
+                h2 ^= k2;
+            case 8:
+                k1 = ((long) key[roundedEnd + 7]) << 56;
+            case 7:
+                k1 |= (key[roundedEnd + 6] & 0xffL) << 48;
+            case 6:
+                k1 |= (key[roundedEnd + 5] & 0xffL) << 40;
+            case 5:
+                k1 |= (key[roundedEnd + 4] & 0xffL) << 32;
+            case 4:
+                k1 |= (key[roundedEnd + 3] & 0xffL) << 24;
+            case 3:
+                k1 |= (key[roundedEnd + 2] & 0xffL) << 16;
+            case 2:
+                k1 |= (key[roundedEnd + 1] & 0xffL) << 8;
+            case 1:
+                k1 |= (key[roundedEnd] & 0xffL);
+                k1 *= C1;
+                k1 = Long.rotateLeft(k1, 31);
+                k1 *= C2;
+                h1 ^= k1;
+        }
+
+        //----------
+        // finalization
+
+        h1 ^= len;
+        h2 ^= len;
 
         h1 += h2;
         h2 += h1;
@@ -911,321 +404,271 @@ public final class MurmurHash3 {
         h1 += h2;
         h2 += h1;
 
-        return new long[] { h1, h2 };
+        out.val1 = h1;
+        out.val2 = h2;
     }
 
-    /**
-     * Gets the little-endian long from 8 bytes starting at the specified index.
-     *
-     * @param data The data
-     * @param index The index
-     * @return The little-endian long
-     */
-    private static long getLittleEndianLong(final byte[] data, final int index) {
-        return (((long) data[index    ] & 0xff)      ) |
-            (((long) data[index + 1] & 0xff) <<  8) |
-            (((long) data[index + 2] & 0xff) << 16) |
-            (((long) data[index + 3] & 0xff) << 24) |
-            (((long) data[index + 4] & 0xff) << 32) |
-            (((long) data[index + 5] & 0xff) << 40) |
-            (((long) data[index + 6] & 0xff) << 48) |
-            (((long) data[index + 7] & 0xff) << 56);
-    }
+    // String-optimized 128-bit version added by konstantin.sobolev@gmail.com
 
     /**
-     * Gets the little-endian int from 4 bytes starting at the specified index.
+     * Returns the MurmurHash3_x86_128 hash of the UTF-8 bytes of the String without actually encoding
+     * the string to a temporary buffer. Does not check if input is properly encoded.
      *
-     * @param data The data
-     * @param index The index
-     * @return The little-endian int
+     * @param data data to encode
+     * @param offset start offset
+     * @param len length
+     * @param seed seed
+     * @param buf19 temporary 19-byte buffer to use. New one will be allocated if {@code null}
+     * @param out output pair to write results to
      */
-    private static int getLittleEndianInt(final byte[] data, final int index) {
-        return ((data[index    ] & 0xff)      ) |
-            ((data[index + 1] & 0xff) <<  8) |
-            ((data[index + 2] & 0xff) << 16) |
-            ((data[index + 3] & 0xff) << 24);
-    }
+    public static void murmurhash3X64128(
+        CharSequence data, int offset, int len, int seed, byte[] buf19, HashCode128 out) {
+        final byte[] encoded = buf19 == null ? new byte[19] : buf19;
 
-    /**
-     * Performs the intermediate mix step of the 32-bit hash function {@code MurmurHash3_x86_32}.
-     *
-     * @param k The data to add to the hash
-     * @param inputHash The current hash
-     * @return The new hash
-     */
-    private static int mix32(int k, int inputHash) {
-        int localK = k;
-        int hash = inputHash;
-        localK *= C1_32;
-        localK = Integer.rotateLeft(localK, R1_32);
-        localK *= C2_32;
-        hash ^= localK;
-        return Integer.rotateLeft(hash, R2_32) * M_32 + N_32;
-    }
+        // The original algorithm does have a 32 bit unsigned seed.
+        // We have to mask to match the behavior of the unsigned types and prevent sign extension.
+        long h1 = seed & 0x00000000FFFFFFFFL;
+        long h2 = seed & 0x00000000FFFFFFFFL;
 
-    /**
-     * Performs the final avalanche mix step of the 32-bit hash function {@code MurmurHash3_x86_32}.
-     *
-     * @param inputHash The current hash
-     * @return The final hash
-     */
-    private static int fmix32(int inputHash) {
-        int hash = inputHash;
-        hash ^= (hash >>> 16);
-        hash *= 0x85ebca6b;
-        hash ^= (hash >>> 13);
-        hash *= 0xc2b2ae35;
-        hash ^= (hash >>> 16);
-        return hash;
-    }
+        int encOffset = 0;
+        int bytes = 0;
 
-    /**
-     * Performs the final avalanche mix step of the 64-bit hash function {@code MurmurHash3_x64_128}.
-     *
-     * @param inputHash The current hash
-     * @return The final hash
-     */
-    private static long fmix64(long inputHash) {
-        long hash = inputHash;
-        hash ^= (hash >>> 33);
-        hash *= 0xff51afd7ed558ccdL;
-        hash ^= (hash >>> 33);
-        hash *= 0xc4ceb9fe1a85ec53L;
-        hash ^= (hash >>> 33);
-        return hash;
-    }
+        int pos = offset;
+        int end = offset + len;
 
-    /**
-     * Generates 32-bit hash from input bytes. Bytes can be added incrementally and the new
-     * hash computed.
-     *
-     * <p>This is an implementation of the 32-bit hash function {@code MurmurHash3_x86_32}
-     * from Austin Applyby's original MurmurHash3 {@code c++} code in SMHasher.</p>
-     *
-     * @since 1.14
-     */
-    public static class IncrementalHash32x86 {
+        while (true) {
+            // decode at least 16 bytes
+            while (encOffset < 16 && pos < end) {
+                char code = data.charAt(pos++);
 
-        /** The size of byte blocks that are processed together. */
-        private static final int BLOCK_SIZE = 4;
-
-        /** Up to 3 unprocessed bytes from input data. */
-        private final byte[] unprocessed = new byte[3];
-
-        /** The number of unprocessed bytes in the tail data. */
-        private int unprocessedLength;
-
-        /** The total number of input bytes added since the start. */
-        private int totalLen;
-
-        /**
-         * The current running hash.
-         * This must be finalised to generate the 32-bit hash value.
-         */
-        private int hash;
-
-        /**
-         * Starts a new incremental hash.
-         *
-         * @param seed The initial seed value
-         */
-        public final void start(final int seed) {
-            // Reset
-            unprocessedLength = 0;
-            totalLen = 0;
-            this.hash = seed;
-        }
-
-        /**
-         * Adds the byte array to the current incremental hash.
-         *
-         * @param data The input byte array
-         * @param offset The offset of data
-         * @param length The length of array
-         */
-        public final void add(final byte[] data, final int offset, final int length) {
-            if (length <= 0) {
-                // Nothing to add
-                return;
-            }
-            totalLen += length;
-
-            // Process the bytes in blocks of 4.
-            // New bytes must be added to any current unprocessed bytes,
-            // then processed in blocks of 4 and the remaining bytes saved:
-            //
-            //    |--|---------------------------|--|
-            // unprocessed
-            //                main block
-            //                                remaining
-
-            // Check if the unprocessed bytes and new bytes can fill a block of 4.
-            // Make this overflow safe in the event that length is Integer.MAX_VALUE.
-            // Equivalent to: (unprocessedLength + length < BLOCK_SIZE)
-            if (unprocessedLength + length - BLOCK_SIZE < 0) {
-                // Not enough so add to the unprocessed bytes
-                System.arraycopy(data, offset, unprocessed, unprocessedLength, length);
-                unprocessedLength += length;
-                return;
-            }
-
-            // Combine unprocessed bytes with new bytes.
-            final int newOffset;
-            final int newLength;
-            if (unprocessedLength > 0) {
-                int k = -1;
-                switch (unprocessedLength) {
-                    case 1:
-                        k = orBytes(unprocessed[0], data[offset], data[offset + 1], data[offset + 2]);
-                        break;
-                    case 2:
-                        k = orBytes(unprocessed[0], unprocessed[1], data[offset], data[offset + 1]);
-                        break;
-                    case 3:
-                        k = orBytes(unprocessed[0], unprocessed[1], unprocessed[2], data[offset]);
-                        break;
-                    default:
-                        throw new IllegalStateException(
-                            "Unprocessed length should be 1, 2, or 3: " + unprocessedLength);
+                if (code < 0x80) {
+                    encoded[encOffset++] = (byte) code;
+                } else if (code < 0x800) {
+                    encoded[encOffset++] = (byte) (0xc0 | code >> 6);
+                    encoded[encOffset++] = (byte) (0x80 | (code & 0x3f));
+                } else if (code < 0xD800 || code > 0xDFFF || pos >= end) {
+                    // we check for pos>=end to encode an unpaired surrogate as 3 bytes.
+                    encoded[encOffset++] = (byte) (0xe0 | ((code >> 12)));
+                    encoded[encOffset++] = (byte) (0x80 | ((code >> 6) & 0x3f));
+                    encoded[encOffset++] = (byte) (0x80 | (code & 0x3f));
+                } else {
+                    // surrogate pair
+                    int utf32 = (int) data.charAt(pos++);
+                    utf32 = ((code - 0xD7C0) << 10) + (utf32 & 0x3FF);
+                    encoded[encOffset++] = (byte) (0xf0 | ((utf32 >> 18)));
+                    encoded[encOffset++] = (byte) (0x80 | ((utf32 >> 12) & 0x3f));
+                    encoded[encOffset++] = (byte) (0x80 | ((utf32 >> 6) & 0x3f));
+                    encoded[encOffset++] = (byte) (0x80 | (utf32 & 0x3f));
                 }
-                hash = mix32(k, hash);
-                // Update the offset and length
-                final int consumed = BLOCK_SIZE - unprocessedLength;
-                newOffset = offset + consumed;
-                newLength = length - consumed;
+            }
+
+            if (encOffset > 15) {
+                long k1 = getLongLittleEndian(encoded, 0);
+                long k2 = getLongLittleEndian(encoded, 8);
+
+                k1 *= C1;
+                k1 = Long.rotateLeft(k1, 31);
+                k1 *= C2;
+                h1 ^= k1;
+                h1 = Long.rotateLeft(h1, 27);
+                h1 += h2;
+                h1 = h1 * 5 + 0x52dce729;
+                k2 *= C2;
+                k2 = Long.rotateLeft(k2, 33);
+                k2 *= C1;
+                h2 ^= k2;
+                h2 = Long.rotateLeft(h2, 31);
+                h2 += h1;
+                h2 = h2 * 5 + 0x38495ab5;
+
+                encoded[0] = encoded[16];
+                encoded[1] = encoded[17];
+                encoded[2] = encoded[18];
+                encOffset -= 16;
+                bytes += 16;
             } else {
-                newOffset = offset;
-                newLength = length;
+                bytes += encOffset;
+                break;
             }
+        } // inner
 
-            // Main processing of blocks of 4 bytes
-            final int nblocks = newLength >> 2;
+        long k1 = 0;
+        long k2 = 0;
 
-            for (int i = 0; i < nblocks; i++) {
-                final int index = newOffset + (i << 2);
-                final int k = getLittleEndianInt(data, index);
-                hash = mix32(k, hash);
-            }
-
-            // Save left-over unprocessed bytes
-            final int consumed = (nblocks << 2);
-            unprocessedLength = newLength - consumed;
-            if (unprocessedLength != 0) {
-                System.arraycopy(data, newOffset + consumed, unprocessed, 0, unprocessedLength);
-            }
+        switch (encOffset & 15) {
+            case 15:
+                k2 = (encoded[14] & 0xffL) << 48;
+            case 14:
+                k2 |= (encoded[13] & 0xffL) << 40;
+            case 13:
+                k2 |= (encoded[12] & 0xffL) << 32;
+            case 12:
+                k2 |= (encoded[11] & 0xffL) << 24;
+            case 11:
+                k2 |= (encoded[10] & 0xffL) << 16;
+            case 10:
+                k2 |= (encoded[9] & 0xffL) << 8;
+            case 9:
+                k2 |= (encoded[8] & 0xffL);
+                k2 *= C2;
+                k2 = Long.rotateLeft(k2, 33);
+                k2 *= C1;
+                h2 ^= k2;
+            case 8:
+                k1 = ((long) encoded[7]) << 56;
+            case 7:
+                k1 |= (encoded[6] & 0xffL) << 48;
+            case 6:
+                k1 |= (encoded[5] & 0xffL) << 40;
+            case 5:
+                k1 |= (encoded[4] & 0xffL) << 32;
+            case 4:
+                k1 |= (encoded[3] & 0xffL) << 24;
+            case 3:
+                k1 |= (encoded[2] & 0xffL) << 16;
+            case 2:
+                k1 |= (encoded[1] & 0xffL) << 8;
+            case 1:
+                k1 |= (encoded[0] & 0xffL);
+                k1 *= C1;
+                k1 = Long.rotateLeft(k1, 31);
+                k1 *= C2;
+                h1 ^= k1;
         }
 
-        /**
-         * Generate the 32-bit hash value. Repeat calls to this method with no additional data
-         * will generate the same hash value.
-         *
-         * @return The 32-bit hash
-         */
-        public final int end() {
-            // Allow calling end() again after adding no data to return the same result.
-            return finalise(hash, unprocessedLength, unprocessed, totalLen);
-        }
+        //----------
+        // finalization
 
-        /**
-         * Finalize the running hash to the output 32-bit hash by processing remaining bytes
-         * and performing final mixing.
-         *
-         * @param hash The running hash
-         * @param unprocessedLength The number of unprocessed bytes in the tail data.
-         * @param unprocessed Up to 3 unprocessed bytes from input data.
-         * @param totalLen The total number of input bytes added since the start.
-         * @return The 32-bit hash
-         */
-        int finalise(final int hash, final int unprocessedLength, final byte[] unprocessed, final int totalLen) {
-            int result = hash;
-            int k1 = 0;
-            switch (unprocessedLength) {
-                case 3:
-                    k1 ^= (unprocessed[2] & 0xff) << 16;
-                case 2:
-                    k1 ^= (unprocessed[1] & 0xff) << 8;
-                case 1:
-                    k1 ^= (unprocessed[0] & 0xff);
+        h1 ^= bytes;
+        h2 ^= bytes;
 
-                    // mix functions
-                    k1 *= C1_32;
-                    k1 = Integer.rotateLeft(k1, R1_32);
-                    k1 *= C2_32;
-                    result ^= k1;
-            }
+        h1 += h2;
+        h2 += h1;
 
-            // finalization
-            result ^= totalLen;
-            return fmix32(result);
-        }
+        h1 = fmix64(h1);
+        h2 = fmix64(h2);
 
-        /**
-         * Combines the bytes using an Or operation ({@code | } in a little-endian representation
-         * of a 32-bit integer; byte 1 will be the least significant byte, byte 4 the most
-         * significant.
-         *
-         * @param b1 The first byte
-         * @param b2 The second byte
-         * @param b3 The third byte
-         * @param b4 The fourth byte
-         * @return The 32-bit integer
-         */
-        private static int orBytes(final byte b1, final byte b2, final byte b3, final byte b4) {
-            return (b1 & 0xff) | ((b2 & 0xff) << 8) | ((b3 & 0xff) << 16) | ((b4 & 0xff) << 24);
-        }
+        h1 += h2;
+        h2 += h1;
+
+        out.val1 = h1;
+        out.val2 = h2;
     }
 
     /**
-     * Generates 32-bit hash from input bytes. Bytes can be added incrementally and the new
-     * hash computed.
-     *
-     * <p>This is an implementation of the 32-bit hash function {@code MurmurHash3_x86_32}
-     * from Austin Applyby's original MurmurHash3 {@code c++} code in SMHasher.</p>
-     *
-     * <p>This implementation contains a sign-extension bug in the finalization step of
-     * any bytes left over from dividing the length by 4. This manifests if any of these
-     * bytes are negative.<p>
-     *
-     * @deprecated Use IncrementalHash32x86. This corrects the processing of trailing bytes.
+     * Returns the MurmurHash3_x86_128 hash of the ASCII bytes of the String without actually encoding
+     * the string to a temporary buffer. Warning: will return invalid results if {@code data}
+     * contains non-ASCII characters! No checks are made.
+     * Results are placed in {@code out}.
      */
-    @Deprecated
-    public static class IncrementalHash32 extends IncrementalHash32x86 {
+    public static void murmurhash3X64128Ascii(CharSequence data, int offset, int len, int seed, HashCode128 out) {
+        // The original algorithm does have a 32 bit unsigned seed.
+        // We have to mask to match the behavior of the unsigned types and prevent sign extension.
+        long h1 = seed & 0x00000000FFFFFFFFL;
+        long h2 = seed & 0x00000000FFFFFFFFL;
 
-        /**
-         * {@inheritDoc}
-         *
-         * <p>This implementation contains a sign-extension bug in the finalization step of
-         * any bytes left over from dividing the length by 4. This manifests if any of these
-         * bytes are negative.<p>
-         *
-         * @deprecated Use IncrementalHash32x86. This corrects the processing of trailing bytes.
-         */
-        @Override
-        @Deprecated
-        int finalise(final int hash, final int unprocessedLength, final byte[] unprocessed, final int totalLen) {
-            int result = hash;
-            // ************
-            // Note: This fails to apply masking using 0xff to the 3 remaining bytes.
-            // ************
-            int k1 = 0;
-            switch (unprocessedLength) {
-                case 3:
-                    k1 ^= unprocessed[2] << 16;
-                case 2:
-                    k1 ^= unprocessed[1] << 8;
-                case 1:
-                    k1 ^= unprocessed[0];
+        int pos = offset;
+        int end = offset + len;
 
-                    // mix functions
-                    k1 *= C1_32;
-                    k1 = Integer.rotateLeft(k1, R1_32);
-                    k1 *= C2_32;
-                    result ^= k1;
-            }
+        while (pos <= end - 16) {
+            long k1 = (data.charAt(pos++) & 0xffL);
+            k1 |= (data.charAt(pos++) & 0xffL) << 8;
+            k1 |= (data.charAt(pos++) & 0xffL) << 16;
+            k1 |= (data.charAt(pos++) & 0xffL) << 24;
+            k1 |= (data.charAt(pos++) & 0xffL) << 32;
+            k1 |= (data.charAt(pos++) & 0xffL) << 40;
+            k1 |= (data.charAt(pos++) & 0xffL) << 48;
+            k1 |= (data.charAt(pos++) & 0xffL) << 56;
 
-            // finalization
-            result ^= totalLen;
-            return fmix32(result);
+            long k2 = (data.charAt(pos++) & 0xffL);
+            k2 |= (data.charAt(pos++) & 0xffL) << 8;
+            k2 |= (data.charAt(pos++) & 0xffL) << 16;
+            k2 |= (data.charAt(pos++) & 0xffL) << 24;
+            k2 |= (data.charAt(pos++) & 0xffL) << 32;
+            k2 |= (data.charAt(pos++) & 0xffL) << 40;
+            k2 |= (data.charAt(pos++) & 0xffL) << 48;
+            k2 |= (data.charAt(pos++) & 0xffL) << 56;
+
+            k1 *= C1;
+            k1 = Long.rotateLeft(k1, 31);
+            k1 *= C2;
+            h1 ^= k1;
+            h1 = Long.rotateLeft(h1, 27);
+            h1 += h2;
+            h1 = h1 * 5 + 0x52dce729;
+            k2 *= C2;
+            k2 = Long.rotateLeft(k2, 33);
+            k2 *= C1;
+            h2 ^= k2;
+            h2 = Long.rotateLeft(h2, 31);
+            h2 += h1;
+            h2 = h2 * 5 + 0x38495ab5;
+        } // inner
+
+        long k1 = 0;
+        long k2 = 0;
+        int tail = end;
+
+        switch ((end - pos) & 15) {
+            case 15:
+                k2 = (data.charAt(--tail) & 0xffL) << 48;
+            case 14:
+                k2 |= (data.charAt(--tail) & 0xffL) << 40;
+            case 13:
+                k2 |= (data.charAt(--tail) & 0xffL) << 32;
+            case 12:
+                k2 |= (data.charAt(--tail) & 0xffL) << 24;
+            case 11:
+                k2 |= (data.charAt(--tail) & 0xffL) << 16;
+            case 10:
+                k2 |= (data.charAt(--tail) & 0xffL) << 8;
+            case 9:
+                k2 |= (data.charAt(--tail) & 0xffL);
+                k2 *= C2;
+                k2 = Long.rotateLeft(k2, 33);
+                k2 *= C1;
+                h2 ^= k2;
+            case 8:
+                k1 = (data.charAt(--tail) & 0xffL) << 56;
+            case 7:
+                k1 |= (data.charAt(--tail) & 0xffL) << 48;
+            case 6:
+                k1 |= (data.charAt(--tail) & 0xffL) << 40;
+            case 5:
+                k1 |= (data.charAt(--tail) & 0xffL) << 32;
+            case 4:
+                k1 |= (data.charAt(--tail) & 0xffL) << 24;
+            case 3:
+                k1 |= (data.charAt(--tail) & 0xffL) << 16;
+            case 2:
+                k1 |= (data.charAt(--tail) & 0xffL) << 8;
+            case 1:
+                k1 |= (data.charAt(--tail) & 0xffL);
+
+                k1 *= C1;
+                k1 = Long.rotateLeft(k1, 31);
+                k1 *= C2;
+                h1 ^= k1;
         }
+
+        //----------
+        // finalization
+
+        h1 ^= len;
+        h2 ^= len;
+
+        h1 += h2;
+        h2 += h1;
+
+        h1 = fmix64(h1);
+        h2 = fmix64(h2);
+
+        h1 += h2;
+        h2 += h1;
+
+        out.val1 = h1;
+        out.val2 = h2;
     }
 }
+
+

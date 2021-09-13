@@ -83,6 +83,7 @@ class FirstLevelHashArray<K, V> {
                 currentSameRefer = multipleReferenceNum;
             }
         }
+        System.out.println("\n");
     }
 
     private int calculateChunkSize(int inputLsbForSecondLevel) {
@@ -110,6 +111,19 @@ class FirstLevelHashArray<K, V> {
     HashChunk<K, V> getChunk(int index) {
         assert 0 <= index && index < chunks.length();
         return chunks.get(index);
+    }
+
+    /**
+     * Brings the chunks to their initial state without entries
+     * Used when we want to empty the structure without reallocating all the objects/memory
+     * Exists only for hash, as for the map there are min keys in the off-heap memory
+     * and the full clear method is more subtle
+     * NOT THREAD SAFE !!!
+     */
+    void clear() {
+        for (int i = 0; i < chunks.length(); i++) {
+            chunks.get(i).clear();
+        }
     }
 
     // To be used when rebalance of chunk is in place

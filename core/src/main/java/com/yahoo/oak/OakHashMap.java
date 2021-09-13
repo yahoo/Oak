@@ -64,7 +64,7 @@ public class OakHashMap<K, V>  extends AbstractMap<K, V> implements AutoCloseabl
         this.internalOakHash = new InternalOakHash<>(keySerializer, valueSerializer,
             comparator, vMM, kMM,  new ValueUtils(),
             log2NumOfChunks - 2,
-            log2NumOfChunks * 2 + 2);
+            log2NumOfChunks * 2 - 2);
 
     }
 
@@ -321,6 +321,10 @@ public class OakHashMap<K, V>  extends AbstractMap<K, V> implements AutoCloseabl
         internalOakHash.close();
     }
 
+    @Override
+    public void clear() {
+        internalOakHash.clear();
+    }
 
     /* ---------------- Private utility methods -------------- */
 

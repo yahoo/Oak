@@ -6,7 +6,6 @@
 
 package com.yahoo.oak;
 
-import java.nio.ByteBuffer;
 import java.util.function.Consumer;
 
 class InternalOakHash<K, V> extends InternalOakBasics<K, V> {
@@ -42,6 +41,35 @@ class InternalOakHash<K, V> extends InternalOakBasics<K, V> {
 
     }
 
+    /**
+     * Brings the OakHash to its initial state without entries
+     * Used when we want to empty the structure without reallocating all the objects/memory
+     * Exists only for hash, as for the map there are min keys in the off-heap memory
+     * and the full clear method is more subtle
+     * NOT THREAD SAFE !!!
+     */
+    void clear() {
+        hashArray.clear();
+        size.set(0);
+        if (valuesMemoryManager != keysMemoryManager) {
+            // Two memory managers are not the same instance, but they
+            // may still have the same allocator
+            if (valuesMemoryManager.getBlockMemoryAllocator()
+                != keysMemoryManager.getBlockMemoryAllocator()) {
+                // keys and values memory managers are not the same, and use different memory allocator
+                valuesMemoryManager.clear(true);
+                keysMemoryManager.clear(true);
+                return;
+            }
+            // keys and values memory managers are not the same, but are pointing to the same memory allocator
+            valuesMemoryManager.clear(true);
+            keysMemoryManager.clear(false);
+            return;
+        }
+        // keys and values memory managers are the same, it is enough to clear one
+        valuesMemoryManager.clear(true);
+    }
+
     /*-------------- Generic to specific rebalance --------------*/
     @Override
     protected void rebalanceBasic(BasicChunk<K, V> basicChunk) {
@@ -72,14 +100,16 @@ class InternalOakHash<K, V> extends InternalOakBasics<K, V> {
         HashChunk<K, V> tempChunk = hashArray.getChunk(0); // any chunk is suitable
         tempChunk.writeTemporaryKey(key, tempBuffer);
 
-        // calculate the hash on the underlying byte array
-        ByteBuffer blockByteBuffer = tempBuffer.getByteBuffer();
-        int hashKey = MurmurHash3.hash32(blockByteBuffer.array(),
-            0, // offset is 0 as the above created ByteBuffer starts from exact address
-            tempBuffer.getLength(), 0); // default seed
+        // calculate the hash on the CharSequence
+        int hashKey = MurmurHash3.murmurhash3X8632(tempBuffer,
+            0, // true slice offset is incorporated within address calculations
+            tempBuffer.length(), // length in chars (!) not in bytes
+            0); // default seed
 
         hashKey = Math.abs(hashKey); // UnionCodec doesn't accept negative input
         ctx.operationKeyHash = hashKey;
+
+        //tempBuffer.getSlice().release();
         return ctx.operationKeyHash;
     }
 

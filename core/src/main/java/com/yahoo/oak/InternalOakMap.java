@@ -179,7 +179,7 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
         OrderedChunk<K, V> firstEngaged = engaged.get(0);
 
         // replace in linked list - we now need to find previous orderedChunk to our orderedChunk
-        // and CAS its next to point to c1, which is the same c1 for all threads who reached this point
+        // and CAS its next to point to C1, which is the same C1 for all threads who reached this point
         // since prev might be marked (in compact itself) - we need to repeat this until successful
         while (true) {
             countIterations++;
@@ -218,9 +218,9 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
                 continue;
             }
 
-            // try to CAS prev orderedChunk's next - from orderedChunk (that we split) into c1
-            // c1 is the old orderedChunk's replacement, and is already connected to c2
-            // c2 is already connected to old orderedChunk's next - so all we need to do is this replacement
+            // try to CAS prev orderedChunk's next - from orderedChunk (that we split) into C1
+            // C1 is the old orderedChunk's replacement, and is already connected to C2
+            // C2 is already connected to old orderedChunk's next - so all we need to do is this replacement
             if ((prev.next.compareAndSet(firstEngaged, children.get(0), false, false)) ||
                     (!prev.next.isMarked())) {
                 // if we're successful, or we failed but prev is not marked - so it means someone else was successful

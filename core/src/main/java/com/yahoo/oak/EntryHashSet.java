@@ -403,8 +403,12 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
 //
 //                return false; // do rebalance
 //            } else {
-            if (collisionChainLength.get() > (DEFAULT_COLLISION_CHAIN_LENGTH * 10)) {
-                System.out.println("WARNING!: Too much collisions for the hash function");
+            if (collisionChainLength.get() == (DEFAULT_COLLISION_CHAIN_LENGTH * 10)) {
+                System.out.println("WARNING!: Many collisions for the hash function");
+            }
+            if (collisionChainLength.get() == (DEFAULT_COLLISION_CHAIN_LENGTH * 20)) {
+                System.out.println(
+                    "WARNING!: Too much collisions for the hash function may cause performance degradation");
             }
             if (collisionChainLength.get() > entriesCapacity) {
                 System.out.println(

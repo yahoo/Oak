@@ -61,6 +61,10 @@ class HashChunk<K, V> extends BasicChunk<K, V> {
     }
 
     private int calculateKeyHash(K key, ThreadContext ctx) {
+        if (ctx.operationKeyHash == EntryHashSet.INVALID_KEY_HASH) {
+            // should happen only during component unit test!
+            ctx.operationKeyHash = Math.abs(key.hashCode());
+        }
         // hash was already calculated by hash array when looking for the chunk and kept in thread context
         return ctx.operationKeyHash;
     }
@@ -138,6 +142,16 @@ class HashChunk<K, V> extends BasicChunk<K, V> {
         entryHashSet.releaseNewValue(ctx);
     }
 
+    /**
+     * Brings the chunk to its initial state without entries
+     * Used when we want to empty the structure without reallocating all the objects/memory
+     * Exists only for hash, as for the map there are min keys in the off-heap memory
+     * and the full clear method is more subtle
+     * NOT THREAD SAFE !!!
+     */
+    void clear() {
+        entryHashSet.clear();
+    }
     /********************************************************************************************/
     /*-----------------------  Methods for looking up item in this chunk -----------------------*/
 

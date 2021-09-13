@@ -46,7 +46,7 @@ public class ParametrizedMapApiTest {
             return builder.buildOrderedMap();
         };
         Supplier<ConcurrentZCMap<Integer , Integer>> s2 = () -> {
-            int maxItemsPerChunk = 2048;
+            int maxItemsPerChunk = 512;
             OakMapBuilder<Integer, Integer> builder = OakCommonBuildersFactory.getDefaultIntBuilder()
                     .setChunkMaxItems(maxItemsPerChunk);
             return builder.buildHashMap();
