@@ -60,7 +60,7 @@ public class ComputeTest {
 
             OakMapBuilder<ByteBuffer, ByteBuffer> builder =
                     OakCommonBuildersFactory.getDefaultIntBufferBuilder(KEY_SIZE, VAL_SIZE)
-                            .setChunkMaxItems(MAX_ITEMS_PER_CHUNK).setMinKey(minKey);
+                            .setOrderedChunkMaxItems(MAX_ITEMS_PER_CHUNK).setMinKey(minKey);
             return builder.buildOrderedMap();
         };
 
@@ -73,8 +73,7 @@ public class ComputeTest {
             minKey.position(0);
 
             OakMapBuilder<ByteBuffer, ByteBuffer> builder =
-                    OakCommonBuildersFactory.getDefaultIntBufferBuilder(KEY_SIZE, VAL_SIZE)
-                            .setChunkMaxItems(MAX_ITEMS_PER_CHUNK / 2);
+                    OakCommonBuildersFactory.getDefaultIntBufferBuilder(KEY_SIZE, VAL_SIZE);
             return builder.buildHashMap();
         };
 

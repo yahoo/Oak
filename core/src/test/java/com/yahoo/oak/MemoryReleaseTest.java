@@ -17,7 +17,7 @@ public class MemoryReleaseTest {
 //        String val = String.format("-%016000d", 0);
 //
 //        OakMapBuilder<String, String> builder = new OakMapBuilder<String, String>()
-//                .setChunkMaxItems(1024)
+//                .setOrderedChunkMaxItems(1024)
 //                .setChunkBytesPerItem(4096)
 //                .setKeySerializer(new StringSerializer())
 //                .setValueSerializer(new StringSerializer())

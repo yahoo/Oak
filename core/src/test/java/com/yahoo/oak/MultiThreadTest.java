@@ -37,7 +37,7 @@ public class MultiThreadTest {
     @Before
     public void init() {
         OakMapBuilder<Integer, Integer> builder = OakCommonBuildersFactory.getDefaultIntBuilder()
-                .setChunkMaxItems(MAX_ITEMS_PER_CHUNK);
+                .setOrderedChunkMaxItems(MAX_ITEMS_PER_CHUNK);
         oak = builder.buildOrderedMap();
         latch = new CountDownLatch(1);
         executor = new ExecutorUtils<>(NUM_THREADS);

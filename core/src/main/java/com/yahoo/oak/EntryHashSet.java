@@ -326,19 +326,18 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
         // and check the next `collisionChainLength` indexes if previous index is occupied
         int collisionChainLengthLocal = collisionChainLength.get();
         boolean entryFound = false;
-        boolean goToNext = false;
 
         // as far as we didn't check more than `collisionChainLength` indexes
-        for (int i = 0; i < collisionChainLengthLocal; i++) {
+        for (int i = 0; !entryFound && (i < collisionChainLengthLocal); i++) {
             ctx.invalidate();
             ctx.entryIndex = (idx + i) % entriesCapacity; // check the entry candidate, cyclic increase
             // entry's key is read into ctx.tempKey as a side effect
             ctx.entryState = getEntryState(ctx, ctx.entryIndex, key, keyHash);
 
-            boolean again = true;
-            while (again && !entryFound) {
-                again = false;
-                goToNext = false;
+            boolean redoSwitch;
+
+            do {
+                redoSwitch = false;
                 // EntryState.VALID --> entry is occupied, continue to next possible location
                 // EntryState.DELETED_NOT_FINALIZED --> finish the deletion, then try to insert here
                 // EntryState.UNKNOWN, EntryState.DELETED --> entry is vacant, try to insert the key here
@@ -350,7 +349,6 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
                             // the entry state will indicate that insert didn't happen
                             return true;
                         }
-                        goToNext = true;
                         break;
                     case DELETED_NOT_FINALIZED:
                         deleteValueFinish(ctx); //invocation must be within chunk publishing scope!
@@ -358,7 +356,7 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
                         // get the entry state again to get the deleted key & value references into context
                         ctx.entryState = getEntryState(ctx, ctx.entryIndex, key, keyHash);
                         // need to redo the switch again
-                        again = true;
+                        redoSwitch = true;
                         break;
                     case DELETED: // deliberate break through
                     case UNKNOWN: // deliberate break through
@@ -369,15 +367,8 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
                         // For debugging the case new state is added and this code is not updated
                         assert false;
                 }
-                if (goToNext || entryFound) {
-                    break; // break from while loop
-                }
                 // if none of the above, it is while loop restart due to deletion finish
-            } // end of the while loop
-            if (goToNext) {
-                continue; // go to next for loop (not while loop)
-            }
-            break;
+            } while (redoSwitch); // end of the while loop
         }
 
         if (!entryFound) {
@@ -389,7 +380,7 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
             int currentLocation = idx;
             while (collisionChainLengthLocal > 1) {
                 if (getKeyHash(currentLocation) !=
-                    getKeyHash(currentLocation + 1)) {
+                    getKeyHash((currentLocation + 1) % entriesCapacity )) {
                     differentKeyHashes = true;
                     break;
                 }
@@ -419,11 +410,6 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
             collisionChainLength.incrementAndGet();
             // restart recursively (hopefully won't happen too much)
             return findSuitableEntryForInsert(ctx, key, idx, keyHash);
-        }
-
-        if (!(ctx.entryState == EntryState.DELETED || ctx.entryState == EntryState.UNKNOWN ||
-            ctx.entryState == EntryState.INSERT_NOT_FINALIZED)) {
-            System.out.println("Wrong entry state!");
         }
 
         // entry state can only be DELETED or UNKNOWN or INSERT_NOT_FINALIZED
@@ -538,7 +524,8 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
      */
     boolean deleteValueFinish(ThreadContext ctx) {
 
-        if (valuesMemoryManager.isReferenceDeleted(ctx.value.getSlice().getReference())
+        long expectedReference = ctx.value.getSlice().getReference();
+        if (valuesMemoryManager.isReferenceDeleted(expectedReference)
             && !isKeyHashValid(ctx.entryIndex)) {
             // entry is already deleted
             // value reference is marked deleted and key hash is invalid, the last stages are done
@@ -552,9 +539,8 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
         // we continue anyway, therefore disregard the logicalDelete() output
         ctx.key.s.logicalDelete();
 
-        if (!valuesMemoryManager.isReferenceDeleted(ctx.value.getSlice().getReference())) {
+        if (!valuesMemoryManager.isReferenceDeleted(expectedReference)) {
             // Value's reference codec prepares the reference to be used after value is deleted
-            long expectedReference = ctx.value.getSlice().getReference();
             long newReference = valuesMemoryManager.alterReferenceForDelete(expectedReference);
             // Scenario:
             // 1. The value's slice is marked as deleted off-heap and the thread that started
@@ -579,8 +565,8 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
         }
 
         // mark key reference as deleted, if needed
-        if (!keysMemoryManager.isReferenceDeleted(ctx.key.getSlice().getReference())) {
-            long expectedKeyReference = ctx.key.getSlice().getReference();
+        long expectedKeyReference = ctx.key.getSlice().getReference();
+        if (!keysMemoryManager.isReferenceDeleted(expectedKeyReference)) {
             long newKeyReference = keysMemoryManager.alterReferenceForDelete(expectedKeyReference);
             if (casEntryFieldLong(ctx.entryIndex, KEY_REF_OFFSET, expectedKeyReference,
                 newKeyReference)) {

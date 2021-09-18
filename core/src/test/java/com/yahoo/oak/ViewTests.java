@@ -27,7 +27,7 @@ public class ViewTests {
     @Before
     public void init() {
         OakMapBuilder<String, String> builder = OakCommonBuildersFactory.getDefaultStringBuilder()
-            .setChunkMaxItems(100);
+            .setOrderedChunkMaxItems(100);
 
         oak = builder.buildOrderedMap();
 

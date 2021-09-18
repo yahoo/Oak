@@ -54,7 +54,7 @@ public class FillTest {
 
         Supplier<ConcurrentZCMap> s1 = () -> {
             OakMapBuilder<Integer, Integer> builder = OakCommonBuildersFactory.getDefaultIntBuilder()
-                    .setChunkMaxItems(NUM_OF_ENTRIES_IN_ORDERED_CHUNK)
+                    .setOrderedChunkMaxItems(NUM_OF_ENTRIES_IN_ORDERED_CHUNK)
                     .setKeySerializer(new OakIntSerializer(KEY_SIZE))
                     .setValueSerializer(new OakIntSerializer(VALUE_SIZE));
 
@@ -62,7 +62,6 @@ public class FillTest {
         };
         Supplier<ConcurrentZCMap> s2 = () -> {
             OakMapBuilder<Integer, Integer> builder = OakCommonBuildersFactory.getDefaultIntBuilder()
-                    .setChunkMaxItems(NUM_OF_ENTRIES_IN_HASH_CHUNK)
                     .setKeySerializer(new OakIntSerializer(KEY_SIZE))
                     .setValueSerializer(new OakIntSerializer(VALUE_SIZE));
             return builder.buildHashMap();

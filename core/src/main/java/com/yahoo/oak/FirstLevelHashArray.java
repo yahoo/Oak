@@ -13,6 +13,8 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 // the array of pointers to HashChunks according to keyHash most significant bits
 class FirstLevelHashArray<K, V> {
+    // defaults
+    public static final int HASH_CHUNK_NUM_DEFAULT = 1024;
 
     private AtomicReferenceArray<HashChunk<K, V>> chunks;
     private int msbForFirstLevelHash;

@@ -150,7 +150,7 @@ public class NativeMemoryAllocatorTest {
 
         OakMapBuilder<Integer, Integer> builder = OakCommonBuildersFactory.getDefaultIntBuilder()
                 .setValueSerializer(new OakIntSerializer(VALUE_SIZE_AFTER_SERIALIZATION))
-                .setChunkMaxItems(maxItemsPerChunk)
+                .setOrderedChunkMaxItems(maxItemsPerChunk)
                 .setMemoryAllocator(ma);
 
         OakMap<Integer, Integer> oak = builder.buildOrderedMap();

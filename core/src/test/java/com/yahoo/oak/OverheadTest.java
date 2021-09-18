@@ -44,7 +44,6 @@ public class OverheadTest {
 
         Supplier<ConcurrentZCMap<Integer, Integer>> s1 = () -> {
             OakMapBuilder<Integer, Integer> builder = OakCommonBuildersFactory.getDefaultIntBuilder()
-                    .setChunkMaxItems(MAX_ITEMS_PER_ORDERED_CHUNK)
                     .setKeySerializer(new OakIntSerializer(KEY_SIZE))
                     .setValueSerializer(new OakIntSerializer(VALUE_SIZE));
 
@@ -52,7 +51,7 @@ public class OverheadTest {
         };
         Supplier<ConcurrentZCMap<Integer, Integer>> s2 = () -> {
             OakMapBuilder<Integer, Integer> builder = OakCommonBuildersFactory.getDefaultIntBuilder()
-                    .setChunkMaxItems(MAX_ITEMS_PER_HUSH_CHUNK)
+                    .setPreallocHashChunksNum(MAX_ITEMS_PER_HUSH_CHUNK * 4)
                     .setKeySerializer(new OakIntSerializer(KEY_SIZE))
                     .setValueSerializer(new OakIntSerializer(VALUE_SIZE));
 
