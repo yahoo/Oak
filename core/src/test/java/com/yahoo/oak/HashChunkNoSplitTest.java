@@ -149,8 +149,9 @@ public class HashChunkNoSplitTest {
         assert !c.finalizeDeletion(ctx);
         if (!concurrent) {
             Assert.assertEquals(ctx.entryState, EntryArray.EntryState.DELETED);
-            Assert.assertEquals("\nKey reference is " + ctx.key.getSlice().getReference() + " and not invalid reference",
-                ctx.key.getSlice().getReference(), memoryManager.getInvalidReference());
+            Assert.assertEquals("\nKey reference is " + ctx.key.getSlice().getReference()
+                + " and not invalid reference", ctx.key.getSlice().getReference(),
+                memoryManager.getInvalidReference());
             Assert.assertEquals(ctx.value.getSlice().getReference(), memoryManager.getInvalidReference());
             Assert.assertEquals(ctx.newValue.getSlice().getReference(), memoryManager.getInvalidReference());
             Assert.assertFalse(ctx.isValueValid());
