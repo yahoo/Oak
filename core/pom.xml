@@ -70,6 +70,8 @@
                         @{jacocoArgLine}
                         -XX:MaxDirectMemorySize=4g
                     </argLine>
+                    <reuseForks>false</reuseForks>
+                    <forkCount>1</forkCount>
                 </configuration>
             </plugin>
         </plugins>
