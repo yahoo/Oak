@@ -12,7 +12,7 @@ import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
-public class Murmur {
+public class MurmurTest {
 
     private OakMap<byte[], byte[]> oak;
 
