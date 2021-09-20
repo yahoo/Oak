@@ -65,6 +65,7 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
     // This is invalid field for the entire keyHash field including update counter.
     // Used for ThreadContext initialization only
     static final long INVALID_KEY_HASH_AND_UPD_CNT = 0L;
+    static final int INVALID_KEY_HASH = -1; // EntryHashSet require positive hashes
 
     // Additional field to keep key hash + its update counter (additional to the key and value reference fields)
     // # of additional primitive fields in each item of entries array
@@ -216,6 +217,7 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
                     if (isKeyHashValid(idx)) {
                         return EntryState.DELETED_NOT_FINALIZED;
                     }
+                    // INSERT_NOT_FINALIZED will be returned later if key matches
                 } else {
                     // key is deleted, check that key hash is invalidated,
                     // because it is the last stage of deletion
@@ -233,7 +235,8 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
         }
 
         // value is either invalid or valid (but not deleted), can be in progress of being inserted
-        if (isValueRefValidAndNotDeleted(idx)) {
+        // if value reference is invalid or deleted, readValue returns false
+        if (readValue(ctx.value, idx)) {
             return EntryState.VALID;
         }
 
@@ -307,6 +310,8 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
      * If true is returned, ctx.entryIndex keeps the index of the chosen entry
      * and ctx.entryState keeps the state.
      *
+     * Invocation needs to happen within publish/unpublish scope!
+     *
      * @param ctx the context that will follow the operation following this key allocation
      * @param key the key to write
      * @param idx idx=keyHash||bit_size_mask
@@ -322,41 +327,47 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
         boolean entryFound = false;
 
         // as far as we didn't check more than `collisionChainLength` indexes
-        for (int i = 0; i < collisionChainLengthLocal; i++) {
+        for (int i = 0; !entryFound && (i < collisionChainLengthLocal); i++) {
             ctx.invalidate();
             ctx.entryIndex = (idx + i) % entriesCapacity; // check the entry candidate, cyclic increase
             // entry's key is read into ctx.tempKey as a side effect
             ctx.entryState = getEntryState(ctx, ctx.entryIndex, key, keyHash);
 
-            // EntryState.VALID --> entry is occupied, continue to next possible location
-            // EntryState.DELETED_NOT_FINALIZED --> finish the deletion, then try to insert here
-            // EntryState.UNKNOWN, EntryState.DELETED --> entry is vacant, try to insert the key here
-            // EntryState.INSERT_NOT_FINALIZED --> you can compete to associate value with the same key
-            switch (ctx.entryState) {
-                case VALID:
-                    if (isKeyAndEntryKeyEqual(ctx.key, key, idx, keyHash)) {
-                        // found valid entry has our key, the inserted key must be unique
-                        // the entry state will indicate that insert didn't happen
-                        return true;
-                    }
-                    continue;
-                case DELETED_NOT_FINALIZED:
-                    deleteValueFinish(ctx); //TODO: invocation must be within chunk publishing scope!
-                    // deleteValueFinish() also changes the entry state to DELETED
-                    // get the entry state again to get the deleted key & value references into context
-                    ctx.entryState = getEntryState(ctx, ctx.entryIndex, key, keyHash);
-                    // deliberate break through
-                case DELETED: // deliberate break through
-                case UNKNOWN:
-                    // deliberate break through
-                case INSERT_NOT_FINALIZED: // continue allocating value without allocating a key
-                    entryFound = true;
-                    break;
-                default:
-                    // For debugging the case new state is added and this code is not updated
-                    assert false;
-            }
-            break;
+            boolean redoSwitch;
+
+            do {
+                redoSwitch = false;
+                // EntryState.VALID --> entry is occupied, continue to next possible location
+                // EntryState.DELETED_NOT_FINALIZED --> finish the deletion, then try to insert here
+                // EntryState.UNKNOWN, EntryState.DELETED --> entry is vacant, try to insert the key here
+                // EntryState.INSERT_NOT_FINALIZED --> you can compete to associate value with the same key
+                switch (ctx.entryState) {
+                    case VALID:
+                        if (isKeyAndEntryKeyEqual(ctx.key, key, idx, keyHash)) {
+                            // found valid entry has our key, the inserted key must be unique
+                            // the entry state will indicate that insert didn't happen
+                            return true;
+                        }
+                        break;
+                    case DELETED_NOT_FINALIZED:
+                        deleteValueFinish(ctx); //invocation must be within chunk publishing scope!
+                        // deleteValueFinish() also changes the entry state to DELETED
+                        // get the entry state again to get the deleted key & value references into context
+                        ctx.entryState = getEntryState(ctx, ctx.entryIndex, key, keyHash);
+                        // need to redo the switch again
+                        redoSwitch = true;
+                        break;
+                    case DELETED: // deliberate break through
+                    case UNKNOWN: // deliberate break through
+                    case INSERT_NOT_FINALIZED: // continue allocating value without allocating a key
+                        entryFound = true;
+                        break;
+                    default:
+                        // For debugging the case new state is added and this code is not updated
+                        assert false;
+                }
+                // if none of the above, it is while loop restart due to deletion finish
+            } while (redoSwitch); // end of the while loop
         }
 
         if (!entryFound) {
@@ -368,23 +379,36 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
             int currentLocation = idx;
             while (collisionChainLengthLocal > 1) {
                 if (getKeyHash(currentLocation) !=
-                    getKeyHash(currentLocation + 1)) {
+                    getKeyHash((currentLocation + 1) % entriesCapacity )) {
                     differentKeyHashes = true;
                     break;
                 }
                 currentLocation++;
                 collisionChainLengthLocal--;
             }
-            if (differentKeyHashes) {
-                return false; // do rebalance
-            } else {
-                if (collisionChainLength.get() > (DEFAULT_COLLISION_CHAIN_LENGTH * 10)) {
-                    System.out.println("WARNING!: Too much collisions for the hash function");
-                }
-                collisionChainLength.incrementAndGet();
-                // restart recursively (hopefully won't happen too much)
-                return findSuitableEntryForInsert(ctx, key, idx, keyHash);
+            // TODO: if differentKeyHashes should return false requesting rebalance,
+            // TODO: but currently there is no rebalance.
+            // TODO: Till then enlarge collisionChainLength
+//            if (differentKeyHashes) {
+//
+//                return false; // do rebalance
+//            } else {
+            if (collisionChainLength.get() == (DEFAULT_COLLISION_CHAIN_LENGTH * 10)) {
+                System.out.println("WARNING!: Many collisions for the hash function");
             }
+            if (collisionChainLength.get() == (DEFAULT_COLLISION_CHAIN_LENGTH * 20)) {
+                System.out.println(
+                    "WARNING!: Too much collisions for the hash function may cause performance degradation");
+            }
+            if (collisionChainLength.get() > entriesCapacity) {
+                System.out.println(
+                    "FAILURE!: Too much collisions (" + collisionChainLength.get() +
+                        ") to be kept in one chunk. Make sure to enlarge chunk!");
+                throw new RuntimeException();
+            }
+            collisionChainLength.incrementAndGet();
+            // restart recursively (hopefully won't happen too much)
+            return findSuitableEntryForInsert(ctx, key, idx, keyHash);
         }
 
         // entry state can only be DELETED or UNKNOWN or INSERT_NOT_FINALIZED
@@ -455,6 +479,7 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
             // key reference CASed (only one should succeed) write the entry's key hash,
             // because it is used for keys comparison (invalid key hash is not used for comparison)
             if ( casKeyHashAndUpdateCounter(ctx.entryIndex, ctx.keyHashAndUpdateCnt, keyHash) ) {
+                numOfEntries.getAndIncrement();
                 return true;
             } else {
                 // someone else proceeded with the same key if key hash is deleted we are totally late
@@ -498,10 +523,11 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
      */
     boolean deleteValueFinish(ThreadContext ctx) {
 
-        if (valuesMemoryManager.isReferenceDeleted(ctx.value.getSlice().getReference())
+        long expectedValueReference = ctx.value.getSlice().getReference();
+        // is it the same hash number we saw but already invalid?
+        if (HASH_CODEC.getFirst(ctx.keyHashAndUpdateCnt) == getKeyHash(ctx.entryIndex)
             && !isKeyHashValid(ctx.entryIndex)) {
-            // entry is already deleted
-            // value reference is marked deleted and key hash is invalid, the last stages are done
+            // entry is already deleted, key hash is invalid, the last stages are done
             ctx.entryState = EntryState.DELETED;
             return false;
         }
@@ -513,8 +539,7 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
         ctx.key.s.logicalDelete();
 
         // Value's reference codec prepares the reference to be used after value is deleted
-        long expectedReference = ctx.value.getSlice().getReference();
-        long newReference = valuesMemoryManager.alterReferenceForDelete(expectedReference);
+        long newReference = valuesMemoryManager.alterReferenceForDelete(expectedValueReference);
         // Scenario:
         // 1. The value's slice is marked as deleted off-heap and the thread that started
         //    deleteValueFinish falls asleep.
@@ -524,19 +549,27 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
         // This is ABA problem and resolved via always changing deleted variation of the reference
         // Also value's off-heap slice is released to memory manager only after deleteValueFinish
         // is done.
-        if (casEntryFieldLong(ctx.entryIndex, VALUE_REF_OFFSET, expectedReference, newReference)) {
-            assert valuesMemoryManager.isReferenceConsistent(getValueReference(ctx.entryIndex));
-            ctx.value.getSlice().release();
-            ctx.value.invalidate();
+        if (!valuesMemoryManager.isReferenceDeleted(expectedValueReference)) {
+            if (casEntryFieldLong(ctx.entryIndex, VALUE_REF_OFFSET, expectedValueReference,
+                newReference)) {
+                // the deletion of the value and its release should be successful only once and for one
+                // thread, therefore the reference and slice should be still valid here
+                assert valuesMemoryManager.isReferenceConsistent(getValueReference(ctx.entryIndex));
+                assert ctx.value.isAssociated();
+                ctx.value.getSlice().release();
+                ctx.value.invalidate();
+            }
         }
-
-        // mark key reference as deleted
+        // mark key reference as deleted, if needed
         long expectedKeyReference = ctx.key.getSlice().getReference();
-        long newKeyReference = keysMemoryManager.alterReferenceForDelete(expectedReference);
-        if (casEntryFieldLong(ctx.entryIndex, KEY_REF_OFFSET, expectedKeyReference, newKeyReference)) {
-            assert keysMemoryManager.isReferenceConsistent(getKeyReference(ctx.entryIndex));
-            ctx.key.getSlice().release();
-            ctx.key.invalidate();
+        if (!keysMemoryManager.isReferenceDeleted(expectedKeyReference)) {
+            long newKeyReference = keysMemoryManager.alterReferenceForDelete(expectedKeyReference);
+            if (casEntryFieldLong(ctx.entryIndex, KEY_REF_OFFSET, expectedKeyReference,
+                newKeyReference)) {
+                assert keysMemoryManager.isReferenceConsistent(getKeyReference(ctx.entryIndex));
+                ctx.key.getSlice().release();
+                ctx.key.invalidate();
+            }
         }
 
         if (invalidateKeyHashAndUpdateCounter(ctx.entryIndex, ctx.keyHashAndUpdateCnt)) {

@@ -124,6 +124,9 @@ abstract class BlockAllocationSlice implements Slice, Comparable<BlockAllocation
         this.length = length;
     }
 
+    // zero the underlying memory (not the header) before entering the free list
+    protected abstract void zeroMetadata();
+
     /* ------------------------------------------------------------------------------------
      * Internal information getters
      * ------------------------------------------------------------------------------------*/

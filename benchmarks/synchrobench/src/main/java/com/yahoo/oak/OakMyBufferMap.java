@@ -31,7 +31,7 @@ public class OakMyBufferMap<K extends MyBuffer, V extends MyBuffer> implements C
         builder =
             new OakMapBuilder<MyBuffer, MyBuffer>(
                 MyBuffer.DEFAULT_COMPARATOR, MyBuffer.DEFAULT_SERIALIZER, MyBuffer.DEFAULT_SERIALIZER, minKey)
-                .setChunkMaxItems(OrderedChunk.ORDERED_CHUNK_MAX_ITEMS_DEFAULT)
+                .setOrderedChunkMaxItems(OrderedChunk.ORDERED_CHUNK_MAX_ITEMS_DEFAULT)
                 .setMemoryAllocator(ma);
         oak = builder.buildOrderedMap();
     }
@@ -138,7 +138,7 @@ public class OakMyBufferMap<K extends MyBuffer, V extends MyBuffer> implements C
         builder =
             new OakMapBuilder<MyBuffer, MyBuffer>(
                 MyBuffer.DEFAULT_COMPARATOR, MyBuffer.DEFAULT_SERIALIZER, MyBuffer.DEFAULT_SERIALIZER, minKey)
-                .setChunkMaxItems(OrderedChunk.ORDERED_CHUNK_MAX_ITEMS_DEFAULT)
+                .setOrderedChunkMaxItems(OrderedChunk.ORDERED_CHUNK_MAX_ITEMS_DEFAULT)
                 .setMemoryAllocator(ma);
         oak = builder.buildOrderedMap();
     }

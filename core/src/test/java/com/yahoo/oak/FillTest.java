@@ -33,7 +33,10 @@ public class FillTest {
     private static final int KEY_SIZE = 10;
     private static final int VALUE_SIZE = Math.round(5 * K);
 
-    private static final int NUM_OF_ENTRIES = 100;
+    private static final int NUM_OF_ENTRIES = 4; // was 100
+    private static final int NUM_OF_ENTRIES_IN_ORDERED_CHUNK = 2048;    // 2^11
+    private static final int NUM_OF_ENTRIES_IN_HASH_CHUNK = 1024;       // 2^10
+
 
     static ConcurrentZCMap<Integer, Integer> oak;
     private  CountDownLatch latch;
@@ -51,7 +54,7 @@ public class FillTest {
 
         Supplier<ConcurrentZCMap> s1 = () -> {
             OakMapBuilder<Integer, Integer> builder = OakCommonBuildersFactory.getDefaultIntBuilder()
-                    .setChunkMaxItems(2048)
+                    .setOrderedChunkMaxItems(NUM_OF_ENTRIES_IN_ORDERED_CHUNK)
                     .setKeySerializer(new OakIntSerializer(KEY_SIZE))
                     .setValueSerializer(new OakIntSerializer(VALUE_SIZE));
 
@@ -59,7 +62,6 @@ public class FillTest {
         };
         Supplier<ConcurrentZCMap> s2 = () -> {
             OakMapBuilder<Integer, Integer> builder = OakCommonBuildersFactory.getDefaultIntBuilder()
-                    .setChunkMaxItems(2048)
                     .setKeySerializer(new OakIntSerializer(KEY_SIZE))
                     .setValueSerializer(new OakIntSerializer(VALUE_SIZE));
             return builder.buildHashMap();
@@ -129,23 +131,25 @@ public class FillTest {
     @Test
     public void testMain() throws ExecutorUtils.ExecutionError {
 
+        int id = (int) Thread.currentThread().getId();
+        id = id % ThreadIndexCalculator.MAX_THREADS;
 
         oak = this.builder.get();
 
-        executor.submitTasks(NUM_THREADS, i -> new RunThreads(latch));
+        //executor.submitTasks(NUM_THREADS, i -> new RunThreads(latch));
 
-        for (int i = 0; i < (int) Math.round(NUM_OF_ENTRIES * 0.5); i++) {
+        for (Integer i = 1; i < (int) Math.round(NUM_OF_ENTRIES * 0.5); i++) {
             oak.zc().putIfAbsent(i, i);
         }
 
         long startTime = System.currentTimeMillis();
 
-        latch.countDown();
-        executor.shutdown(TIME_LIMIT_IN_SECONDS);
+        //latch.countDown();
+        //executor.shutdown(TIME_LIMIT_IN_SECONDS);
 
         long stopTime = System.currentTimeMillis();
 
-        for (Integer i = 0; i < NUM_OF_ENTRIES / 2; i++) {
+        for (Integer i = 1; i < NUM_OF_ENTRIES * 0.5; i++) {
             Integer val = oak.get(i);
             Assert.assertEquals(i, val);
         }

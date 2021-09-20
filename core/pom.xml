@@ -66,9 +66,12 @@
                 <version>2.22.2</version>
                 <configuration>
                     <argLine>
+                        -Xmx20g
                         @{jacocoArgLine}
                         -XX:MaxDirectMemorySize=4g
                     </argLine>
+                    <reuseForks>false</reuseForks>
+                    <forkCount>1</forkCount>
                 </configuration>
             </plugin>
         </plugins>

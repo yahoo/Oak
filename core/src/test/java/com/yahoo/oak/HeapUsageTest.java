@@ -27,7 +27,7 @@ public class HeapUsageTest {
     public void testMain() throws InterruptedException {
 
         OakMapBuilder<Integer, Integer> builder = OakCommonBuildersFactory.getDefaultIntBuilder()
-                .setChunkMaxItems(2048)
+                .setOrderedChunkMaxItems(2048)
                 .setKeySerializer(new OakIntSerializer(keySize))
                 .setValueSerializer(new OakIntSerializer(valSize));
         // this number can be changed to test larger sizes however JVM memory limit need to be changed
@@ -108,7 +108,7 @@ public class HeapUsageTest {
         System.out.println("key size: " + keySize + "B" + ", value size: " + ((double) valSize) / K + "KB");
         for (long numOfEntries : configurations) {
             OakMapBuilder<Integer, Integer> builder = OakCommonBuildersFactory.getDefaultIntBuilder()
-                    .setChunkMaxItems(2048)
+                    .setOrderedChunkMaxItems(2048)
                     .setKeySerializer(new OakIntSerializer(keySize))
                     .setValueSerializer(new OakIntSerializer(valSize));
             try (OakMap<Integer, Integer> oak = builder.buildOrderedMap()) {

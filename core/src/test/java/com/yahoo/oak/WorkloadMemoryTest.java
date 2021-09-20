@@ -52,14 +52,14 @@ public class WorkloadMemoryTest {
 
         Supplier<ConcurrentZCMap<Integer, Integer>> s1 = () -> {
             OakMapBuilder<Integer, Integer> builder = OakCommonBuildersFactory.getDefaultIntBuilder()
-                    .setChunkMaxItems(100)
+                    .setOrderedChunkMaxItems(100)
                     .setKeySerializer(new OakIntSerializer(KEY_SIZE))
                     .setValueSerializer(new OakIntSerializer(VALUE_SIZE));
             return builder.buildOrderedMap();
         };
         Supplier<ConcurrentZCMap<Integer, Integer>> s2 = () -> {
             OakMapBuilder<Integer, Integer> builder = OakCommonBuildersFactory.getDefaultIntBuilder()
-                    .setChunkMaxItems(100)
+                    .setHashChunkMaxItems(100)
                     .setKeySerializer(new OakIntSerializer(KEY_SIZE))
                     .setValueSerializer(new OakIntSerializer(VALUE_SIZE));
             return builder.buildHashMap();

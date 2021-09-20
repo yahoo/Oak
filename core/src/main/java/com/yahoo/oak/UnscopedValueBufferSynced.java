@@ -23,19 +23,15 @@ class UnscopedValueBufferSynced extends UnscopedBuffer<ValueBuffer> {
 
     final KeyBuffer key;
 
-    private final ValueUtils valueOperator;
-
     /**
      * In case of a search, this is the map we search in.
      */
-    private final InternalOakMap<?, ?> internalOakMap;
+    private final InternalOakBasics<?, ?> internalOakBasics;
 
-    UnscopedValueBufferSynced(KeyBuffer key, ValueBuffer value,
-                              ValueUtils valueOperator, InternalOakMap<?, ?> internalOakMap) {
+    UnscopedValueBufferSynced(KeyBuffer key, ValueBuffer value, InternalOakBasics<?, ?> internalOakBasics) {
         super(new ValueBuffer(value));
         this.key = new KeyBuffer(key);
-        this.valueOperator = valueOperator;
-        this.internalOakMap = internalOakMap;
+        this.internalOakBasics = internalOakBasics;
     }
 
     @Override
@@ -93,7 +89,7 @@ class UnscopedValueBufferSynced extends UnscopedBuffer<ValueBuffer> {
      * it was deleted.
      */
     private void refreshValueReference() {
-        boolean success = internalOakMap.refreshValuePosition(key, internalScopedReadBuffer);
+        boolean success = internalOakBasics.refreshValuePosition(key, internalScopedReadBuffer);
         if (!success) {
             throw new ConcurrentModificationException();
         }

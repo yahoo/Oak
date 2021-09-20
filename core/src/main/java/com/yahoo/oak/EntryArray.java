@@ -8,6 +8,7 @@ package com.yahoo.oak;
 
 import sun.misc.Unsafe;
 
+import java.util.Arrays;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /*
@@ -91,6 +92,18 @@ public class EntryArray<K, V> {
         this.entriesCapacity = entriesCapacity;
         this.keySerializer = keySerializer;
         this.valueSerializer = valueSerializer;
+    }
+
+    /**
+     * Brings the array to its initial state with all zeroes, and reset the number of entries
+     * Used when we want to empty the structure without reallocating all the objects/memory
+     * Exists only for hash, as for the map there are min keys in the off-heap memory
+     * and the full clear method is more subtle
+     * NOT THREAD SAFE !!!
+     */
+    protected void clear() {
+        Arrays.fill(entries, 0);
+        numOfEntries.set(0);
     }
 
     // EntryState is the state of the entry after inspection of the states of its key and value

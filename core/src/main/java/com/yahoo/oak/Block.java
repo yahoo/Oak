@@ -24,7 +24,7 @@ class Block {
         // Pay attention in allocateDirect the data is *zero'd out*
         // which has an overhead in clearing and you end up touching every page
         this.blockMemAddress  = UnsafeUtils.allocateMemory(capacity);
-
+        UnsafeUtils.setMemory(this.blockMemAddress, capacity, (byte) 0); // zero block's memory
     }
 
     void setID(int id) {
@@ -47,8 +47,9 @@ class Block {
     }
 
     // use when this Block is no longer in any use, not thread safe
-    // It sets the limit to the capacity and the position to zero, but didn't zeroes the memory
+    // It sets the limit to the capacity and the position to zero, and zeroes the memory
     void reset() {
+        UnsafeUtils.setMemory(this.blockMemAddress, capacity, (byte) 0); // zero block's memory
         allocated.set(0);
     }
 
