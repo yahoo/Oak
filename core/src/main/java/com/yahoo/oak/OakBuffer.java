@@ -11,7 +11,7 @@ package com.yahoo.oak;
  * It mimic the standard interface of Java's ByteBuffer, for example, int getInt(int index), char getChar(int index),
  * capacity(), etc.
  */
-public interface OakBuffer extends CharSequence {
+public interface OakBuffer {
     /**
      * Returns this buffer's capacity.
      *
@@ -107,22 +107,4 @@ public interface OakBuffer extends CharSequence {
      *                                   minus seven
      */
     double getDouble(int index) throws NullPointerException;
-
-    /*****************************************************************************
-     * CharSequence API
-     *****************************************************************************/
-
-    default int length() {
-        // length in char not in bytes
-        return capacity() / Character.BYTES;
-    }
-
-    default char charAt(int index) {
-        // index is given in char number
-        return getChar(index * Character.BYTES);
-    }
-
-    default CharSequence subSequence(int start, int end) {
-        throw new UnsupportedOperationException();
-    }
 }

@@ -30,7 +30,6 @@ public class OakMapBuilder<K, V> {
     private int hashChunkMaxItems; // to be used for creating OakHash
     private int preallocHashChunksNum; // to be used for creating OakHash
 
-
     // Off-heap fields
     private long memoryCapacity;
     private BlockMemoryAllocator memoryAllocator;
@@ -155,9 +154,9 @@ public class OakMapBuilder<K, V> {
         if (memoryAllocator == null) {
             this.memoryAllocator = new NativeMemoryAllocator(memoryCapacity);
         }
-        //Todo assert that minkey is not null after the implmention of internalHashmap if it is throw exception??
         MemoryManager valuesMemoryManager = new SyncRecycleMemoryManager(memoryAllocator);
         // for hash the keys are indeed deleted, thus SeqExpandMemoryManager isn't acceptable
+        //TODO: change keys memory manager
         MemoryManager keysMemoryManager = new SeqExpandMemoryManager(memoryAllocator);
 
         // Number of bits to define the chunk size is calculated from given number of items
@@ -167,9 +166,7 @@ public class OakMapBuilder<K, V> {
         int bitsToKeepChunksNum = (int) Math.ceil(Math.log(preallocHashChunksNum) / Math.log(2));
 
         checkPreconditions();
-        return new OakHashMap<>(minKey,
-                keySerializer,
-                valueSerializer,
+        return new OakHashMap<>(keySerializer, valueSerializer,
                 comparator,
                 bitsToKeepChunkSize, bitsToKeepChunksNum, valuesMemoryManager, keysMemoryManager);
     }

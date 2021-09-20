@@ -130,7 +130,7 @@ public class MultiThreadComputeTest {
 
             value = oak.get(int2start);
             if (value == null) {
-                System.out.println("Got a null!");
+                System.out.println("Got a null from " + int2start + "!");
             }
             Assert.assertNotNull(value);
 
@@ -154,7 +154,7 @@ public class MultiThreadComputeTest {
 
             value = oak.get(int2start);
             if (value == null) {
-                System.out.println("Got a null!");
+                System.out.println("Got a null from " + int2start + "!");
             }
             Assert.assertNotNull(value);
 

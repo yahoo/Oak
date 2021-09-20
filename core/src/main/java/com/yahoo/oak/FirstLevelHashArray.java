@@ -71,21 +71,18 @@ class FirstLevelHashArray<K, V> {
                 new UnionCodec(lsbForSecondLevelHash, // the size of the first, as these are LSBs
                     UnionCodec.AUTO_CALCULATE_BIT_SIZE, Integer.SIZE); // the second (MSB) will be auto-calculated
         int chunkSize = calculateChunkSize(lsbForSecondLevelHash);
-        // initiate chunks, TODO: remove print
-        System.out.println("Going to allocate " + chunks.length() + " chunks, of size " + chunkSize);
+        // initiate chunks
         for (int i = 0; i < chunks.length(); i++) {
             if (currentSameRefer == multipleReferenceNum) {
                 c = new HashChunk<>(chunkSize, externalSize, vMM, kMM, comparator,
                     keySerializer, valueSerializer, hashIndexCodecForChunk);
             }
-            System.out.print(i + " "); // TODO: remove print
             this.chunks.lazySet(i, c);
             currentSameRefer--;
             if (currentSameRefer == 0) {
                 currentSameRefer = multipleReferenceNum;
             }
         }
-        System.out.println("\n");
     }
 
     private int calculateChunkSize(int inputLsbForSecondLevel) {

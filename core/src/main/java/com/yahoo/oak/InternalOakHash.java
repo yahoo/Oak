@@ -100,10 +100,10 @@ class InternalOakHash<K, V> extends InternalOakBasics<K, V> {
         HashChunk<K, V> tempChunk = hashArray.getChunk(0); // any chunk is suitable
         tempChunk.writeTemporaryKey(key, tempBuffer);
 
-        // calculate the hash on the CharSequence
-        int hashKey = MurmurHash3.murmurhash3X8632(tempBuffer,
+        // calculate the hash on the OakBuffer
+        int hashKey = MurmurHash3.murmurhash32(tempBuffer,
             0, // true slice offset is incorporated within address calculations
-            tempBuffer.length(), // length in chars (!) not in bytes
+            tempBuffer.capacity(), // data length in bytes
             0); // default seed
 
         hashKey = Math.abs(hashKey); // UnionCodec doesn't accept negative input

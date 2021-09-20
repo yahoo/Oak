@@ -229,7 +229,6 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
 
         // read current key slice (value is read during delete check)
         if (!readKey(ctx.key, ctx.entryIndex)) {
-            ctx.isNewValueForMove = true; //TODO: DEBUG! To remove later
             // key is deleted (was already checked for being valid, cannot turn to be invalid again)
             // check that key hash is invalidated, because it is the last stage of deletion
             return isKeyHashValid(idx) ? EntryState.DELETED_NOT_FINALIZED : EntryState.DELETED;
@@ -525,10 +524,10 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
     boolean deleteValueFinish(ThreadContext ctx) {
 
         long expectedValueReference = ctx.value.getSlice().getReference();
-        if (valuesMemoryManager.isReferenceDeleted(expectedValueReference)
+        // is it the same hash number we saw but already invalid?
+        if (HASH_CODEC.getFirst(ctx.keyHashAndUpdateCnt) == getKeyHash(ctx.entryIndex)
             && !isKeyHashValid(ctx.entryIndex)) {
-            // entry is already deleted
-            // value reference is marked deleted and key hash is invalid, the last stages are done
+            // entry is already deleted, key hash is invalid, the last stages are done
             ctx.entryState = EntryState.DELETED;
             return false;
         }
@@ -550,18 +549,17 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
         // This is ABA problem and resolved via always changing deleted variation of the reference
         // Also value's off-heap slice is released to memory manager only after deleteValueFinish
         // is done.
-        if (casEntryFieldLong(ctx.entryIndex, VALUE_REF_OFFSET, expectedValueReference, newReference)) {
-            // the deletion of the value and its release should be successful only once and for one
-            // thread, therefore the reference and slice should be still valid here
-            assert valuesMemoryManager.isReferenceConsistent(getValueReference(ctx.entryIndex));
-            if (!ctx.value.isAssociated()) {
-                System.out.println("Not initialized value deleted!");
+        if (!valuesMemoryManager.isReferenceDeleted(expectedValueReference)) {
+            if (casEntryFieldLong(ctx.entryIndex, VALUE_REF_OFFSET, expectedValueReference,
+                newReference)) {
+                // the deletion of the value and its release should be successful only once and for one
+                // thread, therefore the reference and slice should be still valid here
+                assert valuesMemoryManager.isReferenceConsistent(getValueReference(ctx.entryIndex));
+                assert ctx.value.isAssociated();
+                ctx.value.getSlice().release();
+                ctx.value.invalidate();
             }
-            assert ctx.value.isAssociated();
-            ctx.value.getSlice().release();
-            ctx.value.invalidate();
         }
-
         // mark key reference as deleted, if needed
         long expectedKeyReference = ctx.key.getSlice().getReference();
         if (!keysMemoryManager.isReferenceDeleted(expectedKeyReference)) {

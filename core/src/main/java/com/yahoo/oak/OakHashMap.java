@@ -39,10 +39,10 @@ public class OakHashMap<K, V>  extends AbstractMap<K, V> implements AutoCloseabl
 
 
     // internal constructor, to create OakHashMap use OakMapBuilder
-    OakHashMap(K minKey,
-        //TODO:  this parameter is to be removed when internalOakHashMap  implementation is done
+    OakHashMap(
         OakSerializer<K> keySerializer, OakSerializer<V> valueSerializer, OakComparator<K> oakComparator,
         int log2NumOfChunks, int log2NumOfItemsInOneChunk, MemoryManager vMM, MemoryManager kMM) {
+
         this.valuesMemoryManager = vMM;
         this.keysMemoryManager = kMM;
         this.comparator = oakComparator;
@@ -56,8 +56,7 @@ public class OakHashMap<K, V>  extends AbstractMap<K, V> implements AutoCloseabl
         // we need to let Java to use about 14GB of onheap memory anywhere OakHashMap is used,
         // also for testings (each test allocate and release!!!).
         // Therefore using less than default memory here: 2^log2NumOfChunks <-- number of chunks;
-        // 2^(log2NumOfChunks*2) <-- number of entries in each chunk
-        //TODO: change preparing for Hash release
+        // 2^log2NumOfItemsInOneChunk <-- number of entries in each chunk
         this.internalOakHash = new InternalOakHash<>(keySerializer, valueSerializer,
             comparator, vMM, kMM,  new ValueUtils(),
             log2NumOfChunks, // defines number of hash chunks
