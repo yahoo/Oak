@@ -38,7 +38,7 @@ declare -A heap_limit=(
   ["offheap-list"]="12g"
   ["skip-list"]="36g"
   ["concurrent-hash-map"]="36g"
-  ["oak-hash"]="12g"
+  ["oak-hash"]="14g"
 )
 
 declare -A direct_limit=(
@@ -46,7 +46,7 @@ declare -A direct_limit=(
   ["offheap-list"]="24g"
   ["skip-list"]="1m" #when running CSLM/CHM some off-heap memory is still required to unrelated java.util.zip.ZipFile
   ["concurrent-hash-map"]="1m"
-  ["oak-hash"]="24g"
+  ["oak-hash"]="26g"
 )
 
 declare -A gc_cmd_args=(

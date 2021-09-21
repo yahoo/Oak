@@ -6,6 +6,7 @@
 
 package com.yahoo.oak.synchrobench.contention.benchmark;
 
+import com.yahoo.oak.OakMyBufferHash;
 import com.yahoo.oak.OakMyBufferMap;
 import com.yahoo.oak.synchrobench.MyBuffer;
 import com.yahoo.oak.synchrobench.contention.abstractions.CompositionalMap;
@@ -197,7 +198,12 @@ public class Test {
 
         float allocated = Float.NaN;
         try {
-            allocated = ((OakMyBufferMap) oakBench).allocated();
+            if (oakBench instanceof OakMyBufferMap) {
+                allocated = ((OakMyBufferMap) oakBench).allocated();
+            }
+            if (oakBench instanceof OakMyBufferHash) {
+                allocated = ((OakMyBufferHash) oakBench).allocated();
+            }
         } catch (ClassCastException ignored) {
             System.out.println("Cannot fetch off-heap stats for non-Oak maps.");
         }
