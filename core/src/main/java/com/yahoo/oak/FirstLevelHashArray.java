@@ -85,7 +85,7 @@ class FirstLevelHashArray<K, V> {
         }
         System.out.println("Allocated " + chunks.length() + " each of size "
             + chunkSize * 3 * Long.BYTES + " bytes. In total "
-            + ((chunks.length() * chunkSize * 3 * Long.BYTES)/1024*1024*1024) + "GB");
+            + ((chunks.length() * chunkSize * 3 * Long.BYTES) / 1024 * 1024 * 1024) + "GB");
     }
 
     private int calculateChunkSize(int inputLsbForSecondLevel) {
