@@ -6,6 +6,7 @@
 
 package com.yahoo.oak.synchrobench;
 
+import com.yahoo.oak.MurmurHash3;
 import com.yahoo.oak.OakComparator;
 import com.yahoo.oak.OakScopedReadBuffer;
 import com.yahoo.oak.OakScopedWriteBuffer;
@@ -122,4 +123,10 @@ public class MyBuffer implements Comparable<MyBuffer> {
             return compareBuffers(key, serializedKey);
         }
     };
+
+    @Override
+    public int hashCode() {
+        return MurmurHash3.murmurhash32(buffer.array(), 0, Integer.BYTES, 0);
+    }
+
 }

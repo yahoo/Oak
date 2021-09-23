@@ -92,26 +92,34 @@ class InternalOakHash<K, V> extends InternalOakBasics<K, V> {
         if (ctx.operationKeyHash != EntryHashSet.INVALID_KEY_HASH) {
             return ctx.operationKeyHash;
         }
-        // TODO: this solution is performance and memory costly! Improve later
 
+        // TODO: try ConcurrentHashMap key hash calculation temporary
+        //  int h = spread(key.hashCode());
+        // return (h ^ (h >>> 16)) & HASH_BITS;
+        int keyHash = key.hashCode();
+        int h = (keyHash ^ (keyHash >>> 16)) & 0x7fffffff;
+        ctx.operationKeyHash = h;
+        return ctx.operationKeyHash;
+
+        // TODO: this solution is performance and memory costly! Improve later
         // Object.hashCode() gives bad distribution, but hash result needs to be 32 bits long
         // Remember that hash can be positive, zero or negative
         // serialize the key in order to take the hash from the byte array
-        KeyBuffer tempBuffer = new KeyBuffer(keysMemoryManager.getEmptySlice());
-        HashChunk<K, V> tempChunk = hashArray.getChunk(0); // any chunk is suitable
-        tempChunk.writeTemporaryKey(key, tempBuffer);
-
-        // calculate the hash on the OakBuffer
-        int hashKey = MurmurHash3.murmurhash32(tempBuffer,
-            0, // true slice offset is incorporated within address calculations
-            tempBuffer.capacity(), // data length in bytes
-            0); // default seed
-
-        hashKey = Math.abs(hashKey); // UnionCodec doesn't accept negative input
-        ctx.operationKeyHash = hashKey;
-
-        tempBuffer.getSlice().release();
-        return ctx.operationKeyHash;
+//        KeyBuffer tempBuffer = new KeyBuffer(keysMemoryManager.getEmptySlice());
+//        HashChunk<K, V> tempChunk = hashArray.getChunk(0); // any chunk is suitable
+//        tempChunk.writeTemporaryKey(key, tempBuffer);
+//
+//        // calculate the hash on the OakBuffer
+//        int hashKey = MurmurHash3.murmurhash32(tempBuffer,
+//            0, // true slice offset is incorporated within address calculations
+//            tempBuffer.capacity(), // data length in bytes
+//            0); // default seed
+//
+//        hashKey = Math.abs(hashKey); // UnionCodec doesn't accept negative input
+//        ctx.operationKeyHash = hashKey;
+//
+//        tempBuffer.getSlice().release();
+//        return ctx.operationKeyHash;
     }
 
     /*-------------- Hash API Methods --------------*/

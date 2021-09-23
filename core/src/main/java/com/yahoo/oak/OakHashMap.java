@@ -41,7 +41,7 @@ public class OakHashMap<K, V>  extends AbstractMap<K, V> implements AutoCloseabl
     // internal constructor, to create OakHashMap use OakMapBuilder
     OakHashMap(
         OakSerializer<K> keySerializer, OakSerializer<V> valueSerializer, OakComparator<K> oakComparator,
-        int log2NumOfChunks, int log2NumOfItemsInOneChunk, MemoryManager vMM, MemoryManager kMM) {
+        int log2NumOfItemsInOneChunk, int log2NumOfChunks, MemoryManager vMM, MemoryManager kMM) {
 
         this.valuesMemoryManager = vMM;
         this.keysMemoryManager = kMM;
