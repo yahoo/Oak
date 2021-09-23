@@ -8,6 +8,7 @@ package com.yahoo.oak;
 
 import java.util.function.Consumer;
 
+
 class InternalOakHash<K, V> extends InternalOakBasics<K, V> {
     /*-------------- Members --------------*/
     private final FirstLevelHashArray<K, V> hashArray;    // first level of indexing
@@ -109,7 +110,7 @@ class InternalOakHash<K, V> extends InternalOakBasics<K, V> {
         hashKey = Math.abs(hashKey); // UnionCodec doesn't accept negative input
         ctx.operationKeyHash = hashKey;
 
-        //tempBuffer.getSlice().release();
+        tempBuffer.getSlice().release();
         return ctx.operationKeyHash;
     }
 

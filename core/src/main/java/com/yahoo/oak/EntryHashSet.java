@@ -368,6 +368,10 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
                 }
                 // if none of the above, it is while loop restart due to deletion finish
             } while (redoSwitch); // end of the while loop
+
+            if (entryFound) {
+                break;
+            }
         }
 
         if (!entryFound) {

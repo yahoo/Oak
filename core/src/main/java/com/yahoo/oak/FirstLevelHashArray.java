@@ -13,6 +13,11 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 // the array of pointers to HashChunks according to keyHash most significant bits
 class FirstLevelHashArray<K, V> {
+
+    private static final long KB = 1024;
+    private static final long MB = KB * KB;
+    private static final long GB = KB * KB * KB;
+
     // defaults
     public static final int HASH_CHUNK_NUM_DEFAULT = 1024;
 
@@ -83,10 +88,11 @@ class FirstLevelHashArray<K, V> {
                 currentSameRefer = multipleReferenceNum;
             }
         }
+        long aproxTotalSize = (chunks.length() * chunkSize * 3 * Long.BYTES);
         System.out.println("Allocated " + chunks.length() + " each of size "
             + chunkSize * 3 * Long.BYTES + " bytes. In total "
-            + ((chunks.length() * chunkSize * 3 * Long.BYTES) / (1024 * 1024)) + "MB or "
-            + ((chunks.length() * chunkSize * 3 * Long.BYTES) / (1024 * 1024 * 1024)) + "GB");
+            + (aproxTotalSize / MB) + "MB or "
+            + (aproxTotalSize / GB) + "GB");
     }
 
     private int calculateChunkSize(int inputLsbForSecondLevel) {
