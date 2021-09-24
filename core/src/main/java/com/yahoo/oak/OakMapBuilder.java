@@ -165,6 +165,8 @@ public class OakMapBuilder<K, V> {
         int bitsToKeepChunkSize = (int) Math.ceil(Math.log(hashChunkMaxItems) / Math.log(2));
         int bitsToKeepChunksNum = (int) Math.ceil(Math.log(preallocHashChunksNum) / Math.log(2));
 
+        System.gc(); // the below is memory costly, be sure all unreachable memory is cleared
+
         checkPreconditions();
         return new OakHashMap<>(keySerializer, valueSerializer,
                 comparator,
