@@ -7,13 +7,13 @@
 package com.yahoo.oak;
 
 /**
- * The MurmurHash3 algorithm was created by Austin Appleby and placed in the public domain.
+ * The MurmurHash3Synchrobench algorithm was created by Austin Appleby and placed in the public domain.
  * This java port was authored by Yonik Seeley and also placed into the public domain.
  * It has been modified by Konstantin Sobolev and, you guessed it, also placed in the public domain.
  * The author hereby disclaims copyright to this source code.
  * <p>
  * This produces exactly the same hash values as the final C++
- * version of MurmurHash3 and is thus suitable for producing the same hash values across
+ * version of MurmurHash3Synchrobench and is thus suitable for producing the same hash values across
  * platforms.
  * <p>
  * The 32 bit x86 version of this hash should be the fastest variant for relatively short keys like ids.
@@ -22,7 +22,7 @@ package com.yahoo.oak;
  * Note - The x86 and x64 versions do _not_ produce the same results, as the
  * algorithms are optimized for their respective platforms.
  */
-public final class MurmurHash3 {
+public final class MurmurHash3Synchrobench {
     static final long MURMUR_128_C1 = 0x87c37b91114253d5L;
     static final long MURMUR_128_C2 = 0x4cf5ad432745937fL;
 
