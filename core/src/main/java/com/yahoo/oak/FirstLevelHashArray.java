@@ -19,7 +19,7 @@ class FirstLevelHashArray<K, V> {
     private static final long GB = KB * KB * KB;
 
     // defaults
-    public static final int HASH_CHUNK_NUM_DEFAULT = 4096;
+    public static final int HASH_CHUNK_NUM_DEFAULT = 1024;
 
     private AtomicReferenceArray<HashChunk<K, V>> chunks;
     private int msbForFirstLevelHash;
