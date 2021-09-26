@@ -10,7 +10,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 class HashChunk<K, V> extends BasicChunk<K, V> {
     // defaults
-    public static final int HASH_CHUNK_MAX_ITEMS_DEFAULT = 2048; //2^12
+    public static final int HASH_CHUNK_MAX_ITEMS_DEFAULT = 2048; //2^11
 
     // HashChunk takes a number of least significant bits from the full key hash
     // to provide as an index in the EntryHashSet

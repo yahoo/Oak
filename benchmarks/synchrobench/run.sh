@@ -38,7 +38,7 @@ declare -A heap_limit=(
   ["offheap-list"]="12g"
   ["skip-list"]="36g"
   ["concurrent-hash-map"]="36g"
-  ["oak-hash"]="36g"
+  ["oak-hash"]="60g"
 )
 
 declare -A direct_limit=(
