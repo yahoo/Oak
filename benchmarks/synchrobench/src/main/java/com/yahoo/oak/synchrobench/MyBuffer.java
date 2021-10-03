@@ -6,7 +6,6 @@
 
 package com.yahoo.oak.synchrobench;
 
-import com.yahoo.oak.MurmurHash3Synchrobench;
 import com.yahoo.oak.OakComparator;
 import com.yahoo.oak.OakScopedReadBuffer;
 import com.yahoo.oak.OakScopedWriteBuffer;
