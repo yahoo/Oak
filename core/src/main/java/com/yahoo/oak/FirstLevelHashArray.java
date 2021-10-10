@@ -88,13 +88,13 @@ class FirstLevelHashArray<K, V> {
                 currentSameRefer = multipleReferenceNum;
             }
         }
-        long oneChunkSize = chunkSize * 3 * Long.BYTES;
-        long aproxTotalSizeInMB = (oneChunkSize * arraySize) / MB;
-        long aproxTotalSizeInGB = (oneChunkSize * chunks.length()) / GB ;
-        System.out.println("*** Allocated " + chunks.length() + " each of size "
-            + oneChunkSize + " bytes. In total "
-            + aproxTotalSizeInMB + "MB or "
-            + aproxTotalSizeInGB + "GB");
+//        long oneChunkSize = chunkSize * 3 * Long.BYTES;
+//        long aproxTotalSizeInMB = (oneChunkSize * arraySize) / MB;
+//        long aproxTotalSizeInGB = (oneChunkSize * chunks.length()) / GB ;
+//        System.err.println("*** Allocated " + chunks.length() + " chunks each of size "
+//            + oneChunkSize + " bytes. In total "
+//            + aproxTotalSizeInMB + "MB or "
+//            + aproxTotalSizeInGB + "GB"); //TODO: to be removed after sizes are tuned
     }
 
     private int calculateChunkSize(int inputLsbForSecondLevel) {

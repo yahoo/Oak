@@ -98,28 +98,28 @@ public class HeapUsageTest {
         long heapMaxSize = Runtime.getRuntime().maxMemory(); // Get maximum size of heap in bytes
         long heapFreeSize = Runtime.getRuntime().freeMemory();
 
-        System.out.println("\nBefore filling up oak");
-        System.out.println(
-            "current heap allocated size: " + heapSize / M + "MB" + ", max heap size: " + heapMaxSize / M + "MB"
-                + ", free heap size: " + heapFreeSize / M + "MB");
-        System.out.println("heap used: " + (heapSize - heapFreeSize) / M + "MB");
-        System.out.println("off heap used: " + oak.memorySize() / M + "MB");
+//        System.err.println("\nBefore filling up oak"); //TODO: to remove after memory usage is tuned
+//        System.err.println(
+//            "current heap allocated size: " + heapSize / M + "MB" + ", max heap size: " + heapMaxSize / M + "MB"
+//                + ", free heap size: " + heapFreeSize / M + "MB");
+//        System.err.println("heap used: " + (heapSize - heapFreeSize) / M + "MB");
+//        System.err.println("off heap used: " + oak.memorySize() / M + "MB");
 
         for (int i = 0; i < numOfEntries; i++) {
             oak.zc().put(i, i);
         }
-        System.out.println("\nAfter filling up oak");
-        System.out.println("off heap used: " + oak.memorySize() / M + "MB");
+//        System.out.println("\nAfter filling up oak"); //TODO: to remove after memory usage is tuned
+//        System.out.println("off heap used: " + oak.memorySize() / M + "MB");
 
         System.gc();
 
         heapSize = Runtime.getRuntime().totalMemory(); // Get current size of heap in bytes
         heapMaxSize = Runtime.getRuntime().maxMemory(); // Get maximum size of heap in bytes
         heapFreeSize = Runtime.getRuntime().freeMemory();
-        System.out.println(
-            "current heap allocated size: " + heapSize / M + "MB" + ", max heap size: " + heapMaxSize / M + "MB"
-                + ", free heap size: " + heapFreeSize / M + "MB");
-        System.out.println("heap used: " + (heapSize - heapFreeSize) / M + "MB");
+//        System.out.println( //TODO: to remove after memory usage is tuned
+//            "current heap allocated size: " + heapSize / M + "MB" + ", max heap size: " + heapMaxSize / M + "MB"
+//                + ", free heap size: " + heapFreeSize / M + "MB");
+//        System.out.println("heap used: " + (heapSize - heapFreeSize) / M + "MB");
 
         for (int i = 0; i < numOfEntries; i++) {
             oak.zc().put(i, i);
@@ -129,19 +129,20 @@ public class HeapUsageTest {
             Integer value = oak.get(i);
             Assert.assertEquals(i, value);
         }
-        System.out.println("\nCheck again");
-        System.out.println("off heap used: " + oak.memorySize() / M + "MB");
-        System.out.println("off heap allocated: " + Integer.MAX_VALUE / M + "MB");
+//        System.out.println("\nCheck again"); //TODO: to remove after memory usage is tuned
+//        System.out.println("off heap used: " + oak.memorySize() / M + "MB");
+//        System.out.println("off heap allocated: " + Integer.MAX_VALUE / M + "MB");
         System.gc();
         heapSize = Runtime.getRuntime().totalMemory(); // Get current size of heap in bytes
         heapMaxSize = Runtime.getRuntime().maxMemory(); // Get maximum size of heap in bytes
         heapFreeSize = Runtime.getRuntime().freeMemory();
-        System.out.println(
-            "heap size: " + heapSize / M + "MB" + ", heap max size: " + heapMaxSize / M + "MB"
-                + ", heap free size: " + heapFreeSize / M + "MB");
-        System.out.println("heap used: " + (heapSize - heapFreeSize) / M + "MB");
+//        System.out.println( //TODO: to remove after memory usage is tuned
+//            "heap size: " + heapSize / M + "MB" + ", heap max size: " + heapMaxSize / M + "MB"
+//                + ", heap free size: " + heapFreeSize / M + "MB");
+        System.out.println("on-heap used: " + (heapSize - heapFreeSize) / M + "MB, off-heap used: "
+            + oak.memorySize() / M + "MB");
         float percent = (100 * (heapSize - heapFreeSize)) / oak.memorySize();
-        System.out.println("\non/off heap used: " + String.format("%.0f%%", percent));
+        System.out.println("on/off heap used: " + String.format("%.0f%%", percent));
 
     }
 

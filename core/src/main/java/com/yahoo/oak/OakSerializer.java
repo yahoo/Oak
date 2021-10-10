@@ -20,6 +20,6 @@ public interface OakSerializer<T> {
     // returns the number of bytes needed for serializing the given object
     int calculateSize(T object);
 
-    // calculate the hash given the object
-    int hashCode(T object);
+    // calculate the hash given the object (usually used for keys only)
+    int calculateHash(T object);
 }

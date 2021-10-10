@@ -10,6 +10,7 @@ import com.yahoo.oak.OakComparator;
 import com.yahoo.oak.OakScopedReadBuffer;
 import com.yahoo.oak.OakScopedWriteBuffer;
 import com.yahoo.oak.OakSerializer;
+import com.yahoo.oak.common.MurmurHash3;
 import com.yahoo.oak.common.intbuffer.OakIntBufferComparator;
 import com.yahoo.oak.common.intbuffer.OakIntBufferSerializer;
 
@@ -104,6 +105,11 @@ public class MyBuffer implements Comparable<MyBuffer> {
         public int calculateSize(MyBuffer object) {
             return object.calculateSerializedSize();
         }
+
+        @Override
+        public int calculateHash(MyBuffer object) {
+            return hashCode();
+        }
     };
 
     public static final OakComparator<MyBuffer> DEFAULT_COMPARATOR = new OakComparator<MyBuffer>() {
@@ -124,8 +130,9 @@ public class MyBuffer implements Comparable<MyBuffer> {
     };
 
     @Override
+    // defined to satisfy fair comparison with ConcurrentHashMap
     public int hashCode() {
-        return MurmurHash3Synchrobench.murmurhash32(buffer.array(), 0, Integer.BYTES, 0);
+        return MurmurHash3.murmurhash32(buffer.array(), 0, Integer.BYTES, 0);
     }
 
 }
