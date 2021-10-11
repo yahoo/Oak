@@ -368,10 +368,6 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
                 }
                 // if none of the above, it is while loop restart due to deletion finish
             } while (redoSwitch); // end of the while loop
-
-            if (entryFound) {
-                break;
-            }
         }
 
         if (!entryFound) {
@@ -547,12 +543,13 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
         // The marking the delete bit happens only when no lock is taken, otherwise busy waits
         // if the version is already different result is RETRY, if already deleted - FALSE
         // we continue anyway, therefore disregard the logicalDelete() output
-        if (!keysMemoryManager.isReferenceDeleted(expectedKeyReference)) {
+        boolean isKeyReferenceDeleted = keysMemoryManager.isReferenceDeleted(expectedKeyReference);
+        if (!isKeyReferenceDeleted) {
             ctx.key.s.logicalDelete();
         }
 
         // Value's reference codec prepares the reference to be used after value is deleted
-        long newReference = valuesMemoryManager.alterReferenceForDelete(expectedValueReference);
+        long newValueReference = valuesMemoryManager.alterReferenceForDelete(expectedValueReference);
         // Scenario:
         // 1. The value's slice is marked as deleted off-heap and the thread that started
         //    deleteValueFinish falls asleep.
@@ -564,7 +561,7 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
         // is done.
         if (!valuesMemoryManager.isReferenceDeleted(expectedValueReference)) {
             if (casEntryFieldLong(ctx.entryIndex, VALUE_REF_OFFSET, expectedValueReference,
-                newReference)) {
+                newValueReference)) {
                 // the deletion of the value and its release should be successful only once and for one
                 // thread, therefore the reference and slice should be still valid here
                 assert valuesMemoryManager.isReferenceConsistent(getValueReference(ctx.entryIndex));
@@ -574,7 +571,7 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
             }
         }
         // mark key reference as deleted, if needed
-        if (!keysMemoryManager.isReferenceDeleted(expectedKeyReference)) {
+        if (!isKeyReferenceDeleted) {
             long newKeyReference = keysMemoryManager.alterReferenceForDelete(expectedKeyReference);
             if (casEntryFieldLong(ctx.entryIndex, KEY_REF_OFFSET, expectedKeyReference,
                 newKeyReference)) {

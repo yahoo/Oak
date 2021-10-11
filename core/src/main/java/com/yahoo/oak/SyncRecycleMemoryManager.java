@@ -435,9 +435,6 @@ class SyncRecycleMemoryManager implements MemoryManager {
          */
         public ValueUtils.ValueResult logicalDelete() {
             assert version != ReferenceCodecSyncRecycle.INVALID_VERSION;
-            if (!associated) {
-                System.err.println("Trying to delete not associated slice!");
-            }
             assert associated;
             return HEADER.logicalDelete(version, getMetadataAddress());
         }
