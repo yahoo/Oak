@@ -19,8 +19,8 @@ public class MurmurTest {
 
     private OakMap<byte[], byte[]> oak;
 
-    private static final int BYTE_ARRAY_SIZE = 10;
-    private static final int NUM_ITERATIONS = 100;
+    private static final int BYTE_ARRAY_MAX_SIZE = 100;
+    private static final int NUM_ITERATIONS = 1000;
 
     @Before
     public void init() {
@@ -37,7 +37,7 @@ public class MurmurTest {
         Random rand = new Random();
 
         for (int i = 0; i < NUM_ITERATIONS; i++) {
-            final byte[] test = new byte[BYTE_ARRAY_SIZE];
+            final byte[] test = new byte[rand.nextInt(BYTE_ARRAY_MAX_SIZE) + 1];
             rand.nextBytes(test);
 
             final int expected = MurmurHash3.murmurhash32(test, 0, test.length, 0);
@@ -62,7 +62,7 @@ public class MurmurTest {
         Random rand = new Random();
 
         for (int i = 0; i < NUM_ITERATIONS; i++) {
-            final byte[] test = new byte[BYTE_ARRAY_SIZE];
+            final byte[] test = new byte[rand.nextInt(BYTE_ARRAY_MAX_SIZE) + 1];
             rand.nextBytes(test);
 
             final MurmurHash3.HashCode128 expected = new MurmurHash3.HashCode128();
