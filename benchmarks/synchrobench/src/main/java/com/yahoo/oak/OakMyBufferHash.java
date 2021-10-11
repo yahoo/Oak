@@ -87,12 +87,12 @@ public class OakMyBufferHash<K extends MyBuffer, V extends MyBuffer> implements 
         builder =
             new OakMapBuilder<MyBuffer, MyBuffer>(
                 MyBuffer.DEFAULT_COMPARATOR, MyBuffer.DEFAULT_SERIALIZER, MyBuffer.DEFAULT_SERIALIZER, minKey)
-                // 2048 * 32 = 65536 (2^16) entries in each chunk, each entry takes 24 bytes, each chunk requires
-                // approximately 1572864 bytes ~= 1573KB ~= 1.5 MB
-                .setHashChunkMaxItems(HashChunk.HASH_CHUNK_MAX_ITEMS_DEFAULT * 32)
+                // 2048 * 8 = 16384 (2^14) entries in each chunk, each entry takes 24 bytes, each chunk requires
+                // approximately 393216 bytes ~= 393KB ~= 0.4 MB
+                .setHashChunkMaxItems(HashChunk.HASH_CHUNK_MAX_ITEMS_DEFAULT * 8)
                 // 1024 * 16 = 16384 (2^14) preallocated chunks of the above size,
                 // total on-heap memory requirement:
-                // 2^30 * 24 = 25769803776 bytes ~= 25769803 KB ~= 25770 MB ~= 26 GB
+                // 2^28 * 24 = 6442450944 bytes ~= 6442451 KB ~= 6442 MB ~= 6.5 GB
                 .setPreallocHashChunksNum(FirstLevelHashArray.HASH_CHUNK_NUM_DEFAULT * 16)
                 .setMemoryAllocator(ma);
         // capable to keep 2^28 keys
