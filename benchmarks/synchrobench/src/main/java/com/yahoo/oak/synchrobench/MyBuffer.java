@@ -108,7 +108,7 @@ public class MyBuffer implements Comparable<MyBuffer> {
 
         @Override
         public int calculateHash(MyBuffer object) {
-            return hashCode();
+            return object.hashCode();
         }
     };
 
