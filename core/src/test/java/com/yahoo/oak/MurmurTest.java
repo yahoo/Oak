@@ -12,6 +12,8 @@ import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
+import java.nio.ByteBuffer;
+
 public class MurmurTest {
 
     private OakMap<byte[], byte[]> oak;
@@ -39,6 +41,10 @@ public class MurmurTest {
 
         final int actual = MurmurHash3.murmurhash32(oakBuffer, Integer.BYTES, test.length, 0);
         Assert.assertEquals(expected, actual);
+
+        ByteBuffer byteBuffer = ((OakUnsafeDirectBuffer) oakBuffer).getByteBuffer();
+        final int actualByteBuffer = MurmurHash3.murmurhash32(byteBuffer, Integer.BYTES, test.length, 0);
+        Assert.assertEquals(expected, actualByteBuffer);
     }
 
     @Test
@@ -56,5 +62,10 @@ public class MurmurTest {
         final MurmurHash3.HashCode128 actual = new MurmurHash3.HashCode128();
         MurmurHash3.murmurhash128(oakBuffer, Integer.BYTES, test.length, 0, actual);
         Assert.assertEquals(expected, actual);
+
+        final MurmurHash3.HashCode128 actualByteBuffer = new MurmurHash3.HashCode128();
+        ByteBuffer byteBuffer = ((OakUnsafeDirectBuffer) oakBuffer).getByteBuffer();
+        MurmurHash3.murmurhash128(byteBuffer, Integer.BYTES, test.length, 0, actualByteBuffer);
+        Assert.assertEquals(expected, actualByteBuffer);
     }
 }

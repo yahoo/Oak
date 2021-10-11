@@ -15,6 +15,8 @@ import com.yahoo.oak.common.string.OakStringSerializer;
 import org.junit.Assert;
 import org.junit.Test;
 
+import java.nio.ByteBuffer;
+
 public class BuildAllTypesTest {
 
     private static final int MEBIBYTE = 1024 * 1024;
@@ -84,6 +86,23 @@ public class BuildAllTypesTest {
         oak.put(key, key);
 
         Assert.assertArrayEquals(key, oak.get(key));
+    }
+
+    @Test
+    public void testBuildByteBuffer() {
+        OakMap<ByteBuffer, ByteBuffer> oak = OakCommonBuildersFactory.getDefaultBufferBuilder(
+            10, 10).buildOrderedMap();
+
+        final ByteBuffer key = ByteBuffer.allocate(10);
+        for (int i = 0; i < 10; i++) {
+            key.put(i, (byte) i);
+        }
+        oak.put(key, key);
+
+        final ByteBuffer value = oak.get(key);
+        for (int i = 0; i < 10; i++) {
+            Assert.assertEquals(key.get(i), value.get(i));
+        }
     }
 
     // TODO add all type combinations

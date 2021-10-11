@@ -6,6 +6,8 @@
 
 package com.yahoo.oak;
 
+import java.nio.ByteBuffer;
+
 /**
  * The MurmurHash3 algorithm was created by Austin Appleby and placed in the public domain.
  * This java port was authored by Yonik Seeley and also placed into the public domain.
@@ -55,22 +57,22 @@ public final class MurmurHash3 {
 
         public byte[] getBytes() {
             return new byte[]{
-                    (byte) val1,
-                    (byte) (val1 >>> 8),
-                    (byte) (val1 >>> 16),
-                    (byte) (val1 >>> 24),
-                    (byte) (val1 >>> 32),
-                    (byte) (val1 >>> 40),
-                    (byte) (val1 >>> 48),
-                    (byte) (val1 >>> 56),
-                    (byte) val2,
-                    (byte) (val2 >>> 8),
-                    (byte) (val2 >>> 16),
-                    (byte) (val2 >>> 24),
-                    (byte) (val2 >>> 32),
-                    (byte) (val2 >>> 40),
-                    (byte) (val2 >>> 48),
-                    (byte) (val2 >>> 56),
+                (byte) val1,
+                (byte) (val1 >>> 8),
+                (byte) (val1 >>> 16),
+                (byte) (val1 >>> 24),
+                (byte) (val1 >>> 32),
+                (byte) (val1 >>> 40),
+                (byte) (val1 >>> 48),
+                (byte) (val1 >>> 56),
+                (byte) val2,
+                (byte) (val2 >>> 8),
+                (byte) (val2 >>> 16),
+                (byte) (val2 >>> 24),
+                (byte) (val2 >>> 32),
+                (byte) (val2 >>> 40),
+                (byte) (val2 >>> 48),
+                (byte) (val2 >>> 56),
             };
         }
 
@@ -112,8 +114,8 @@ public final class MurmurHash3 {
 
         public static MurmurHash3.HashCode128 fromBytes(byte[] bytes) {
             return new HashCode128(
-                    getLongLittleEndian(bytes, 0),
-                    getLongLittleEndian(bytes, 8)
+                getLongLittleEndian(bytes, 0),
+                getLongLittleEndian(bytes, 8)
             );
         }
     }
@@ -133,13 +135,13 @@ public final class MurmurHash3 {
      */
     public static long getLongLittleEndian(byte[] buf, int offset) {
         return ((long) buf[offset + 7] << 56)   // no mask needed
-                | ((buf[offset + 6] & 0xffL) << 48)
-                | ((buf[offset + 5] & 0xffL) << 40)
-                | ((buf[offset + 4] & 0xffL) << 32)
-                | ((buf[offset + 3] & 0xffL) << 24)
-                | ((buf[offset + 2] & 0xffL) << 16)
-                | ((buf[offset + 1] & 0xffL) << 8)
-                | ((buf[offset] & 0xffL));        // no shift needed
+            | ((buf[offset + 6] & 0xffL) << 48)
+            | ((buf[offset + 5] & 0xffL) << 40)
+            | ((buf[offset + 4] & 0xffL) << 32)
+            | ((buf[offset + 3] & 0xffL) << 24)
+            | ((buf[offset + 2] & 0xffL) << 16)
+            | ((buf[offset + 1] & 0xffL) << 8)
+            | ((buf[offset] & 0xffL));        // no shift needed
     }
 
     /**
@@ -147,13 +149,27 @@ public final class MurmurHash3 {
      */
     public static long getLongLittleEndian(OakBuffer buf, int offset) {
         return ((long) buf.get(offset + 7) << 56)   // no mask needed
-                | ((buf.get(offset + 6) & 0xffL) << 48)
-                | ((buf.get(offset + 5) & 0xffL) << 40)
-                | ((buf.get(offset + 4) & 0xffL) << 32)
-                | ((buf.get(offset + 3) & 0xffL) << 24)
-                | ((buf.get(offset + 2) & 0xffL) << 16)
-                | ((buf.get(offset + 1) & 0xffL) << 8)
-                | ((buf.get(offset) & 0xffL));        // no shift needed
+            | ((buf.get(offset + 6) & 0xffL) << 48)
+            | ((buf.get(offset + 5) & 0xffL) << 40)
+            | ((buf.get(offset + 4) & 0xffL) << 32)
+            | ((buf.get(offset + 3) & 0xffL) << 24)
+            | ((buf.get(offset + 2) & 0xffL) << 16)
+            | ((buf.get(offset + 1) & 0xffL) << 8)
+            | ((buf.get(offset) & 0xffL));        // no shift needed
+    }
+
+    /**
+     * Gets a long from a byte buffer in little endian byte order, modified for ByteBuffer
+     */
+    public static long getLongLittleEndian(ByteBuffer buf, int offset) {
+        return ((long) buf.get(offset + 7) << 56)   // no mask needed
+            | ((buf.get(offset + 6) & 0xffL) << 48)
+            | ((buf.get(offset + 5) & 0xffL) << 40)
+            | ((buf.get(offset + 4) & 0xffL) << 32)
+            | ((buf.get(offset + 3) & 0xffL) << 24)
+            | ((buf.get(offset + 2) & 0xffL) << 16)
+            | ((buf.get(offset + 1) & 0xffL) << 8)
+            | ((buf.get(offset) & 0xffL));        // no shift needed
     }
 
 
@@ -167,9 +183,9 @@ public final class MurmurHash3 {
         for (int i = offset; i < roundedEnd; i += 4) {
             // little endian load order
             int k1 = (data[i] & 0xff) |
-                    ((data[i + 1] & 0xff) << 8) |
-                    ((data[i + 2] & 0xff) << 16) |
-                    (data[i + 3] << 24);
+                ((data[i + 1] & 0xff) << 8) |
+                ((data[i + 2] & 0xff) << 16) |
+                (data[i + 3] << 24);
             k1 *= MURMUR_32_C1;
             k1 = (k1 << 15) | (k1 >>> 17);  // ROTL32(k1,15);
             k1 *= MURMUR_32_C2;
@@ -220,9 +236,62 @@ public final class MurmurHash3 {
         for (int i = offset; i < roundedEnd; i += 4) {
             // little endian load order
             int k1 = (data.get(i) & 0xff) |
-                    ((data.get(i + 1) & 0xff) << 8) |
-                    ((data.get(i + 2) & 0xff) << 16) |
-                    (data.get(i + 3) << 24);
+                ((data.get(i + 1) & 0xff) << 8) |
+                ((data.get(i + 2) & 0xff) << 16) |
+                (data.get(i + 3) << 24);
+            k1 *= MURMUR_32_C1;
+            k1 = (k1 << 15) | (k1 >>> 17);  // ROTL32(k1,15);
+            k1 *= MURMUR_32_C2;
+
+            h1 ^= k1;
+            h1 = (h1 << 13) | (h1 >>> 19);  // ROTL32(h1,13);
+            h1 = h1 * 5 + 0xe6546b64;
+        }
+
+        // tail
+        int k1 = 0;
+
+        switch (len & 0x03) {
+            case 3:
+                k1 = (data.get(roundedEnd + 2) & 0xff) << 16;
+                // fallthrough
+            case 2:
+                k1 |= (data.get(roundedEnd + 1) & 0xff) << 8;
+                // fallthrough
+            case 1:
+                k1 |= (data.get(roundedEnd) & 0xff);
+                k1 *= MURMUR_32_C1;
+                k1 = (k1 << 15) | (k1 >>> 17);  // ROTL32(k1,15);
+                k1 *= MURMUR_32_C2;
+                h1 ^= k1;
+        }
+
+        // finalization
+        h1 ^= len;
+
+        // fmix(h1);
+        h1 ^= h1 >>> 16;
+        h1 *= 0x85ebca6b;
+        h1 ^= h1 >>> 13;
+        h1 *= 0xc2b2ae35;
+        h1 ^= h1 >>> 16;
+
+        return h1;
+    }
+
+    /**
+     * Returns the MurmurHash3_x86_32 hash, modified for ByteBuffer.
+     */
+    public static int murmurhash32(ByteBuffer data, int offset, int len, int seed) {
+        int h1 = seed;
+        int roundedEnd = offset + (len & 0xfffffffc);  // round down to 4 byte block
+
+        for (int i = offset; i < roundedEnd; i += 4) {
+            // little endian load order
+            int k1 = (data.get(i) & 0xff) |
+                ((data.get(i + 1) & 0xff) << 8) |
+                ((data.get(i + 2) & 0xff) << 16) |
+                (data.get(i + 3) << 24);
             k1 *= MURMUR_32_C1;
             k1 = (k1 << 15) | (k1 >>> 17);  // ROTL32(k1,15);
             k1 *= MURMUR_32_C2;
@@ -359,6 +428,98 @@ public final class MurmurHash3 {
      * Returns the MurmurHash3_x64_128 hash, placing the result in "out".
      */
     public static void murmurhash128(OakBuffer key, int offset, int len, int seed, HashCode128 out) {
+        // The original algorithm does have a 32 bit unsigned seed.
+        // We have to mask to match the behavior of the unsigned types and prevent sign extension.
+        long h1 = seed & 0x00000000FFFFFFFFL;
+        long h2 = seed & 0x00000000FFFFFFFFL;
+
+        int roundedEnd = offset + (len & 0xFFFFFFF0);  // round down to 16 byte block
+        for (int i = offset; i < roundedEnd; i += 16) {
+            long k1 = getLongLittleEndian(key, i);
+            long k2 = getLongLittleEndian(key, i + 8);
+            k1 *= MURMUR_128_C1;
+            k1 = Long.rotateLeft(k1, 31);
+            k1 *= MURMUR_128_C2;
+            h1 ^= k1;
+            h1 = Long.rotateLeft(h1, 27);
+            h1 += h2;
+            h1 = h1 * 5 + 0x52dce729;
+            k2 *= MURMUR_128_C2;
+            k2 = Long.rotateLeft(k2, 33);
+            k2 *= MURMUR_128_C1;
+            h2 ^= k2;
+            h2 = Long.rotateLeft(h2, 31);
+            h2 += h1;
+            h2 = h2 * 5 + 0x38495ab5;
+        }
+
+        long k1 = 0;
+        long k2 = 0;
+
+        switch (len & 15) {
+            case 15:
+                k2 = (key.get(roundedEnd + 14) & 0xffL) << 48;
+            case 14:
+                k2 |= (key.get(roundedEnd + 13) & 0xffL) << 40;
+            case 13:
+                k2 |= (key.get(roundedEnd + 12) & 0xffL) << 32;
+            case 12:
+                k2 |= (key.get(roundedEnd + 11) & 0xffL) << 24;
+            case 11:
+                k2 |= (key.get(roundedEnd + 10) & 0xffL) << 16;
+            case 10:
+                k2 |= (key.get(roundedEnd + 9) & 0xffL) << 8;
+            case 9:
+                k2 |= (key.get(roundedEnd + 8) & 0xffL);
+                k2 *= MURMUR_128_C2;
+                k2 = Long.rotateLeft(k2, 33);
+                k2 *= MURMUR_128_C1;
+                h2 ^= k2;
+            case 8:
+                k1 = ((long) key.get(roundedEnd + 7)) << 56;
+            case 7:
+                k1 |= (key.get(roundedEnd + 6) & 0xffL) << 48;
+            case 6:
+                k1 |= (key.get(roundedEnd + 5) & 0xffL) << 40;
+            case 5:
+                k1 |= (key.get(roundedEnd + 4) & 0xffL) << 32;
+            case 4:
+                k1 |= (key.get(roundedEnd + 3) & 0xffL) << 24;
+            case 3:
+                k1 |= (key.get(roundedEnd + 2) & 0xffL) << 16;
+            case 2:
+                k1 |= (key.get(roundedEnd + 1) & 0xffL) << 8;
+            case 1:
+                k1 |= (key.get(roundedEnd) & 0xffL);
+                k1 *= MURMUR_128_C1;
+                k1 = Long.rotateLeft(k1, 31);
+                k1 *= MURMUR_128_C2;
+                h1 ^= k1;
+        }
+
+        //----------
+        // finalization
+
+        h1 ^= len;
+        h2 ^= len;
+
+        h1 += h2;
+        h2 += h1;
+
+        h1 = fmix64(h1);
+        h2 = fmix64(h2);
+
+        h1 += h2;
+        h2 += h1;
+
+        out.val1 = h1;
+        out.val2 = h2;
+    }
+
+    /**
+     * Returns the MurmurHash3_x64_128 hash, placing the result in "out".
+     */
+    public static void murmurhash128(ByteBuffer key, int offset, int len, int seed, HashCode128 out) {
         // The original algorithm does have a 32 bit unsigned seed.
         // We have to mask to match the behavior of the unsigned types and prevent sign extension.
         long h1 = seed & 0x00000000FFFFFFFFL;

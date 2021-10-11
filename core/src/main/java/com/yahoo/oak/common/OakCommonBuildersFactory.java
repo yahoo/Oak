@@ -9,6 +9,8 @@ package com.yahoo.oak.common;
 import com.yahoo.oak.OakComparator;
 import com.yahoo.oak.OakMapBuilder;
 import com.yahoo.oak.OakSerializer;
+import com.yahoo.oak.common.buffer.OakBufferComparator;
+import com.yahoo.oak.common.buffer.OakBufferSerializer;
 import com.yahoo.oak.common.bytearray.OakByteArrayComparator;
 import com.yahoo.oak.common.bytearray.OakByteArraySerializer;
 import com.yahoo.oak.common.intbuffer.OakIntBufferComparator;
@@ -76,5 +78,21 @@ public class OakCommonBuildersFactory {
 
         return new OakMapBuilder<>(new OakIntBufferComparator(keySize),
                 new OakIntBufferSerializer(keySize), new OakIntBufferSerializer(valueSize), minKey);
+    }
+
+
+    // #####################################################################################
+    // Buffer factories
+    // #####################################################################################
+
+    public static OakMapBuilder<ByteBuffer, ByteBuffer> getDefaultBufferBuilder(int keySize, int valueSize) {
+        ByteBuffer minKey = ByteBuffer.allocate(keySize);
+        for (int i = 0; i < keySize; i++) {
+            minKey.put(i, Byte.MIN_VALUE);
+        }
+        minKey.position(0);
+
+        return new OakMapBuilder<>(new OakBufferComparator(keySize),
+            new OakBufferSerializer(keySize), new OakBufferSerializer(valueSize), minKey);
     }
 }

@@ -10,8 +10,8 @@ import com.yahoo.oak.OakComparator;
 import com.yahoo.oak.OakScopedReadBuffer;
 import com.yahoo.oak.OakScopedWriteBuffer;
 import com.yahoo.oak.OakSerializer;
-import com.yahoo.oak.common.intbuffer.OakIntBufferComparator;
-import com.yahoo.oak.common.intbuffer.OakIntBufferSerializer;
+import com.yahoo.oak.common.buffer.OakBufferComparator;
+import com.yahoo.oak.common.buffer.OakBufferSerializer;
 
 import java.nio.ByteBuffer;
 
@@ -41,7 +41,7 @@ public class MyBuffer implements Comparable<MyBuffer> {
         int targetPos = 0;
         targetBuffer.putInt(targetPos, inputBuffer.capacity);
         targetPos += Integer.BYTES;
-        OakIntBufferSerializer.copyBuffer(inputBuffer.buffer, DATA_POS, inputBuffer.capacity / Integer.BYTES,
+        OakBufferSerializer.copyBuffer(inputBuffer.buffer, DATA_POS, inputBuffer.capacity,
                 targetBuffer, targetPos);
     }
 
@@ -50,25 +50,23 @@ public class MyBuffer implements Comparable<MyBuffer> {
         int capacity = inputBuffer.getInt(inputPos);
         inputPos += Integer.BYTES;
         MyBuffer ret = new MyBuffer(capacity);
-        OakIntBufferSerializer.copyBuffer(inputBuffer, inputPos, capacity / Integer.BYTES, ret.buffer, DATA_POS);
+        OakBufferSerializer.copyBuffer(inputBuffer, inputPos, capacity, ret.buffer, DATA_POS);
         return ret;
     }
 
 
     private static int compareBuffers(ByteBuffer buff1, int pos1, int cap1, ByteBuffer buff2, int pos2, int cap2) {
-        return OakIntBufferComparator.compare(buff1, pos1, cap1 / Integer.BYTES,
-                buff2, pos2, cap2 / Integer.BYTES);
+        return OakBufferComparator.compare(buff1, pos1, cap1, buff2, pos2, cap2);
     }
 
     private static int compareBuffers(ByteBuffer buff1, int pos1, int cap1, OakScopedReadBuffer buff2,
                                       int pos2, int cap2) {
-        return OakIntBufferComparator.compare(buff1, pos1, cap1 / Integer.BYTES,
-                buff2, pos2, cap2 / Integer.BYTES);
+        return OakBufferComparator.compare(buff1, pos1, cap1, buff2, pos2, cap2);
     }
 
     private static int compareBuffers(OakScopedReadBuffer buff1, int pos1, int cap1, OakScopedReadBuffer buff2,
                                       int pos2, int cap2) {
-        return OakIntBufferComparator.compare(buff1, pos1, cap1 / Integer.BYTES, buff2, pos2, cap2 / Integer.BYTES);
+        return OakBufferComparator.compare(buff1, pos1, cap1, buff2, pos2, cap2);
     }
 
     public static int compareBuffers(OakScopedReadBuffer buffer1, OakScopedReadBuffer buffer2) {
