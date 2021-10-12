@@ -247,7 +247,6 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
         return EntryState.VALID;
     }
 
-    @VisibleForTesting
     int getCollisionChainLength() {
         return collisionChainLength.get();
     }

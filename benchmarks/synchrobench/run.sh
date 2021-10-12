@@ -15,7 +15,7 @@ function ctrl_c() {
 declare -A scenarios=(
   ["4a-put"]="-a 0 -u 100"
   ["4b-putIfAbsentComputeIfPresent"]="--buffer -u 0 -s 100 -c"
-  ["4c-get-zc"]="--buffer"
+  ["4c-get-zc"]="--buffer --verbose"
   ["4c-get-copy"]=""
   ["4d-95Get5Put"]="--buffer -a 0 -u 5"
   ["4e-entrySet-ascend"]="--buffer -c"

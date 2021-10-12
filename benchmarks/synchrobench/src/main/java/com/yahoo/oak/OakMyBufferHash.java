@@ -21,8 +21,8 @@ public class OakMyBufferHash<K extends MyBuffer, V extends MyBuffer> implements 
     private static final long GB = KB * KB * KB;
     private static final long OAK_MAX_OFF_MEMORY = 256 * GB;
 
-    public OakMyBufferHash() {
-        buildHash();
+    public OakMyBufferHash(boolean small) {
+        buildHash(small);
     }
 
     public long allocated() {
@@ -77,7 +77,7 @@ public class OakMyBufferHash<K extends MyBuffer, V extends MyBuffer> implements 
         throw new UnsupportedOperationException();
     }
 
-    public void buildHash() {
+    private void buildHash(boolean small) {
         ma = new NativeMemoryAllocator(OAK_MAX_OFF_MEMORY);
         if (Parameters.confDetailedStats) {
             ma.collectStats();
@@ -89,11 +89,13 @@ public class OakMyBufferHash<K extends MyBuffer, V extends MyBuffer> implements 
                 MyBuffer.DEFAULT_COMPARATOR, MyBuffer.DEFAULT_SERIALIZER, MyBuffer.DEFAULT_SERIALIZER, minKey)
                 // 2048 * 8 = 16384 (2^14) entries in each chunk, each entry takes 24 bytes, each chunk requires
                 // approximately 393216 bytes ~= 393KB ~= 0.4 MB
-                .setHashChunkMaxItems(HashChunk.HASH_CHUNK_MAX_ITEMS_DEFAULT * 8)
+                .setHashChunkMaxItems(small ? HashChunk.HASH_CHUNK_MAX_ITEMS_DEFAULT
+                    : HashChunk.HASH_CHUNK_MAX_ITEMS_DEFAULT * 8)
                 // 1024 * 16 = 16384 (2^14) preallocated chunks of the above size,
                 // total on-heap memory requirement:
                 // 2^28 * 24 = 6442450944 bytes ~= 6442451 KB ~= 6442 MB ~= 6.5 GB
-                .setPreallocHashChunksNum(FirstLevelHashArray.HASH_CHUNK_NUM_DEFAULT * 16)
+                .setPreallocHashChunksNum(small ? FirstLevelHashArray.HASH_CHUNK_NUM_DEFAULT
+                    : FirstLevelHashArray.HASH_CHUNK_NUM_DEFAULT * 16)
                 .setMemoryAllocator(ma);
         // capable to keep 2^28 keys
         oakHash = builder.buildHashMap();
@@ -125,8 +127,11 @@ public class OakMyBufferHash<K extends MyBuffer, V extends MyBuffer> implements 
 
     @Override
     public void clear() {
+        if (Parameters.confDetailedStats) {
+            oakHash.printDebug();
+        }
         oakHash.close();
-        buildHash();
+        buildHash(false);
     }
 
     @Override

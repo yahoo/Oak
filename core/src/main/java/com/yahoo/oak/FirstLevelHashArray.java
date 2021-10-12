@@ -178,4 +178,25 @@ class FirstLevelHashArray<K, V> {
             lock.writeLock().unlock();
         }
     }
+
+    void printSummaryDebug() {
+        int chunksSample = (int) (chunks.length() * 0.1);
+        for (int i = 0; i < chunksSample; i++) {
+            System.out.println("Chunk " + i);
+            chunks.get(i).printSummaryDebug();
+            System.out.println("|| ");
+        }
+        // and 2 last chunks
+        int preLastChunk =  chunks.length() - 2;
+        int lastChunk = chunks.length() - 1;
+
+        System.out.println("Chunk " + preLastChunk);
+        chunks.get(preLastChunk).printSummaryDebug();
+        System.out.println("|| ");
+
+        System.out.println("Chunk " + lastChunk);
+        chunks.get(lastChunk).printSummaryDebug();
+        System.out.println("|| ");
+
+    }
 }

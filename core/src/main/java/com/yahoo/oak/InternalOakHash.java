@@ -514,7 +514,9 @@ class InternalOakHash<K, V> extends InternalOakBasics<K, V> {
         throw new RuntimeException("putIfAbsentComputeIfPresent failed: reached retry limit (1024).");
     }
 
-
+    void printSummaryDebug() {
+        hashArray.printSummaryDebug();
+    }
 }
 
 
