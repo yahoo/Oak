@@ -132,7 +132,9 @@ public class MyBuffer implements Comparable<MyBuffer> {
     @Override
     // defined to satisfy fair comparison with ConcurrentHashMap
     public int hashCode() {
-        return MurmurHash3.murmurhash32(buffer.array(), 0, Integer.BYTES, 0);
+        //TODO: apply hash on exact number of data written in the buffer,
+        //TODO: as the majority of the capacity space is just zeros
+        return MurmurHash3.murmurhash32(buffer.array(), 0, capacity, 0);
     }
 
 }
