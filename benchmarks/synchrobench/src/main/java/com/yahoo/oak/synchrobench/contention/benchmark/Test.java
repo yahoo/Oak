@@ -147,7 +147,8 @@ public class Test {
             }
 
         } catch (Exception e) {
-            System.err.println("Cannot find benchmark class: " + benchName);
+            System.err.println("Cannot instantiate benchmark class: " + benchName);
+            e.printStackTrace();
             System.exit(-1);
         }
     }
@@ -313,7 +314,7 @@ public class Test {
             test.printBasicStats();
             if (Parameters.confDetailedStats) {
                 test.printDetailedStats();
-                ((OakMyBufferMap) test.oakBench).printMemStats();
+                test.oakBench.printMemStats();
             }
 
             firstIteration = false;

@@ -323,7 +323,7 @@ public class OakHashMap<K, V>  extends AbstractMap<K, V> implements AutoCloseabl
     }
 
     public void printDebug() {
-        internalOakHash.clear();
+        internalOakHash.printSummaryDebug();
     }
 
     /* ---------------- Private utility methods -------------- */

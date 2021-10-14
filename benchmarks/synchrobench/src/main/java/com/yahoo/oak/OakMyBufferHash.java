@@ -25,6 +25,10 @@ public class OakMyBufferHash<K extends MyBuffer, V extends MyBuffer> implements 
         buildHash(small);
     }
 
+    public OakMyBufferHash() {
+        buildHash(false);
+    }
+
     public long allocated() {
         return ma.allocated();
     }
@@ -144,6 +148,7 @@ public class OakMyBufferHash<K extends MyBuffer, V extends MyBuffer> implements 
         oakHash.zc().putIfAbsentComputeIfPresent(key, value, b -> b.putLong(1, ~b.getLong(1)));
     }
 
+    @Override
     public void printMemStats() {
         NativeMemoryAllocator.Stats stats = ma.getStats();
         System.out.printf("\tReleased buffers: \t\t%d\n", stats.releasedBuffers);
