@@ -156,7 +156,7 @@ public class OakMapBuilder<K, V> {
         }
         MemoryManager valuesMemoryManager = new SyncRecycleMemoryManager(memoryAllocator);
         // for hash the keys are indeed deleted, thus SeqExpandMemoryManager isn't acceptable
-        MemoryManager keysMemoryManager = new SeqExpandMemoryManager(memoryAllocator);
+        MemoryManager keysMemoryManager = new SyncRecycleMemoryManager(memoryAllocator);
 
         // Number of bits to define the chunk size is calculated from given number of items
         // to be kept in one hash chunk. The number of chunks pre-allocated in the hash is
