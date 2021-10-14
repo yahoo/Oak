@@ -371,7 +371,8 @@ public class HashChunkNoSplitTest {
         inserter.join();
 
         Assert.assertEquals("Size before: " + numberOfMappingsBefore + ", size after: "
-            + c.externalSize.get(), c.externalSize.get(), numberOfMappingsBefore);
+            + c.externalSize.get() + ", statistics chunk size: " + c.statistics.getTotalCount(),
+            c.externalSize.get(), numberOfMappingsBefore);
     }
 
 }
