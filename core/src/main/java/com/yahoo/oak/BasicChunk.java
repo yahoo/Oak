@@ -6,7 +6,6 @@
 
 package com.yahoo.oak;
 
-import java.util.Arrays;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -242,11 +241,6 @@ abstract class BasicChunk<K, V> {
     static class Statistics {
         private final AtomicInteger addedCount = new AtomicInteger(0);
         private int initialCount = 0;
-        private static final int VALS_4_AVERAGE_SIZE = 2048;
-
-        private int values4Average[] = new int[VALS_4_AVERAGE_SIZE];
-
-        private AtomicInteger values4AverageIndex = new AtomicInteger(0);
 
         /**
          * Initial sorted count here is immutable after chunk re-balance
@@ -274,24 +268,6 @@ abstract class BasicChunk<K, V> {
          */
         void decrementAddedCount() {
             addedCount.decrementAndGet();
-        }
-
-        void addVal4Average(int newVal) {
-            int indexToUse = values4AverageIndex.getAndIncrement();
-            indexToUse = indexToUse % VALS_4_AVERAGE_SIZE;
-            values4Average[indexToUse] = newVal;
-        }
-
-        // assuming no new values are coming
-        double getAverage() {
-            int averageSize = 0;
-            if (values4AverageIndex.get() < VALS_4_AVERAGE_SIZE) {
-                averageSize = values4AverageIndex.get();
-            } else {
-                averageSize = VALS_4_AVERAGE_SIZE;
-            }
-            int sum = Arrays.stream(values4Average).sum();
-            return sum / averageSize;
         }
     }
 

@@ -20,13 +20,15 @@ public class OakMyBufferHash<K extends MyBuffer, V extends MyBuffer> implements 
     private static final long KB = 1024L;
     private static final long GB = KB * KB * KB;
     private static final long OAK_MAX_OFF_MEMORY = 256 * GB;
+    private boolean smallConfig = false;
 
     public OakMyBufferHash(boolean small) {
-        buildHash(small);
+        this.smallConfig = small;
+        buildHash();
     }
 
     public OakMyBufferHash() {
-        buildHash(false);
+        buildHash();
     }
 
     public long allocated() {
@@ -81,7 +83,7 @@ public class OakMyBufferHash<K extends MyBuffer, V extends MyBuffer> implements 
         throw new UnsupportedOperationException();
     }
 
-    private void buildHash(boolean small) {
+    private void buildHash() {
         ma = new NativeMemoryAllocator(OAK_MAX_OFF_MEMORY);
         if (Parameters.confDetailedStats) {
             ma.collectStats();
@@ -93,12 +95,12 @@ public class OakMyBufferHash<K extends MyBuffer, V extends MyBuffer> implements 
                 MyBuffer.DEFAULT_COMPARATOR, MyBuffer.DEFAULT_SERIALIZER, MyBuffer.DEFAULT_SERIALIZER, minKey)
                 // 2048 * 8 = 16384 (2^14) entries in each chunk, each entry takes 24 bytes, each chunk requires
                 // approximately 393216 bytes ~= 393KB ~= 0.4 MB
-                .setHashChunkMaxItems(small ? HashChunk.HASH_CHUNK_MAX_ITEMS_DEFAULT
+                .setHashChunkMaxItems(smallConfig ? HashChunk.HASH_CHUNK_MAX_ITEMS_DEFAULT
                     : HashChunk.HASH_CHUNK_MAX_ITEMS_DEFAULT * 8)
                 // 1024 * 16 = 16384 (2^14) preallocated chunks of the above size,
                 // total on-heap memory requirement:
                 // 2^28 * 24 = 6442450944 bytes ~= 6442451 KB ~= 6442 MB ~= 6.5 GB
-                .setPreallocHashChunksNum(small ? FirstLevelHashArray.HASH_CHUNK_NUM_DEFAULT
+                .setPreallocHashChunksNum(smallConfig ? FirstLevelHashArray.HASH_CHUNK_NUM_DEFAULT
                     : FirstLevelHashArray.HASH_CHUNK_NUM_DEFAULT * 16)
                 .setMemoryAllocator(ma);
         // capable to keep 2^28 keys
@@ -135,7 +137,7 @@ public class OakMyBufferHash<K extends MyBuffer, V extends MyBuffer> implements 
             oakHash.printDebug();
         }
         oakHash.close();
-        buildHash(false);
+        buildHash();
     }
 
     @Override
