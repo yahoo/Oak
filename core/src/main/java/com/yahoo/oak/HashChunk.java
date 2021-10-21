@@ -204,12 +204,7 @@ class HashChunk<K, V> extends BasicChunk<K, V> {
     void lookUp(ThreadContext ctx, K key) {
         int keyHash = calculateKeyHash(key, ctx);
         int idx = calculateEntryIdx(key, keyHash);
-        if (entryHashSet.lookUp(ctx, key, idx, keyHash)) {
-            // update how entry accesses it took to find the key
-            int diff = ctx.entryIndex - idx;
-            statistics.addVal4Average(
-                (diff >= 0) ? diff + 1 : entryHashSet.entriesCapacity + diff + 1);
-        }
+        entryHashSet.lookUp(ctx, key, idx, keyHash);
     }
 
     /********************************************************************************************/
@@ -307,8 +302,7 @@ class HashChunk<K, V> extends BasicChunk<K, V> {
     void printSummaryDebug() {
         System.out.print(" Entries: " + statistics.getTotalCount() + ", capacity: "
             + entryHashSet.entriesCapacity + ", collisions: "
-            + entryHashSet.getCollisionChainLength() + ", average accesses: "
-            + statistics.getAverage());
+            + entryHashSet.getCollisionChainLength() + ", average accesses: ");
     }
 
     /********************************************************************************************/
