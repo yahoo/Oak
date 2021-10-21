@@ -91,25 +91,10 @@ class InternalOakHash<K, V> extends InternalOakBasics<K, V> {
         if (ctx.operationKeyHash != EntryHashSet.INVALID_KEY_HASH) {
             return ctx.operationKeyHash;
         }
-        // TODO: this solution is performance and memory costly! Improve later
 
-        // Object.hashCode() gives bad distribution, but hash result needs to be 32 bits long
-        // Remember that hash can be positive, zero or negative
-        // serialize the key in order to take the hash from the byte array
-        KeyBuffer tempBuffer = new KeyBuffer(keysMemoryManager.getEmptySlice());
-        HashChunk<K, V> tempChunk = hashArray.getChunk(0); // any chunk is suitable
-        tempChunk.writeTemporaryKey(key, tempBuffer);
-
-        // calculate the hash on the OakBuffer
-        int hashKey = MurmurHash3.murmurhash32(tempBuffer,
-            0, // true slice offset is incorporated within address calculations
-            tempBuffer.capacity(), // data length in bytes
-            0); // default seed
-
-        hashKey = Math.abs(hashKey); // UnionCodec doesn't accept negative input
-        ctx.operationKeyHash = hashKey;
-
-        //tempBuffer.getSlice().release();
+        // calculate by the hash function provided together with the serializer
+        int keyHash = keySerializer.calculateHash(key);
+        ctx.operationKeyHash = Math.abs(keyHash);
         return ctx.operationKeyHash;
     }
 
@@ -487,7 +472,7 @@ class InternalOakHash<K, V> extends InternalOakBasics<K, V> {
         for (int i = 0; i < MAX_RETRIES; i++) {
 
             if (i > MAX_RETRIES - 3) {
-                System.out.println("Infinite loop..."); //TODO: remove this print
+                System.err.println("Infinite loop..."); //TODO: remove this print
             }
 
             // find chunk matching key, puts this key hash into ctx.operationKeyHash
@@ -529,7 +514,9 @@ class InternalOakHash<K, V> extends InternalOakBasics<K, V> {
         throw new RuntimeException("putIfAbsentComputeIfPresent failed: reached retry limit (1024).");
     }
 
-
+    void printSummaryDebug() {
+        hashArray.printSummaryDebug();
+    }
 }
 
 

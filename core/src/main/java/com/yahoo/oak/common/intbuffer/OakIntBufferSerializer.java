@@ -9,6 +9,7 @@ package com.yahoo.oak.common.intbuffer;
 import com.yahoo.oak.OakScopedReadBuffer;
 import com.yahoo.oak.OakScopedWriteBuffer;
 import com.yahoo.oak.OakSerializer;
+import com.yahoo.oak.common.MurmurHash3;
 
 import java.nio.ByteBuffer;
 
@@ -36,6 +37,18 @@ public class OakIntBufferSerializer implements OakSerializer<ByteBuffer> {
     @Override
     public int calculateSize(ByteBuffer buff) {
         return getSizeBytes();
+    }
+
+    @Override
+    public int calculateHash(ByteBuffer object) {
+        int size = getSizeBytes();
+        ByteBuffer localBB = ByteBuffer.allocate(size);
+        for (int offset = 0; offset < size; offset += Integer.BYTES) {
+            int data = object.getInt(offset);
+            localBB.putInt(offset, data);
+            offset += Integer.BYTES;
+        }
+        return MurmurHash3.murmurhash32(localBB.array(), 0, size, 0);
     }
 
     public int getSizeBytes() {
