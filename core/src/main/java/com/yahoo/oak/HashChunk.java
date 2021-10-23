@@ -9,6 +9,9 @@ package com.yahoo.oak;
 import java.util.concurrent.atomic.AtomicInteger;
 
 class HashChunk<K, V> extends BasicChunk<K, V> {
+    // defaults
+    public static final int HASH_CHUNK_MAX_ITEMS_DEFAULT = 2048; //2^11
+
     // HashChunk takes a number of least significant bits from the full key hash
     // to provide as an index in the EntryHashSet
     private final UnionCodec hashIndexCodec; // to be given
@@ -61,8 +64,11 @@ class HashChunk<K, V> extends BasicChunk<K, V> {
     }
 
     private int calculateKeyHash(K key, ThreadContext ctx) {
-        int hashKey = key.hashCode(); // hash can be positive, zero or negative
-        ctx.operationKeyHash = Math.abs(hashKey); // EntryHashSet doesn't accept negative hashes
+        if (ctx.operationKeyHash == EntryHashSet.INVALID_KEY_HASH) {
+            // should happen only during component unit test!
+            ctx.operationKeyHash = Math.abs(key.hashCode());
+        }
+        // hash was already calculated by hash array when looking for the chunk and kept in thread context
         return ctx.operationKeyHash;
     }
     /********************************************************************************************/
@@ -106,6 +112,7 @@ class HashChunk<K, V> extends BasicChunk<K, V> {
     /**
      * Writes the key off-heap and allocates an entry with the reference pointing to the given key
      * See {@code EntryHashSet.allocateEntryAndWriteKey(ThreadContext)} for more information
+     * Returns false if rebalance is required and true otherwise
      */
     @Override
     boolean allocateEntryAndWriteKey(ThreadContext ctx, K key) {
@@ -138,10 +145,21 @@ class HashChunk<K, V> extends BasicChunk<K, V> {
         entryHashSet.releaseNewValue(ctx);
     }
 
+    /**
+     * Brings the chunk to its initial state without entries
+     * Used when we want to empty the structure without reallocating all the objects/memory
+     * Exists only for hash, as for the map there are min keys in the off-heap memory
+     * and the full clear method is more subtle
+     * NOT THREAD SAFE !!!
+     */
+    void clear() {
+        entryHashSet.clear();
+    }
     /********************************************************************************************/
     /*-----------------------  Methods for looking up item in this chunk -----------------------*/
 
     private int calculateEntryIdx(K key, int keyHash) {
+        // hashIndexCodec in chunk (in different chunks) and in FirstLevelHashArray may differ
         // first and not second, because these are actually the least significant bits
         return hashIndexCodec.getFirst(keyHash);
     }
@@ -185,12 +203,16 @@ class HashChunk<K, V> extends BasicChunk<K, V> {
      */
     void lookUp(ThreadContext ctx, K key) {
         int keyHash = calculateKeyHash(key, ctx);
-        entryHashSet.lookUp(ctx, key, calculateEntryIdx(key, keyHash), keyHash);
+        int idx = calculateEntryIdx(key, keyHash);
+        entryHashSet.lookUp(ctx, key, idx, keyHash);
     }
 
     /********************************************************************************************/
     /*---------- Methods for managing the put/remove path of the keys and values  --------------*/
 
+    void writeTemporaryKey(K key, KeyBuffer tempBuffer) {
+        entryHashSet.writeKey(key, tempBuffer);
+    }
 
     /**
      * As written in {@code writeValueFinish(ctx)}, when changing an entry, the value reference is CASed first and
@@ -206,6 +228,7 @@ class HashChunk<K, V> extends BasicChunk<K, V> {
      * IMPORTANT: whether deleteValueFinish succeeded to mark the entry's value reference as
      * deleted, or not, if there were no request to rebalance FALSE is going to be returned
      */
+    @Override
     boolean finalizeDeletion(ThreadContext ctx) {
         if (ctx.entryState != EntryArray.EntryState.DELETED_NOT_FINALIZED) {
             return false;
@@ -252,7 +275,7 @@ class HashChunk<K, V> extends BasicChunk<K, V> {
 
     /********************************************************************************************/
     /*------------------------- Methods that are used for rebalance  ---------------------------*/
-
+    @Override
     boolean shouldRebalance() {
         //TODO: no rebalance for now, add later
         return false;
@@ -274,6 +297,12 @@ class HashChunk<K, V> extends BasicChunk<K, V> {
 
         //TODO: add rebalance code here
         return 0;
+    }
+
+    void printSummaryDebug() {
+        System.out.print(" Entries: " + statistics.getTotalCount() + ", capacity: "
+            + entryHashSet.entriesCapacity + ", collisions: "
+            + entryHashSet.getCollisionChainLength() + ", average accesses: ");
     }
 
     /********************************************************************************************/

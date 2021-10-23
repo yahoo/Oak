@@ -9,6 +9,7 @@ package com.yahoo.oak.common.string;
 import com.yahoo.oak.OakScopedReadBuffer;
 import com.yahoo.oak.OakScopedWriteBuffer;
 import com.yahoo.oak.OakSerializer;
+import com.yahoo.oak.common.MurmurHash3;
 
 public class OakStringSerializer implements OakSerializer<String> {
 
@@ -42,5 +43,11 @@ public class OakStringSerializer implements OakSerializer<String> {
     @Override
     public int calculateSize(String object) {
         return Integer.BYTES + object.length() * Character.BYTES;
+    }
+
+    @Override
+    public int calculateHash(String object) {
+        byte[] byteArray = object.getBytes();
+        return MurmurHash3.murmurhash32(byteArray, 0, byteArray.length, 0);
     }
 }

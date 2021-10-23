@@ -83,7 +83,6 @@ public class InternalOakMapTest {
         OakUnscopedBuffer minK = testMap.getMinKey();
         int intMinK = minK.transform(OakCommonBuildersFactory.DEFAULT_INT_SERIALIZER::deserialize);
         Assert.assertEquals(1, intMinK);
-
     }
 
     @Test

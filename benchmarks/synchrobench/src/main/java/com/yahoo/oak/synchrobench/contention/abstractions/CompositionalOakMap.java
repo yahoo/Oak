@@ -30,4 +30,7 @@ public interface CompositionalOakMap<K, V> {
 
     void putIfAbsentComputeIfPresentOak(K key, V value);
 
+    default void printMemStats() {
+    }
+
 }

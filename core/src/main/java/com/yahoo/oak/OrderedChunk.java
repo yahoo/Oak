@@ -354,6 +354,7 @@ class OrderedChunk<K, V> extends BasicChunk<K, V> {
      * IMPORTANT: whether deleteValueFinish succeeded to mark the entry's value reference as
      * deleted, or not, if there were no request to rebalance FALSE is going to be returned
      */
+    @Override
     boolean finalizeDeletion(ThreadContext ctx) {
         if (ctx.entryState != EntryArray.EntryState.DELETED_NOT_FINALIZED) {
             return false;
@@ -481,6 +482,7 @@ class OrderedChunk<K, V> extends BasicChunk<K, V> {
     }
 
     /*------------------------- Methods that are used for rebalance  ---------------------------*/
+    @Override
     boolean shouldRebalance() {
         // perform actual check only in pre defined percentage of puts
         if (ThreadLocalRandom.current().nextInt(100) > REBALANCE_PROB_PERC) {

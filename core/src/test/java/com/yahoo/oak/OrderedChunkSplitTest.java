@@ -20,7 +20,7 @@ public class OrderedChunkSplitTest {
     @Test
     public void testSplitByCount() throws NoSuchFieldException, IllegalAccessException {
         OakMapBuilder<String, String> builder = OakCommonBuildersFactory.getDefaultStringBuilder()
-            .setChunkMaxItems(MAX_ITEMS_PER_CHUNK);
+            .setOrderedChunkMaxItems(MAX_ITEMS_PER_CHUNK);
         OakMap<String, String> oak = builder.buildOrderedMap();
 
         for (int i = 0; i < MAX_ITEMS_PER_CHUNK + 1; i++) {
@@ -44,7 +44,7 @@ public class OrderedChunkSplitTest {
     @Test
     public void testSplitByGet() {
         OakMapBuilder<Integer, Integer> builder = OakCommonBuildersFactory.getDefaultIntBuilder()
-                .setChunkMaxItems(MAX_ITEMS_PER_CHUNK);
+                .setOrderedChunkMaxItems(MAX_ITEMS_PER_CHUNK);
         OakMap<Integer, Integer> oak = builder.buildOrderedMap();
         Integer value;
         for (Integer i = 0; i < 2 * MAX_ITEMS_PER_CHUNK; i++) {

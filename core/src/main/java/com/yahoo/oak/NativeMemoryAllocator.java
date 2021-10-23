@@ -145,11 +145,14 @@ class NativeMemoryAllocator implements BlockMemoryAllocator {
         if (stats != null) {
             stats.release(size);
         }
+        s.zeroMetadata();
         freeList.add(s.duplicate());
     }
 
     // Releases all memory allocated for this Oak (should be used as part of the Oak destruction)
     // Not thread safe, should be a single thread call. (?)
+    // TODO: use reference counter in case multiple Oak instances are based on the same allocator
+    // TODO: and only one of the Oak instances is closed
     @Override
     public void close() {
         if (!closed.compareAndSet(false, true)) {
@@ -184,6 +187,30 @@ class NativeMemoryAllocator implements BlockMemoryAllocator {
     @Override
     public boolean isClosed() {
         return closed.get();
+    }
+
+    // Releases the underlying off-heap memory without releasing the entire structure
+    // To be used when the user structure needs to be cleared, without memory reallocation
+    // NOT THREAD SAFE!!!
+    @Override
+    public void clear() {
+        // Release the hold of the block array and return it the provider.
+        Block[] b = blocksArray;
+        blocksArray = null;
+
+        // Reset "closed" to apply a memory barrier before actually returning the block.
+        closed.set(true);
+
+        for (int i = 1; i <= numberOfBlocks(); i++) {
+            blocksProvider.returnBlock(b[i]);
+        }
+
+        freeList.clear();
+        allocated.set(0);
+        idGenerator.set(0);
+        // initially allocate one single block from pool
+        allocateNewCurrentBlock();
+
     }
 
     // When some buffer need to be read from a random block

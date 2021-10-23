@@ -125,8 +125,20 @@ class SeqExpandMemoryManager implements MemoryManager  {
     }
 
     @Override
+    public BlockMemoryAllocator getBlockMemoryAllocator() {
+        return this.allocator;
+    }
+
+    @Override
     public int getHeaderSize() {
         return 0;
+    }
+
+    @Override
+    public void clear(boolean clearAllocator) {
+        if (clearAllocator) {
+            allocator.clear();
+        }
     }
 
     /*===================================================================*/
@@ -269,6 +281,17 @@ class SeqExpandMemoryManager implements MemoryManager  {
             this.reference = arg2;
         }
 
+        // zero the underlying memory (not the header) before entering the free list
+        @Override
+        protected void zeroMetadata() {
+            assert associated;
+            assert memAddress != UNDEFINED_LENGTH_OR_OFFSET_OR_ADDRESS && memAddress != 0;
+            assert length != UNDEFINED_LENGTH_OR_OFFSET_OR_ADDRESS;
+            UnsafeUtils.setMemory(getMetadataAddress(),
+                getAllocatedLength(), // no metadata for sequentially expendable memory manager
+                (byte) 0); // zero block's memory
+        }
+
         // used only in case of iterations when the rest of the slice's data should remain the same
         // in this case once the offset is set the the slice is associated
         private void updateOnSameBlock(int offset, int length) {
@@ -296,7 +319,7 @@ class SeqExpandMemoryManager implements MemoryManager  {
 
         @Override
         public long getAddress() {
-            return memAddress + offset;
+            return getMetadataAddress();
         }
 
         @Override

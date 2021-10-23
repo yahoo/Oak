@@ -100,10 +100,26 @@ class SyncRecycleMemoryManager implements MemoryManager {
         return new SliceSyncRecycle();
     }
 
+    @Override
+    public BlockMemoryAllocator getBlockMemoryAllocator() {
+        return this.allocator;
+    }
+
     @VisibleForTesting
     @Override
     public int getHeaderSize() {
         return OFF_HEAP_HEADER_SIZE;
+    }
+
+    @Override
+    public void clear(boolean clearAllocator) {
+        if (clearAllocator) {
+            allocator.clear();
+        }
+        for (int i = 0; i < ThreadIndexCalculator.MAX_THREADS; i++) {
+            this.releaseLists.add(new ArrayList<>(RELEASE_LIST_LIMIT));
+        }
+        globalVersionNumber.set(VERS_INIT_VALUE);
     }
 
     @Override
@@ -186,6 +202,14 @@ class SyncRecycleMemoryManager implements MemoryManager {
             }
             assert HEADER.getOffHeapVersion(getMetadataAddress()) == allocationVersion;
             reference = encodeReference();
+        }
+
+        // zero the underlying memory (not the header) before entering the free list
+        @Override
+        protected void zeroMetadata() {
+            UnsafeUtils.setMemory(getMetadataAddress() + getHeaderSize(), // start after header
+                getAllocatedLength() - getHeaderSize(), // only metadata length
+                (byte) 0); // zero block's memory
         }
 
         /**
@@ -383,6 +407,9 @@ class SyncRecycleMemoryManager implements MemoryManager {
          * {@code RETRY} if the value was moved, or the version of the off-heap value does not match {@code version}.
          */
         public ValueUtils.ValueResult lockWrite() {
+            if (version == ReferenceCodecSyncRecycle.INVALID_VERSION) {
+                System.out.println("Version in the slice is invalid!");
+            }
             assert version != ReferenceCodecSyncRecycle.INVALID_VERSION;
             return HEADER.lockWrite(version, getMetadataAddress());
         }
@@ -408,6 +435,7 @@ class SyncRecycleMemoryManager implements MemoryManager {
          */
         public ValueUtils.ValueResult logicalDelete() {
             assert version != ReferenceCodecSyncRecycle.INVALID_VERSION;
+            assert associated;
             return HEADER.logicalDelete(version, getMetadataAddress());
         }
 

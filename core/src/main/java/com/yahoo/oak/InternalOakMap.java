@@ -6,8 +6,6 @@
 
 package com.yahoo.oak;
 
-
-import java.io.IOException;
 import java.util.AbstractMap;
 import java.util.Comparator;
 import java.util.ConcurrentModificationException;
@@ -21,7 +19,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
-class InternalOakMap<K, V> {
+class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
 
     /*-------------- Members --------------*/
 
@@ -30,7 +28,6 @@ class InternalOakMap<K, V> {
     private final OakComparator<K> comparator;
     private final MemoryManager valuesMemoryManager;
     private final MemoryManager keysMemoryManager;
-    private final AtomicInteger size;
     private final OakSerializer<K> keySerializer;
     private final OakSerializer<V> valueSerializer;
     // The reference count is used to count the upper objects wrapping this internal map:
@@ -38,7 +35,6 @@ class InternalOakMap<K, V> {
     // his map can be closed and memory released.
     private final AtomicInteger referenceCount = new AtomicInteger(1);
     private final ValueUtils valueOperator;
-    static final int MAX_RETRIES = 1024;
 
     /*-------------- Constructors --------------*/
 
@@ -50,7 +46,7 @@ class InternalOakMap<K, V> {
         OakComparator<K> oakComparator, MemoryManager vMM, MemoryManager kMM, int chunkMaxItems,
         ValueUtils valueOperator) {
 
-        this.size = new AtomicInteger(0);
+        super(vMM, kMM);
         this.valuesMemoryManager = vMM;
         this.keysMemoryManager = kMM;
         this.keySerializer = keySerializer;
@@ -93,17 +89,11 @@ class InternalOakMap<K, V> {
      */
     void close() {
         int res = referenceCount.decrementAndGet();
+        // reference counter counts the submaps referencing the same InternalOakMap instance
         // once reference count is zeroed, the map meant to be deleted and should not be used.
         // reference count will never grow again
         if (res == 0) {
-            try {
-                // closing the same memory manager (or memory allocator) twice,
-                // has the same effect as closing once
-                valuesMemoryManager.close();
-                keysMemoryManager.close();
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
+            super.close();
         }
     }
 
@@ -124,34 +114,6 @@ class InternalOakMap<K, V> {
         }
     }
 
-    /*-------------- size --------------*/
-
-    /**
-     * @return current off heap memory usage in bytes
-     */
-    long memorySize() {
-        if (valuesMemoryManager != keysMemoryManager) {
-            // if two memory managers are not the same instance
-            return valuesMemoryManager.allocated() + keysMemoryManager.allocated();
-        }
-        return valuesMemoryManager.allocated();
-    }
-
-    int entries() {
-        return size.get();
-    }
-
-    /*-------------- Context --------------*/
-
-    /**
-     * Should only be called from API methods at the beginning of the method and be reused in internal calls.
-     *
-     * @return a context instance.
-     */
-    ThreadContext getThreadContext() {
-        return new ThreadContext(keysMemoryManager, valuesMemoryManager);
-    }
-
     /*-------------- Methods --------------*/
 
     /**
@@ -170,6 +132,11 @@ class InternalOakMap<K, V> {
         }
 
         return curr;
+    }
+
+    @Override
+    protected void rebalanceBasic(BasicChunk<K, V> basicChunk) {
+        rebalance((OrderedChunk<K, V>) basicChunk); // exception will be triggered on wrong type
     }
 
     /**
@@ -205,18 +172,6 @@ class InternalOakMap<K, V> {
         engaged.forEach(OrderedChunk::release);
     }
 
-    private void checkRebalance(OrderedChunk<K, V> c) {
-        if (c.shouldRebalance()) {
-            rebalance(c);
-        }
-    }
-
-    private void helpRebalanceIfInProgress(OrderedChunk<K, V> c) {
-        if (c.state() == BasicChunk.State.FROZEN) {
-            rebalance(c);
-        }
-    }
-
     private void connectToChunkList(List<OrderedChunk<K, V>> engaged, List<OrderedChunk<K, V>> children) {
 
         updateLastChild(engaged, children);
@@ -224,7 +179,7 @@ class InternalOakMap<K, V> {
         OrderedChunk<K, V> firstEngaged = engaged.get(0);
 
         // replace in linked list - we now need to find previous orderedChunk to our orderedChunk
-        // and CAS its next to point to c1, which is the same c1 for all threads who reached this point
+        // and CAS its next to point to C1, which is the same C1 for all threads who reached this point
         // since prev might be marked (in compact itself) - we need to repeat this until successful
         while (true) {
             countIterations++;
@@ -263,9 +218,9 @@ class InternalOakMap<K, V> {
                 continue;
             }
 
-            // try to CAS prev orderedChunk's next - from orderedChunk (that we split) into c1
-            // c1 is the old orderedChunk's replacement, and is already connected to c2
-            // c2 is already connected to old orderedChunk's next - so all we need to do is this replacement
+            // try to CAS prev orderedChunk's next - from orderedChunk (that we split) into C1
+            // C1 is the old orderedChunk's replacement, and is already connected to C2
+            // C2 is already connected to old orderedChunk's next - so all we need to do is this replacement
             if ((prev.next.compareAndSet(firstEngaged, children.get(0), false, false)) ||
                     (!prev.next.isMarked())) {
                 // if we're successful, or we failed but prev is not marked - so it means someone else was successful
@@ -317,49 +272,6 @@ class InternalOakMap<K, V> {
 
         // now after removing old chunks and updating the skiplist, we can start normalizing
         firstChild.normalize();
-    }
-
-    private boolean inTheMiddleOfRebalance(OrderedChunk<K, V> c) {
-        BasicChunk.State state = c.state();
-        if (state == BasicChunk.State.INFANT) {
-            // the infant is already connected so rebalancer won't add this put
-            rebalance((OrderedChunk<K, V>) c.creator());
-            return true;
-        }
-        if (state == BasicChunk.State.FROZEN || state == BasicChunk.State.RELEASED) {
-            rebalance(c);
-            return true;
-        }
-        return false;
-    }
-
-    private boolean finalizeDeletion(OrderedChunk<K, V> c, ThreadContext ctx) {
-        if (ctx.isKeyValid()) {
-            if (c.finalizeDeletion(ctx)) {
-                rebalance(c);
-                return true;
-            }
-        }
-        return false;
-    }
-
-    private boolean isAfterRebalanceOrValueUpdate(OrderedChunk c, ThreadContext ctx) {
-        // If orderedChunk is frozen or infant, can't proceed with put, need to help rebalancer first,
-        // rebalance is done as part of inTheMiddleOfRebalance.
-        // Also if value is off-heap deleted, we need to finalizeDeletion on-heap, which can
-        // cause rebalance as well. If rebalance happened finalizeDeletion returns true.
-        // After rebalance we need to restart.
-        if (inTheMiddleOfRebalance(c) || finalizeDeletion(c, ctx)) {
-            return true;
-        }
-
-        // Value can be valid again, if key was found and partially deleted value needed help.
-        // But in the meanwhile value was reset to be another, valid value.
-        if (ctx.isValueValid()) {
-            return true;
-        }
-
-        return false;
     }
 
     // returns false when restart is needed
@@ -620,10 +532,6 @@ class InternalOakMap<K, V> {
                 continue;
             }
 
-            if (inTheMiddleOfRebalance(c)) {
-                continue;
-            }
-
             // AT THIS POINT Key wasn't found (key and value not valid) and context is updated
             if (logicallyDeleted) {
                 // This is the case where we logically deleted this entry (marked the value off-heap as deleted),
@@ -649,8 +557,18 @@ class InternalOakMap<K, V> {
             assert ctx.entryIndex != EntryArray.INVALID_ENTRY_INDEX;
             assert ctx.isValueValid();
             ctx.entryState = EntryArray.EntryState.DELETED_NOT_FINALIZED;
+
+            if (inTheMiddleOfRebalance(c)) {
+                continue;
+            }
+
+            // If finalize deletion returns true, meaning rebalance was done and there was NO
+            // attempt to finalize deletion. There is going the help anyway, by next rebalance
+            // or updater. Thus it is OK not to restart, the linearization point of logical deletion
+            // is owned by this thread anyway and old value is kept in v.
             finalizeDeletion(c, ctx); // includes publish/unpublish
-            return transformer == null ? ctx.result.withFlag(logicallyDeleted) : ctx.result.withValue(v);
+            return transformer == null ?
+                ctx.result.withFlag(ValueUtils.ValueResult.TRUE) : ctx.result.withValue(v);
         }
 
         throw new RuntimeException("remove failed: reached retry limit (1024).");
@@ -708,31 +626,12 @@ class InternalOakMap<K, V> {
      *            will be updated with the refreshed value.
      * @reutrn true if the refresh was successful.
      */
+    @Override
     boolean refreshValuePosition(ThreadContext ctx) {
         K deserializedKey = keySerializer.deserialize(ctx.key);
         OrderedChunk<K, V> c = findChunk(deserializedKey); // find orderedChunk matching key
         c.lookUp(ctx, deserializedKey);
         return ctx.isValueValid();
-    }
-
-    /**
-     * See {@code refreshValuePosition(ctx)} for more details.
-     *
-     * @param key   the key to refresh
-     * @param value the output value to update
-     * @return true if the refresh was successful.
-     */
-    boolean refreshValuePosition(KeyBuffer key, ValueBuffer value) {
-        ThreadContext ctx = getThreadContext();
-        ctx.key.copyFrom(key);
-        boolean isSuccessful = refreshValuePosition(ctx);
-
-        if (!isSuccessful) {
-            return false;
-        }
-
-        value.copyFrom(ctx.value);
-        return true;
     }
 
     private <T> T getValueTransformation(OakScopedReadBuffer key, OakTransformer<T> transformer) {
@@ -926,14 +825,6 @@ class InternalOakMap<K, V> {
     }
 
     /*-------------- Iterators --------------*/
-
-    private UnscopedBuffer getKeyUnscopedBuffer(ThreadContext ctx) {
-        return new UnscopedBuffer<>(new KeyBuffer(ctx.key));
-    }
-
-    private UnscopedValueBufferSynced getValueUnscopedBuffer(ThreadContext ctx) {
-        return new UnscopedValueBufferSynced(ctx.key, ctx.value, valueOperator, InternalOakMap.this);
-    }
 
     private static final class IteratorState<K, V> {
 

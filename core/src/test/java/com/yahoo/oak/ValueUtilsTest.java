@@ -157,6 +157,11 @@ public class ValueUtilsTest {
                 public int calculateSize(Integer object) {
                     return 0;
                 }
+
+                @Override
+                public int calculateHash(Integer object) {
+                    return 0;
+                }
             }));
         Assert.assertEquals(randomValues[0], getInt(0));
         Assert.assertEquals(randomValues[1], getInt(4));
@@ -180,6 +185,11 @@ public class ValueUtilsTest {
             public int calculateSize(Integer object) {
                 return 0;
             }
+
+            @Override
+            public int calculateHash(Integer object) {
+                return 0;
+            }
         });
     }
 
@@ -198,6 +208,11 @@ public class ValueUtilsTest {
 
             @Override
             public int calculateSize(Integer object) {
+                return 0;
+            }
+
+            @Override
+            public int calculateHash(Integer object) {
                 return 0;
             }
         });
@@ -232,6 +247,11 @@ public class ValueUtilsTest {
 
                 @Override
                 public int calculateSize(Integer object) {
+                    return 0;
+                }
+
+                @Override
+                public int calculateHash(Integer object) {
                     return 0;
                 }
             });
@@ -286,6 +306,11 @@ public class ValueUtilsTest {
 
                 @Override
                 public int calculateSize(Integer object) {
+                    return 0;
+                }
+
+                @Override
+                public int calculateHash(Integer object) {
                     return 0;
                 }
             });

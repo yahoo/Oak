@@ -36,12 +36,12 @@ public class ResizeValueTest {
 
         Supplier<ConcurrentZCMap<String, String>> s1 = () -> {
             OakMapBuilder<String, String> builder = OakCommonBuildersFactory.getDefaultStringBuilder()
-                    .setChunkMaxItems(100);
+                    .setOrderedChunkMaxItems(100);
             return builder.buildOrderedMap();
         };
         Supplier<ConcurrentZCMap<String, String>> s2 = () -> {
             OakMapBuilder<String, String> builder = OakCommonBuildersFactory.getDefaultStringBuilder()
-                    .setChunkMaxItems(100);
+                    .setOrderedChunkMaxItems(100);
             return builder.buildHashMap();
         };
         return Arrays.asList(new Object[][] {
@@ -75,6 +75,11 @@ public class ResizeValueTest {
 
     @Test
     public void retryIteratorTest() {
+        if (oak instanceof OakHashMap) {
+            // TODO: currently iterators are not supported for Hash, remove this later
+            return;
+        }
+
         oak.zc().put("AAAAAAA", "h");
         oak.zc().put("ZZZZZZZ", "h");
 

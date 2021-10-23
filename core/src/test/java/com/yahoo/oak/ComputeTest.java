@@ -29,6 +29,7 @@ public class ComputeTest {
 
     private static final int NUM_THREADS = 16;
     private static final long TIME_LIMIT_IN_SECONDS = 240; // was 60, changed for jacoco
+    private static final int MAX_ITEMS_PER_CHUNK = 1024;
 
     private static final long K = 1024;
     private static final int KEY_SIZE = 10;
@@ -59,7 +60,7 @@ public class ComputeTest {
 
             OakMapBuilder<ByteBuffer, ByteBuffer> builder =
                     OakCommonBuildersFactory.getDefaultIntBufferBuilder(KEY_SIZE, VAL_SIZE)
-                            .setChunkMaxItems(2048).setMinKey(minKey);
+                            .setOrderedChunkMaxItems(MAX_ITEMS_PER_CHUNK).setMinKey(minKey);
             return builder.buildOrderedMap();
         };
 
@@ -72,8 +73,7 @@ public class ComputeTest {
             minKey.position(0);
 
             OakMapBuilder<ByteBuffer, ByteBuffer> builder =
-                    OakCommonBuildersFactory.getDefaultIntBufferBuilder(KEY_SIZE, VAL_SIZE)
-                            .setChunkMaxItems(2048);
+                    OakCommonBuildersFactory.getDefaultIntBufferBuilder(KEY_SIZE, VAL_SIZE);
             return builder.buildHashMap();
         };
 
@@ -130,7 +130,7 @@ public class ComputeTest {
 
             Random r = new Random();
 
-            for (int i = 0; i < 1000000; i++) {
+            for (int i = 0; i < MAX_ITEMS_PER_CHUNK * 500; i++) {
                 int k = r.nextInt(numOfEntries);
                 int o = r.nextInt(2);
                 myKey.putInt(0, k);

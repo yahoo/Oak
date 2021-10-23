@@ -26,11 +26,13 @@ public class OverheadTest {
     private static final int NUM_OF_ENTRIES = 2_000_000;
     private static final int KEY_SIZE = 100;
     private static final int VALUE_SIZE = 1000;
-    private static final double MAX_ON_HEAP_OVERHEAD_PERCENTAGE = 0.05;
+    // TODO: once rebalance is in place to change back for 0.05
+    private static final double MAX_ON_HEAP_OVERHEAD_PERCENTAGE = 0.25;
+    private static final int MAX_ITEMS_PER_ORDERED_CHUNK = 100;
+    private static final int MAX_ITEMS_PER_HUSH_CHUNK = 512;
+
     private static ConcurrentZCMap<Integer, Integer> oak;
-
     private final Supplier<ConcurrentZCMap<Integer, Integer>> supplier;
-
 
     public OverheadTest(Supplier<ConcurrentZCMap<Integer, Integer>> supplier) {
         this.supplier = supplier;
@@ -42,7 +44,7 @@ public class OverheadTest {
 
         Supplier<ConcurrentZCMap<Integer, Integer>> s1 = () -> {
             OakMapBuilder<Integer, Integer> builder = OakCommonBuildersFactory.getDefaultIntBuilder()
-                    .setChunkMaxItems(100)
+                    .setOrderedChunkMaxItems(MAX_ITEMS_PER_ORDERED_CHUNK)
                     .setKeySerializer(new OakIntSerializer(KEY_SIZE))
                     .setValueSerializer(new OakIntSerializer(VALUE_SIZE));
 
@@ -50,7 +52,7 @@ public class OverheadTest {
         };
         Supplier<ConcurrentZCMap<Integer, Integer>> s2 = () -> {
             OakMapBuilder<Integer, Integer> builder = OakCommonBuildersFactory.getDefaultIntBuilder()
-                    .setChunkMaxItems(100)
+                    .setPreallocHashChunksNum(MAX_ITEMS_PER_HUSH_CHUNK * 4)
                     .setKeySerializer(new OakIntSerializer(KEY_SIZE))
                     .setValueSerializer(new OakIntSerializer(VALUE_SIZE));
 
@@ -73,6 +75,8 @@ public class OverheadTest {
 
     @Test
     public void validateOverhead() {
+        System.gc();
+
         Random r = new Random();
         for (int i = 0; i < (int) Math.round(NUM_OF_ENTRIES * 0.5); ) {
             Integer key = r.nextInt(NUM_OF_ENTRIES);

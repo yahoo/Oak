@@ -75,6 +75,7 @@ class ThreadContext {
         this.tempValue = new ValueBuffer(vmm.getEmptySlice());
 
         this.keyHashAndUpdateCnt = EntryHashSet.INVALID_KEY_HASH_AND_UPD_CNT;
+        this.operationKeyHash = EntryHashSet.INVALID_KEY_HASH;
     }
 
     void invalidate() {
