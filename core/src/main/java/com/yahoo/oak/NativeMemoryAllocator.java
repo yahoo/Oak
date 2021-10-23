@@ -93,6 +93,7 @@ class NativeMemoryAllocator implements BlockMemoryAllocator {
                     stats.reclaim(size);
                 }
                 s.copyAllocationInfoFrom(bestFit);
+                allocated.addAndGet(size);
                 return true;
             }
         }
@@ -240,8 +241,8 @@ class NativeMemoryAllocator implements BlockMemoryAllocator {
     // This method MUST be called within a thread safe context !!!
     private void allocateNewCurrentBlock() {
         Block b = blocksProvider.getBlock();
+        this.blocksArray[idGenerator.get()] = b;
         int blockID = idGenerator.getAndIncrement();
-        this.blocksArray[blockID] = b;
         b.setID(blockID);
         this.currentBlock = b;
     }

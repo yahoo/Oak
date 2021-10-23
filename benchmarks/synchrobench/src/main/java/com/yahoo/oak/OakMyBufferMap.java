@@ -50,7 +50,11 @@ public class OakMyBufferMap<K extends MyBuffer, V extends MyBuffer> implements C
 
     @Override
     public void putOak(K key, V value) {
-        oak.zc().put(key, value);
+        if (Parameters.confZeroCopy) {
+            oak.zc().put(key, value);
+            return ;
+        }
+        oak.put(key, value);
     }
 
     @Override
