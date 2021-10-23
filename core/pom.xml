@@ -84,4 +84,29 @@
             <scope>test</scope>
         </dependency>
     </dependencies>
+    <profiles>
+    	<profile>
+    		<activation>
+    			<jdk>[9,)</jdk>
+   			</activation>
+            <build>
+            <plugins>
+            	<plugin>
+            		<artifactId>maven-surefire-plugin</artifactId>
+           			<configuration>
+                    	<argLine>
+                        	-Xmx20g
+                            @{jacocoArgLine}
+                            -XX:MaxDirectMemorySize=4g
+                            --add-modules jdk.incubator.foreign
+                            --add-opens jdk.incubator.foreign/jdk.internal.foreign=ALL-UNNAMED
+                            --add-opens java.base/java.nio=ALL-UNNAMED
+                            --enable-native-access=ALL-UNNAMED
+                         </argLine>
+                         </configuration>
+                     </plugin>
+                     </plugins>
+                     </build>
+                     </profile>
+		</profiles>
 </project>
