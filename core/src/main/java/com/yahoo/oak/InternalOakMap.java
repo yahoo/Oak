@@ -634,6 +634,9 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
         return ctx.isValueValid();
     }
 
+    public MemoryManager getValuesMemoryManager() {
+        return this.valuesMemoryManager;
+    }
     private <T> T getValueTransformation(OakScopedReadBuffer key, OakTransformer<T> transformer) {
         K deserializedKey = keySerializer.deserialize(key);
         return getValueTransformation(deserializedKey, transformer);
