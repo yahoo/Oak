@@ -22,13 +22,15 @@ abstract class BasicChunk<K, V> {
     /*-------------- Members --------------*/
     // to compare serilized and object keys
     protected OakComparator<K> comparator;
+    protected KeyMemoryManager kMM;
     // in split/compact process, represents parent of split (can be null!)
     private final AtomicReference<BasicChunk<K, V>> creator;
     // chunk can be in the following states: normal, frozen or infant(has a creator)
-    private final AtomicReference<State> state;
+    protected final AtomicReference<State> state;
     private final AtomicReference<Rebalancer<K, V>> rebalancer;
     private final AtomicInteger pendingOps;
     private final int maxItems;
+    protected final boolean releaseKeys;
     protected AtomicInteger externalSize; // for updating oak's size (reference to one global per Oak size)
     protected final Statistics statistics;
 
@@ -37,13 +39,15 @@ abstract class BasicChunk<K, V> {
      * This constructor is only used internally to instantiate a BasicChunk without a creator and a state.
      * The caller should set the creator and state before returning the BasicChunk to the user.
      */
-    protected BasicChunk(int maxItems, AtomicInteger externalSize, OakComparator<K> comparator) {
+    protected BasicChunk(int maxItems, AtomicInteger externalSize, OakComparator<K> comparator, KeyMemoryManager kMM) {
         this.maxItems = maxItems;
         this.externalSize = externalSize;
         this.comparator = comparator;
+        this.kMM = kMM;
         this.creator = new AtomicReference<>(null);
         this.state = new AtomicReference<>(State.NORMAL);
         this.pendingOps = new AtomicInteger();
+        this.releaseKeys = ! (kMM instanceof SeqExpandMemoryManager);
         this.rebalancer = new AtomicReference<>(null); // to be updated on rebalance
         this.statistics = new Statistics();
     }

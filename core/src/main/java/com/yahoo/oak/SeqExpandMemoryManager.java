@@ -37,7 +37,7 @@ package com.yahoo.oak;
  *
  * From that, we can derive that the maximal number of 1K items that can be allocated is ~128 million (2^26).
  * Note: these limitations will change for different block sizes. */
-class SeqExpandMemoryManager implements MemoryManager  {
+class SeqExpandMemoryManager implements MemoryManager, KeyMemoryManager  {
     private final BlockMemoryAllocator allocator;
 
     /*
@@ -422,5 +422,16 @@ class SeqExpandMemoryManager implements MemoryManager  {
         public void markAsDeleted() { }
 
     }
+    
+    @Override
+    public <K> int compareKeyAndSerializedKey(K key, OakScopedReadBuffer serializedKey, OakComparator<K> cmp) {
+        return cmp.compareKeyAndSerializedKey(key, serializedKey);
+    }
+    
+    @Override
+    public <K> int compareSerializedKeys(OakScopedReadBuffer serializedKey1,
+            OakScopedReadBuffer serializedKey2, OakComparator<K> cmp) {
+        return cmp.compareSerializedKeys(serializedKey1, serializedKey2);
+    }
+    
 }
-

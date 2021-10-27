@@ -41,7 +41,7 @@ class HashChunk<K, V> extends BasicChunk<K, V> {
         OakComparator<K> comparator, OakSerializer<K> keySerializer,
         OakSerializer<V> valueSerializer, UnionCodec hashIndexCodec) {
 
-        super(maxItems, externalSize, comparator);
+        super(maxItems, externalSize, comparator, (KeyMemoryManager) kMM);
         assert Math.pow( 2, hashIndexCodec.getFirstBitSize() ) <= maxItems ;
 
         this.hashIndexCodec = hashIndexCodec;
@@ -177,7 +177,7 @@ class HashChunk<K, V> extends BasicChunk<K, V> {
     int compareKeyAndEntryIndex(KeyBuffer tempKeyBuff, K key, int ei) {
         boolean isAllocated = entryHashSet.readKey(tempKeyBuff, ei);
         assert isAllocated;
-        return comparator.compareKeyAndSerializedKey(key, tempKeyBuff);
+        return kMM.compareKeyAndSerializedKey(key, tempKeyBuff, comparator);
     }
 
     /**

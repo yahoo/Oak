@@ -33,7 +33,7 @@ public class OakMap<K, V> extends AbstractMap<K, V>
      * memory. There can be separate memory managing algorithms for keys and values.
      * */
     private final MemoryManager valuesMemoryManager;
-    private final MemoryManager keysMemoryManager;
+    private final KeyMemoryManager keysMemoryManager;
     private final OakTransformer<K> keyDeserializeTransformer;
     private final OakTransformer<V> valueDeserializeTransformer;
     private final Function<Map.Entry<OakScopedReadBuffer, OakScopedReadBuffer>,
@@ -49,7 +49,7 @@ public class OakMap<K, V> extends AbstractMap<K, V>
 
     // internal constructor, to create OakMap use OakMapBuilder
     OakMap(K minKey, OakSerializer<K> keySerializer, OakSerializer<V> valueSerializer, OakComparator<K> oakComparator,
-        int chunkMaxItems, MemoryManager vMM, MemoryManager kMM) {
+        int chunkMaxItems, MemoryManager vMM, KeyMemoryManager kMM) {
 
         this.valuesMemoryManager = vMM;
         this.keysMemoryManager = kMM;

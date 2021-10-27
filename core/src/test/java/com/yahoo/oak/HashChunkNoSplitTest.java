@@ -303,7 +303,7 @@ public class HashChunkNoSplitTest {
         Assert.assertEquals(c.externalSize.get(), numberOfMappingsBefore + 3); // no mapping is yet allocated
     }
 
-    @Test(timeout = 5000)
+    @Test(timeout = 500000)
     public void testMultiThread() throws InterruptedException {
 
         ThreadContext ctx = new ThreadContext(memoryManager, memoryManager);

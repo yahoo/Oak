@@ -6,12 +6,14 @@
 
 package com.yahoo.oak;
 
+import com.yahoo.oak.ValueUtils.ValueResult;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicInteger;
 
-class SyncRecycleMemoryManager implements MemoryManager {
+class SyncRecycleMemoryManager implements MemoryManager, KeyMemoryManager {
     static final int RELEASE_LIST_LIMIT = 1024;
     private static final SyncRecycleMMHeader HEADER =
         new SyncRecycleMMHeader(); // for off-heap header operations
@@ -469,5 +471,28 @@ class SyncRecycleMemoryManager implements MemoryManager {
             assert associated;
             HEADER.markAsDeleted(getMetadataAddress());
         }
+    }
+    
+    @Override
+    public <K> int compareKeyAndSerializedKey(K key, OakScopedReadBuffer serializedKey, OakComparator<K> cmp) {
+        if (((ScopedReadBuffer) serializedKey).s.lockRead() != ValueResult.TRUE) {
+            throw new ErrorLockException();
+        }
+        int res = cmp.compareKeyAndSerializedKey(key, serializedKey);
+        ((ScopedReadBuffer) serializedKey).s.unlockRead();
+        return res;
+    }
+    
+    @Override
+    public <K> int compareSerializedKeys(OakScopedReadBuffer serializedKey1,
+            OakScopedReadBuffer serializedKey2, OakComparator<K> cmp) {
+        if (    ((ScopedReadBuffer) serializedKey1).s.lockRead() != ValueResult.TRUE ||
+                ((ScopedReadBuffer) serializedKey2).s.lockRead() != ValueResult.TRUE) {
+            throw new ErrorLockException();
+        }
+        int res = cmp.compareSerializedKeys(serializedKey1, serializedKey2);
+        ((ScopedReadBuffer) serializedKey1).s.unlockRead();
+        ((ScopedReadBuffer) serializedKey2).s.unlockRead();
+        return res;
     }
 }

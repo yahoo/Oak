@@ -6,6 +6,8 @@
 
 package com.yahoo.oak;
 
+import com.yahoo.oak.ValueUtils.ValueResult;
+
 import java.util.concurrent.atomic.AtomicInteger;
 
 /* EntryOrderedSet keeps a set of entries linked to a link list. Entry is reference to key and value, both located
@@ -309,5 +311,22 @@ class EntryOrderedSet<K, V> extends EntryArray<K, V> {
         }
 
         return true;
+    }
+    
+    void releaseAllDeletedKeys() {
+        KeyBuffer key = new KeyBuffer(keysMemoryManager.getEmptySlice());
+        for (int i = 0; i < getNumOfEntries(); i++) {
+            if (valuesMemoryManager.isReferenceDeleted(getValueReference(i))) {
+                if (keysMemoryManager.isReferenceValidAndNotDeleted(getKeyReference(i))) {
+                    //TODO may add exception to isDelted and stop deleting if key is already deleted
+                    key.s.decodeReference(getKeyReference(i));
+                    if (key.s.isDeleted() != ValueResult.TRUE) {
+                        if (key.s.logicalDelete() == ValueResult.TRUE) {
+                            key.s.release();
+                        }
+                    }
+                }
+            }
+        }
     }
 }
