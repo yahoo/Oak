@@ -86,8 +86,9 @@
     </dependencies>
     <profiles>
     	<profile>
-    		<activation>
-    			<jdk>[9,)</jdk>
+            <id>java-17-profile</id>
+            <activation>
+    			<jdk>[17,)</jdk>
    			</activation>
             <build>
             	<plugins>

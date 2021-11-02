@@ -11,6 +11,7 @@
     <artifactId>oak-benchmarks-synchrobench</artifactId>
 
     <properties>
+        <jmh.version>1.19</jmh.version>
         <!--
 			this property prevents the Nexus Staging Maven Plugin to
 			deploy this module's artifacts to Maven Central' staging repo
@@ -27,6 +28,26 @@
             <groupId>com.yahoo.oak</groupId>
             <artifactId>oak</artifactId>
             <scope>compile</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.openjdk.jmh</groupId>
+            <artifactId>jmh-core</artifactId>
+            <version>${jmh.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>net.spy</groupId>
+            <artifactId>spymemcached</artifactId>
+            <version>2.12.3</version>
+        </dependency>
+        <dependency>
+            <groupId>net.openhft</groupId>
+            <artifactId>chronicle-map</artifactId>
+            <version>3.17.8</version>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.datasketches</groupId>
+            <artifactId>datasketches-java</artifactId>
+            <version>3.0.0</version>
         </dependency>
     </dependencies>
 

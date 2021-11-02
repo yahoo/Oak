@@ -7,15 +7,12 @@
 package com.yahoo.oak.synchrobench.contention.abstractions;
 
 /**
- * Compositional map interface
- *
- * @author Vincent Gramoli
+ * Extends 'Comparable' for ConcurrentSkipListMap.
  */
-public interface MaintenanceAlg {
+public interface BenchKey extends Comparable<Object> {
+    @Override
+    boolean equals(Object obj);
 
-    boolean stopMaintenance();
-
-    long getStructMods();
-
-    int numNodes();
+    @Override
+    int hashCode();
 }

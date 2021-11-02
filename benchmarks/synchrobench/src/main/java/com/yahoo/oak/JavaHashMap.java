@@ -6,82 +6,43 @@
 
 package com.yahoo.oak;
 
-import com.yahoo.oak.synchrobench.MyBuffer;
-import com.yahoo.oak.synchrobench.contention.abstractions.CompositionalOakMap;
+import com.yahoo.oak.synchrobench.contention.abstractions.BenchKey;
+import com.yahoo.oak.synchrobench.contention.abstractions.BenchValue;
+import com.yahoo.oak.synchrobench.contention.abstractions.KeyGenerator;
+import com.yahoo.oak.synchrobench.contention.abstractions.ValueGenerator;
+import com.yahoo.oak.synchrobench.maps.BenchOnHeapMap;
+import org.openjdk.jmh.infra.Blackhole;
 
-import java.util.Iterator;
+import java.util.AbstractMap;
 import java.util.concurrent.ConcurrentHashMap;
 
-public class JavaHashMap<K extends MyBuffer, V extends MyBuffer> implements CompositionalOakMap<K, V> {
+public class JavaHashMap extends BenchOnHeapMap {
 
-    private ConcurrentHashMap<MyBuffer, MyBuffer> hashMap = new ConcurrentHashMap<>();
+    private ConcurrentHashMap<BenchKey, BenchValue> hashMap = new ConcurrentHashMap<>();
 
-    @Override
-    public boolean getOak(K key) {
-        return hashMap.get(key) != null;
+    public JavaHashMap(KeyGenerator keyGen, ValueGenerator valueGen) {
+        super(keyGen, valueGen);
     }
 
     @Override
-    public void putOak(K key, V value) {
-        hashMap.put(key, value);
-    }
-
-    @Override
-    public boolean putIfAbsentOak(K key, V value) {
-        return hashMap.putIfAbsent(key, value) == null;
-    }
-
-    @Override
-    public void removeOak(K key) {
-        hashMap.remove(key);
-    }
-
-    @Override
-    public boolean computeIfPresentOak(K key) {
-        return false;
-    }
-
-    @Override
-    public void computeOak(K key) {
-
-    }
-
-    @Override
-    public void putIfAbsentComputeIfPresentOak(K key, V value) {
-
-        hashMap.merge(key, value, (old, v) -> {
-            synchronized (old) {
-                old.buffer.putLong(1, ~old.buffer.getLong(1));
-            }
-            return old;
-        });
-    }
-
-    @Override
-    public boolean ascendOak(K from, int length) {
-        // disregard from, it is left to be consistenrt with the API
-        Iterator iter = hashMap.entrySet().iterator();
-        int i = 0;
-        while (iter.hasNext() && i < length) {
-            i++;
-            iter.next();
-        }
-        return i == length;
-    }
-
-    @Override
-    public boolean descendOak(K from, int length) {
-        // impossible to descend unordered map
-        return ascendOak(from, length);
-    }
-
-    @Override
-    public void clear() {
+    public void build() {
         hashMap = new ConcurrentHashMap<>();
     }
 
     @Override
-    public int size() {
-        return hashMap.size();
+    public boolean ascendOak(BenchKey from, int length, Blackhole blackhole) {
+        // disregard from, it is left to be consistent with the API
+        return iterate(map().entrySet().iterator(), length, blackhole);
+    }
+
+    @Override
+    public boolean descendOak(BenchKey from, int length, Blackhole blackhole) {
+        // impossible to descend unordered map
+        return ascendOak(from, length, blackhole);
+    }
+
+    @Override
+    protected AbstractMap<BenchKey, BenchValue> map() {
+        return hashMap;
     }
 }

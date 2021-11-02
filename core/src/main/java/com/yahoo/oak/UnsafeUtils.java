@@ -13,9 +13,9 @@ import java.lang.reflect.Field;
 import java.nio.Buffer;
 import java.nio.ByteBuffer;
 
-final class UnsafeUtils {
+public final class UnsafeUtils {
 
-    static final Unsafe UNSAFE;
+    public static final Unsafe UNSAFE;
 
     // static constructor - access and create a new instance of Unsafe
     static {

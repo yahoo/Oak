@@ -6,17 +6,19 @@
 
 package com.yahoo.oak;
 
-import com.yahoo.oak.synchrobench.MyBuffer;
 import com.yahoo.oak.synchrobench.contention.benchmark.Parameters;
+import com.yahoo.oak.synchrobench.data.buffer.KeyGen;
+import com.yahoo.oak.synchrobench.data.buffer.KeyValueBuffer;
+import com.yahoo.oak.synchrobench.data.buffer.ValueGen;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
 import java.util.Random;
 
-public class OakMyBufferTest {
+public class OakBufferTest {
 
-    OakMyBufferMap<MyBuffer, MyBuffer> oakMapBench;
+    OakBenchMap oakMapBench;
 
     static final int SIZE = 1000;
     static final int RANGE = 2048;
@@ -30,16 +32,20 @@ public class OakMyBufferTest {
 
     @Before
     public void init() {
-        oakMapBench = new OakMyBufferMap<>();
+        Parameters.confSmallFootprint = true;
+        oakMapBench = new OakBenchMap(
+            new KeyGen(Parameters.confKeySize),
+            new ValueGen(Parameters.confValSize)
+        );
     }
 
     @Test
     public void testPut() {
         for (long i = SIZE; i > 0; ) {
             int v = S_RANDOM.get().nextInt(RANGE);
-            MyBuffer key = new MyBuffer(Parameters.confKeySize);
+            KeyValueBuffer key = new KeyValueBuffer(Parameters.confKeySize);
             key.buffer.putInt(0, v);
-            MyBuffer val = new MyBuffer(Parameters.confValSize);
+            KeyValueBuffer val = new KeyValueBuffer(Parameters.confValSize);
             val.buffer.putInt(0, v);
             if (oakMapBench.putIfAbsentOak(key, val)) {
                 i--;
@@ -50,30 +56,33 @@ public class OakMyBufferTest {
 
     @Test
     public void testIncreasePut() {
-        OakMyBufferHash<MyBuffer, MyBuffer> oakHashBench = new OakMyBufferHash<>(true);
+        OakBenchHash oakHashBench = new OakBenchHash(
+            new KeyGen(Parameters.confKeySize),
+            new ValueGen(Parameters.confValSize)
+        );
         for (int v = 1; v < 100000; v++) {
-            MyBuffer key = new MyBuffer(Parameters.confKeySize);
+            KeyValueBuffer key = new KeyValueBuffer(Parameters.confKeySize);
             key.buffer.putInt(0, v);
-            MyBuffer val = new MyBuffer(Parameters.confValSize);
+            KeyValueBuffer val = new KeyValueBuffer(Parameters.confValSize);
             val.buffer.putInt(0, v);
             oakMapBench.putOak(key, val);
             oakHashBench.putOak(key, val);
         }
         for (int v = 1; v < 100000; v++) {
-            MyBuffer key = new MyBuffer(Parameters.confKeySize);
+            KeyValueBuffer key = new KeyValueBuffer(Parameters.confKeySize);
             key.buffer.putInt(0, v);
-            MyBuffer val = new MyBuffer(Parameters.confValSize);
+            KeyValueBuffer val = new KeyValueBuffer(Parameters.confValSize);
             val.buffer.putInt(0, v);
-            assert oakMapBench.getOak(key);
-            assert oakHashBench.getOak(key);
+            assert oakMapBench.getOak(key, null);
+            assert oakHashBench.getOak(key, null);
         }
     }
 
     @Test
     public void testPutMinimal() {
-        MyBuffer key = new MyBuffer(Parameters.confKeySize);
+        KeyValueBuffer key = new KeyValueBuffer(Parameters.confKeySize);
         key.buffer.putInt(0, Integer.MIN_VALUE);
-        MyBuffer val = new MyBuffer(Parameters.confValSize);
+        KeyValueBuffer val = new KeyValueBuffer(Parameters.confValSize);
         val.buffer.putInt(0, Integer.MIN_VALUE);
         boolean success = oakMapBench.putIfAbsentOak(key, val);
         Assert.assertTrue(success);
