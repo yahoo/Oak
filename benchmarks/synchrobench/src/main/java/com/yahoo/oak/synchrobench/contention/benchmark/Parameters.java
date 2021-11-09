@@ -6,6 +6,11 @@
 
 package com.yahoo.oak.synchrobench.contention.benchmark;
 
+import java.util.Arrays;
+import java.util.Map;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+
 /**
  * Parameters of the Java version of the
  * Synchrobench benchmark.
@@ -21,6 +26,7 @@ public class Parameters {
     public static boolean confSmallFootprint;
 
     public static int confNumThreads;
+    public static int confNumFillThreads;
     public static int confNumMilliseconds;
     public static int confNumWrites;
     public static int confNumWriteAlls;
@@ -49,6 +55,31 @@ public class Parameters {
     public static boolean confMeasureLatency;
     public static boolean confDetailedStats;
 
+    public static String confScenario;
+
+    // Pre configured scenarios
+    public static final Map<String, String[]> SCENARIOS = Stream.of(new String[][]{
+        {"4a-put", "-a", "0", "-u", "100"},
+        {"4b-putIfAbsentComputeIfPresent", "--buffer", "-u", "0", "-s", "100", "-c"},
+        {"4c-get-zc", "--buffer"},
+        {"4c-get-copy"},
+        {"4d-95Get5Put", "--buffer", "-a", "0", "-u", "5"},
+        {"4e-entrySet-ascend", "--buffer", "-c"},
+        {"4e-entryStreamSet-ascend", "--buffer", "-c", "--stream-iteration"},
+        {"4f-entrySet-descend", "--buffer", "-c", "-a", "100"},
+        {"4f-entryStreamSet-descend", "--buffer", "-c", "-a", "100", "--stream-iteration"},
+        // sequential puts, doesn't need to be part of the regression
+        {"not-random-put", "-a", "0", "-u", "100", "--inc"},
+        {"50Pu50Delete", "-a", "50", "-u", "100"},
+        {"25Put25Delete50Get", "-a", "25", "-u", "50"},
+        {"05Put05Delete90Get", "-a", "05", "-u", "10"},
+        {"50Pu50Delete_ZC", "-a", "50", "-u", "100", "--buffer"},
+        {"25Put25Delete90Get_ZC", "-a", "25", "-u", "50", "--buffer"},
+        {"05Put05Delete90Get_ZC", "-a", "05", "-u", "10", "--buffer"}
+    }).collect(
+        Collectors.toMap(data -> data[0], data -> Arrays.copyOfRange(data, 1, data.length))
+    );
+
     static {
         resetToDefault();
     }
@@ -57,6 +88,7 @@ public class Parameters {
         confSmallFootprint = false;
 
         confNumThreads = 1;
+        confNumFillThreads = 1;
         confNumMilliseconds = 5000;
         confNumWrites = 0;
         confNumWriteAlls = 0;
@@ -84,128 +116,120 @@ public class Parameters {
 
         confMeasureLatency = false;
         confDetailedStats = false;
+
+        confScenario = "none";
     }
 
-    public static String asString() {
-        resetToDefault();
-        return "Parameters:\n"
-                + "\t-e               -- print detailed statistics (default: "
-                + (confDetailedStats ? "enabled" : "disabled")
-                + ")\n"
-                + "\t-l               -- enables latency measurements (default: "
-                + (confMeasureLatency ? "enabled" : "disabled")
-                + ")\n"
-                + "\t-t thread-num    -- set the number of threads (default: "
-                + confNumThreads
-                + ")\n"
-                + "\t-d duration      -- set the length of the benchmark, in milliseconds (default: "
-                + confNumMilliseconds
-                + ")\n"
-                + "\t-u updates       -- set the number of threads (default: "
-                + confNumWrites
-                + ")\n"
-                + "\t-a writeAll      -- set the percentage of composite updates (default: "
-                + confNumWriteAlls
-                + ")\n"
-                + "\t-s snapshot      -- set the percentage of composite read-only operations (default: "
-                + confNumSnapshots
-                + ")\n"
-                + "\t-r range         -- set the cardinality of the keys (default: "
-                + confRange
-                + ")\n"
-                + "\t-b benchmark     -- set the benchmark (default: "
-                + confBenchClass
-                + ")\n"
-                + "\t-i size          -- set the data structure initial size (default: "
-                + confSize
-                + ")\n"
-                + "\t-n iterations    -- set the bench iterations in the same JVM (default: "
-                + confIterations
-                + ")\n"
-                + "\t-k keySize       -- set the size of the keys, in Bytes (default: "
-                + confKeySize
-                + ")\n"
-                + "\t-v valSize       -- set the size of the values, in Bytes (default: "
-                + confValSize
-                + ")\n"
-                + "\t-c changeOp      -- change the operation (default: "
-                + confChange
-                + ")\n"
-                + "\t-W warmup        -- set the JVM warmup length, in milliseconds (default: "
-                + confWarmupMilliseconds
-                + ")\n"
-                + "\t--consume-keys   -- enables key consumption (default: "
-                + (confConsumeKeys ? "enabled" : "disabled")
-                + ")\n"
-                + "\t--consume-values -- enables value consumption (default: "
-                + (confConsumeValues ? "enabled" : "disabled") + ").";
+    static void printHelpConf(String flag, String help) {
+        System.out.printf("\t%-20s -- %-55s%n", flag, help);
+    }
+
+    static void printConf(String flag, String shortName, String help, String value, boolean isHelp) {
+        if (isHelp) {
+            System.out.printf("\t%-20s -- %-55s (default: %s)%n", flag, help, value);
+        } else {
+            System.out.printf("  %32s: %s%n", shortName, value);
+        }
+    }
+
+    static void printConf(String flag, String shortName, String help, int value, boolean isHelp) {
+        printConf(flag, shortName, help, String.format("%,d", value), isHelp);
+    }
+
+    static void printConf(String flag, String shortName, String help, boolean value, boolean isHelp) {
+        printConf(flag, shortName, help, value ? "enabled" : "disabled", isHelp);
+    }
+
+    public static void print(boolean isHelp) {
+        printConf("-e", "Detailed stats", "print detailed statistics",
+            confDetailedStats, isHelp);
+        printConf("-l", "Measure latency", "enables latency measurements",
+            confMeasureLatency, isHelp);
+
+        printConf("-t thread-num", "Number of threads", "set the number of threads",
+            confNumThreads, isHelp);
+        printConf("--fill-threads N", "Number of initialization threads",
+            "set the number of threads for initialization",
+            confNumFillThreads, isHelp);
+        printConf("-d duration", "Duration", "set the duration of the benchmark, in milliseconds",
+            confNumMilliseconds, isHelp);
+
+        printConf("-u updates", "Write ratio", "set the percentage of updates",
+            confNumWrites, isHelp);
+        printConf("-a writeAll", "WriteAll ratio", "set the percentage of composite updates",
+            confNumWriteAlls, isHelp);
+        printConf("-s snapshot", "Snapshot ratio", "set the percentage of composite read-only operations",
+            confNumSnapshots, isHelp);
+        printConf("-c", "Change", "change the operation",
+            confChange, isHelp);
+
+        printConf("-i size", "Size", "set the data structure initial size",
+            confSize, isHelp);
+        printConf("-r range", "Range", "set the cardinality of the keys",
+            confRange, isHelp);
+
+        printConf("-n iterations", "Iterations", "set the bench iterations in the same JVM",
+            confIterations, isHelp);
+        printConf("-W warmup", "Warmup iterations", "set the JVM warmup duration, in milliseconds",
+            confWarmupMilliseconds, isHelp);
+
+        printConf("-b benchmark", "Benchmark", "set the benchmark class name",
+            confKeySize, isHelp);
+        printConf("--key key", "Key", "set the key class name",
+            confKeySize, isHelp);
+        printConf("--value val", "Value", "set the value class name",
+            confValSize, isHelp);
+
+        printConf("-k keySize", "Key size", "set the size of the keys, in Bytes",
+            confKeySize, isHelp);
+        printConf("-v valSize", "Value size", "set the size of the values, in Bytes",
+            confValSize, isHelp);
+
+        printConf("--consume-keys", "Consume keys", "enables key consumption",
+            confConsumeKeys, isHelp);
+        printConf("--consume-values", "Consume values", "enables value consumption",
+            confConsumeValues, isHelp);
+
+        printConf("--si", "Stream iteration", "enables stream iteration for scan",
+            confStreamIteration, isHelp);
+        printConf("--buffer", "Buffer view", "Use ZC interface when possible",
+            confZeroCopy, isHelp);
+
+        printConf("--small-footprint", "Small footprint", "Configure the map for a small footprint",
+            confSmallFootprint, isHelp);
+
+        printConf("--scenario", "Scenario", "set one of pre defined scenarios",
+            confScenario, isHelp);
     }
 
     /**
      * Print the parameters that have been given as an input to the benchmark
      */
     public static void print() {
-        String params = "Benchmark parameters" + "\n"
-            + "--------------------" + "\n"
-            + "  Detailed stats:          \t"
-            + (Parameters.confDetailedStats ? "enabled" : "disabled") + "\n"
-            + "  Measure latency          \t"
-            + (Parameters.confMeasureLatency ? "enabled" : "disabled") + "\n"
-            + "  Number of threads:       \t"
-            + Parameters.confNumThreads + "\n"
-            + "  Length:                  \t"
-            + Parameters.confNumMilliseconds + " ms\n"
-            + "  Write ratio:             \t"
-            + Parameters.confNumWrites + " %\n"
-            + "  WriteAll ratio:          \t"
-            + Parameters.confNumWriteAlls + " %\n"
-            + "  Snapshot ratio:          \t"
-            + Parameters.confNumSnapshots + " %\n"
-            + "  Size:                    \t"
-            + String.format("%,d", Parameters.confSize) + " elts\n"
-            + "  Range:                   \t"
-            + String.format("%,d", Parameters.confRange) + " elts\n"
-            + "  WarmUp:                  \t"
-            + Parameters.confWarmupMilliseconds + " s\n"
-            + "  Iterations:              \t"
-            + Parameters.confIterations + "\n"
-            + "  Key size:              \t"
-            + Parameters.confKeySize + " Bytes\n"
-            + "  Val size:              \t"
-            + Parameters.confValSize + " Bytes\n"
-            + "  Change:                \t"
-            + Parameters.confChange + "\n"
-            + "  Buffer view:            \t"
-            + Parameters.confZeroCopy + "\n"
-            + "  Benchmark:              \t"
-            + Parameters.confBenchClass + "\n"
-            + "  Key:                    \t"
-            + Parameters.confKeyClass + "\n"
-            + "  Value:                  \t"
-            + Parameters.confValueClass + "\n"
-            + "  Consume keys:           \t"
-            + (Parameters.confConsumeKeys ? "enabled" : "disabled") + "\n"
-            + "  Consume values:         \t"
-            + (Parameters.confConsumeValues ? "enabled" : "disabled") + "\n";
-        System.out.print(params);
+        print(false);
     }
 
     /**
      * Print the benchmark usage on the standard output
      */
     public static void printUsage() {
-        String syntax = "Usage:\n"
-            + "java synchrobench.benchmark.Test [options] [-- stm-specific options]\n\n"
-            + asString();
-        System.err.println(syntax);
+        resetToDefault();
+        System.out.println("Usage:\n"
+            + "java synchrobench.benchmark.Test [options] [-- stm-specific options]\n"
+        );
+        printHelpConf("-h", "print usage instructions and exit");
+        printHelpConf("--print", "print parsed parameters and exit");
+        print(true);
+    }
+
+    public static boolean isRandomKeyDistribution() {
+        return confKeyDistribution == KeyDist.RANDOM;
     }
 
     /**
      * Parse the parameters on the command line
      */
-    public static void parseCommandLineParameters(String[] args) throws IllegalArgumentException {
-        resetToDefault();
-
+    private static void parseParameters(String[] args) throws IllegalArgumentException {
         int argNumber = 0;
 
         while (argNumber < args.length) {
@@ -216,6 +240,9 @@ public class Parameters {
                     case "--help":
                     case "-h":
                         printUsage();
+                        System.exit(0);
+                    case "--print":
+                        print();
                         System.exit(0);
                     case "--verbose":
                     case "-e":
@@ -245,6 +272,9 @@ public class Parameters {
                     case "--thread-nums":
                     case "-t":
                         confNumThreads = parseInt(args[argNumber++]);
+                        break;
+                    case "--fill-threads":
+                        confNumFillThreads = parseInt(args[argNumber++]);
                         break;
                     case "--duration":
                     case "-d":
@@ -302,6 +332,10 @@ public class Parameters {
                     case "-v":
                         confValSize = parseInt(args[argNumber++]);
                         break;
+                    case "--scenario":
+                        confScenario = args[argNumber++];
+                        parseParameters(SCENARIOS.get(confScenario));
+                        break;
                     default:
                         throw new IllegalArgumentException(String.format("Unknown parameter: %s", currentArg));
                 }
@@ -311,6 +345,14 @@ public class Parameters {
                 throw new IllegalArgumentException(String.format("Number expected after option: %s", currentArg));
             }
         }
+    }
+
+    /**
+     * Parse the parameters on the command line
+     */
+    public static void parseCommandLineParameters(String[] args) throws IllegalArgumentException {
+        resetToDefault();
+        parseParameters(args);
         assert (confRange >= confSize);
         if (confRange != 2 * confSize) {
             System.err.println("Note that the value range is not twice the initial size, thus the size " +

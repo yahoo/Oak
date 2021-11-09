@@ -22,7 +22,7 @@ import java.util.Random;
  *
  * @author Vincent Gramoli
  */
-public class ThreadLoop implements Runnable {
+public class BenchLoopWorker implements Runnable {
 
     /**
      * The instance of the running benchmark
@@ -37,11 +37,6 @@ public class ThreadLoop implements Runnable {
      * The stop flag, indicating whether the loop is over
      */
     protected volatile boolean stop = false;
-
-    /**
-     * The number of the current thread
-     */
-    protected final short myThreadNum;
 
     protected final OpCounter counter = new OpCounter();
     /**
@@ -62,14 +57,12 @@ public class ThreadLoop implements Runnable {
      */
     int[] cdf = new int[3];
 
-    public ThreadLoop(
-        short myThreadNum,
+    public BenchLoopWorker(
         CompositionalMap bench,
         KeyGenerator keyGen,
         ValueGenerator valueGen,
         BenchKey lastKey
     ) {
-        this.myThreadNum = myThreadNum;
         this.bench = bench;
         this.keyGen = keyGen;
         this.valueGen = valueGen;
@@ -80,7 +73,7 @@ public class ThreadLoop implements Runnable {
         // for the key distribution INCREASING we want to continue the increasing integers sequence,
         // started in the initial filling of the map
         // for the key distribution RANDOM the below value will be overwritten anyway
-        this.keyRand = (Parameters.confKeyDistribution == Parameters.KeyDist.RANDOM) ? this.valueRand : null;
+        this.keyRand = Parameters.isRandomKeyDistribution() ? this.valueRand : null;
 
         /* initialize the method boundaries */
         cdf[0] = 10 * Parameters.confNumWriteAlls;

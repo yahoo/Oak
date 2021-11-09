@@ -150,6 +150,9 @@ public class OffHeapList extends BenchMap {
     @Override
     public void removeOak(BenchKey key) {
         Cell val = skipListMap.remove(key);
+        if (val == null) {
+            return;
+        }
         allocator.free(((ScopedReadBuffer) val.key.get()).getSlice());
         allocator.free(val.value.get().getSlice());
         // TODO YONIGO - need some sync here!

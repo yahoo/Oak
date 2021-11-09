@@ -12,23 +12,23 @@ function ctrl_c() {
 ############################################################################
 # All test scenarios and benchmarks
 ############################################################################
-declare -A scenarios=(
-  ["4a-put"]="-a 0 -u 100"
-  ["4b-putIfAbsentComputeIfPresent"]="--buffer -u 0 -s 100 -c"
-  ["4c-get-zc"]="--buffer"
-  ["4c-get-copy"]=""
-  ["4d-95Get5Put"]="--buffer -a 0 -u 5"
-  ["4e-entrySet-ascend"]="--buffer -c"
-  ["4e-entryStreamSet-ascend"]="--buffer -c --stream-iteration"
-  ["4f-entrySet-descend"]="--buffer -c -a 100"
-  ["4f-entryStreamSet-descend"]="--buffer -c -a 100 --stream-iteration"
-  ["not-random-put"]="-a 0 -u 100 --inc" #sequential puts, doesn't need to be part of the regression
-  ["50Pu50Delete"]="-a 50 -u 100"
-  ["25Put25Delete50Get"]="-a 25 -u 50"
-  ["05Put05Delete90Get"]="-a 05 -u 10"
-  ["50Pu50Delete_ZC"]="-a 50 -u 100 --buffer"
-  ["25Put25Delete90Get_ZC"]="-a 25 -u 50 --buffer"
-  ["05Put05Delete90Get_ZC"]="-a 05 -u 10 --buffer"
+scenarios=(
+  "4a-put"
+  "4b-putIfAbsentComputeIfPresent"
+  "4c-get-zc"
+  "4c-get-copy"
+  "4d-95Get5Put"
+  "4e-entrySet-ascend"
+  "4e-entryStreamSet-ascend"
+  "4f-entrySet-descend"
+  "4f-entryStreamSet-descend"
+  "not-random-put"
+  "50Pu50Delete"
+  "25Put25Delete50Get"
+  "05Put05Delete90Get"
+  "50Pu50Delete_ZC"
+  "25Put25Delete90Get_ZC"
+  "05Put05Delete90Get_ZC"
 )
 
 declare -A benchmarks=(
@@ -106,7 +106,7 @@ jar_file_path=$(find "$(pwd)" -name "oak-benchmarks-synchrobench-*.jar" | grep -
 #  4. take the first result (the most recent JAR file)
 
 # Iterate on the cartesian product of these arguments (space separated)
-test_scenarios=${!scenarios[*]}
+test_scenarios=${scenarios[*]}
 test_benchmarks=${!benchmarks[*]}
 test_thread="01 04 08 12 16 20 24 28 32"
 test_size="10_000_000"
@@ -135,6 +135,9 @@ duration="30_000"
 # Defines the sampling range for queries and insertions.
 range_ratio="2"
 
+# Defines the number of threads used for initialization
+fill_threads="24"
+
 # For flag arguments
 extra_args=""
 
@@ -153,7 +156,7 @@ verify_script=0
 ARGS=$(\
     getopt\
         -o o:j:d:i:w:s:t:e:h:b:g:m:l:r:v\
-        --long gc:,java-mode:,key:,value:,key-size:,value-size:,consume-keys,consume-values,verify\
+        --long gc:,java-mode:,key:,value:,key-size:,value-size:,fill-threads:,consume-keys,consume-values,latency,verify\
         -n 'run' -- "$@"
 )
 if [ $? != 0 ]; then
@@ -195,6 +198,8 @@ while true; do
   --value-size ) value_size="$2"; shift 2 ;;
   --consume-keys ) extra_args="$extra_args --consume-keys"; shift ;;
   --consume-values ) extra_args="$extra_args --consume-values"; shift ;;
+  --fill-threads ) fill_threads="$2"; shift 2 ;;
+  --latency ) extra_args="$extra_args --latency"; shift ;;
   -v | --verify ) verify_script=1; shift ;;
   -- ) shift; break ;;
   * ) break ;;
@@ -238,7 +243,6 @@ for scenario in ${test_scenarios[*]}; do for bench in ${test_benchmarks[*]}; do
   echo "Scenario: ${bench} ${scenario}"
   echo "" >>"${summary}"
 
-  scenario_args=${scenarios[${scenario}]}
   classPath="${benchmarks[${bench}]}"
   test_heap_size="${heap_limit[${bench}]}"
   test_direct_size="${direct_limit[${bench}]}"
@@ -268,10 +272,11 @@ for scenario in ${test_scenarios[*]}; do for bench in ${test_benchmarks[*]}; do
 
         # Construct the command line as a multi-lined list for aesthetics reasons
         cmd_args=(
-          "${java} ${java_args} -jar ${jar_file_name} -b ${classPath} ${scenario_args}"
+          "${java} ${java_args} -jar ${jar_file_name} -b ${classPath} --scenario ${scenario}"
           "--key ${data[${key_class}]} --value ${data[${value_class}]}"
           "-k ${key_size} -v ${value_size} -i ${size} -r ${range} -t ${thread}"
           "-W ${warmup} -n ${iterations} -d ${duration} ${extra_args}"
+          "--fill-threads ${fill_threads}"
         )
         cmd=${cmd_args[*]}
         echo "${cmd}"
@@ -298,7 +303,7 @@ for scenario in ${test_scenarios[*]}; do for bench in ${test_benchmarks[*]}; do
           echo "java_args: ${java_args}"
           echo "jar_file_name: ${jar_file_name}"
           echo "classPath: ${classPath}"
-          echo "scenario_args: ${scenario_args}"
+          echo "scenario: ${scenario}"
           echo "key_class": ${key_class}
           echo "value_class": ${value_class}
           echo "key_size: ${key_size}"
@@ -308,6 +313,7 @@ for scenario in ${test_scenarios[*]}; do for bench in ${test_benchmarks[*]}; do
           echo "size: ${size}"
           echo "range: ${range}"
           echo "thread: ${thread}"
+          echo "fill_threads: ${fill_threads}"
           echo "duration: ${duration}"
           echo "extra_args: ${extra_args}"
           echo ""

@@ -7,13 +7,11 @@
 package com.yahoo.oak.synchrobench.contention.benchmark;
 
 import com.yahoo.oak.synchrobench.contention.abstractions.BenchKey;
-import com.yahoo.oak.synchrobench.contention.abstractions.BenchValue;
 import com.yahoo.oak.synchrobench.contention.abstractions.CompositionalMap;
 import com.yahoo.oak.synchrobench.contention.abstractions.KeyGenerator;
 import com.yahoo.oak.synchrobench.contention.abstractions.ValueGenerator;
 
 import java.lang.reflect.InvocationTargetException;
-import java.util.Random;
 import java.util.stream.Stream;
 
 /**
@@ -30,28 +28,16 @@ public class Test {
     private Thread[] threads;
 
     // The array of runnable thread codes
-    private ThreadLoop[] threadLoops = new ThreadLoop[0];
+    private BenchLoopWorker[] benchLoopWorkers = new BenchLoopWorker[0];
 
     // Collected iteration stats
     private final OpCounter.Stats[] stats;
 
-    /**
-     * The instance of the benchmark
-     */
+    // The instance of the benchmark
     private final CompositionalMap oakBench;
     private final KeyGenerator keyGen;
     private final ValueGenerator valueGen;
     private BenchKey lastKey = null;
-
-    /**
-     * The thread-private PRNG
-     */
-    private static final ThreadLocal<Random> S_RANDOM = new ThreadLocal<Random>() {
-        @Override
-        protected synchronized Random initialValue() {
-            return new Random();
-        }
-    };
 
     /**
      * Constructor sets up the benchmark by reading parameters and creating
@@ -84,46 +70,71 @@ public class Test {
             KeyGenerator.class, ValueGenerator.class).newInstance(keyGen, valueGen);
     }
 
-    public void fill(final int range, final long size) {
-        long operations = 0;
-        final Random valueRand = S_RANDOM.get();
-        final Random keyRand = (Parameters.confKeyDistribution == Parameters.KeyDist.RANDOM) ? valueRand : null;
-        final long reportGran = size / 100;
+    public void fill(final int range, final long size) throws InterruptedException {
+        // Non-random key distribution can only be initialized from one thread.
+        final int numWorkers = Parameters.isRandomKeyDistribution() ? Parameters.confNumFillThreads : 1;
+        FillWorker[] fillWorkers = new FillWorker[numWorkers];
+        Thread[] fillThreads = new Thread[numWorkers];
+        final long sizePerThread = size / numWorkers;
+        final long reminder = size % numWorkers;
+        for (int i = 0; i < numWorkers; i++) {
+            final long sz = i < reminder ? sizePerThread + 1 : sizePerThread;
+            fillWorkers[i] = new FillWorker(oakBench, keyGen, valueGen, lastKey, sz, range);
+            fillThreads[i] = new Thread(fillWorkers[i]);
+        }
+        final long reportGranMS = 200;
+        final boolean isConsole = System.console() != null;
 
-        System.out.print("Filling data");
+        System.out.print("Start filling data...");
+        if (!isConsole) {
+            System.out.println();
+        }
+
         final long startTime = System.currentTimeMillis();
-        lastKey = null;
-        for (long i = 0; i < size; ) {
-            BenchKey curKey = keyGen.getNextKey(keyRand, range, lastKey);
-            BenchValue curValue = valueGen.getNextValue(valueRand, range);
+        for (Thread thread : fillThreads) {
+            thread.start();
+        }
 
-            if (oakBench.putIfAbsentOak(curKey, curValue)) {
-                i++;
+        try {
+            while ((oakBench.size() < size) && Stream.of(fillThreads).anyMatch(Thread::isAlive)) {
+                if (isConsole) {
+                    long operations = Stream.of(fillWorkers).mapToLong(FillWorker::getOperations).sum();
+                    final long curTime = System.currentTimeMillis();
+                    double runTime = ((double) (curTime - startTime)) / 1000.0;
+                    System.out.printf(
+                        "\rFilling data: %5.0f%% -- %,6.2f (seconds) - %,d operations",
+                        (float) oakBench.size() * 100 / (float) size,
+                        runTime,
+                        operations
+                    );
+                }
+                Thread.sleep(reportGranMS);
             }
-            // counts all the putIfAbsent operations, not only the successful ones
-            operations++;
-
-            lastKey = curKey;
-
-            if (reportGran == 0 || (i % reportGran) == 0) {
-                System.out.printf("\rFilling data: %.0f%%", (float) i * 100 / (float) size);
+        } finally {
+            for (Thread t : fillThreads) {
+                t.join();
             }
         }
         final long endTime = System.currentTimeMillis();
         double initTime = ((double) (endTime - startTime)) / 1000.0;
-        System.out.printf("\rInitialization complete in %,.4f (seconds) - %,d operations%n", initTime, operations);
-    }
+        lastKey = fillWorkers[numWorkers - 1].getLastKey();
+        long operations = Stream.of(fillWorkers).mapToLong(FillWorker::getOperations).sum();
 
+        if (isConsole) {
+            System.out.print("\r");
+        }
+        System.out.printf("Initialization complete in %,.4f (seconds) - %,d operations%n", initTime, operations);
+    }
 
     /**
      * Creates as many threads as requested
      */
     private void initThreads() {
-        threadLoops = new ThreadLoop[Parameters.confNumThreads];
+        benchLoopWorkers = new BenchLoopWorker[Parameters.confNumThreads];
         threads = new Thread[Parameters.confNumThreads];
-        for (short threadNum = 0; threadNum < Parameters.confNumThreads; threadNum++) {
-            threadLoops[threadNum] = new ThreadLoop(threadNum, oakBench, keyGen, valueGen, lastKey);
-            threads[threadNum] = new Thread(threadLoops[threadNum]);
+        for (int i = 0; i < Parameters.confNumThreads; i++) {
+            benchLoopWorkers[i] = new BenchLoopWorker(oakBench, keyGen, valueGen, lastKey);
+            threads[i] = new Thread(benchLoopWorkers[i]);
         }
     }
 
@@ -190,8 +201,8 @@ public class Test {
         try {
             Thread.sleep(milliseconds);
         } finally {
-            for (ThreadLoop threadLoop : threadLoops) {
-                threadLoop.stopThread();
+            for (BenchLoopWorker benchLoopWorker : benchLoopWorkers) {
+                benchLoopWorker.stopThread();
             }
         }
 
@@ -199,9 +210,9 @@ public class Test {
             thread.join();
         }
 
-        for (ThreadLoop threadLoop : threadLoops) {
-            if (threadLoop.error != null) {
-                throw threadLoop.error;
+        for (BenchLoopWorker benchLoopWorker : benchLoopWorkers) {
+            if (benchLoopWorker.error != null) {
+                throw benchLoopWorker.error;
             }
         }
 
@@ -257,8 +268,8 @@ public class Test {
 
     private OpCounter.Stats collectIterationStats(int iteration, double time) {
         stats[iteration] = new OpCounter.Stats(
-            Stream.of(threadLoops).map(t -> t.counter).toArray(OpCounter[]::new),
-            time, threadLoops.length, oakBench.size()
+            Stream.of(benchLoopWorkers).map(t -> t.counter).toArray(OpCounter[]::new),
+            time, benchLoopWorkers.length, oakBench.size()
         );
         return stats[iteration];
     }
@@ -267,7 +278,7 @@ public class Test {
      * This method is called before each run of the benchmark.
      */
     public void reset() {
-        Stream.of(threadLoops).forEach(ThreadLoop::reset);
+        Stream.of(benchLoopWorkers).forEach(BenchLoopWorker::reset);
         oakBench.clear();
     }
 
@@ -314,10 +325,8 @@ public class Test {
         System.out.println("  |--Margin of error (95% CL):\t" + (stErr * 1.96));
         System.out.println();
 
-        if (Parameters.confMeasureLatency) {
-            OpCounter.Stats s = new OpCounter.Stats(Stream.of(stats).toArray(OpCounter.Stats[]::new));
-            s.printStats();
-        }
+        OpCounter.Stats s = new OpCounter.Stats(Stream.of(stats).toArray(OpCounter.Stats[]::new));
+        s.printStats();
     }
 
     public static void main(String[] args) throws Exception {

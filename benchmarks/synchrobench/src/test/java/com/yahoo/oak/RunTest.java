@@ -6,6 +6,7 @@
 
 package com.yahoo.oak;
 
+import com.yahoo.oak.synchrobench.contention.benchmark.Parameters;
 import com.yahoo.oak.synchrobench.contention.benchmark.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
@@ -14,9 +15,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
-import java.util.Map;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 @RunWith(Parameterized.class)
 public class RunTest {
@@ -35,21 +33,6 @@ public class RunTest {
         "buffer"
     );
 
-    public static final Map<String, String[]> SCENARIOS = Stream.of(new String[][]{
-        {"4a-put", "-a", "0", "-u", "100"},
-        {"4b-putIfAbsentComputeIfPresent", "--buffer", "-u", "0", "-s", "100", "-c"},
-        {"4c-get-zc", "--buffer"},
-        {"4c-get-copy"},
-        {"4d-95Get5Put", "--buffer", "-a", "0", "-u", "5"},
-        {"4e-entrySet-ascend", "--buffer", "-c"},
-        {"4e-entryStreamSet-ascend", "--buffer", "-c", "--stream-iteration"},
-        {"4f-entrySet-descend", "--buffer", "-c", "-a", "100"},
-        {"4f-entryStreamSet-descend", "--buffer", "-c", "-a", "100", "--stream-iteration"},
-        {"not-random-put", "-a", "0", "-u", "100", "--inc"}
-    }).collect(
-        Collectors.toMap(data -> data[0], data -> Arrays.copyOfRange(data, 1, data.length))
-    );
-
     String[] args;
 
     public RunTest(String bench, String keyValue, String scenario) {
@@ -57,7 +40,7 @@ public class RunTest {
     }
 
     public static String[] getArgs(String bench, String keyValue, String scenario, int duration, int threads) {
-        return Stream.concat(Arrays.stream(new String[]{
+        return new String[]{
                 "-b", "com.yahoo.oak." + bench,
                 "--key", "com.yahoo.oak.synchrobench.data." + keyValue, "-k", "32",
                 "--value", "com.yahoo.oak.synchrobench.data." + keyValue, "-v", "64",
@@ -70,10 +53,9 @@ public class RunTest {
                 "--consume-keys",
                 "--consume-values",
                 "--small-footprint",
-                "--latency"
-            }), Arrays.stream(
-                SCENARIOS.get(scenario))
-        ).toArray(String[]::new);
+                "--latency",
+                "--scenario", scenario
+            };
     }
 
     /**
@@ -105,7 +87,7 @@ public class RunTest {
 
     @Parameterized.Parameters(name = "{0}, {1}, {2}")
     public static List<Object[]> parameters() {
-        return cartesianProduct(BENCH, DATA, SCENARIOS.keySet());
+        return cartesianProduct(BENCH, DATA, Parameters.SCENARIOS.keySet());
     }
 
     @org.junit.Test

@@ -255,7 +255,7 @@ public class OpCounter {
         public void printStats() {
             PrintTools.printHeader("Benchmark statistics");
             System.out.printf("  %22s: %,.2f%n", "Elapsed time (s)", time);
-            System.out.printf("  %22s: %.0f%n", "Final size", totalSize);
+            System.out.printf("  %22s: %,.0f%n", "Final size", totalSize);
             System.out.printf("  %22s: %,d%n", "Expected size",
                 Parameters.confSize + success(BenchOp.ADD) - success(BenchOp.REMOVE));
             System.out.printf("  %22s: %,.2f%n", "Throughput (mebiops/s)", avgThroughput() / (double) (1 << 20));
