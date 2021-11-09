@@ -93,6 +93,7 @@ class NativeMemoryAllocator implements BlockMemoryAllocator {
                     stats.reclaim(size);
                 }
                 s.copyAllocationInfoFrom(bestFit);
+                allocated.addAndGet(size);
                 return true;
             }
         }
@@ -240,9 +241,12 @@ class NativeMemoryAllocator implements BlockMemoryAllocator {
     // This method MUST be called within a thread safe context !!!
     private void allocateNewCurrentBlock() {
         Block b = blocksProvider.getBlock();
-        int blockID = idGenerator.getAndIncrement();
-        this.blocksArray[blockID] = b;
+        // Does not require atomicity because previous update was atomic, and we are in a thread safe context.
+        int blockID = idGenerator.get();
         b.setID(blockID);
+        this.blocksArray[blockID] = b;
+        // Increment atomically to ensure current reads and to force a flash before assigning the current block.
+        idGenerator.incrementAndGet();
         this.currentBlock = b;
     }
 

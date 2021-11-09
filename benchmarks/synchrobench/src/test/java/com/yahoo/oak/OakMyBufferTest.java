@@ -16,7 +16,7 @@ import java.util.Random;
 
 public class OakMyBufferTest {
 
-    OakMyBufferMap<MyBuffer, MyBuffer> oakBench;
+    OakMyBufferMap<MyBuffer, MyBuffer> oakMapBench;
 
     static final int SIZE = 1000;
     static final int RANGE = 2048;
@@ -30,7 +30,7 @@ public class OakMyBufferTest {
 
     @Before
     public void init() {
-        oakBench = new OakMyBufferMap<>();
+        oakMapBench = new OakMyBufferMap<>();
     }
 
     @Test
@@ -41,7 +41,7 @@ public class OakMyBufferTest {
             key.buffer.putInt(0, v);
             MyBuffer val = new MyBuffer(Parameters.confValSize);
             val.buffer.putInt(0, v);
-            if (oakBench.putIfAbsentOak(key, val)) {
+            if (oakMapBench.putIfAbsentOak(key, val)) {
                 i--;
             }
         }
@@ -50,12 +50,22 @@ public class OakMyBufferTest {
 
     @Test
     public void testIncreasePut() {
+        OakMyBufferHash<MyBuffer, MyBuffer> oakHashBench = new OakMyBufferHash<>(true);
         for (int v = 1; v < 100000; v++) {
             MyBuffer key = new MyBuffer(Parameters.confKeySize);
             key.buffer.putInt(0, v);
             MyBuffer val = new MyBuffer(Parameters.confValSize);
             val.buffer.putInt(0, v);
-            oakBench.putOak(key, val);
+            oakMapBench.putOak(key, val);
+            oakHashBench.putOak(key, val);
+        }
+        for (int v = 1; v < 100000; v++) {
+            MyBuffer key = new MyBuffer(Parameters.confKeySize);
+            key.buffer.putInt(0, v);
+            MyBuffer val = new MyBuffer(Parameters.confValSize);
+            val.buffer.putInt(0, v);
+            assert oakMapBench.getOak(key);
+            assert oakHashBench.getOak(key);
         }
     }
 
@@ -65,7 +75,7 @@ public class OakMyBufferTest {
         key.buffer.putInt(0, Integer.MIN_VALUE);
         MyBuffer val = new MyBuffer(Parameters.confValSize);
         val.buffer.putInt(0, Integer.MIN_VALUE);
-        boolean success = oakBench.putIfAbsentOak(key, val);
+        boolean success = oakMapBench.putIfAbsentOak(key, val);
         Assert.assertTrue(success);
     }
 }

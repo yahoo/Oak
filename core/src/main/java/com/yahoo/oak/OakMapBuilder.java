@@ -156,14 +156,15 @@ public class OakMapBuilder<K, V> {
         }
         MemoryManager valuesMemoryManager = new SyncRecycleMemoryManager(memoryAllocator);
         // for hash the keys are indeed deleted, thus SeqExpandMemoryManager isn't acceptable
-        //TODO: change keys memory manager
-        MemoryManager keysMemoryManager = new SeqExpandMemoryManager(memoryAllocator);
+        MemoryManager keysMemoryManager = new SyncRecycleMemoryManager(memoryAllocator);
 
         // Number of bits to define the chunk size is calculated from given number of items
         // to be kept in one hash chunk. The number of chunks pre-allocated in the hash is
         // configurable and also passes in the bit size
         int bitsToKeepChunkSize = (int) Math.ceil(Math.log(hashChunkMaxItems) / Math.log(2));
         int bitsToKeepChunksNum = (int) Math.ceil(Math.log(preallocHashChunksNum) / Math.log(2));
+
+        System.gc(); // the below is memory costly, be sure all unreachable memory is cleared
 
         checkPreconditions();
         return new OakHashMap<>(keySerializer, valueSerializer,

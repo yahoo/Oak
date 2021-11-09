@@ -6,6 +6,7 @@
 
 package com.yahoo.oak.synchrobench.contention.benchmark;
 
+import com.yahoo.oak.OakMyBufferHash;
 import com.yahoo.oak.OakMyBufferMap;
 import com.yahoo.oak.synchrobench.MyBuffer;
 import com.yahoo.oak.synchrobench.contention.abstractions.CompositionalMap;
@@ -146,7 +147,8 @@ public class Test {
             }
 
         } catch (Exception e) {
-            System.err.println("Cannot find benchmark class: " + benchName);
+            System.err.println("Cannot instantiate benchmark class: " + benchName);
+            e.printStackTrace();
             System.exit(-1);
         }
     }
@@ -197,7 +199,12 @@ public class Test {
 
         float allocated = Float.NaN;
         try {
-            allocated = ((OakMyBufferMap) oakBench).allocated();
+            if (oakBench instanceof OakMyBufferMap) {
+                allocated = ((OakMyBufferMap) oakBench).allocated();
+            }
+            if (oakBench instanceof OakMyBufferHash) {
+                allocated = ((OakMyBufferHash) oakBench).allocated();
+            }
         } catch (ClassCastException ignored) {
             System.out.println("Cannot fetch off-heap stats for non-Oak maps.");
         }
@@ -307,7 +314,7 @@ public class Test {
             test.printBasicStats();
             if (Parameters.confDetailedStats) {
                 test.printDetailedStats();
-                ((OakMyBufferMap) test.oakBench).printMemStats();
+                test.oakBench.printMemStats();
             }
 
             firstIteration = false;

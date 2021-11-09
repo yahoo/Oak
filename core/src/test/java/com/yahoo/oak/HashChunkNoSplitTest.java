@@ -347,6 +347,7 @@ public class HashChunkNoSplitTest {
         } catch (InterruptedException | BrokenBarrierException e) {
             e.printStackTrace();
         }
+
         // do not start from zero, this way two threads will not insert the same key
         // (inserting the same key simultaneously is not supported yet)
         for (int i = 1; i < MAX_ITEMS_PER_CHUNK; i += 5 ) {
@@ -360,6 +361,10 @@ public class HashChunkNoSplitTest {
             Assert.assertEquals(ValueUtils.ValueResult.TRUE, result.operationResult);
             Assert.assertEquals(key + 1, ((Integer) result.value).intValue());
         }
+        int numberOfMappingsBeforeThisThreadDeletes = c.externalSize.get();
+        Assert.assertTrue(numberOfMappingsBeforeThisThreadDeletes < MAX_ITEMS_PER_CHUNK);
+        Assert.assertTrue(numberOfMappingsBeforeThisThreadDeletes > (MAX_ITEMS_PER_CHUNK / 5));
+
         for (int i = 1; i < MAX_ITEMS_PER_CHUNK; i += 5 ) {
             Integer key = new Integer(-i);
             deleteExisting(key, ctx, true);
@@ -370,7 +375,10 @@ public class HashChunkNoSplitTest {
 
         inserter.join();
 
-        Assert.assertEquals(c.externalSize.get(), numberOfMappingsBefore);
+        Assert.assertEquals("Size before test: " + numberOfMappingsBefore
+                + ", size in the middle: " + numberOfMappingsBeforeThisThreadDeletes + ", size after: "
+                + c.externalSize.get() + ", statistics chunk size: " + c.statistics.getTotalCount(),
+            c.externalSize.get(), numberOfMappingsBefore);
     }
 
 }

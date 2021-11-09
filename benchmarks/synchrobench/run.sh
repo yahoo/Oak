@@ -23,6 +23,13 @@ declare -A scenarios=(
   ["4f-entrySet-descend"]="--buffer -c -a 100"
   ["4f-entryStreamSet-descend"]="--buffer -c -a 100 --stream-iteration"
   ["not-random-put"]="-a 0 -u 100 --inc" #sequential puts, doesn't need to be part of the regression
+  ["50Pu50Delete"]="-a 50 -u 100"
+  ["25Put25Delete50Get"]="-a 25 -u 50"
+  ["05Put05Delete90Get"]="-a 05 -u 10"
+  ["50Pu50Delete_ZC"]="-a 50 -u 100 --buffer"
+  ["25Put25Delete90Get_ZC"]="-a 25 -u 50 --buffer"
+  ["05Put05Delete90Get_ZC"]="-a 05 -u 10 --buffer"
+
 )
 
 declare -A benchmarks=(
@@ -30,6 +37,7 @@ declare -A benchmarks=(
   ["oak"]="OakMyBufferMap"
   ["offheap-list"]="OffHeapList"
   ["concurrent-hash-map"]="JavaHashMap"
+  ["oak-hash"]="OakMyBufferHash"
 )
 
 declare -A heap_limit=(
@@ -37,6 +45,7 @@ declare -A heap_limit=(
   ["offheap-list"]="12g"
   ["skip-list"]="36g"
   ["concurrent-hash-map"]="36g"
+  ["oak-hash"]="24g"
 )
 
 declare -A direct_limit=(
@@ -44,6 +53,7 @@ declare -A direct_limit=(
   ["offheap-list"]="24g"
   ["skip-list"]="1m" #when running CSLM/CHM some off-heap memory is still required to unrelated java.util.zip.ZipFile
   ["concurrent-hash-map"]="1m"
+  ["oak-hash"]="24g"
 )
 
 declare -A gc_cmd_args=(
