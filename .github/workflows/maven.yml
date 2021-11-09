@@ -24,11 +24,13 @@ jobs:
     - name: Build with Maven
       run: mvn clean package -DskipTests=true -Dstyle.color=always
     - name: Run tests
-      run: mvn test -Dstyle.color=always
+      run: mvn test -Dstyle.color=always -Dtest=!com.yahoo.oak.RunTest -DfailIfNoTests=false
+    - name: Run synchrobench test
+      run: mvn test -Dstyle.color=always -Dtest=com.yahoo.oak.RunTest -DfailIfNoTests=false
     - name: Run tests with test-coverage analysis (slower)
       # Skip some tests due to timeouts
       run: mvn test -pl :oak -Djacoco.skip=false -Dstyle.color=always
-           -Dtest=!com.yahoo.oak.ComputeTest,!com.yahoo.oak.PutIfAbsentTest
+           -Dtest=!com.yahoo.oak.ComputeTest,!com.yahoo.oak.PutIfAbsentTest,!com.yahoo.oak.RunTest
     - name: Setup diff-test-coverage
       run: npm install @connectis/diff-test-coverage@1.5.3
     - name: Validate test-coverage compared with master
