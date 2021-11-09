@@ -151,8 +151,6 @@ public class Parameters {
         printConf("--fill-threads N", "Number of initialization threads",
             "set the number of threads for initialization",
             confNumFillThreads, isHelp);
-        printConf("-d duration", "Duration", "set the duration of the benchmark, in milliseconds",
-            confNumMilliseconds, isHelp);
 
         printConf("-u updates", "Write ratio", "set the percentage of updates",
             confNumWrites, isHelp);
@@ -170,15 +168,17 @@ public class Parameters {
 
         printConf("-n iterations", "Iterations", "set the bench iterations in the same JVM",
             confIterations, isHelp);
+        printConf("-d duration", "Duration", "set the duration of the benchmark, in milliseconds",
+            confNumMilliseconds, isHelp);
         printConf("-W warmup", "Warmup iterations", "set the JVM warmup duration, in milliseconds",
             confWarmupMilliseconds, isHelp);
 
         printConf("-b benchmark", "Benchmark", "set the benchmark class name",
-            confKeySize, isHelp);
+            confBenchClass, isHelp);
         printConf("--key key", "Key", "set the key class name",
-            confKeySize, isHelp);
+            confKeyClass, isHelp);
         printConf("--value val", "Value", "set the value class name",
-            confValSize, isHelp);
+            confValueClass, isHelp);
 
         printConf("-k keySize", "Key size", "set the size of the keys, in Bytes",
             confKeySize, isHelp);

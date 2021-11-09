@@ -54,6 +54,7 @@ public class RunTest {
                 "--consume-values",
                 "--small-footprint",
                 "--latency",
+                "-e",
                 "--scenario", scenario
             };
     }
