@@ -42,7 +42,7 @@ public class HashChunkNoSplitTest {
         ctx.invalidate();
 
         // look for a key that should not be existing in the chunk
-        c.lookUp(ctx, key);
+        c.lookUp(ctx, key, false);
         Assert.assertFalse(ctx.isKeyValid());
         Assert.assertFalse(ctx.isValueValid());
 
@@ -62,7 +62,7 @@ public class HashChunkNoSplitTest {
 
         if (!concurrent) { // for concurrency we cannot change the thread context values
             // look for unfinished insert key once again
-            c.lookUp(ctx, key);
+            c.lookUp(ctx, key, false);
             Assert.assertEquals(ctx.entryState, EntryArray.EntryState.INSERT_NOT_FINALIZED);
             Assert.assertTrue(ctx.isKeyValid());
             Assert.assertFalse(ctx.isValueValid());
@@ -105,7 +105,7 @@ public class HashChunkNoSplitTest {
         c.unpublish();
 
         // look for the key that should be found now
-        c.lookUp(ctx, key);
+        c.lookUp(ctx, key, false);
         Assert.assertTrue(ctx.isKeyValid());
         Assert.assertTrue(ctx.isValueValid());
         Assert.assertNotEquals(ctx.key.getSlice().getReference(), memoryManager.getInvalidReference());
@@ -129,7 +129,7 @@ public class HashChunkNoSplitTest {
 
     private void deleteExisting(Integer key, ThreadContext ctx, boolean concurrent) {
         // delete firstly inserted entries, first look for a key and mark its value as deleted
-        c.lookUp(ctx, key);
+        c.lookUp(ctx, key, false);
         Assert.assertNotEquals(ctx.entryIndex, EntryArray.INVALID_ENTRY_INDEX);
         Assert.assertEquals(ctx.entryState, EntryArray.EntryState.VALID);
         Assert.assertNotEquals(ctx.key.getSlice().getReference(), memoryManager.getInvalidReference());
@@ -159,7 +159,7 @@ public class HashChunkNoSplitTest {
         }
 
         // look for a key that should not be existing in the chunk
-        c.lookUp(ctx, key);
+        c.lookUp(ctx, key, false);
         Assert.assertFalse(ctx.isKeyValid());
         Assert.assertFalse(ctx.isValueValid());
     }
@@ -214,7 +214,7 @@ public class HashChunkNoSplitTest {
             ThreadContext ctxInserter = new ThreadContext(memoryManager, memoryManager);
             putNotExisting(keyFirst, ctxInserter, true);
             putNotExisting(keySecond, ctxInserter, true);
-            c.lookUp(ctxInserter, keySecond);
+            c.lookUp(ctxInserter, keySecond, false);
             Assert.assertTrue(ctxInserter.isKeyValid());
             Assert.assertTrue(ctxInserter.isValueValid());
             Result result = valueOperator.transform(
@@ -222,7 +222,7 @@ public class HashChunkNoSplitTest {
             Assert.assertEquals(ValueUtils.ValueResult.TRUE, result.operationResult);
             Assert.assertEquals(keySecond + 1, ((Integer) result.value).intValue());
 
-            c.lookUp(ctxInserter, keyFirst);
+            c.lookUp(ctxInserter, keyFirst, false);
             Assert.assertTrue(ctxInserter.isKeyValid());
             Assert.assertTrue(ctxInserter.isValueValid());
             result = valueOperator.transform(
@@ -231,7 +231,7 @@ public class HashChunkNoSplitTest {
             Assert.assertEquals(keyFirst + 1, ((Integer) result.value).intValue());
 
             putNotExisting(keyThird, ctxInserter, true);
-            c.lookUp(ctxInserter, keyThird);
+            c.lookUp(ctxInserter, keyThird, false);
             Assert.assertTrue(ctxInserter.isKeyValid());
             Assert.assertTrue(ctxInserter.isValueValid());
             result = valueOperator.transform(
@@ -240,7 +240,7 @@ public class HashChunkNoSplitTest {
             Assert.assertEquals(keyThird + 1, ((Integer) result.value).intValue());
 
             deleteExisting(keyThird, ctxInserter, true);
-            c.lookUp(ctxInserter, keyThird);
+            c.lookUp(ctxInserter, keyThird, false);
             Assert.assertFalse(ctxInserter.isKeyValid());
             Assert.assertFalse(ctxInserter.isValueValid());
 
@@ -256,7 +256,7 @@ public class HashChunkNoSplitTest {
         putNotExisting(keySecondNegative, ctx, true);
 
         // look for a key that should be existing in the chunk
-        c.lookUp(ctx, keyFirstNegative);
+        c.lookUp(ctx, keyFirstNegative, false);
         Assert.assertTrue(ctx.isKeyValid());
         Assert.assertTrue(ctx.isValueValid());
         Result result = valueOperator.transform(
@@ -265,7 +265,7 @@ public class HashChunkNoSplitTest {
         Assert.assertEquals(keyFirstNegative + 1, ((Integer) result.value).intValue());
 
         // look for a key that should be existing in the chunk
-        c.lookUp(ctx, keySecondNegative);
+        c.lookUp(ctx, keySecondNegative, false);
         Assert.assertTrue(ctx.isKeyValid());
         Assert.assertTrue(ctx.isValueValid());
         result = valueOperator.transform(
@@ -274,29 +274,29 @@ public class HashChunkNoSplitTest {
         Assert.assertEquals(keySecondNegative + 1, ((Integer) result.value).intValue());
 
         deleteExisting(keyFirstNegative, ctx, true);
-        c.lookUp(ctx, keyFirstNegative);
+        c.lookUp(ctx, keyFirstNegative, false);
         Assert.assertFalse(ctx.isKeyValid());
         Assert.assertFalse(ctx.isValueValid());
 
         inserter.join();
 
         // Not-concurrently look for all keys that should be existing in the chunk
-        c.lookUp(ctx, keyFirst);
+        c.lookUp(ctx, keyFirst, false);
         Assert.assertTrue(ctx.isKeyValid());
         Assert.assertTrue(ctx.isValueValid());
         // look for a key that should be existing in the chunk
-        c.lookUp(ctx, keySecond);
+        c.lookUp(ctx, keySecond, false);
         Assert.assertTrue(ctx.isKeyValid());
         Assert.assertTrue(ctx.isValueValid());
-        c.lookUp(ctx, keyThird);
+        c.lookUp(ctx, keyThird, false);
         Assert.assertFalse(ctx.isKeyValid());
         Assert.assertFalse(ctx.isValueValid());
         // look for a key that should be existing in the chunk
-        c.lookUp(ctx, keyFirstNegative);
+        c.lookUp(ctx, keyFirstNegative, false);
         Assert.assertFalse(ctx.isKeyValid());
         Assert.assertFalse(ctx.isValueValid());
         // look for a key that should be existing in the chunk
-        c.lookUp(ctx, keySecondNegative);
+        c.lookUp(ctx, keySecondNegative, false);
         Assert.assertTrue(ctx.isKeyValid());
         Assert.assertTrue(ctx.isValueValid());
 
@@ -324,7 +324,7 @@ public class HashChunkNoSplitTest {
             for (int i = 1; i < MAX_ITEMS_PER_CHUNK; i += 5 ) {
                 Integer key = new Integer(i);
                 putNotExisting(key, ctxInserter, true);
-                c.lookUp(ctxInserter, key);
+                c.lookUp(ctxInserter, key, false);
                 Assert.assertTrue(ctxInserter.isKeyValid());
                 Assert.assertTrue(ctxInserter.isValueValid());
                 Result result = valueOperator.transform(
@@ -335,7 +335,7 @@ public class HashChunkNoSplitTest {
             for (int i = 1; i < MAX_ITEMS_PER_CHUNK; i += 5 ) {
                 Integer key = new Integer(i);
                 deleteExisting(key, ctxInserter, true);
-                c.lookUp(ctxInserter, key);
+                c.lookUp(ctxInserter, key, false);
                 Assert.assertFalse(ctxInserter.isKeyValid());
                 Assert.assertFalse(ctxInserter.isValueValid());
             }
@@ -353,7 +353,7 @@ public class HashChunkNoSplitTest {
         for (int i = 1; i < MAX_ITEMS_PER_CHUNK; i += 5 ) {
             Integer key = new Integer(-i);
             putNotExisting(key, ctx, true);
-            c.lookUp(ctx, key);
+            c.lookUp(ctx, key, false);
             Assert.assertTrue(ctx.isKeyValid());
             Assert.assertTrue(ctx.isValueValid());
             Result result = valueOperator.transform(
@@ -368,7 +368,7 @@ public class HashChunkNoSplitTest {
         for (int i = 1; i < MAX_ITEMS_PER_CHUNK; i += 5 ) {
             Integer key = new Integer(-i);
             deleteExisting(key, ctx, true);
-            c.lookUp(ctx, key);
+            c.lookUp(ctx, key, false);
             Assert.assertFalse(ctx.isKeyValid());
             Assert.assertFalse(ctx.isValueValid());
         }

@@ -111,7 +111,7 @@ class InternalOakHash<K, V> extends InternalOakBasics<K, V> {
 
             // find chunk matching key, puts this key hash into ctx.operationKeyHash
             HashChunk<K, V> c = hashArray.findChunk(key, ctx, calculateKeyHash(key, ctx));
-            c.lookUp(ctx, key);
+            c.lookUp(ctx, key, false);
             // If there is a matching value reference for the given key, and it is not marked as deleted,
             // then this put changes the slice pointed by this value reference.
             if (ctx.isValueValid()) {
@@ -196,7 +196,7 @@ class InternalOakHash<K, V> extends InternalOakBasics<K, V> {
         // find chunk matching key, puts this key hash into ctx.operationKeyHash
         HashChunk<K, V> c = hashArray.findChunk(
             deserializedKey, ctx, calculateKeyHash(deserializedKey, ctx));
-        c.lookUp(ctx, deserializedKey);
+        c.lookUp(ctx, deserializedKey, false);
         return ctx.isValueValid();
     }
 
@@ -216,7 +216,7 @@ class InternalOakHash<K, V> extends InternalOakBasics<K, V> {
         for (int i = 0; i < MAX_RETRIES; i++) {
             // find chunk matching key, puts this key hash into ctx.operationKeyHash
             HashChunk<K, V> c = hashArray.findChunk(key, ctx, calculateKeyHash(key, ctx));
-            c.lookUp(ctx, key);
+            c.lookUp(ctx, key, false);
 
             if (!ctx.isKeyValid()) {
                 // There is no such key. If we did logical deletion and someone else did the physical deletion,
@@ -283,7 +283,7 @@ class InternalOakHash<K, V> extends InternalOakBasics<K, V> {
         ThreadContext ctx = getThreadContext();
         // find chunk matching key, puts this key hash into ctx.operationKeyHash
         HashChunk<K, V> c = hashArray.findChunk(key, ctx, calculateKeyHash(key, ctx));
-        c.lookUp(ctx, key);
+        c.lookUp(ctx, key, true);
         if (!ctx.isValueValid()) {
             return null;
         }
@@ -318,7 +318,7 @@ class InternalOakHash<K, V> extends InternalOakBasics<K, V> {
         for (int i = 0; i < MAX_RETRIES; i++) {
             // find chunk matching key, puts this key hash into ctx.operationKeyHash
             HashChunk<K, V> c = hashArray.findChunk(key, ctx, calculateKeyHash(key, ctx));
-            c.lookUp(ctx, key);
+            c.lookUp(ctx, key, true);
             if (!ctx.isValueValid()) {
                 return null;
             }
@@ -339,7 +339,7 @@ class InternalOakHash<K, V> extends InternalOakBasics<K, V> {
         for (int i = 0; i < MAX_RETRIES; i++) {
             // find chunk matching key, puts this key hash into ctx.operationKeyHash
             HashChunk<K, V> c = hashArray.findChunk(key, ctx, calculateKeyHash(key, ctx));
-            c.lookUp(ctx, key);
+            c.lookUp(ctx, key, false);
             if (!ctx.isValueValid()) {
                 return null;
             }
@@ -362,7 +362,7 @@ class InternalOakHash<K, V> extends InternalOakBasics<K, V> {
         for (int i = 0; i < MAX_RETRIES; i++) {
             // find chunk matching key, puts this key hash into ctx.operationKeyHash
             HashChunk<K, V> c = hashArray.findChunk(key, ctx, calculateKeyHash(key, ctx));
-            c.lookUp(ctx, key);
+            c.lookUp(ctx, key, false);
             if (!ctx.isValueValid()) {
                 return false;
             }
@@ -392,7 +392,7 @@ class InternalOakHash<K, V> extends InternalOakBasics<K, V> {
         for (int i = 0; i < MAX_RETRIES; i++) {
             // find chunk matching key, puts this key hash into ctx.operationKeyHash
             HashChunk<K, V> c = hashArray.findChunk(key, ctx, calculateKeyHash(key, ctx));
-            c.lookUp(ctx, key);
+            c.lookUp(ctx, key, false);
 
             // If exists a matching value reference for the given key, and it isn't marked deleted,
             // organize the return value: false for ZC, and old value deserialization for non-ZC
@@ -441,7 +441,7 @@ class InternalOakHash<K, V> extends InternalOakBasics<K, V> {
         for (int i = 0; i < MAX_RETRIES; i++) {
             // find chunk matching key, puts this key hash into ctx.operationKeyHash
             HashChunk<K, V> c = hashArray.findChunk(key, ctx, calculateKeyHash(key, ctx));
-            c.lookUp(ctx, key);
+            c.lookUp(ctx, key, false);
 
             if (ctx.isValueValid()) {
                 ValueUtils.ValueResult res = valueOperator.compute(ctx.value, computer);
@@ -477,7 +477,7 @@ class InternalOakHash<K, V> extends InternalOakBasics<K, V> {
 
             // find chunk matching key, puts this key hash into ctx.operationKeyHash
             HashChunk<K, V> c = hashArray.findChunk(key, ctx, calculateKeyHash(key, ctx));
-            c.lookUp(ctx, key);
+            c.lookUp(ctx, key, false);
 
             // If there is a matching value reference for the given key, and it is not marked as deleted,
             // then apply compute on the existing value
