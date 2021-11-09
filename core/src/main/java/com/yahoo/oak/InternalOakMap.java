@@ -379,7 +379,7 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
         throw new RuntimeException("put failed: reached retry limit (1024).");
     }
 
-    // put the value assosiated with the key, only if key didn't exist
+    // put the value associated with the key, only if key didn't exist
     // returned results describes whether the value was inserted or not
     Result putIfAbsent(K key, V value, OakTransformer<V> transformer) {
         if (key == null || value == null) {
@@ -422,7 +422,7 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
             c.allocateValue(ctx, value, false); // write value in place
 
             if (!c.publish()) {
-                c.releaseNewValue(ctx);
+                c.releaseNewValue(ctx); // @TODO clean key from off-heap as well
                 rebalance(c);
                 continue;
             }
@@ -997,7 +997,7 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
                 if (!state.chunkIter.isBoundCheckNeeded()) {
                     c.readKey(ctx);
                 } else {
-                    // If we checked the boundary, than we already read the current key into ctx.tempKey
+                    // If we checked the boundary, then we already read the current key into ctx.tempKey
                     ctx.key.copyFrom(ctx.tempKey);
                 }
                 validState = ctx.isKeyValid();
@@ -1169,12 +1169,12 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
 
     class ValueIterator extends Iter<OakUnscopedBuffer> {
 
-        private final InternalOakMap<K, V> internalOakMap;
+        //private final InternalOakMap<K, V> internalOakMap;
 
         ValueIterator(K lo, boolean loInclusive, K hi, boolean hiInclusive, boolean isDescending, InternalOakMap<K,
                 V> internalOakMap) {
             super(lo, loInclusive, hi, hiInclusive, isDescending);
-            this.internalOakMap = internalOakMap;
+            //this.internalOakMap = internalOakMap;
         }
 
         @Override

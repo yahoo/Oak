@@ -240,13 +240,25 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
             return EntryState.VALID;
         }
 
-        // value is invalid
+        // value is invalid, in case another thread inserts the same key
         if (isKeyAndEntryKeyEqual(ctx.key, key, idx, keyHash)) {
             return EntryState.INSERT_NOT_FINALIZED;
         }
         return EntryState.VALID;
     }
 
+    /**
+     * Function checks if an entry at given index is valid.
+     *
+     * @param ctx the context used as temporal storage, used for convenience
+     * @param idx index of the entry to check
+     * @return true if the entry at the given index is valid, false otherwise
+     */
+    public boolean isEntryIdxValid(ThreadContext ctx, int idx) {
+        // if
+        return readValue(ctx.value, idx);
+
+    }
     @VisibleForTesting
     int getCollisionChainLength() {
         return collisionChainLength.get();

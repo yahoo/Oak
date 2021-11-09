@@ -114,7 +114,7 @@ class InternalOakHash<K, V> extends InternalOakBasics<K, V> {
     }
 
     /*-------------- Hash API Methods --------------*/
-    // put the value assosiated with the key, if key existed old value is overwritten
+    // put the value associated with the key, if key existed old value is overwritten
     V put(K key, V value, OakTransformer<V> transformer) {
         if (key == null || value == null) {
             throw new NullPointerException();

@@ -10,6 +10,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 class HashChunk<K, V> extends BasicChunk<K, V> {
     // defaults
+
+
     public static final int HASH_CHUNK_MAX_ITEMS_DEFAULT = 1024;
 
     // HashChunk takes a number of least significant bits from the full key hash
@@ -273,7 +275,7 @@ class HashChunk<K, V> extends BasicChunk<K, V> {
 
 
     /********************************************************************************************/
-    /*------------------------- Methods that are used for rebalance  ---------------------------*/
+    /*------------------------- Methods that are used for rebalanced  ---------------------------*/
     @Override
     boolean shouldRebalance() {
         //TODO: no rebalance for now, add later
@@ -300,6 +302,64 @@ class HashChunk<K, V> extends BasicChunk<K, V> {
 
     /********************************************************************************************/
     /*--------------------------------- Iterators Constructors ---------------------------------*/
-    // TODO: update hash iterator later
+    /********************************************************************************************/
+    /*--------------------------------- Iterators Constructors ---------------------------------*/
 
+    /**
+
+     */
+    HashChunk.ChunkIter hashChunkIter(ThreadContext ctx) {
+        return new HashChunk.ChunkIter(ctx);
+    }
+
+
+    /********************************************************************************************/
+
+    class ChunkIter extends BasicChunkIter {
+        protected int next;         // index of the next entry to be returned
+
+        ChunkIter(ThreadContext ctx) {
+            next = 0; // initial index
+
+
+            next = getFstVldEntryIdx(ctx);
+        }
+        int getFstVldEntryIdx(ThreadContext ctx) {
+            int fstVldIdx = 0;
+            if (entryHashSet.isEntryIdxValid(ctx, fstVldIdx)) {
+                return fstVldIdx;
+            } else {
+                return getNxtVldEntryIdx(ctx, fstVldIdx);
+            }
+
+        }
+
+        int getNxtVldEntryIdx(ThreadContext ctx, int curIdx) {
+            int nxtIdx = curIdx + 1;
+            while (entryHashSet.isIndexInBound(nxtIdx) && !entryHashSet.isEntryIdxValid(ctx, nxtIdx)) {
+                nxtIdx++;
+            }
+            if (!entryHashSet.isIndexInBound(nxtIdx)) {
+                nxtIdx = NONE_NEXT;
+            }
+            return nxtIdx;
+        }
+
+        @Override
+        boolean hasNext() {
+            return next != NONE_NEXT;
+        }
+
+        /** Returns the index of the entry that should be returned next by the iterator.
+         ** NONE_NEXT is returned when iterator came to its end.
+         **/
+        int next(ThreadContext ctx) {
+            int curIdx = next;
+            next = getNxtVldEntryIdx(ctx, next);
+            return curIdx;
+        }
+
+
+
+    }
 }
