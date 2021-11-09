@@ -93,6 +93,7 @@ public class RunTest {
 
     @org.junit.Test
     public void testRun() throws Exception {
+        System.gc();
         Test.main(args);
     }
 

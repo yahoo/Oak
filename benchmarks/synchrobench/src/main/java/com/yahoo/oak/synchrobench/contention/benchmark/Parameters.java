@@ -168,9 +168,9 @@ public class Parameters {
 
         printConf("-n iterations", "Iterations", "set the bench iterations in the same JVM",
             confIterations, isHelp);
-        printConf("-d duration", "Test duration", "set the duration of the benchmark, in milliseconds",
+        printConf("-d duration", "Test duration (ms)", "set the duration of the benchmark, in milliseconds",
             confNumMilliseconds, isHelp);
-        printConf("-W warmup", "Warmup duration", "set the JVM warmup duration, in milliseconds",
+        printConf("-W warmup", "Warmup duration (ms)", "set the JVM warmup duration, in milliseconds",
             confWarmupMilliseconds, isHelp);
 
         printConf("-b benchmark", "Benchmark", "set the benchmark class name",
@@ -180,9 +180,9 @@ public class Parameters {
         printConf("--value val", "Value", "set the value class name",
             confValueClass, isHelp);
 
-        printConf("-k keySize", "Key size", "set the size of the keys, in Bytes",
+        printConf("-k keySize", "Key size (bytes)", "set the size of the keys, in Bytes",
             confKeySize, isHelp);
-        printConf("-v valSize", "Value size", "set the size of the values, in Bytes",
+        printConf("-v valSize", "Value size (bytes)", "set the size of the values, in Bytes",
             confValSize, isHelp);
 
         printConf("--consume-keys", "Consume keys", "enables key consumption",
