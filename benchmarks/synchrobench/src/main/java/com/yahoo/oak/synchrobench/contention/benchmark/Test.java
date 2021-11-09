@@ -96,8 +96,8 @@ public class Test {
         }
 
         try {
-            while ((oakBench.size() < size) && Stream.of(fillThreads).anyMatch(Thread::isAlive)) {
-                if (isConsole) {
+            if (isConsole) {
+                while ((oakBench.size() < size) && Stream.of(fillThreads).anyMatch(Thread::isAlive)) {
                     long operations = Stream.of(fillWorkers).mapToLong(FillWorker::getOperations).sum();
                     final long curTime = System.currentTimeMillis();
                     double runTime = ((double) (curTime - startTime)) / 1000.0;
@@ -107,9 +107,11 @@ public class Test {
                         runTime,
                         operations
                     );
+                    Thread.sleep(reportGranMS);
                 }
-                Thread.sleep(reportGranMS);
             }
+        } catch (InterruptedException e) {
+            System.out.println("\nFilling was interrupted. Waiting to finish.");
         } finally {
             for (Thread t : fillThreads) {
                 t.join();
@@ -155,8 +157,8 @@ public class Test {
             this.heapFreeSize = (float) Runtime.getRuntime().freeMemory() /  (float) GB;
             this.heapUsed = heapSize - heapFreeSize;
             this.directUsed = oakBench.allocatedGB();
-            this.totalUsed = heapUsed + directUsed;
-            this.totalAllocated = heapSize + directUsed;
+            this.totalUsed = heapUsed + (Double.isNaN(directUsed) ? 0 : directUsed);
+            this.totalAllocated = heapSize + (Double.isNaN(directUsed) ? 0 : directUsed);
         }
 
         String row = " %40s | %9s | %10s | %14s | %11s | %15s%n";
@@ -254,18 +256,6 @@ public class Test {
         }
     }
 
-    public void run() throws Exception {
-        if (Parameters.confWarmupMilliseconds != 0) {
-            iteration(-1);
-        }
-
-        for (int i = 0; i < Parameters.confIterations; i++) {
-            iteration(i);
-        }
-
-        printAggregatedIterationStats();
-    }
-
     private OpCounter.Stats collectIterationStats(int iteration, double time) {
         stats[iteration] = new OpCounter.Stats(
             Stream.of(benchLoopWorkers).map(t -> t.counter).toArray(OpCounter[]::new),
@@ -327,6 +317,18 @@ public class Test {
 
         OpCounter.Stats s = new OpCounter.Stats(Stream.of(stats).toArray(OpCounter.Stats[]::new));
         s.printStats();
+    }
+
+    public void run() throws Exception {
+        if (Parameters.confWarmupMilliseconds != 0) {
+            iteration(-1);
+        }
+
+        for (int i = 0; i < Parameters.confIterations; i++) {
+            iteration(i);
+        }
+
+        printAggregatedIterationStats();
     }
 
     public static void main(String[] args) throws Exception {
