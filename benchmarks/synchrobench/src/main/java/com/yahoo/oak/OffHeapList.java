@@ -26,11 +26,12 @@ import java.util.function.Consumer;
 public class OffHeapList extends BenchMap {
     private static final long MAX_OFF_MEMORY = 256 * GB;
 
-    private ConcurrentSkipListMap<Object, Cell> skipListMap;
-
-    private BlockMemoryAllocator allocator;
-    private final MemoryManager mm;
     private final Comparator<Object> comparator;
+
+    private ConcurrentSkipListMap<Object, Cell> skipListMap;
+    private BlockMemoryAllocator allocator;
+    private MemoryManager mm;
+
 
     public OffHeapList(KeyGenerator keyGen, ValueGenerator valueGen) {
         super(keyGen, valueGen);
@@ -60,6 +61,10 @@ public class OffHeapList extends BenchMap {
             }
         };
 
+        build();
+    }
+
+    private void build() {
         skipListMap = new ConcurrentSkipListMap<>(comparator);
         allocator = new NativeMemoryAllocator(MAX_OFF_MEMORY);
         mm = new SeqExpandMemoryManager(allocator);
@@ -236,10 +241,9 @@ public class OffHeapList extends BenchMap {
             allocator.free(((ScopedReadBuffer) cell.key.get()).getSlice());
             allocator.free(cell.value.get().getSlice());
         });
-        skipListMap = new ConcurrentSkipListMap<>(comparator);
         allocator.close();
-        allocator = new NativeMemoryAllocator((long) Integer.MAX_VALUE * 16);
         System.gc();
+        build();
     }
 
     @Override
