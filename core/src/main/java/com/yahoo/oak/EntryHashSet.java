@@ -247,7 +247,6 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
         return EntryState.VALID;
     }
 
-    @VisibleForTesting
     int getCollisionChainLength() {
         return collisionChainLength.get();
     }
@@ -488,11 +487,15 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
             }
         }
         // CAS failed, does it failed because the same key as our was assigned?
-        readKey(ctx.key, ctx.entryIndex); // read the key from entry again
-        if (isKeyAndEntryKeyEqual(ctx.key, key, idx, keyHash)) {
-            return true; // continue to compete on assigning the value
+        // Read the new key from entry again, read may fail (return false) if the new key was both
+        // inserted and deleted, in the meanwhile
+        if (readKey(ctx.key, ctx.entryIndex)) {
+            if (isKeyAndEntryKeyEqual(ctx.key, key, idx, keyHash)) {
+                return true; // continue to compete on assigning the value
+            }
         }
-        // CAS failed as other key was assigned restart and look for the entry again
+        // CAS failed as other key was assigned (or current new key is deleted)
+        // restart and look for the entry again
         return allocateEntryAndWriteKey(ctx, key, idx, keyHash);
 
         // FOR NOW WE ASSUME NO SAME KEY IS INSERTED SIMULTANEOUSLY, SO CHECK IS OMITTED HERE
@@ -524,6 +527,7 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
     boolean deleteValueFinish(ThreadContext ctx) {
 
         long expectedValueReference = ctx.value.getSlice().getReference();
+        long expectedKeyReference = ctx.key.getSlice().getReference();
         // is it the same hash number we saw but already invalid?
         if (HASH_CODEC.getFirst(ctx.keyHashAndUpdateCnt) == getKeyHash(ctx.entryIndex)
             && !isKeyHashValid(ctx.entryIndex)) {
@@ -533,13 +537,18 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
         }
 
         // marking the delete bit in the key's off-heap header (only one true setter gets result TRUE)
-        // The marking happens only when no lock is taken, otherwise busy waits
+        // (Marking happens prior to reference being marked is deleted,
+        // thus if reference is deleted the off-heap is already marked.)
+        // The marking the delete bit happens only when no lock is taken, otherwise busy waits
         // if the version is already different result is RETRY, if already deleted - FALSE
         // we continue anyway, therefore disregard the logicalDelete() output
-        ctx.key.s.logicalDelete();
+        boolean isKeyReferenceDeleted = keysMemoryManager.isReferenceDeleted(expectedKeyReference);
+        if (!isKeyReferenceDeleted) {
+            ctx.key.s.logicalDelete();
+        }
 
         // Value's reference codec prepares the reference to be used after value is deleted
-        long newReference = valuesMemoryManager.alterReferenceForDelete(expectedValueReference);
+        long newValueReference = valuesMemoryManager.alterReferenceForDelete(expectedValueReference);
         // Scenario:
         // 1. The value's slice is marked as deleted off-heap and the thread that started
         //    deleteValueFinish falls asleep.
@@ -551,7 +560,7 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
         // is done.
         if (!valuesMemoryManager.isReferenceDeleted(expectedValueReference)) {
             if (casEntryFieldLong(ctx.entryIndex, VALUE_REF_OFFSET, expectedValueReference,
-                newReference)) {
+                newValueReference)) {
                 // the deletion of the value and its release should be successful only once and for one
                 // thread, therefore the reference and slice should be still valid here
                 assert valuesMemoryManager.isReferenceConsistent(getValueReference(ctx.entryIndex));
@@ -561,8 +570,7 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
             }
         }
         // mark key reference as deleted, if needed
-        long expectedKeyReference = ctx.key.getSlice().getReference();
-        if (!keysMemoryManager.isReferenceDeleted(expectedKeyReference)) {
+        if (!isKeyReferenceDeleted) {
             long newKeyReference = keysMemoryManager.alterReferenceForDelete(expectedKeyReference);
             if (casEntryFieldLong(ctx.entryIndex, KEY_REF_OFFSET, expectedKeyReference,
                 newKeyReference)) {

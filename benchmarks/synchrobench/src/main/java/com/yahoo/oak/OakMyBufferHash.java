@@ -12,28 +12,23 @@ import com.yahoo.oak.synchrobench.contention.benchmark.Parameters;
 
 import java.util.Iterator;
 
-public class OakMyBufferMap<K extends MyBuffer, V extends MyBuffer> implements CompositionalOakMap<K, V> {
-    private OakMap<MyBuffer, MyBuffer> oak;
+public class OakMyBufferHash<K extends MyBuffer, V extends MyBuffer> implements CompositionalOakMap<K, V> {
+    private OakHashMap<MyBuffer, MyBuffer> oakHash;
     private OakMapBuilder<MyBuffer, MyBuffer> builder;
     private MyBuffer minKey;
     private NativeMemoryAllocator ma;
     private static final long KB = 1024L;
     private static final long GB = KB * KB * KB;
     private static final long OAK_MAX_OFF_MEMORY = 256 * GB;
+    private boolean smallConfig = false;
 
-    public OakMyBufferMap() {
-        ma = new NativeMemoryAllocator(OAK_MAX_OFF_MEMORY);
-        if (Parameters.confDetailedStats) {
-            ma.collectStats();
-        }
-        minKey = new MyBuffer(Integer.BYTES);
-        minKey.buffer.putInt(0, Integer.MIN_VALUE);
-        builder =
-            new OakMapBuilder<MyBuffer, MyBuffer>(
-                MyBuffer.DEFAULT_COMPARATOR, MyBuffer.DEFAULT_SERIALIZER, MyBuffer.DEFAULT_SERIALIZER, minKey)
-                .setOrderedChunkMaxItems(OrderedChunk.ORDERED_CHUNK_MAX_ITEMS_DEFAULT)
-                .setMemoryAllocator(ma);
-        oak = builder.buildOrderedMap();
+    public OakMyBufferHash(boolean small) {
+        this.smallConfig = small;
+        buildHash();
+    }
+
+    public OakMyBufferHash() {
+        buildHash();
     }
 
     public long allocated() {
@@ -43,27 +38,27 @@ public class OakMyBufferMap<K extends MyBuffer, V extends MyBuffer> implements C
     @Override
     public boolean getOak(K key) {
         if (Parameters.confZeroCopy) {
-            return oak.zc().get(key) != null;
+            return oakHash.zc().get(key) != null;
         }
-        return oak.get(key) != null;
+        return oakHash.get(key) != null;
     }
 
     @Override
     public void putOak(K key, V value) {
-        oak.zc().put(key, value); //ZC update is usually the required interface. 
+        oakHash.zc().put(key, value);
     }
 
     @Override
     public boolean putIfAbsentOak(K key, V value) {
-        return oak.zc().putIfAbsent(key, value);
+        return oakHash.zc().putIfAbsent(key, value);
     }
 
     @Override
     public void removeOak(K key) {
         if (Parameters.confZeroCopy) {
-            oak.zc().remove(key);
+            oakHash.zc().remove(key);
         } else {
-            oak.remove(key);
+            oakHash.remove(key);
         }
     }
 
@@ -77,28 +72,39 @@ public class OakMyBufferMap<K extends MyBuffer, V extends MyBuffer> implements C
 
     }
 
+    // ALL ITERATORS ARE NOT YET SUPPORTED FOR HASH
     @Override
     public boolean ascendOak(K from, int length) {
-        OakMap<MyBuffer, MyBuffer> sub = oak.tailMap(from, true);
-
-        boolean result = createAndScanView(sub, length);
-
-        sub.close();
-
-        return result;
+        throw new UnsupportedOperationException();
     }
 
     @Override
     public boolean descendOak(K from, int length) {
-        OakMap<MyBuffer, MyBuffer> desc = oak.descendingMap();
-        OakMap<MyBuffer, MyBuffer> sub = desc.tailMap(from, true);
+        throw new UnsupportedOperationException();
+    }
 
-        boolean result = createAndScanView(sub, length);
-
-        sub.close();
-        desc.close();
-
-        return result;
+    private void buildHash() {
+        ma = new NativeMemoryAllocator(OAK_MAX_OFF_MEMORY);
+        if (Parameters.confDetailedStats) {
+            ma.collectStats();
+        }
+        minKey = new MyBuffer(Integer.BYTES);
+        minKey.buffer.putInt(0, Integer.MIN_VALUE);
+        builder =
+            new OakMapBuilder<MyBuffer, MyBuffer>(
+                MyBuffer.DEFAULT_COMPARATOR, MyBuffer.DEFAULT_SERIALIZER, MyBuffer.DEFAULT_SERIALIZER, minKey)
+                // 2048 * 8 = 16384 (2^14) entries in each chunk, each entry takes 24 bytes, each chunk requires
+                // approximately 393216 bytes ~= 393KB ~= 0.4 MB
+                .setHashChunkMaxItems(smallConfig ? HashChunk.HASH_CHUNK_MAX_ITEMS_DEFAULT
+                    : HashChunk.HASH_CHUNK_MAX_ITEMS_DEFAULT * 8)
+                // 1024 * 16 = 16384 (2^14) preallocated chunks of the above size,
+                // total on-heap memory requirement:
+                // 2^28 * 24 = 6442450944 bytes ~= 6442451 KB ~= 6442 MB ~= 6.5 GB
+                .setPreallocHashChunksNum(smallConfig ? FirstLevelHashArray.HASH_CHUNK_NUM_DEFAULT
+                    : FirstLevelHashArray.HASH_CHUNK_NUM_DEFAULT * 16)
+                .setMemoryAllocator(ma);
+        // capable to keep 2^28 keys
+        oakHash = builder.buildHashMap();
     }
 
     private boolean createAndScanView(OakMap<MyBuffer, MyBuffer> subMap, int length) {
@@ -127,30 +133,21 @@ public class OakMyBufferMap<K extends MyBuffer, V extends MyBuffer> implements C
 
     @Override
     public void clear() {
-        oak.close();
-
-        ma = new NativeMemoryAllocator(OAK_MAX_OFF_MEMORY);
         if (Parameters.confDetailedStats) {
-            ma.collectStats();
+            oakHash.printDebug();
         }
-        minKey = new MyBuffer(Integer.BYTES);
-        minKey.buffer.putInt(0, Integer.MIN_VALUE);
-        builder =
-            new OakMapBuilder<MyBuffer, MyBuffer>(
-                MyBuffer.DEFAULT_COMPARATOR, MyBuffer.DEFAULT_SERIALIZER, MyBuffer.DEFAULT_SERIALIZER, minKey)
-                .setOrderedChunkMaxItems(OrderedChunk.ORDERED_CHUNK_MAX_ITEMS_DEFAULT)
-                .setMemoryAllocator(ma);
-        oak = builder.buildOrderedMap();
+        oakHash.close();
+        buildHash();
     }
 
     @Override
     public int size() {
-        return oak.size();
+        return oakHash.size();
     }
 
     @Override
     public void putIfAbsentComputeIfPresentOak(K key, V value) {
-        oak.zc().putIfAbsentComputeIfPresent(key, value, b -> b.putLong(1, ~b.getLong(1)));
+        oakHash.zc().putIfAbsentComputeIfPresent(key, value, b -> b.putLong(1, ~b.getLong(1)));
     }
 
     @Override

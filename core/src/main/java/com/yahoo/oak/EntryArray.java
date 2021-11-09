@@ -63,7 +63,7 @@ public class EntryArray<K, V> {
     private final long[] entries;    // array is initialized to 0 - this is important!
     private final int fields;  // # of primitive fields in each item of entries array
 
-    protected final int entriesCapacity; // number of entries (not longs) to be maximally held
+    final int entriesCapacity; // number of entries (not longs) to be maximally held
 
     // Counts number of entries inserted & not deleted. Pay attention that not all entries (counted
     // in number of entries) are finally are finally considered existing by the OrderedChunk above

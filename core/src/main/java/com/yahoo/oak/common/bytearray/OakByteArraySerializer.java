@@ -10,6 +10,7 @@ import com.yahoo.oak.OakBuffer;
 import com.yahoo.oak.OakScopedReadBuffer;
 import com.yahoo.oak.OakScopedWriteBuffer;
 import com.yahoo.oak.OakSerializer;
+import com.yahoo.oak.common.MurmurHash3;
 
 public class OakByteArraySerializer implements OakSerializer<byte[]> {
 
@@ -39,6 +40,11 @@ public class OakByteArraySerializer implements OakSerializer<byte[]> {
     @Override
     public int calculateSize(byte[] object) {
         return SIZE_OFFSET + object.length;
+    }
+
+    @Override
+    public int calculateHash(byte[] object) {
+        return MurmurHash3.murmurhash32(object, 0, object.length, 0);
     }
 
     public static int getSerializedSize(OakBuffer oakBuffer) {

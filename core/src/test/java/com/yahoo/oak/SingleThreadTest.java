@@ -41,8 +41,7 @@ public class SingleThreadTest {
             return builder.buildOrderedMap();
         };
         Supplier<ConcurrentZCMap<Integer, Integer>> s2 = () -> {
-            OakMapBuilder<Integer, Integer> builder = OakCommonBuildersFactory.getDefaultIntBuilder()
-                    .setOrderedChunkMaxItems(MAX_ITEMS_PER_HASH_CHUNK);
+            OakMapBuilder<Integer, Integer> builder = OakCommonBuildersFactory.getDefaultIntBuilder();
             return builder.buildHashMap();
         };
         return Arrays.asList(new Object[][] {

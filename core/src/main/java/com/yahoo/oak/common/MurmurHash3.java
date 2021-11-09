@@ -4,7 +4,9 @@
  * Please see LICENSE file in the project root for terms.
  */
 
-package com.yahoo.oak;
+package com.yahoo.oak.common;
+
+import com.yahoo.oak.OakBuffer;
 
 /**
  * The MurmurHash3 algorithm was created by Austin Appleby and placed in the public domain.

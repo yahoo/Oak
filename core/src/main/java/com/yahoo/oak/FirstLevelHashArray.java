@@ -13,6 +13,11 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 // the array of pointers to HashChunks according to keyHash most significant bits
 class FirstLevelHashArray<K, V> {
+
+    private static final long KB = 1024;
+    private static final long MB = KB * KB;
+    private static final long GB = KB * KB * KB;
+
     // defaults
     public static final int HASH_CHUNK_NUM_DEFAULT = 1024;
 
@@ -83,6 +88,13 @@ class FirstLevelHashArray<K, V> {
                 currentSameRefer = multipleReferenceNum;
             }
         }
+//        long oneChunkSize = chunkSize * 3 * Long.BYTES;
+//        long aproxTotalSizeInMB = (oneChunkSize * arraySize) / MB;
+//        long aproxTotalSizeInGB = (oneChunkSize * chunks.length()) / GB ;
+//        System.err.println("*** Allocated " + chunks.length() + " chunks each of size "
+//            + oneChunkSize + " bytes. In total "
+//            + aproxTotalSizeInMB + "MB or "
+//            + aproxTotalSizeInGB + "GB"); //TODO: to be removed after sizes are tuned
     }
 
     private int calculateChunkSize(int inputLsbForSecondLevel) {
@@ -165,5 +177,26 @@ class FirstLevelHashArray<K, V> {
         } finally {
             lock.writeLock().unlock();
         }
+    }
+
+    void printSummaryDebug() {
+        int chunksSample = (int) (chunks.length() * 0.1);
+        for (int i = 0; i < chunksSample; i++) {
+            System.out.println("Chunk " + i);
+            chunks.get(i).printSummaryDebug();
+            System.out.println("|| ");
+        }
+        // and 2 last chunks
+        int preLastChunk =  chunks.length() - 2;
+        int lastChunk = chunks.length() - 1;
+
+        System.out.println("Chunk " + preLastChunk);
+        chunks.get(preLastChunk).printSummaryDebug();
+        System.out.println("|| ");
+
+        System.out.println("Chunk " + lastChunk);
+        chunks.get(lastChunk).printSummaryDebug();
+        System.out.println("|| ");
+
     }
 }

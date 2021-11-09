@@ -10,6 +10,7 @@ package com.yahoo.oak.common.floatnum;
 import com.yahoo.oak.OakScopedReadBuffer;
 import com.yahoo.oak.OakScopedWriteBuffer;
 import com.yahoo.oak.OakSerializer;
+import com.yahoo.oak.common.MurmurHash3;
 
 public class OakFloatSerializer implements OakSerializer<Float> {
 
@@ -36,5 +37,17 @@ public class OakFloatSerializer implements OakSerializer<Float> {
     @Override
     public int calculateSize(Float value) {
         return size;
+    }
+
+    @Override
+    public int calculateHash(Float object) {
+        byte[] byteArray = floatToByteArray(object);
+        return MurmurHash3.murmurhash32(byteArray, 0, Float.BYTES, 0);
+    }
+
+    private static byte[] floatToByteArray(float value) {
+        int intBits =  Float.floatToIntBits(value);
+        return new byte[] {
+            (byte) (intBits >> 24), (byte) (intBits >> 16), (byte) (intBits >> 8), (byte) (intBits) };
     }
 }
