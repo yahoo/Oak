@@ -36,7 +36,7 @@ public class RunTest {
     String[] args;
 
     public RunTest(String bench, String keyValue, String scenario) {
-        this.args = getArgs(bench, keyValue, scenario, 10, 1);
+        this.args = getArgs(bench, keyValue, scenario, 2, 1);
     }
 
     public static String[] getArgs(String bench, String keyValue, String scenario, int duration, int threads) {
@@ -47,7 +47,7 @@ public class RunTest {
                 "-i", "100",
                 "-r", "200",
                 "-t", Integer.toString(threads),
-                "-W", "10",
+                "-W", Integer.toString(duration),
                 "-n", "1",
                 "-d", Integer.toString(duration),
                 "--consume-keys",

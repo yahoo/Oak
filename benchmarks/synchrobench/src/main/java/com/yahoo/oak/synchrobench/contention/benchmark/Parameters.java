@@ -168,9 +168,9 @@ public class Parameters {
 
         printConf("-n iterations", "Iterations", "set the bench iterations in the same JVM",
             confIterations, isHelp);
-        printConf("-d duration", "Duration", "set the duration of the benchmark, in milliseconds",
+        printConf("-d duration", "Test duration", "set the duration of the benchmark, in milliseconds",
             confNumMilliseconds, isHelp);
-        printConf("-W warmup", "Warmup iterations", "set the JVM warmup duration, in milliseconds",
+        printConf("-W warmup", "Warmup duration", "set the JVM warmup duration, in milliseconds",
             confWarmupMilliseconds, isHelp);
 
         printConf("-b benchmark", "Benchmark", "set the benchmark class name",
