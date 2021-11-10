@@ -303,6 +303,66 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
     }
 
     /**
+     * lookUpForGetOnly checks whether key exists in the given idx or after.
+     * Given initial index for the key, it checks entries[idx] first and continues
+     * to the next entries up to 'collisionChainLength', if key wasn't previously found.
+     * If true is returned, ctx.entryIndex keeps the index of the found entry,
+     * ctx.entryState keeps the state, and key and value are read into the ctx.
+     *
+     * @param ctx the context that will follow the operation following this key allocation
+     * @param key the key to write
+     * @param idx idx=keyHash||bit_size_mask
+     * @param keyHash keyHash=hashFunction(key)
+     * @return true only if the key is found (ctx.entryState keeps more details).
+     *         Otherwise (false), key wasn't found, ctx with it's buffers is invalidated
+     */
+    boolean lookUpForGetOnly(ThreadContext ctx, K key, int idx, int keyHash) {
+        // start from given hash index
+        // and check the next `collisionChainLength` indexes if previous index is occupied
+        int collisionChainLengthLocal = collisionChainLength.get();
+
+        // as far as we didn't check more than `collisionChainLength` indexes
+        for (int i = 0; i < collisionChainLengthLocal; i++) {
+            // thread context comes invalidated
+            ctx.entryIndex = (idx + i) % entriesCapacity; // check the entry candidate, cyclic increase
+
+            long keyReference = getKeyReference(ctx.entryIndex);
+            if (keyReference == keysMemoryManager.getInvalidReference()) {
+                return false; // there is no such a key and there is no need to look forward
+            }
+
+            // Need to read the key here, not calling readKey() in order to save extra key reference
+            // re-reading. If key reference is marked as deleted, reference decoding will fail
+            // (return false), if so, entry is not in the set anyway, either the deletion is finalized
+            // or not, continue to next one
+            if (!ctx.key.getSlice().decodeReference(keyReference)) {
+                continue;
+            }
+
+            // key reference is valid and not deleted, key is read into ctx.key. We will proceed to
+            // read the value only if this is key we are looking for
+            if (isKeyAndEntryKeyEqual(ctx.key, key, ctx.entryIndex, keyHash)) {
+                // now it is worth to read the value, which can still be deleted
+                if (!readValue(ctx.value, ctx.entryIndex)) {
+                    // value reference is either deleted or invalid
+                    // there can be multiple possibilities what can be the true state of the entry,
+                    // either INSERT_NOT_FINALIZED or DELETED_NOT_FINALIZED or DELETED
+                    // However from lookUp point of view the value (and the entry) is invalid in each of
+                    // the cases
+                    return false;
+                }
+                ctx.entryState = EntryState.VALID;
+                return true;
+            }
+
+            // not in this entry, move to next
+            ctx.invalidate(); // before checking new entry forget what was known about other entry
+        }
+        ctx.invalidate();
+        return false;
+    }
+
+    /**
      * findSuitableEntryForInsert finds the entry where given hey is going to be inserted.
      * Given initial index for the key, it checks entries[idx] first and continues
      * to the next entries up to 'collisionChainLength', if the previous entries are all occupied.
@@ -365,41 +425,23 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
                         // For debugging the case new state is added and this code is not updated
                         assert false;
                 }
-                // if none of the above, it is while loop restart due to deletion finish
+                // if none of the above, it is while loop restart due to deletion finish,
+                // or entry being occupied
             } while (redoSwitch); // end of the while loop
         }
 
         if (!entryFound) {
-            boolean differentKeyHashes = false;
-            // we checked allowed number of locations and all were occupied
-            // if all occupied entries have same key hash (rebalance won't help)
-            //           --> increase collisionChainLength
-            // otherwise --> rebalance
-            int currentLocation = idx;
-            while (collisionChainLengthLocal > 1) {
-                if (getKeyHash(currentLocation) !=
-                    getKeyHash((currentLocation + 1) % entriesCapacity )) {
-                    differentKeyHashes = true;
-                    break;
-                }
-                currentLocation++;
-                collisionChainLengthLocal--;
-            }
-            // TODO: if differentKeyHashes should return false requesting rebalance,
-            // TODO: but currently there is no rebalance.
-            // TODO: Till then enlarge collisionChainLength
-//            if (differentKeyHashes) {
-//
-//                return false; // do rebalance
-//            } else {
-            if (collisionChainLength.get() == (DEFAULT_COLLISION_CHAIN_LENGTH * 10)) {
+            // TODO: When rebalance will take place, here should come the code to decide which
+            // TODO: kind of rebalance is requested: either split chunk into two, or resize to a
+            // TODO: twice bigger chunk
+            if (collisionChainLengthLocal == (DEFAULT_COLLISION_CHAIN_LENGTH * 10)) {
                 System.out.println("WARNING!: Many collisions for the hash function");
             }
-            if (collisionChainLength.get() == (DEFAULT_COLLISION_CHAIN_LENGTH * 20)) {
+            if (collisionChainLengthLocal == (DEFAULT_COLLISION_CHAIN_LENGTH * 20)) {
                 System.out.println(
                     "WARNING!: Too much collisions for the hash function may cause performance degradation");
             }
-            if (collisionChainLength.get() > entriesCapacity) {
+            if (collisionChainLengthLocal > entriesCapacity) {
                 System.out.println(
                     "FAILURE!: Too much collisions (" + collisionChainLength.get() +
                         ") to be kept in one chunk. Make sure to enlarge chunk!");
