@@ -31,10 +31,17 @@ public interface ValueGenerator extends
     /**
      * Generates a random value.
      * @param rnd a random generator.
-     * @param range the cardinality of the values.
      * @return a new BenchValue
      */
-    BenchValue getNextValue(Random rnd, int range);
+    BenchValue getNextValue(Random rnd);
+
+    /**
+     * Generates a random value using a temporary generator.
+     * @return a new BenchValue
+     */
+    default BenchValue getNextValue() {
+        return getNextValue(new Random());
+    }
 
     /**
      * Modify the value in some way.
@@ -73,6 +80,6 @@ public interface ValueGenerator extends
      * Default implementation for Memcached's Transcoder using Oak serializer.
      */
     default int getMaxSize() {
-        return calculateSize(getNextValue(new Random(), Integer.MAX_VALUE));
+        return calculateSize(getNextValue());
     }
 }

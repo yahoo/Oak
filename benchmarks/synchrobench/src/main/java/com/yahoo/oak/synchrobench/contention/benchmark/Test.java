@@ -6,7 +6,6 @@
 
 package com.yahoo.oak.synchrobench.contention.benchmark;
 
-import com.yahoo.oak.synchrobench.contention.abstractions.BenchKey;
 import com.yahoo.oak.synchrobench.contention.abstractions.CompositionalMap;
 import com.yahoo.oak.synchrobench.contention.abstractions.KeyGenerator;
 import com.yahoo.oak.synchrobench.contention.abstractions.ValueGenerator;
@@ -31,7 +30,6 @@ public class Test {
     private final CompositionalMap oakBench;
     private final KeyGenerator keyGen;
     private final ValueGenerator valueGen;
-    private BenchKey lastKey = null;
 
     /**
      * Constructor sets up the benchmark by reading parameters and creating
@@ -64,7 +62,7 @@ public class Test {
             KeyGenerator.class, ValueGenerator.class).newInstance(keyGen, valueGen);
     }
 
-    public void fill(final int range, final long size) throws InterruptedException {
+    public void fill(final long size) throws InterruptedException {
         // Non-random key distribution can only be initialized from one thread.
         final int numWorkers = Parameters.isRandomKeyDistribution() ? Parameters.confNumFillThreads : 1;
         FillWorker[] fillWorkers = new FillWorker[numWorkers];
@@ -73,7 +71,7 @@ public class Test {
         final long reminder = size % numWorkers;
         for (int i = 0; i < numWorkers; i++) {
             final long sz = i < reminder ? sizePerThread + 1 : sizePerThread;
-            fillWorkers[i] = new FillWorker(oakBench, keyGen, valueGen, lastKey, sz, range);
+            fillWorkers[i] = new FillWorker(oakBench, keyGen, valueGen, sz);
             fillThreads[i] = new Thread(fillWorkers[i]);
         }
         final long reportGranMS = 200;
@@ -113,7 +111,6 @@ public class Test {
         }
         final long endTime = System.currentTimeMillis();
         double initTime = ((double) (endTime - startTime)) / 1000.0;
-        lastKey = fillWorkers[numWorkers - 1].getLastKey();
         long operations = Stream.of(fillWorkers).mapToLong(FillWorker::getOperations).sum();
 
         if (isConsole) {
@@ -173,7 +170,7 @@ public class Test {
         if (!isWarmup) {
             s1 = new HeapStats("Before initial fill");
         }
-        fill(Parameters.confRange, Parameters.confSize);
+        fill(Parameters.confSize);
         if (!isWarmup) {
             s1.printHeaderRow();
             s1.printDataRow();
@@ -183,7 +180,7 @@ public class Test {
         BenchLoopWorker[] benchLoopWorkers = new BenchLoopWorker[Parameters.confIterations];
         Thread[] threads = new Thread[Parameters.confNumThreads];
         for (int i = 0; i < Parameters.confNumThreads; i++) {
-            benchLoopWorkers[i] = new BenchLoopWorker(oakBench, keyGen, valueGen, lastKey);
+            benchLoopWorkers[i] = new BenchLoopWorker(oakBench, keyGen, valueGen);
             threads[i] = new Thread(benchLoopWorkers[i]);
         }
 
@@ -221,8 +218,15 @@ public class Test {
     }
 
     public void iteration(int iteration) throws Exception {
+        // Init the benchmark class and allocate resources
         oakBench.init();
+
+        // Reset the incremental key producer for "increasing" key distribution.
+        IncreasingKeyIndex.reset();
+
+        // Make sure we start from a clean slate.
         System.gc();
+
         try {
             // Warmup iteration does not print statistics
             final boolean isWarmup = iteration < 0;
@@ -249,8 +253,8 @@ public class Test {
                 }
             }
         } finally {
+            // Release the benchmark resources.
             oakBench.close();
-            System.gc();
         }
     }
 

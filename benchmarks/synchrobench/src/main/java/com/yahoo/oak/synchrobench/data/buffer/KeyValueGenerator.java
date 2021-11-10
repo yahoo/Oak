@@ -128,23 +128,18 @@ public class KeyValueGenerator {
         return minKey;
     }
 
-    public BenchKey getNextKey(Random rnd, int range, BenchKey prev) {
+    public BenchKey getNextKey(int keyIndex) {
         KeyValueBuffer nextValue = new KeyValueBuffer(size);
-        if (rnd == null) {
-            int prevValue = prev != null ? ((KeyValueBuffer) prev).buffer.getInt(0) : 0;
-            nextValue.buffer.putInt(0, (prevValue + 1) % range);
-        } else {
-            nextValue.buffer.putInt(0, rnd.nextInt(range));
-        }
+        nextValue.buffer.putInt(0, keyIndex);
         return nextValue;
     }
 
-    public BenchValue getNextValue(Random rnd, int range) {
+    public BenchValue getNextValue(Random rnd) {
         KeyValueBuffer nextValue = new KeyValueBuffer(size);
         if (rnd == null) {
             nextValue.buffer.putInt(0, 0);
         } else {
-            nextValue.buffer.putInt(0, rnd.nextInt(range));
+            nextValue.buffer.putInt(0, rnd.nextInt());
         }
         return nextValue;
     }

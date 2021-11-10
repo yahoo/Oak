@@ -40,12 +40,12 @@ public class ValueGen implements ValueGenerator {
     }
 
     @Override
-    public BenchValue getNextValue(Random rnd, int range) {
+    public BenchValue getNextValue(Random rnd) {
         assert rnd != null;
         return new Value(
             rnd.nextFloat(),
             rnd.nextFloat(),
-            rnd.nextInt(range)
+            rnd.nextInt()
         );
     }
 

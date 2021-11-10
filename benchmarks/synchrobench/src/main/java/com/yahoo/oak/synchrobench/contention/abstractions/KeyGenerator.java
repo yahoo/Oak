@@ -14,8 +14,6 @@ import net.openhft.chronicle.hash.serialization.SizedWriter;
 import org.jetbrains.annotations.NotNull;
 import org.openjdk.jmh.infra.Blackhole;
 
-import java.util.Random;
-
 /**
  * Generates value and serialize them.
  * Extends 'OakSerializer/OakComparator' for Oak.
@@ -27,15 +25,13 @@ public interface KeyGenerator extends
     SizedReader<BenchKey>, SizedWriter<BenchKey> {
 
     /**
-     * Generates a random key.
-     * If rnd is null, generate a key that follows the previous one.
-     * Note that the key distribution must preserve the expected cardinality (Parameters.confRange).
-     * @param rnd a random generator.
-     * @param range the cardinality of the keys.
-     * @param prev the previously inserted key.
+     * Generates a key.
+     * The output key should preserve the order according to the provided index,
+     * such that the total key-set cardinality will be preserved.
+     * @param itemIndex the key index.
      * @return a new BenchKey
      */
-    BenchKey getNextKey(Random rnd, int range, BenchKey prev);
+    BenchKey getNextKey(int itemIndex);
 
     /**
      * @return the minimal key.

@@ -16,8 +16,6 @@ import net.openhft.chronicle.map.ChronicleMap;
 import net.openhft.chronicle.map.ChronicleMapBuilder;
 import org.openjdk.jmh.infra.Blackhole;
 
-import java.util.Random;
-
 public class Chronicle extends BenchMap {
     private ChronicleMap<BenchKey, BenchValue> map = null;
 
@@ -32,7 +30,7 @@ public class Chronicle extends BenchMap {
             .keyMarshallers(keyGen, keyGen)
             .valueMarshallers(valueGen, valueGen)
             .constantKeySizeBySample(keyGen.getMinKey())
-            .constantValueSizeBySample(valueGen.getNextValue(new Random(), Integer.MAX_VALUE))
+            .constantValueSizeBySample(valueGen.getNextValue())
             .putReturnsNull(true)
             .removeReturnsNull(true)
             .maxBloatFactor(2)
