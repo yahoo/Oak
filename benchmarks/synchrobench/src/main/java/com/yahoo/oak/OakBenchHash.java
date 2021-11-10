@@ -24,7 +24,7 @@ public class OakBenchHash extends BenchOakMap {
     }
 
     @Override
-    protected void build() {
+    public void init() {
         ma = new NativeMemoryAllocator(OAK_MAX_OFF_MEMORY);
         if (Parameters.confDetailedStats) {
             ma.collectStats();
@@ -42,6 +42,13 @@ public class OakBenchHash extends BenchOakMap {
             .setMemoryAllocator(ma);
         // capable to keep 2^28 keys
         oakHash = builder.buildHashMap();
+    }
+
+    @Override
+    public void close() {
+        super.close();
+        ma = null;
+        oakHash = null;
     }
 
     @Override

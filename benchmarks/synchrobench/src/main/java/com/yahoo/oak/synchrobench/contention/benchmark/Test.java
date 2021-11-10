@@ -24,12 +24,6 @@ public class Test {
     public static final double MEBI_OPS = 1L << 20;
     public static final double GB = 1L << 30;
 
-    // The array of threads executing the benchmark
-    private Thread[] threads;
-
-    // The array of runnable thread codes
-    private BenchLoopWorker[] benchLoopWorkers = new BenchLoopWorker[0];
-
     // Collected iteration stats
     private final OpCounter.Stats[] stats;
 
@@ -128,18 +122,6 @@ public class Test {
         System.out.printf("Initialization complete in %,.4f (seconds) - %,d operations%n", initTime, operations);
     }
 
-    /**
-     * Creates as many threads as requested
-     */
-    private void initThreads() {
-        benchLoopWorkers = new BenchLoopWorker[Parameters.confNumThreads];
-        threads = new Thread[Parameters.confNumThreads];
-        for (int i = 0; i < Parameters.confNumThreads; i++) {
-            benchLoopWorkers[i] = new BenchLoopWorker(oakBench, keyGen, valueGen, lastKey);
-            threads[i] = new Thread(benchLoopWorkers[i]);
-        }
-    }
-
     class HeapStats {
         // Get current size of heap in bytes
         String title;
@@ -176,12 +158,17 @@ public class Test {
         }
     }
 
+    private OpCounter.Stats collectIterationStats(BenchLoopWorker[] workers, double time) {
+        return new OpCounter.Stats(
+            Stream.of(workers).map(t -> t.counter).toArray(OpCounter[]::new),
+            time, workers.length, oakBench.size()
+        );
+    }
+
     /**
      * Execute the main thread that starts and terminates the benchmark threads
      */
-    private double execute(int milliseconds, boolean isWarmup) throws Exception {
-        reset();
-
+    private OpCounter.Stats execute(int milliseconds, boolean isWarmup) throws Exception {
         HeapStats s1 = null;
         if (!isWarmup) {
             s1 = new HeapStats("Before initial fill");
@@ -193,8 +180,13 @@ public class Test {
             new HeapStats("After initial fill, before benchmark").printDataRow();
         }
 
-//        Thread.sleep(5000);
-        initThreads();
+        BenchLoopWorker[] benchLoopWorkers = new BenchLoopWorker[Parameters.confIterations];
+        Thread[] threads = new Thread[Parameters.confNumThreads];
+        for (int i = 0; i < Parameters.confNumThreads; i++) {
+            benchLoopWorkers[i] = new BenchLoopWorker(oakBench, keyGen, valueGen, lastKey);
+            threads[i] = new Thread(benchLoopWorkers[i]);
+        }
+
         final long startTime = System.currentTimeMillis();
         for (Thread thread : threads) {
             thread.start();
@@ -206,10 +198,9 @@ public class Test {
             for (BenchLoopWorker benchLoopWorker : benchLoopWorkers) {
                 benchLoopWorker.stopThread();
             }
-        }
-
-        for (Thread thread : threads) {
-            thread.join();
+            for (Thread thread : threads) {
+                thread.join();
+            }
         }
 
         for (BenchLoopWorker benchLoopWorker : benchLoopWorkers) {
@@ -226,50 +217,41 @@ public class Test {
             System.out.println();
         }
 
-        return elapsedTime;
+        return collectIterationStats(benchLoopWorkers, elapsedTime);
     }
 
     public void iteration(int iteration) throws Exception {
-        // Warmup iteration does not print statistics
-        final boolean isWarmup = iteration < 0;
+        oakBench.init();
+        System.gc();
+        try {
+            // Warmup iteration does not print statistics
+            final boolean isWarmup = iteration < 0;
 
-        if (isWarmup) {
-            PrintTools.printHeader("Benchmark warmup");
-        } else {
-            PrintTools.printHeader("Benchmark iteration: %,d", iteration);
-        }
-
-        final int executeTime = isWarmup ? Parameters.confWarmupMilliseconds : Parameters.confNumMilliseconds;
-        double elapsedTime = execute(executeTime, isWarmup);
-
-        if (isWarmup) {
-            System.out.println("Warmup complete");
-        }
-
-        if (!isWarmup) {
-            OpCounter.Stats s = collectIterationStats(iteration, elapsedTime);
-            s.printStats();
-
-            if (Parameters.confDetailedStats) {
-                oakBench.printMemStats();
+            if (isWarmup) {
+                PrintTools.printHeader("Benchmark warmup");
+            } else {
+                PrintTools.printHeader("Benchmark iteration: %,d", iteration);
             }
+
+            final int executeTime = isWarmup ? Parameters.confWarmupMilliseconds : Parameters.confNumMilliseconds;
+            OpCounter.Stats s = execute(executeTime, isWarmup);
+
+            if (isWarmup) {
+                System.out.println("Warmup complete");
+            }
+
+            if (!isWarmup) {
+                stats[iteration] = s;
+                s.printStats();
+
+                if (Parameters.confDetailedStats) {
+                    oakBench.printMemStats();
+                }
+            }
+        } finally {
+            oakBench.close();
+            System.gc();
         }
-    }
-
-    private OpCounter.Stats collectIterationStats(int iteration, double time) {
-        stats[iteration] = new OpCounter.Stats(
-            Stream.of(benchLoopWorkers).map(t -> t.counter).toArray(OpCounter[]::new),
-            time, benchLoopWorkers.length, oakBench.size()
-        );
-        return stats[iteration];
-    }
-
-    /**
-     * This method is called before each run of the benchmark.
-     */
-    public void reset() {
-        Stream.of(benchLoopWorkers).forEach(BenchLoopWorker::reset);
-        oakBench.clear();
     }
 
     /* ---------------- Input/Output -------------- */

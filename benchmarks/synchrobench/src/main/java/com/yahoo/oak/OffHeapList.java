@@ -60,14 +60,26 @@ public class OffHeapList extends BenchMap {
                 }
             }
         };
-
-        build();
     }
 
-    private void build() {
+    @Override
+    public void init() {
         skipListMap = new ConcurrentSkipListMap<>(comparator);
         allocator = new NativeMemoryAllocator(MAX_OFF_MEMORY);
         mm = new SeqExpandMemoryManager(allocator);
+    }
+
+    @Override
+    public void close() {
+        skipListMap.values().forEach(cell -> {
+            allocator.free(((ScopedReadBuffer) cell.key.get()).getSlice());
+            allocator.free(cell.value.get().getSlice());
+        });
+        allocator.close();
+
+        skipListMap = null;
+        allocator = null;
+        mm = null;
     }
 
     @Override
@@ -236,19 +248,13 @@ public class OffHeapList extends BenchMap {
     }
 
     @Override
-    public void clear() {
-        skipListMap.values().forEach(cell -> {
-            allocator.free(((ScopedReadBuffer) cell.key.get()).getSlice());
-            allocator.free(cell.value.get().getSlice());
-        });
-        allocator.close();
-        System.gc();
-        build();
+    public int size() {
+        return skipListMap.size();
     }
 
     @Override
-    public int size() {
-        return skipListMap.size();
+    public float allocatedGB() {
+        return (float) allocator.allocated() / (float) GB;
     }
 
     @Override

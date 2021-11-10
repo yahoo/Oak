@@ -23,10 +23,10 @@ public class Chronicle extends BenchMap {
 
     public Chronicle(KeyGenerator keyGen, ValueGenerator valueGen) {
         super(keyGen, valueGen);
-        build();
     }
 
-    void build() {
+    @Override
+    public void init() {
         this.map = ChronicleMapBuilder.of(BenchKey.class, BenchValue.class)
             .entries(Parameters.confSize * 2L)
             .keyMarshallers(keyGen, keyGen)
@@ -37,6 +37,13 @@ public class Chronicle extends BenchMap {
             .removeReturnsNull(true)
             .maxBloatFactor(2)
             .create();
+    }
+
+    @Override
+    public void close() {
+        map.clear();
+        map.close();
+        map = null;
     }
 
     @Override
@@ -94,13 +101,6 @@ public class Chronicle extends BenchMap {
     @Override
     public boolean descendOak(BenchKey from, int length, Blackhole blackhole) {
         return ascendOak(from, length, blackhole);
-    }
-
-    @Override
-    public void clear() {
-        map.clear();
-        map.close();
-        build();
     }
 
     @Override

@@ -10,6 +10,18 @@ import org.openjdk.jmh.infra.Blackhole;
 
 public interface CompositionalMap {
 
+    /**
+     * Initialize the map.
+     * This might allocate resources, so it must be followed by `close()`.
+     */
+    void init();
+
+    /**
+     * Close the map and release all its resources.
+     * Must call init to use it again.
+     */
+    void close();
+
     boolean getOak(BenchKey key, Blackhole blackhole);
 
     void putOak(BenchKey key, BenchValue value);
@@ -25,8 +37,6 @@ public interface CompositionalMap {
     boolean ascendOak(BenchKey from, int length, Blackhole blackhole);
 
     boolean descendOak(BenchKey from, int length, Blackhole blackhole);
-
-    void clear();
 
     int size();
 

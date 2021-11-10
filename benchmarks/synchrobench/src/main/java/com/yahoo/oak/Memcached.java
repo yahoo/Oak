@@ -38,7 +38,16 @@ public class Memcached extends BenchMap {
                 .build(),
             AddrUtil.getAddresses("localhost:11211")
         );
-        clear();
+    }
+
+    @Override
+    public void init() {
+        mc.flush();
+    }
+
+    @Override
+    public void close() {
+        init();
     }
 
     @Override
@@ -93,11 +102,6 @@ public class Memcached extends BenchMap {
     @Override
     public boolean descendOak(BenchKey from, int length, Blackhole blackhole) {
         throw new UnsupportedOperationException("Memcached does not support iterations.");
-    }
-
-    @Override
-    public void clear() {
-        mc.flush();
     }
 
     @Override

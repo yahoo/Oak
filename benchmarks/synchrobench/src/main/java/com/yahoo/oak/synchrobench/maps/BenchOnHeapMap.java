@@ -24,8 +24,12 @@ public abstract class BenchOnHeapMap extends BenchMap {
         super(keyGen, valueGen);
     }
 
-    protected abstract void build();
     protected abstract AbstractMap<BenchKey, BenchValue> map();
+
+    @Override
+    public void close() {
+        map().clear();
+    }
 
     @Override
     public boolean getOak(BenchKey key, Blackhole blackhole) {
@@ -73,11 +77,6 @@ public abstract class BenchOnHeapMap extends BenchMap {
             }
             return old;
         });
-    }
-
-    @Override
-    public void clear() {
-        build();
     }
 
     @Override

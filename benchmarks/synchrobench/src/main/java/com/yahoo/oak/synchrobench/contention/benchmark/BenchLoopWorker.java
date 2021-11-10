@@ -81,10 +81,6 @@ public class BenchLoopWorker implements Runnable {
         cdf[2] = cdf[1] + 10 * Parameters.confNumSnapshots;
     }
 
-    public void reset() {
-        counter.reset();
-    }
-
     public void stopThread() {
         stop = true;
     }

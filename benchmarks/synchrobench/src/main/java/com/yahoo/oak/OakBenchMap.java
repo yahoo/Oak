@@ -23,7 +23,7 @@ public class OakBenchMap extends BenchOakMap {
     }
 
     @Override
-    protected void build() {
+    public void init() {
         ma = new NativeMemoryAllocator(OAK_MAX_OFF_MEMORY);
         if (Parameters.confDetailedStats) {
             ma.collectStats();
@@ -32,6 +32,13 @@ public class OakBenchMap extends BenchOakMap {
             .setOrderedChunkMaxItems(OrderedChunk.ORDERED_CHUNK_MAX_ITEMS_DEFAULT)
             .setMemoryAllocator(ma);
         oak = builder.buildOrderedMap();
+    }
+
+    @Override
+    public void close() {
+        super.close();
+        ma = null;
+        oak = null;
     }
 
     @Override

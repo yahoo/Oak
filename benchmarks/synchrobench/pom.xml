@@ -22,6 +22,8 @@
             deploy this module's artifacts to Maven Central' staging repo
          -->
         <skipStaging>true</skipStaging>
+        <!-- Set default jacoco argument -->
+        <jacoco.argLine/>
     </properties>
     <dependencies>
         <dependency>

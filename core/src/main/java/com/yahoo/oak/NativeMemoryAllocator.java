@@ -162,6 +162,7 @@ class NativeMemoryAllocator implements BlockMemoryAllocator {
         // Release the hold of the block array and return it the provider.
         Block[] b = blocksArray;
         blocksArray = null;
+        freeList.clear();
 
         // Reset "closed" to apply a memory barrier before actually returning the block.
         closed.set(true);

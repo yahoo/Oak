@@ -32,12 +32,15 @@ public abstract class BenchOakMap extends BenchMap {
     public BenchOakMap(KeyGenerator keyGen, ValueGenerator valueGen) {
         super(keyGen, valueGen);
         this.minKey = keyGen.getMinKey();
-        build();
     }
 
-    protected abstract void build();
     protected abstract ConcurrentZCMap<BenchKey, BenchValue> map();
     protected abstract ZeroCopyMap<BenchKey, BenchValue> zc();
+
+    @Override
+    public void close() {
+        map().close();
+    }
 
     @Override
     public boolean getOak(BenchKey key, Blackhole blackhole) {
@@ -93,12 +96,6 @@ public abstract class BenchOakMap extends BenchMap {
     @Override
     public void putIfAbsentComputeIfPresentOak(BenchKey key, BenchValue value) {
         zc().putIfAbsentComputeIfPresent(key, value, valueGen::updateSerializedValue);
-    }
-
-    @Override
-    public void clear() {
-        map().close();
-        build();
     }
 
     @Override

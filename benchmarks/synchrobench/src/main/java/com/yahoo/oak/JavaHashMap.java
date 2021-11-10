@@ -25,8 +25,14 @@ public class JavaHashMap extends BenchOnHeapMap {
     }
 
     @Override
-    public void build() {
+    public void init() {
         hashMap = new ConcurrentHashMap<>();
+    }
+
+    @Override
+    public void close() {
+        super.close();
+        hashMap = null;
     }
 
     @Override

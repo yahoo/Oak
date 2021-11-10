@@ -15,9 +15,6 @@ public class PrintTools {
         return Stream.generate(() -> "-").limit(sz).collect(Collectors.joining());
     }
 
-    // 80 character line filled with the dashes
-    public static final String DASH_BREAK = dashLine(80);
-
     // Print a header message on the standard output
     public static void printHeader(String header, Object... args) {
         String headerRow = String.format(header, args);
