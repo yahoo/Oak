@@ -177,7 +177,7 @@ public class Test {
             new HeapStats("After initial fill, before benchmark").printDataRow();
         }
 
-        BenchLoopWorker[] benchLoopWorkers = new BenchLoopWorker[Parameters.confIterations];
+        BenchLoopWorker[] benchLoopWorkers = new BenchLoopWorker[Parameters.confNumThreads];
         Thread[] threads = new Thread[Parameters.confNumThreads];
         for (int i = 0; i < Parameters.confNumThreads; i++) {
             benchLoopWorkers[i] = new BenchLoopWorker(oakBench, keyGen, valueGen);
