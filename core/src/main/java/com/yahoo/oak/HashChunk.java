@@ -182,7 +182,7 @@ class HashChunk<K, V> extends BasicChunk<K, V> {
 
     /**
      * Look up a key in this chunk.
-     *  @param ctx The context that follows the operation following this key look up.
+     * @param ctx The context that follows the operation following this key look up.
      *            It will describe the state of the entry (key and value) associated with the input {@code key}.
      *            Following are the possible states of the entry:
      *             (1) {@code key} was not found.
@@ -199,16 +199,24 @@ class HashChunk<K, V> extends BasicChunk<K, V> {
      *                   This means that there is an entry with that key, but there is no value attached to this key.
      *                   Such entry can be reused after finishing the deletion process, if needed.
      * @param key the key to look up
-     * @param forGetsOnly
      */
-    void lookUp(ThreadContext ctx, K key, boolean forGetsOnly) {
+    void lookUp(ThreadContext ctx, K key) {
         int keyHash = calculateKeyHash(key, ctx);
         int idx = calculateEntryIdx(key, keyHash);
-        if (forGetsOnly) {
-            entryHashSet.lookUpForGetOnly(ctx, key, idx, keyHash);
-        } else {
-            entryHashSet.lookUp(ctx, key, idx, keyHash);
-        }
+        entryHashSet.lookUp(ctx, key, idx, keyHash);
+    }
+
+    /**
+     * Look up a key in this chunk. Look only whether the key exists on the moment of checking.
+     * The ctx.key and ctx.value are going to be updated in case key is found.
+     * But state of the entry is not going to be precise only either VALID or UNKNOWN.
+     * @param ctx The context that follows the operation following this key look up.
+     * @param key the key to look up
+     */
+    void lookUpForGetOnly(ThreadContext ctx, K key) {
+        int keyHash = calculateKeyHash(key, ctx);
+        int idx = calculateEntryIdx(key, keyHash);
+        entryHashSet.lookUpForGetOnly(ctx, key, idx, keyHash);
     }
 
     /********************************************************************************************/
