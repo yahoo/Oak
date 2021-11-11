@@ -66,6 +66,8 @@ public class OffHeapList extends BenchMap {
     public void init() {
         skipListMap = new ConcurrentSkipListMap<>(comparator);
         allocator = new NativeMemoryAllocator(MAX_OFF_MEMORY);
+        // We use memory-manager in this context only to generate the slice object.
+        // OffHeapList doesn't use the slice's header, so we choose a header-less memory-manager.
         mm = new SeqExpandMemoryManager(allocator);
     }
 

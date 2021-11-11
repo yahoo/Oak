@@ -9,34 +9,34 @@ package com.yahoo.oak.synchrobench.data.eventcache;
 import com.yahoo.oak.synchrobench.contention.abstractions.BenchValue;
 
 public class Value implements BenchValue {
-    float val1;
-    float val2;
-    int val3;
+    float field1;
+    float field2;
+    int field3;
 
     public Value() {
         this(0.f, 0.f, 0);
     }
 
-    public Value(float val1, float val2, int val3) {
-        this.val1 = val1;
-        this.val2 = val2;
-        this.val3 = val3;
+    public Value(float field1, float field2, int field3) {
+        this.field1 = field1;
+        this.field2 = field2;
+        this.field3 = field3;
     }
 
-    public float getVal1() {
-        return val1;
+    public float getField1() {
+        return field1;
     }
 
-    public float getVal2() {
-        return val2;
+    public float getField2() {
+        return field2;
     }
 
-    public int getVal3() {
-        return val3;
+    public int getField3() {
+        return field3;
     }
 
-    public void setVal3(int val3) {
-        this.val3 = val3;
+    public void setField3(int field3) {
+        this.field3 = field3;
     }
 
 }

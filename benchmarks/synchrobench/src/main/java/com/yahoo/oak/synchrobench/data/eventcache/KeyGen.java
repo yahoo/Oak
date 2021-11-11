@@ -19,9 +19,9 @@ import org.openjdk.jmh.infra.Blackhole;
 import java.util.Random;
 
 public class KeyGen implements KeyGenerator {
-    private static final int KEY_1_OFFSET = 0;
-    private static final int KEY_2_OFFSET = KEY_1_OFFSET + Long.BYTES;
-    private static final int KEY_SIZE = KEY_2_OFFSET + Long.BYTES;
+    private static final int FIELD_1_OFFSET = 0;
+    private static final int FIELD_2_OFFSET = FIELD_1_OFFSET + Long.BYTES;
+    private static final int KEY_SIZE = FIELD_2_OFFSET + Long.BYTES;
 
     public KeyGen(Integer keySize) {
     }
@@ -34,28 +34,28 @@ public class KeyGen implements KeyGenerator {
     @Override
     public BenchKey getNextKey(Random rnd, int range, BenchKey prev) {
         final Key prevKey = prev == null ? null : (Key) prev;
-        long key1 = prevKey == null ? 0 : prevKey.getKey1();
-        long key2;
+        long field1 = prevKey == null ? 0 : prevKey.getField1();
+        long field2;
 
         if (rnd != null) {
-            key2 = rnd.nextInt(range);
+            field2 = rnd.nextInt(range);
         } else {
-            long prevKey2 = prevKey == null ? 0 : prevKey.getKey2();
-            key2 = (prevKey2 + 1) % range;
+            long prevKey2 = prevKey == null ? 0 : prevKey.getField2();
+            field2 = (prevKey2 + 1) % range;
         }
-        return new Key(key1, key2);
+        return new Key(field1, field2);
     }
 
     @Override
     public void serialize(BenchKey inputKey, OakScopedWriteBuffer targetBuffer) {
         Key key = (Key) inputKey;
-        targetBuffer.putLong(KEY_1_OFFSET, getKey1(key));
-        targetBuffer.putLong(KEY_2_OFFSET, getKey2(key));
+        targetBuffer.putLong(FIELD_1_OFFSET, getField1(key));
+        targetBuffer.putLong(FIELD_2_OFFSET, getField2(key));
     }
 
     @Override
     public BenchKey deserialize(OakScopedReadBuffer keyBuffer) {
-        return new Key(getKey1(keyBuffer), getKey2(keyBuffer));
+        return new Key(getField1(keyBuffer), getField2(keyBuffer));
     }
 
     @Override
@@ -77,50 +77,50 @@ public class KeyGen implements KeyGenerator {
     public int compareKeys(BenchKey inputKey1, BenchKey inputKey2) {
         Key key1 = (Key) inputKey1;
         Key key2 = (Key) inputKey2;
-        int ret = Long.compare(getKey1(key1), getKey1(key2));
-        return ret != 0 ? ret : Long.compare(getKey2(key1), getKey2(key2));
+        int ret = Long.compare(getField1(key1), getField1(key2));
+        return ret != 0 ? ret : Long.compare(getField2(key1), getField2(key2));
     }
 
     @Override
     public int compareSerializedKeys(OakScopedReadBuffer key1, OakScopedReadBuffer key2) {
-        int ret = Long.compare(getKey1(key1), getKey1(key2));
-        return ret != 0 ? ret : Long.compare(getKey2(key1), getKey2(key2));
+        int ret = Long.compare(getField1(key1), getField1(key2));
+        return ret != 0 ? ret : Long.compare(getField2(key1), getField2(key2));
     }
 
     @Override
     public int compareKeyAndSerializedKey(BenchKey inputKey1, OakScopedReadBuffer key2) {
         Key key1 = (Key) inputKey1;
-        int ret = Long.compare(getKey1(key1), getKey1(key2));
-        return ret != 0 ? ret : Long.compare(getKey2(key1), getKey2(key2));
+        int ret = Long.compare(getField1(key1), getField1(key2));
+        return ret != 0 ? ret : Long.compare(getField2(key1), getField2(key2));
     }
 
     @Override
     public void consumeKey(BenchKey obj, Blackhole blackhole) {
         Key val = (Key) obj;
-        blackhole.consume(getKey1(val));
-        blackhole.consume(getKey2(val));
+        blackhole.consume(getField1(val));
+        blackhole.consume(getField2(val));
     }
 
     @Override
     public void consumeSerializedKey(OakBuffer val, Blackhole blackhole) {
-        blackhole.consume(getKey1(val));
-        blackhole.consume(getKey2(val));
+        blackhole.consume(getField1(val));
+        blackhole.consume(getField2(val));
     }
 
-    private static long getKey1(Key key) {
-        return key.getKey1();
+    private static long getField1(Key key) {
+        return key.getField1();
     }
 
-    private static long getKey1(OakBuffer key) {
-        return key.getLong(KEY_1_OFFSET);
+    private static long getField1(OakBuffer key) {
+        return key.getLong(FIELD_1_OFFSET);
     }
 
-    private static long getKey2(Key key) {
-        return key.getKey2();
+    private static long getField2(Key key) {
+        return key.getField2();
     }
 
-    private static long getKey2(OakBuffer key) {
-        return key.getLong(KEY_2_OFFSET);
+    private static long getField2(OakBuffer key) {
+        return key.getLong(FIELD_2_OFFSET);
     }
 
     @NotNull
@@ -134,15 +134,15 @@ public class KeyGen implements KeyGenerator {
         }
 
         Key key = (Key) using;
-        key.key1 = in.readLong();
-        key.key2 = in.readLong();
+        key.field1 = in.readLong();
+        key.field2 = in.readLong();
         return key;
     }
 
     @Override
     public void write(Bytes out, long size, @NotNull BenchKey toWrite) {
         Key key = (Key) toWrite;
-        out.writeLong(key.key1);
-        out.writeLong(key.key2);
+        out.writeLong(key.field1);
+        out.writeLong(key.field2);
     }
 }

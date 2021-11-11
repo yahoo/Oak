@@ -31,6 +31,11 @@ scenarios=(
   "05Put05Delete90Get_ZC"
 )
 
+declare -A data=(
+  ["buffer"]="com.yahoo.oak.synchrobench.data.buffer"
+  ["eventcache"]="com.yahoo.oak.synchrobench.data.eventcache"
+)
+
 declare -A benchmarks=(
   ["skip-list"]="com.yahoo.oak.JavaSkipListMap"
   ["oak"]="com.yahoo.oak.OakBenchMap"
@@ -38,11 +43,7 @@ declare -A benchmarks=(
   ["concurrent-hash-map"]="com.yahoo.oak.JavaHashMap"
   ["oak-hash"]="com.yahoo.oak.OakBenchHash"
   ["chronicle"]="com.yahoo.oak.Chronicle"
-)
-
-declare -A data=(
-  ["buffer"]="com.yahoo.oak.synchrobench.data.buffer"
-  ["eventcache"]="com.yahoo.oak.synchrobench.data.eventcache"
+  ["memcached"]="com.yahoo.oak.Memcached"
 )
 
 declare -A heap_limit=(
@@ -52,15 +53,19 @@ declare -A heap_limit=(
   ["concurrent-hash-map"]="28g"
   ["oak-hash"]="24g"
   ["chronicle"]="24g"
+  # Memcached doesn't use the heap
+  ["memcached"]="1g"
 )
 
 declare -A direct_limit=(
   ["oak"]="24g"
   ["offheap-list"]="24g"
-  ["skip-list"]="1m" #when running CSLM/CHM some off-heap memory is still required to unrelated java.util.zip.ZipFile
+  # when running CSLM/CHM some off-heap memory is still required to unrelated java.util.zip.ZipFile
+  ["skip-list"]="1m"
   ["concurrent-hash-map"]="1m"
   ["oak-hash"]="24g"
   ["chronicle"]="24g"
+  ["memcached"]="1m"
 )
 
 declare -A gc_cmd_args=(
@@ -108,7 +113,7 @@ jar_file_path=$(find "$(pwd)" -name "oak-benchmarks-synchrobench-*.jar" | grep -
 # Iterate on the cartesian product of these arguments (space separated)
 test_scenarios=${scenarios[*]}
 test_benchmarks=${!benchmarks[*]}
-test_thread="01 04 08 12 16 20 24 28 32"
+test_thread="01 04 08 12 16 20 24"
 test_size="10_000_000"
 test_gc="default"
 test_java_modes="server"

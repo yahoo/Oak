@@ -52,13 +52,18 @@ class NativeMemoryAllocator implements BlockMemoryAllocator {
     // A testable constructor
     NativeMemoryAllocator(long capacity, BlocksProvider blocksProvider) {
         this.blocksProvider = blocksProvider;
-        int blockArraySize = ((int) (capacity / blocksProvider.blockSize())) + 1;
-        // first entry of blocksArray is always empty
-        this.blocksArray = new Block[blockArraySize + 1];
+        this.capacity = capacity;
+        this.blocksArray = new Block[calcBlockArraySize()];
         // initially allocate one single block from pool
         // this may lazy initialize the pool and take time if this is the first call for the pool
         allocateNewCurrentBlock();
-        this.capacity = capacity;
+
+    }
+
+    private int calcBlockArraySize() {
+        final int size = (int) Math.ceil((double) capacity / (double) blocksProvider.blockSize());
+        // We add "1" since the first entry of blocksArray is always empty
+        return size + 1;
     }
 
     // Allocates an off-heap cut of the given size, either from freeList or (if it is still possible)
@@ -162,6 +167,10 @@ class NativeMemoryAllocator implements BlockMemoryAllocator {
         // Release the hold of the block array and return it the provider.
         Block[] b = blocksArray;
         blocksArray = null;
+
+        // Generally, there is no need to do anything with the free list,
+        // as all free list members were residing on one of the (already released) blocks.
+        // We free the list here to allow earlier collection of the objects.
         freeList.clear();
 
         // Reset "closed" to apply a memory barrier before actually returning the block.
@@ -170,8 +179,6 @@ class NativeMemoryAllocator implements BlockMemoryAllocator {
         for (int i = 1; i <= numberOfBlocks(); i++) {
             blocksProvider.returnBlock(b[i]);
         }
-        // no need to do anything with the free list,
-        // as all free list members were residing on one of the (already released) blocks
     }
 
     // Returns the off-heap allocation of this OakMap
@@ -195,23 +202,21 @@ class NativeMemoryAllocator implements BlockMemoryAllocator {
     // NOT THREAD SAFE!!!
     @Override
     public void clear() {
-        // Release the hold of the block array and return it the provider.
-        Block[] b = blocksArray;
-        blocksArray = null;
-
-        // Reset "closed" to apply a memory barrier before actually returning the block.
-        closed.set(true);
-
-        for (int i = 1; i <= numberOfBlocks(); i++) {
-            blocksProvider.returnBlock(b[i]);
-        }
+        // We close the allocator to clear all the resources, then enable it again after resetting the counters.
+        // If there is a concurrent call to close(), the result is unexpected.
+        // Hence, this method is not thread-safe.
+        close();
 
         freeList.clear();
         allocated.set(0);
-        idGenerator.set(0);
+        idGenerator.set(1);
+        blocksArray = new Block[calcBlockArraySize()];
+
         // initially allocate one single block from pool
         allocateNewCurrentBlock();
 
+        // We enable the allocator after resetting all the counters.
+        closed.set(false);
     }
 
     // When some buffer need to be read from a random block

@@ -136,13 +136,13 @@ public class BenchLoopWorker implements Runnable {
         if (Parameters.confChange) {
             switch (coin) {
                 case WRITE_ALL:
-                    return BenchOp.DESCEND;
+                    return BenchOp.SCAN_DESCEND;
                 case WRITE:
                     return BenchOp.PUT_IF_ABSENT;
                 case SNAPSHOT:
                     return BenchOp.PUT_IF_ABSENT_COMPUTE_IF_PRESENT;
                 case OTHER:
-                    return BenchOp.ASCEND;
+                    return BenchOp.SCAN_ASCEND;
             }
         } else {
             switch (coin) {
@@ -188,9 +188,9 @@ public class BenchLoopWorker implements Runnable {
             case COMPUTE:
                 bench.computeOak(nextKey());
                 return true;
-            case ASCEND:
+            case SCAN_ASCEND:
                 return bench.ascendOak(nextKey(), Parameters.confScanLength, blackhole);
-            case DESCEND:
+            case SCAN_DESCEND:
                 return bench.descendOak(nextKey(), Parameters.confScanLength, blackhole);
         }
 

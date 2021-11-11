@@ -17,7 +17,7 @@ import org.openjdk.jmh.infra.Blackhole;
 import java.util.Random;
 
 /**
- * Generates value and serialize them.
+ * Generates keys and serialize them.
  * Extends 'OakSerializer/OakComparator' for Oak.
  * Extends 'SizedReader/SizedWriter' for Chronicle.
  * Implements 'toString' for Memcached.

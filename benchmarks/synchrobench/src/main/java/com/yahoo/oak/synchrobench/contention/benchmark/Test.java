@@ -122,42 +122,6 @@ public class Test {
         System.out.printf("Initialization complete in %,.4f (seconds) - %,d operations%n", initTime, operations);
     }
 
-    class HeapStats {
-        // Get current size of heap in bytes
-        String title;
-        float heapSize;
-        float heapFreeSize;
-        float heapUsed;
-        float directUsed;
-        float totalUsed;
-        float totalAllocated;
-
-        HeapStats(String title) {
-            System.gc();
-            this.title = title;
-            this.heapSize = (float) Runtime.getRuntime().totalMemory() / (float) GB;
-            this.heapFreeSize = (float) Runtime.getRuntime().freeMemory() /  (float) GB;
-            this.heapUsed = heapSize - heapFreeSize;
-            this.directUsed = oakBench.allocatedGB();
-            this.totalUsed = heapUsed + (Double.isNaN(directUsed) ? 0 : directUsed);
-            this.totalAllocated = heapSize + (Double.isNaN(directUsed) ? 0 : directUsed);
-        }
-
-        String row = " %40s | %9s | %10s | %14s | %11s | %15s%n";
-        String dataRow = " %40s | %6.4f GB | %7.4f GB | %11.4f GB | %8.4f GB | %12.4f GB%n";
-
-        void printHeaderRow() {
-            String header = String.format(row,
-                "", "Heap Size", "Heap Usage", "Off-Heap Usage", "Total Usage", "Total Allocated");
-            System.out.print(header);
-            System.out.println(PrintTools.dashLine(header.length()));
-        }
-
-        void printDataRow() {
-            System.out.printf(dataRow, title, heapSize, heapUsed, directUsed, totalUsed, totalAllocated);
-        }
-    }
-
     private OpCounter.Stats collectIterationStats(BenchLoopWorker[] workers, double time) {
         return new OpCounter.Stats(
             Stream.of(workers).map(t -> t.counter).toArray(OpCounter[]::new),
@@ -171,13 +135,13 @@ public class Test {
     private OpCounter.Stats execute(int milliseconds, boolean isWarmup) throws Exception {
         HeapStats s1 = null;
         if (!isWarmup) {
-            s1 = new HeapStats("Before initial fill");
+            s1 = new HeapStats("Before initial fill", oakBench);
         }
         fill(Parameters.confRange, Parameters.confSize);
         if (!isWarmup) {
             s1.printHeaderRow();
             s1.printDataRow();
-            new HeapStats("After initial fill, before benchmark").printDataRow();
+            new HeapStats("After initial fill, before benchmark", oakBench).printDataRow();
         }
 
         BenchLoopWorker[] benchLoopWorkers = new BenchLoopWorker[Parameters.confNumThreads];
@@ -213,7 +177,7 @@ public class Test {
         double elapsedTime = ((double) (endTime - startTime)) / 1000.0;
 
         if (!isWarmup) {
-            new HeapStats("After benchmark").printDataRow();
+            new HeapStats("After benchmark", oakBench).printDataRow();
             System.out.println();
         }
 

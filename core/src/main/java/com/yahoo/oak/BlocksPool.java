@@ -17,7 +17,7 @@ import java.util.concurrent.ConcurrentLinkedQueue;
  */
 final class BlocksPool implements BlocksProvider, Closeable {
 
-    private static volatile BlocksPool instance = null;
+    private static BlocksPool instance = null;
     private final ConcurrentLinkedQueue<Block> blocks = new ConcurrentLinkedQueue<>();
 
     // TODO change the following constants to be configurable
