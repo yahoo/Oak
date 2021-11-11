@@ -130,17 +130,14 @@ public class KeyValueGenerator {
 
     public BenchKey getNextKey(int keyIndex) {
         KeyValueBuffer nextValue = new KeyValueBuffer(size);
-        nextValue.buffer.putInt(0, keyIndex);
+        nextValue.buffer.putInt(DATA_POS, keyIndex);
         return nextValue;
     }
 
     public BenchValue getNextValue(Random rnd) {
+        assert rnd != null;
         KeyValueBuffer nextValue = new KeyValueBuffer(size);
-        if (rnd == null) {
-            nextValue.buffer.putInt(0, 0);
-        } else {
-            nextValue.buffer.putInt(0, rnd.nextInt());
-        }
+        nextValue.buffer.putInt(DATA_POS, rnd.nextInt());
         return nextValue;
     }
 
