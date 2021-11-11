@@ -18,8 +18,8 @@ public enum BenchOp {
     PUT_IF_ABSENT_COMPUTE_IF_PRESENT,
     REMOVE,
     GET,
-    ASCEND,
-    DESCEND,
+    SCAN_ASCEND,
+    SCAN_DESCEND,
     COMPUTE;
 
     public static BenchOp[] asArray(BenchOp... ops) {
@@ -36,14 +36,19 @@ public enum BenchOp {
         PUT_IF_ABSENT_COMPUTE_IF_PRESENT
     );
 
-    // 'LinkedHashMap' preserves order of insertion.
+    /**
+     * This group of maps are used for reporting statistics on the operations.
+     * We use 'LinkedHashMap' to preserve the order of insertion.
+     */
     public static final Map<String, BenchOp[]> GROUPS = new LinkedHashMap<>();
     static {
         for (BenchOp op : BenchOp.values()) {
             GROUPS.put(op.name(), op.asArray());
         }
         GROUPS.put("Updates", asArray(PUT, PUT_IF_ABSENT, PUT_IF_ABSENT_COMPUTE_IF_PRESENT, REMOVE));
-        GROUPS.put("Reads", asArray(GET, ASCEND, DESCEND));
+        GROUPS.put("Reads", asArray(GET));
+        GROUPS.put("Scans", asArray(SCAN_ASCEND, SCAN_DESCEND));
+        GROUPS.put("Inserts", asArray(PUT, PUT_IF_ABSENT, PUT_IF_ABSENT_COMPUTE_IF_PRESENT));
         GROUPS.put("All", BenchOp.values());
     }
 }

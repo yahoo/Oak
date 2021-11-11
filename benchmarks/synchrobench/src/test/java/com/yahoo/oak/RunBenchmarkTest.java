@@ -17,7 +17,7 @@ import java.util.Collection;
 import java.util.List;
 
 @RunWith(Parameterized.class)
-public class RunTest {
+public class RunBenchmarkTest {
 
     public static final List<String> BENCH = Arrays.asList(
         "JavaSkipListMap",
@@ -35,7 +35,7 @@ public class RunTest {
 
     String[] args;
 
-    public RunTest(String bench, String keyValue, String scenario) {
+    public RunBenchmarkTest(String bench, String keyValue, String scenario) {
         this.args = getArgs(bench, keyValue, scenario, 2, 1);
     }
 

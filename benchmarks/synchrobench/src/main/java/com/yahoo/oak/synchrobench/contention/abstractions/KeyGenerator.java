@@ -15,7 +15,7 @@ import org.jetbrains.annotations.NotNull;
 import org.openjdk.jmh.infra.Blackhole;
 
 /**
- * Generates value and serialize them.
+ * Generates keys and serialize them.
  * Extends 'OakSerializer/OakComparator' for Oak.
  * Extends 'SizedReader/SizedWriter' for Chronicle.
  * Implements 'toString' for Memcached.
