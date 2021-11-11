@@ -194,7 +194,7 @@ public class OpCounter {
     }
 
     private void printLatencyStatsLine(String title, BenchOp[] ops) {
-        System.out.printf("  %32s | %,7d | %,7d | %,7d | %,10d | %,10d | %,7d | %,7d | %,7d | %,10d | %,10d |%n",
+        System.out.printf("  %32s | %,10d | %,10d | %,10d | %,10d | %,10d | %,10d | %,10d | %,10d | %,10d | %,10d |%n",
             title,
             successLatency(ops, 0.), successLatency(ops, 0.5),
             successLatency(ops, 0.99), successLatency(ops, 0.999),
@@ -207,7 +207,7 @@ public class OpCounter {
     public void printLatencyStats() {
         System.out.printf("  %32s |                 Success Latency (ns)                  |" +
             "                   Fail Latency (ns)                   |%n", "");
-        System.out.printf("  %32s | %7s | %7s | %7s | %10s | %10s | %7s | %7s | %7s | %10s | %10s |%n",
+        System.out.printf("  %32s | %10s | %10s | %10s | %10s | %10s | %10s | %10s | %10s | %10s | %10s |%n",
             "Operation", "MIN",  "p50", "p99", "p99.9", "MAX", "MIN",  "p50", "p99", "p99.9", "MAX");
         System.out.println(PrintTools.dashLine(148));
 

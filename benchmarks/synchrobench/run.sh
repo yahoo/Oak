@@ -208,14 +208,6 @@ while true; do
   -v | --verify ) verify_script=1; shift ;;
   -- ) shift; break ;;
   * ) break ;;
-  \?)
-    echo "Invalid Option: -$2" 1>&2
-    exit 1
-    ;;
-  :)
-    echo "Invalid Option: -$2 requires an argument" 1>&2
-    exit 1
-    ;;
   esac
 done
 
