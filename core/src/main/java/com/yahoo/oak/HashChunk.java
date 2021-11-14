@@ -341,7 +341,7 @@ class HashChunk<K, V> extends BasicChunk<K, V> {
 
             next = getFstVldEntryIdx(ctx);
         }
-        int getFstVldEntryIdx(ThreadContext ctx) {
+        int getFirstValidEntryIdx(ThreadContext ctx) {
             int fstVldIdx = 0;
             if (entryHashSet.isEntryIdxValid(ctx, fstVldIdx)) {
                 return fstVldIdx;
