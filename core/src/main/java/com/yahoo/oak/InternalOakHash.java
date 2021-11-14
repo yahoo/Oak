@@ -288,7 +288,7 @@ class InternalOakHash<K, V> extends InternalOakBasics<K, V> {
         ThreadContext ctx = getThreadContext();
         // find chunk matching key, puts this key hash into ctx.operationKeyHash
         HashChunk<K, V> c = hashArray.findChunk(key, ctx, calculateKeyHash(key, ctx));
-        c.lookUp(ctx, key);
+        c.lookUpForGetOnly(ctx, key);
         if (!ctx.isValueValid()) {
             return null;
         }
@@ -323,7 +323,7 @@ class InternalOakHash<K, V> extends InternalOakBasics<K, V> {
         for (int i = 0; i < MAX_RETRIES; i++) {
             // find chunk matching key, puts this key hash into ctx.operationKeyHash
             HashChunk<K, V> c = hashArray.findChunk(key, ctx, calculateKeyHash(key, ctx));
-            c.lookUp(ctx, key);
+            c.lookUpForGetOnly(ctx, key);
             if (!ctx.isValueValid()) {
                 return null;
             }
