@@ -124,6 +124,22 @@ class FirstLevelHashArray<K, V> {
         return chunks.get(index);
     }
 
+    HashChunk<K, V> getNextChunk(HashChunk<K, V> curChunk) {
+        int idx = 0;
+        while (curChunk != getChunk(idx)) {
+            idx++;
+        }
+        int nextIdx = idx++;
+
+        HashChunk<K, V> nxtChunk;
+        if (!(nextIdx < chunks.length())) {
+            nxtChunk = null;
+        } else {
+            nxtChunk = chunks.get(nextIdx);
+        }
+
+        return nxtChunk;
+    }
     /**
      * Brings the chunks to their initial state without entries
      * Used when we want to empty the structure without reallocating all the objects/memory

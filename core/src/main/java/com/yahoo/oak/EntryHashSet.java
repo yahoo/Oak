@@ -255,9 +255,7 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
      * @return true if the entry at the given index is valid, false otherwise
      */
     public boolean isEntryIdxValid(ThreadContext ctx, int idx) {
-        // if
         return readValue(ctx.value, idx);
-
     }
 
     int getCollisionChainLength() {

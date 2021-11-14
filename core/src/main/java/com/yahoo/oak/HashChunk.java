@@ -12,6 +12,9 @@ class HashChunk<K, V> extends BasicChunk<K, V> {
     // defaults
     public static final int HASH_CHUNK_MAX_ITEMS_DEFAULT = 2048; //2^11
 
+    // index of invalid entry
+    static final int INVALID_ENTRY_INDEX = EntryArray.INVALID_ENTRY_INDEX;
+
     // HashChunk takes a number of least significant bits from the full key hash
     // to provide as an index in the EntryHashSet
     private final UnionCodec hashIndexCodec; // to be given
@@ -274,7 +277,7 @@ class HashChunk<K, V> extends BasicChunk<K, V> {
 
 
     /********************************************************************************************/
-    /*------------------------- Methods that are used for rebalanced  ---------------------------*/
+    /*------------------------- Methods that are used for rebalance  ---------------------------*/
     @Override
     boolean shouldRebalance() {
         //TODO: no rebalance for now, add later
@@ -307,8 +310,6 @@ class HashChunk<K, V> extends BasicChunk<K, V> {
 
     /********************************************************************************************/
     /*--------------------------------- Iterators Constructors ---------------------------------*/
-    /********************************************************************************************/
-    /*--------------------------------- Iterators Constructors ---------------------------------*/
 
     /**
 
@@ -320,15 +321,14 @@ class HashChunk<K, V> extends BasicChunk<K, V> {
 
     /********************************************************************************************/
 
-    class ChunkIter extends BasicChunkIter {
+    class ChunkIter implements BasicChunkIter {
         protected int next;         // index of the next entry to be returned
 
         ChunkIter(ThreadContext ctx) {
             next = 0; // initial index
-
-
             next = getFstVldEntryIdx(ctx);
         }
+
         int getFstVldEntryIdx(ThreadContext ctx) {
             int fstVldIdx = 0;
             if (entryHashSet.isEntryIdxValid(ctx, fstVldIdx)) {
@@ -336,7 +336,6 @@ class HashChunk<K, V> extends BasicChunk<K, V> {
             } else {
                 return getNxtVldEntryIdx(ctx, fstVldIdx);
             }
-
         }
 
         int getNxtVldEntryIdx(ThreadContext ctx, int curIdx) {
@@ -345,26 +344,24 @@ class HashChunk<K, V> extends BasicChunk<K, V> {
                 nxtIdx++;
             }
             if (!entryHashSet.isIndexInBound(nxtIdx)) {
-                nxtIdx = NONE_NEXT;
+                nxtIdx = INVALID_ENTRY_INDEX;
             }
             return nxtIdx;
         }
 
         @Override
-        boolean hasNext() {
-            return next != NONE_NEXT;
+        public boolean hasNext() {
+            return next != INVALID_ENTRY_INDEX;
         }
 
         /** Returns the index of the entry that should be returned next by the iterator.
          ** NONE_NEXT is returned when iterator came to its end.
          **/
-        int next(ThreadContext ctx) {
+        @Override
+        public int next(ThreadContext ctx) {
             int curIdx = next;
             next = getNxtVldEntryIdx(ctx, next);
             return curIdx;
         }
-
-
-
     }
 }

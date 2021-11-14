@@ -19,7 +19,7 @@ abstract class BasicChunk<K, V> {
         RELEASED
     }
 
-    static final int NONE_NEXT = EntryArray.INVALID_ENTRY_INDEX;
+
     /*-------------- Members --------------*/
     // to compare serilized and object keys
     protected OakComparator<K> comparator;
@@ -280,12 +280,12 @@ abstract class BasicChunk<K, V> {
     }
 
     /********************************************************************************************/
-    abstract class BasicChunkIter {
-        abstract boolean hasNext();
+    interface BasicChunkIter {
+        boolean hasNext();
 
         /** Returns the index of the entry that should be returned next by the iterator.
          ** NONE_NEXT is returned when iterator came to its end.
          **/
-        abstract int next(ThreadContext ctx);
+        int next(ThreadContext ctx);
     }
 }

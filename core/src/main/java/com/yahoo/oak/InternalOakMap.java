@@ -1169,12 +1169,12 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
 
     class ValueIterator extends Iter<OakUnscopedBuffer> {
 
-        //private final InternalOakMap<K, V> internalOakMap;
+
 
         ValueIterator(K lo, boolean loInclusive, K hi, boolean hiInclusive, boolean isDescending, InternalOakMap<K,
                 V> internalOakMap) {
             super(lo, loInclusive, hi, hiInclusive, isDescending);
-            //this.internalOakMap = internalOakMap;
+
         }
 
         @Override

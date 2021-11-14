@@ -672,7 +672,7 @@ class OrderedChunk<K, V> extends BasicChunk<K, V> {
         ALWAYS_END_BOUNDARY_CHECK
     }
 
-    abstract class ChunkIter extends BasicChunkIter {
+    abstract class ChunkIter implements BasicChunkIter {
         protected int next;         // index of the next entry to be returned
         protected K endBound;       // stop bound key, or null if no stop bound
         protected boolean endBoundInclusive;  // inclusion flag for "to"
