@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
 
+# Due to the use of "declare -A", this script only support bash 4 and above.
+# To run this script on mac, first install gnu-getopt: `brew install gnu-getopt`
+
 # trap ctrl-c and call ctrl_c()
 trap ctrl_c INT
 CONTINUE=1
@@ -54,7 +57,7 @@ declare -A heap_limit=(
   ["oak-hash"]="24g"
   ["chronicle"]="24g"
   # Memcached doesn't use the heap
-  ["memcached"]="1g"
+  ["memcached"]="512m"
 )
 
 declare -A direct_limit=(
@@ -117,7 +120,8 @@ test_thread="01 04 08 12 16 20 24"
 test_size="10_000_000"
 test_gc="default"
 test_java_modes="server"
-test_writes="0"
+test_heap_limit=""
+test_direct_limit=""
 
 key_class="buffer"
 value_class="buffer"
@@ -134,8 +138,8 @@ warmup="0"
 # Defines the number of measured iterations.
 iterations="5"
 
-# Defines the test runtime in milliseconds.
-duration="30_000"
+# Defines the test runtime in seconds.
+duration="30"
 
 # Defines the sampling range for queries and insertions.
 range_ratio="2"
@@ -144,7 +148,7 @@ range_ratio="2"
 fill_threads="24"
 
 # For flag arguments
-extra_args=""
+flag_arguments=""
 
 # This flag is used to debug the script before a long execution.
 # If set to "1" (via "-v" flag in the command line), the script will produces all the output files (with all the runtime
@@ -158,11 +162,19 @@ verify_script=0
 ############################################################################
 # Override default arguments
 ############################################################################
-ARGS=$(\
-    getopt\
+# Use gnu-opt if exits (workaround for running on mac)
+get_opt="/usr/local/opt/gnu-getopt/bin/getopt"
+if [ ! -f "$get_opt" ]; then
+    get_opt="getopt"
+fi
+
+ARGS=$(${get_opt}\
         -o o:j:d:i:w:s:t:e:h:b:g:m:l:r:v\
-        --long gc:,java-mode:,key:,value:,key-size:,value-size:,fill-threads:,consume-keys,consume-values,latency,verify\
-        -n 'run' -- "$@"
+        --long verify,consume-keys,consume-values,latency\
+        --long output-path:java-path:,duration:,iterations:,warmup:,heap-limit:,direct-limit:\
+        --long range-ratio:,size:,threads:,scenario:,benchmark:\
+        --long gc:,java-mode:,key:,value:,key-size:,value-size:,fill-threads:\
+        -s sh -n 'run' -- "$@"
 )
 if [ $? != 0 ]; then
     echo "Cannot parse args. Terminating..." >&2;
@@ -173,39 +185,29 @@ eval set -- "$ARGS"
 
 while true; do
   case "$1" in
-  -o ) output="$2"; shift 2 ;;
-  -j ) java="$2"; shift 2 ;;
-  -d ) duration=$((2 * 1000)); shift 2 ;;
-  -i ) iterations="$2"; shift 2 ;;
-  -w ) warmup="$2"; shift 2 ;;
-  -h )
-    for bench in ${!heap_limit[*]}; do
-      heap_limit[${bench}]="$2"
-    done
-    shift 2
-    ;;
-  -l )
-    for bench in ${!direct_limit[*]}; do
-      direct_limit[${bench}]="$2"
-    done
-    shift 2
-    ;;
-  -r ) range_ratio="$2"; shift 2 ;;
-  -s ) test_size="$2"; shift 2 ;;
-  -t ) test_thread="$2"; shift 2 ;;
-  -e ) test_scenarios="$2"; shift 2 ;;
-  -b ) test_benchmarks="$2"; shift 2 ;;
+  -v | --verify ) verify_script=1; shift ;;
+  -o | --output-path ) output="$2"; shift 2 ;;
+  -j | --java-path ) java="$2"; shift 2 ;;
+  -d | --duration ) duration="$2"; shift 2 ;;
+  -i | --iterations ) iterations="$2"; shift 2 ;;
+  -w | --warmup ) warmup="$2"; shift 2 ;;
+  -h | --heap-limit ) test_heap_limit="$2"; shift 2 ;;
+  -l | --direct-limit) test_direct_limit="$2"; shift 2 ;;
+  -r | --range-ratio ) range_ratio="$2"; shift 2 ;;
+  -s | --size ) test_size="$2"; shift 2 ;;
+  -t | --threads ) test_thread="$2"; shift 2 ;;
+  -e | --scenario ) test_scenarios="$2"; shift 2 ;;
+  -b | --benchmark ) test_benchmarks="$2"; shift 2 ;;
   -g | --gc ) test_gc="$2"; shift 2 ;;
   -m | --java-mode ) test_java_modes="$2"; shift 2 ;;
   --key ) key_class="$2"; shift 2 ;;
   --value ) value_class="$2"; shift 2 ;;
   --key-size ) key_size="$2"; shift 2 ;;
   --value-size ) value_size="$2"; shift 2 ;;
-  --consume-keys ) extra_args="$extra_args --consume-keys"; shift ;;
-  --consume-values ) extra_args="$extra_args --consume-values"; shift ;;
   --fill-threads ) fill_threads="$2"; shift 2 ;;
-  --latency ) extra_args="$extra_args --latency"; shift ;;
-  -v | --verify ) verify_script=1; shift ;;
+  --consume-keys ) flag_arguments="$flag_arguments --consume-keys"; shift ;;
+  --consume-values ) flag_arguments="$flag_arguments --consume-values"; shift ;;
+  --latency ) flag_arguments="$flag_arguments --latency"; shift ;;
   -- ) shift; break ;;
   * ) break ;;
   esac
@@ -220,17 +222,8 @@ echo "Found synchrobench JAR in: ${synchrobench_path}"
 echo "Using JAR: ${jar_file_name}"
 cd "${synchrobench_path}" || exit 1
 
-############################################################################
-# Initialized output folder
-############################################################################
-if [[ ! -d "${output:?}" ]]; then
-  mkdir -p "${output}"
-fi
-
 timestamp=$(date '+%d-%m-%Y--%H-%M-%S')
 summary="${output}/summary-${timestamp}.csv"
-
-echo "Timestamp, Log File, Scenario, Bench, Heap size, Direct Mem, # Threads, GC, Final Size, Throughput, std" >"${summary}"
 
 echo "Starting oak test: $(date)"
 
@@ -238,15 +231,32 @@ echo "Starting oak test: $(date)"
 for scenario in ${test_scenarios[*]}; do for bench in ${test_benchmarks[*]}; do
   echo ""
   echo "Scenario: ${bench} ${scenario}"
-  echo "" >>"${summary}"
+
+  # Write blank line between scenarios (only if summary file was already initiated)
+  if [ -f "${summary}" ]; then
+    echo "" >>"${summary}"
+  fi
 
   classPath="${benchmarks[${bench}]}"
-  test_heap_size="${heap_limit[${bench}]}"
-  test_direct_size="${direct_limit[${bench}]}"
 
-  for heapSize in ${test_heap_size[*]}; do for directSize in ${test_direct_size[*]}; do
-    for java_mode in ${test_java_modes[*]}; do for gc_alg in ${test_gc[*]}; do for write in ${test_writes[*]}; do
-      for thread in ${test_thread[*]}; do for size in ${test_size[*]}; do
+  # Use input heap/direct limit if set. Otherwise, use default for current benchmark class.
+  if [ -z "$test_heap_limit" ]
+  then
+    scenario_test_heap_limit="${heap_limit[${bench}]}"
+  else
+    scenario_test_heap_limit="$test_heap_limit"
+  fi
+
+  if [ -z "$test_direct_limit" ]
+  then
+    scenario_test_direct_limit="${direct_limit[${bench}]}"
+  else
+    scenario_test_direct_limit="$test_direct_limit"
+  fi
+
+  for heap_size in ${scenario_test_heap_limit[*]}; do for direct_size in ${scenario_test_direct_limit[*]}; do
+    for java_mode in ${test_java_modes[*]}; do for gc_alg in ${test_gc[*]}; do
+      for threads in ${test_thread[*]}; do for size in ${test_size[*]}; do
         # Check if the user hit CTRL+C before we start a new iteration
         if [[ "$CONTINUE" -ne 1 ]]; then
           echo "#### Quiting..."
@@ -254,7 +264,7 @@ for scenario in ${test_scenarios[*]}; do for bench in ${test_benchmarks[*]}; do
         fi
 
         gc_args=${gc_cmd_args[${gc_alg}]}
-        java_args="${java_modes[${java_mode}]} -Xmx${heapSize} -XX:MaxDirectMemorySize=${directSize} ${gc_args}"
+        java_args="${java_modes[${java_mode}]} -Xmx${heap_size} -XX:MaxDirectMemorySize=${direct_size} ${gc_args}"
 
         # Allow using separator for user input
         size=${size//[_,]/}
@@ -264,19 +274,25 @@ for scenario in ${test_scenarios[*]}; do for bench in ${test_benchmarks[*]}; do
         # Add a timestamp prefix to the log file.
         # This allows repeating the benchmark with the same parameters in the future without removing the old log.
         timestamp=$(date '+%d-%m-%Y--%H-%M-%S')
-        log_filename=${timestamp}-${scenario}-${bench}-xmx${heapSize}-direct${directSize}-t${thread}-m${java_mode}-gc${gc_alg}.log
+        log_filename=${timestamp}-${scenario}-${bench}-xmx${heap_size}-direct${direct_size}-t${threads}-m${java_mode}-gc${gc_alg}.log
         out=${output}/${log_filename}
 
         # Construct the command line as a multi-lined list for aesthetics reasons
         cmd_args=(
           "${java} ${java_args} -jar ${jar_file_name} -b ${classPath} --scenario ${scenario}"
           "--key ${data[${key_class}]} --value ${data[${value_class}]}"
-          "-k ${key_size} -v ${value_size} -i ${size} -r ${range} -t ${thread}"
-          "-W ${warmup} -n ${iterations} -d ${duration} ${extra_args}"
+          "-k ${key_size} -v ${value_size} -i ${size} -r ${range} -t ${threads}"
+          "-W ${warmup} -n ${iterations} -d $((duration * 1000)) ${flag_arguments}"
           "--fill-threads ${fill_threads}"
         )
         cmd=${cmd_args[*]}
         echo "${cmd}"
+
+        # Create the output folder and summary file only if we run at least one test
+        mkdir -p "${output}"
+        if [ ! -f "${summary}" ]; then
+            echo "timestamp,log_file,scenario,bench,heap_limit,direct_limit,threads,gc_alg,final_size,throughput,std" >"${summary}"
+        fi
 
         # Print all arguments to the log file
         {
@@ -288,12 +304,11 @@ for scenario in ${test_scenarios[*]}; do for bench in ${test_benchmarks[*]}; do
           # Iteration arguments:
           echo "scenario: ${scenario}"
           echo "bench: ${bench}"
-          echo "heap_limit: ${heapSize}"
-          echo "direct_limit: ${directSize}"
+          echo "heap_limit: ${heap_size}"
+          echo "direct_limit: ${direct_size}"
           echo "gc_alg: ${gc_alg}"
           echo "gc_args: ${gc_args}"
           echo "java_mode: ${java_mode}"
-          echo "write: ${write}"
           # CMD arguments:
           echo "cmd: ${cmd}"
           echo "java: ${java}"
@@ -309,10 +324,11 @@ for scenario in ${test_scenarios[*]}; do for bench in ${test_benchmarks[*]}; do
           echo "iterations: ${iterations}"
           echo "size: ${size}"
           echo "range: ${range}"
-          echo "thread: ${thread}"
+          echo "range_ratio: ${range_ratio}"
+          echo "threads: ${threads}"
           echo "fill_threads: ${fill_threads}"
           echo "duration: ${duration}"
-          echo "extra_args: ${extra_args}"
+          echo "flag_arguments: ${flag_arguments}"
           echo ""
           # The benchmark output will be appended here
           echo "[Output]"
@@ -328,8 +344,8 @@ for scenario in ${test_scenarios[*]}; do for bench in ${test_benchmarks[*]}; do
         fi
 
         # Update summary
-        summary_line=("${timestamp}" "${log_filename}" "${scenario}" "${bench}" "${heapSize}" "${directSize}"
-          "${thread}" "${gc_alg}" "${finalSize}" "${throughput}" "${std}")
+        summary_line=("${timestamp}" "${log_filename}" "${scenario}" "${bench}" "${heap_size}" "${direct_size}"
+          "${threads}" "${gc_alg}" "${finalSize}" "${throughput}" "${std}")
         (
           # Define the separator to be a comma instead of a space
           # This only have effect in the context of these parenthesis
@@ -337,7 +353,7 @@ for scenario in ${test_scenarios[*]}; do for bench in ${test_benchmarks[*]}; do
           echo "${summary_line[*]}"
         ) >>"${summary}"
       done; done
-    done; done; done
+    done; done
   done; done
 done; done
 
