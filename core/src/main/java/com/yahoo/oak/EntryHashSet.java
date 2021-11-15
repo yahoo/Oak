@@ -248,13 +248,13 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
     }
 
     /**
-     * Function checks if an entry at given index is valid.
+     * Function checks if an entry at given index is valid for the scan purpose
      *
      * @param ctx the context used as temporal storage, used for convenience
      * @param idx index of the entry to check
      * @return true if the entry at the given index is valid, false otherwise
      */
-    public boolean isEntryIdxValid(ThreadContext ctx, int idx) {
+    public boolean isEntryIndexValidForScan(ThreadContext ctx, int idx) {
         return readValue(ctx.value, idx);
     }
 
@@ -469,8 +469,8 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
         return true;
     }
 
-    /********************************************************************************************/
-    /*------ Methods for managing the write/remove path of the hashed keys and values  ---------*/
+    //********************************************************************************************/
+    //*------ Methods for managing the write/remove path of the hashed keys and values  ---------*/
 
     /**
      * Creates/allocates an entry for the key, given keyHash=hashFunction(key)
@@ -660,7 +660,7 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
     }
 
 
-    /************************* REBALANCE *****************************************/
+    //************************* REBALANCE *****************************************/
     /**/
 
     /**

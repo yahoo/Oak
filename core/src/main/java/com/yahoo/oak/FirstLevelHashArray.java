@@ -106,17 +106,13 @@ class FirstLevelHashArray<K, V> {
         return (int) Math.ceil(Math.pow(2, lsbForSecondLevel));
     }
 
-    private int calculateKeyHash(K key, ThreadContext ctx) {
-        return ctx.operationKeyHash;
-    }
-
-    private int calculateHashArrayIdx(K key, ThreadContext ctx) {
+    private int calculateHashArrayIdx(int keyHash) {
         // second and not first, because these are actually the most significant bits
-        return hashIndexCodec.getSecond(calculateKeyHash(key, ctx));
+        return hashIndexCodec.getSecond(keyHash);
     }
 
-    HashChunk<K, V> findChunk(K key, ThreadContext ctx, int keyHash) {
-        return chunks.get(calculateHashArrayIdx(key, ctx));
+    HashChunk<K, V> findChunk(int keyHash) {
+        return chunks.get(calculateHashArrayIdx(keyHash));
     }
 
     HashChunk<K, V> getChunk(int index) {
@@ -126,10 +122,17 @@ class FirstLevelHashArray<K, V> {
 
     HashChunk<K, V> getNextChunk(HashChunk<K, V> curChunk) {
         int idx = 0;
-        while (curChunk != getChunk(idx)) {
+
+        // find the index of the current chunk
+        while (idx < chunks.length() && curChunk != getChunk(idx)) {
             idx++;
         }
-        int nextIdx = idx++;
+        // should never happen, but just to be on the safe side
+        if (! (idx < chunks.length())) {
+            return null;
+        }
+
+        int nextIdx = idx + 1;
 
         HashChunk<K, V> nxtChunk;
         if (!(nextIdx < chunks.length())) {

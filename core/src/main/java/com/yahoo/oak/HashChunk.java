@@ -15,7 +15,7 @@ class HashChunk<K, V> extends BasicChunk<K, V> {
     // index of invalid entry
     static final int INVALID_ENTRY_INDEX = EntryArray.INVALID_ENTRY_INDEX;
 
-    // HashChunk takes a number of least significant bits from the full key hash
+    // HashChunk takes a number of the least significant bits from the full key hash
     // to provide as an index in the EntryHashSet
     private final UnionCodec hashIndexCodec; // to be given
 
@@ -74,8 +74,9 @@ class HashChunk<K, V> extends BasicChunk<K, V> {
         // hash was already calculated by hash array when looking for the chunk and kept in thread context
         return ctx.operationKeyHash;
     }
-    /********************************************************************************************/
-    /*-----------------------------  Wrappers for EntryOrderedSet methods -----------------------------*/
+
+    //**************************************************************************************************/
+    //-----------------------------  Wrappers for EntryOrderedSet methods -----------------------------*/
 
     /**
      * See {@code EntryHashSet.isValueRefValidAndNotDeleted(int)} for more information
@@ -189,7 +190,7 @@ class HashChunk<K, V> extends BasicChunk<K, V> {
      *            It will describe the state of the entry (key and value) associated with the input {@code key}.
      *            Following are the possible states of the entry:
      *             (1) {@code key} was not found.
-     *                   This means there is no entry with the this key in this chunk.
+     *                   This means there is no entry with this key in this chunk.
      *                   In this case, {@code ctx.isKeyValid() == False} and {@code ctx.isValueValid() == False}.
      *             (2) {@code key} was found.
      *                   In this case, {@code (ctx.isKeyValid() == True}
@@ -301,14 +302,14 @@ class HashChunk<K, V> extends BasicChunk<K, V> {
      * performing entries sorting on the fly (delete entries that are removed as well).
      *
      * @param tempValue   a reusable buffer object for internal temporary usage
-     * @param srcOrderedChunk    chunk to copy from
+     * @param srcHashChunk    chunk to copy from
      * @param srcEntryIdx start position for copying
      * @param maxCapacity max number of entries "this" chunk can contain after copy
      * @return entry index of next to the last copied entry (in the srcOrderedChunk),
      *         NONE_NEXT if all items were copied
      */
     final int copyPartOfEntries(
-        ValueBuffer tempValue, HashChunk<K, V> srcOrderedChunk, final int srcEntryIdx, int maxCapacity) {
+        ValueBuffer tempValue, HashChunk<K, V> srcHashChunk, final int srcEntryIdx, int maxCapacity) {
 
         //TODO: add rebalance code here
         return 0;
@@ -320,14 +321,15 @@ class HashChunk<K, V> extends BasicChunk<K, V> {
             + entryHashSet.getCollisionChainLength() + ", average accesses: ");
     }
 
-    /********************************************************************************************/
+    //*******************************************************************************************/
     /*--------------------------------- Iterators Constructors ---------------------------------*/
+
 
     /**
 
      */
-    HashChunk.ChunkIter hashChunkIter(ThreadContext ctx) {
-        return new HashChunk.ChunkIter(ctx);
+    HashChunk<K, V>.ChunkIter hashChunkIter(ThreadContext ctx) {
+        return new HashChunk<K, V>.ChunkIter(ctx);
     }
 
 
@@ -338,27 +340,27 @@ class HashChunk<K, V> extends BasicChunk<K, V> {
 
         ChunkIter(ThreadContext ctx) {
             next = 0; // initial index
-            next = getFstVldEntryIdx(ctx);
+            next = getFirstValidEntryIndex(ctx);
         }
 
-        int getFstVldEntryIdx(ThreadContext ctx) {
-            int fstVldIdx = 0;
-            if (entryHashSet.isEntryIdxValid(ctx, fstVldIdx)) {
-                return fstVldIdx;
+        int getFirstValidEntryIndex(ThreadContext ctx) {
+            int firstValidIndex = 0;
+            if (entryHashSet.isEntryIndexValidForScan(ctx, firstValidIndex)) {
+                return firstValidIndex;
             } else {
-                return getNxtVldEntryIdx(ctx, fstVldIdx);
+                return getNextValidEntryIndex(ctx, firstValidIndex);
             }
         }
 
-        int getNxtVldEntryIdx(ThreadContext ctx, int curIdx) {
-            int nxtIdx = curIdx + 1;
-            while (entryHashSet.isIndexInBound(nxtIdx) && !entryHashSet.isEntryIdxValid(ctx, nxtIdx)) {
-                nxtIdx++;
+        int getNextValidEntryIndex(ThreadContext ctx, int curIndex) {
+            int nextIndex = curIndex + 1;
+            while (entryHashSet.isIndexInBound(nextIndex) && !entryHashSet.isEntryIndexValidForScan(ctx, nextIndex)) {
+                nextIndex++;
             }
-            if (!entryHashSet.isIndexInBound(nxtIdx)) {
-                nxtIdx = INVALID_ENTRY_INDEX;
+            if (!entryHashSet.isIndexInBound(nextIndex)) {
+                nextIndex = INVALID_ENTRY_INDEX;
             }
-            return nxtIdx;
+            return nextIndex;
         }
 
         @Override
@@ -372,7 +374,7 @@ class HashChunk<K, V> extends BasicChunk<K, V> {
         @Override
         public int next(ThreadContext ctx) {
             int curIdx = next;
-            next = getNxtVldEntryIdx(ctx, next);
+            next = getNextValidEntryIndex(ctx, next);
             return curIdx;
         }
     }

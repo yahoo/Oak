@@ -16,7 +16,7 @@ import java.util.function.Function;
 class InternalOakHash<K, V> extends InternalOakBasics<K, V> {
     /*-------------- Members --------------*/
     private final FirstLevelHashArray<K, V> hashArray;    // first level of indexing
-    private final OakComparator<K> comparator;
+    //private final OakComparator<K> comparator;
     private final OakSerializer<K> keySerializer;
     private final OakSerializer<V> valueSerializer;
     private final ValueUtils valueOperator;
@@ -32,7 +32,7 @@ class InternalOakHash<K, V> extends InternalOakBasics<K, V> {
         super(vMM, kMM);
         this.keySerializer = keySerializer;
         this.valueSerializer = valueSerializer;
-        this.comparator = oakComparator;
+        //this.comparator = oakComparator;
         this.valueOperator = valueOperator;
 
         int msbForFirstLevelHash =
@@ -40,7 +40,7 @@ class InternalOakHash<K, V> extends InternalOakBasics<K, V> {
                 ? DEFAULT_MOST_SIGN_BITS_NUM : firstLevelBitSize;
 
         this.hashArray =
-            new FirstLevelHashArray<K, V>(msbForFirstLevelHash, secondLevelBitSize,
+            new FirstLevelHashArray<>(msbForFirstLevelHash, secondLevelBitSize,
                 this.size, vMM, kMM, oakComparator,
                 keySerializer, valueSerializer, 1);
 
@@ -115,7 +115,7 @@ class InternalOakHash<K, V> extends InternalOakBasics<K, V> {
         for (int i = 0; i < MAX_RETRIES; i++) {
 
             // find chunk matching key, puts this key hash into ctx.operationKeyHash
-            HashChunk<K, V> c = hashArray.findChunk(key, ctx, calculateKeyHash(key, ctx));
+            HashChunk<K, V> c = hashArray.findChunk(calculateKeyHash(key, ctx));
             c.lookUp(ctx, key);
             // If there is a matching value reference for the given key, and it is not marked as deleted,
             // then this put changes the slice pointed by this value reference.
@@ -193,14 +193,13 @@ class InternalOakHash<K, V> extends InternalOakBasics<K, V> {
      *
      * @param ctx The context key should be initialized with the key to refresh, and the context value
      *            will be updated with the refreshed value.
-     * @reutrn true if the refresh was successful.
+     * @return true if the refresh was successful.
      */
     @Override
     boolean refreshValuePosition(ThreadContext ctx) {
         K deserializedKey = keySerializer.deserialize(ctx.key);
         // find chunk matching key, puts this key hash into ctx.operationKeyHash
-        HashChunk<K, V> c = hashArray.findChunk(
-            deserializedKey, ctx, calculateKeyHash(deserializedKey, ctx));
+        HashChunk<K, V> c = hashArray.findChunk(calculateKeyHash(deserializedKey, ctx));
         c.lookUp(ctx, deserializedKey);
         return ctx.isValueValid();
     }
@@ -220,7 +219,7 @@ class InternalOakHash<K, V> extends InternalOakBasics<K, V> {
 
         for (int i = 0; i < MAX_RETRIES; i++) {
             // find chunk matching key, puts this key hash into ctx.operationKeyHash
-            HashChunk<K, V> c = hashArray.findChunk(key, ctx, calculateKeyHash(key, ctx));
+            HashChunk<K, V> c = hashArray.findChunk(calculateKeyHash(key, ctx));
             c.lookUp(ctx, key);
 
             if (!ctx.isKeyValid()) {
@@ -287,7 +286,7 @@ class InternalOakHash<K, V> extends InternalOakBasics<K, V> {
         }
         ThreadContext ctx = getThreadContext();
         // find chunk matching key, puts this key hash into ctx.operationKeyHash
-        HashChunk<K, V> c = hashArray.findChunk(key, ctx, calculateKeyHash(key, ctx));
+        HashChunk<K, V> c = hashArray.findChunk(calculateKeyHash(key, ctx));
         c.lookUpForGetOnly(ctx, key);
         if (!ctx.isValueValid()) {
             return null;
@@ -312,6 +311,11 @@ class InternalOakHash<K, V> extends InternalOakBasics<K, V> {
         return transformer.apply(ctx.key);
     }
 
+    private <T> T getValueTransformation(OakScopedReadBuffer key, OakTransformer<T> transformer) {
+        K deserializedKey = keySerializer.deserialize(key);
+        return getValueTransformation(deserializedKey, transformer);
+    }
+
     // the non-ZC variation of the get
     <T> T getValueTransformation(K key, OakTransformer<T> transformer) {
         if (key == null || transformer == null) {
@@ -322,7 +326,7 @@ class InternalOakHash<K, V> extends InternalOakBasics<K, V> {
 
         for (int i = 0; i < MAX_RETRIES; i++) {
             // find chunk matching key, puts this key hash into ctx.operationKeyHash
-            HashChunk<K, V> c = hashArray.findChunk(key, ctx, calculateKeyHash(key, ctx));
+            HashChunk<K, V> c = hashArray.findChunk(calculateKeyHash(key, ctx));
             c.lookUpForGetOnly(ctx, key);
             if (!ctx.isValueValid()) {
                 return null;
@@ -343,19 +347,19 @@ class InternalOakHash<K, V> extends InternalOakBasics<K, V> {
 
         for (int i = 0; i < MAX_RETRIES; i++) {
             // find chunk matching key, puts this key hash into ctx.operationKeyHash
-            HashChunk<K, V> c = hashArray.findChunk(key, ctx, calculateKeyHash(key, ctx));
-            c.lookUp(ctx, key);
+            HashChunk<K, V> chunk = hashArray.findChunk(calculateKeyHash(key, ctx));
+            chunk.lookUp(ctx, key);
             if (!ctx.isValueValid()) {
                 return null;
             }
 
             // will return null if the value is deleted
-            Result result = valueOperator.exchange(c, ctx, value, valueDeserializeTransformer, valueSerializer);
+            Result result = valueOperator.exchange(chunk, ctx, value, valueDeserializeTransformer, valueSerializer);
             if (result.operationResult != ValueUtils.ValueResult.RETRY) {
                 return (V) result.value;
             }
             // it might be that this chunk is proceeding with rebalance -> help
-            helpRebalanceIfInProgress(c);
+            helpRebalanceIfInProgress(chunk);
         }
 
         throw new RuntimeException("replace failed: reached retry limit (1024).");
@@ -366,7 +370,7 @@ class InternalOakHash<K, V> extends InternalOakBasics<K, V> {
 
         for (int i = 0; i < MAX_RETRIES; i++) {
             // find chunk matching key, puts this key hash into ctx.operationKeyHash
-            HashChunk<K, V> c = hashArray.findChunk(key, ctx, calculateKeyHash(key, ctx));
+            HashChunk<K, V> c = hashArray.findChunk(calculateKeyHash(key, ctx));
             c.lookUp(ctx, key);
             if (!ctx.isValueValid()) {
                 return false;
@@ -396,7 +400,7 @@ class InternalOakHash<K, V> extends InternalOakBasics<K, V> {
 
         for (int i = 0; i < MAX_RETRIES; i++) {
             // find chunk matching key, puts this key hash into ctx.operationKeyHash
-            HashChunk<K, V> c = hashArray.findChunk(key, ctx, calculateKeyHash(key, ctx));
+            HashChunk<K, V> c = hashArray.findChunk(calculateKeyHash(key, ctx));
             c.lookUp(ctx, key);
 
             // If exists a matching value reference for the given key, and it isn't marked deleted,
@@ -445,7 +449,7 @@ class InternalOakHash<K, V> extends InternalOakBasics<K, V> {
 
         for (int i = 0; i < MAX_RETRIES; i++) {
             // find chunk matching key, puts this key hash into ctx.operationKeyHash
-            HashChunk<K, V> c = hashArray.findChunk(key, ctx, calculateKeyHash(key, ctx));
+            HashChunk<K, V> c = hashArray.findChunk(calculateKeyHash(key, ctx));
             c.lookUp(ctx, key);
 
             if (ctx.isValueValid()) {
@@ -481,7 +485,7 @@ class InternalOakHash<K, V> extends InternalOakBasics<K, V> {
             }
 
             // find chunk matching key, puts this key hash into ctx.operationKeyHash
-            HashChunk<K, V> c = hashArray.findChunk(key, ctx, calculateKeyHash(key, ctx));
+            HashChunk<K, V> c = hashArray.findChunk(calculateKeyHash(key, ctx));
             c.lookUp(ctx, key);
 
             // If there is a matching value reference for the given key, and it is not marked as deleted,
@@ -530,16 +534,16 @@ class InternalOakHash<K, V> extends InternalOakBasics<K, V> {
     private static final class IteratorState<K, V> {
 
         private HashChunk<K, V> hashChunk;
-        private HashChunk.ChunkIter chunkIter;
+        private HashChunk<K, V>.ChunkIter chunkIter;
         private int index;
 
-        public void set(HashChunk<K, V> hashChunk, HashChunk.ChunkIter chunkIter, int index) {
+        public void set(HashChunk<K, V> hashChunk, HashChunk<K, V>.ChunkIter chunkIter, int index) {
             this.hashChunk = hashChunk;
             this.chunkIter = chunkIter;
             this.index = index;
         }
 
-        private IteratorState(HashChunk<K, V> nextHashChunk, HashChunk.ChunkIter nextChunkIter, int nextIndex) {
+        private IteratorState(HashChunk<K, V> nextHashChunk, HashChunk<K, V>.ChunkIter nextChunkIter, int nextIndex) {
 
             this.hashChunk = nextHashChunk;
             this.chunkIter = nextChunkIter;
@@ -550,7 +554,7 @@ class InternalOakHash<K, V> extends InternalOakBasics<K, V> {
             return hashChunk;
         }
 
-        HashChunk.ChunkIter getChunkIter() {
+        HashChunk<K, V>.ChunkIter getChunkIter() {
             return chunkIter;
         }
 
@@ -559,7 +563,7 @@ class InternalOakHash<K, V> extends InternalOakBasics<K, V> {
         }
 
         static <K, V> InternalOakHash.IteratorState<K, V> newInstance(
-                HashChunk<K, V> nextHashChunk, HashChunk.ChunkIter nextChunkIter) {
+                HashChunk<K, V> nextHashChunk, HashChunk<K, V>.ChunkIter nextChunkIter) {
 
             return new InternalOakHash.IteratorState<>(nextHashChunk, nextChunkIter, HashChunk.INVALID_ENTRY_INDEX);
         }
@@ -612,9 +616,9 @@ class InternalOakHash<K, V> extends InternalOakBasics<K, V> {
 
         /**
          * Advances next to higher entry.
-         * Return previous index
+         *  previous index
          *
-         * @return The first long is the key's reference, the integer is the value's version and the second long is
+         * The first long is the key's reference, the integer is the value's version and the second long is
          * the value's reference. If {@code needsValue == false}, then the value of the map entry is {@code null}.
          */
         void advance(boolean needsValue) {
@@ -625,8 +629,8 @@ class InternalOakHash<K, V> extends InternalOakBasics<K, V> {
                     throw new NoSuchElementException();
                 }
 
-                final HashChunk<K, V> c = state.getHashChunk();
-                if (c.state() == BasicChunk.State.RELEASED) {
+                final HashChunk<K, V> chunk = state.getHashChunk();
+                if (chunk.state() == BasicChunk.State.RELEASED) {
                     initAfterRebalance();
                     continue;
                 }
@@ -637,7 +641,7 @@ class InternalOakHash<K, V> extends InternalOakBasics<K, V> {
                 ctx.initEntryContext(curIndex);
 
 
-                c.readKey(ctx);
+                chunk.readKey(ctx);
 
                 validState = ctx.isKeyValid();
 
@@ -646,7 +650,7 @@ class InternalOakHash<K, V> extends InternalOakBasics<K, V> {
                 if (needsValue) {
                     // Set value references and checks for value validity.
                     // if value is deleted ctx.entryState is going to be invalid
-                    c.readValue(ctx);
+                    chunk.readValue(ctx);
                     validState = ctx.isValueValid();
                 }
 
@@ -692,7 +696,7 @@ class InternalOakHash<K, V> extends InternalOakBasics<K, V> {
 
         private void initState() {
 
-            HashChunk.ChunkIter nextChunkIter;
+            HashChunk<K, V>.ChunkIter nextChunkIter;
             HashChunk<K, V> nextHashChunk;
             int fstChunkIdx = 0;
 
@@ -714,15 +718,14 @@ class InternalOakHash<K, V> extends InternalOakBasics<K, V> {
             return hashArray.getNextChunk(current);
         }
 
-        private HashChunk.ChunkIter getChunkIter(HashChunk<K, V> current) {
+        private HashChunk<K, V>.ChunkIter getChunkIter(HashChunk<K, V> current) {
             return current.hashChunkIter(ctx);
         }
-
 
         private void advanceState() {
 
             HashChunk<K, V> hashChunk = state.getHashChunk();
-            HashChunk.ChunkIter chunkIter = state.getChunkIter();
+            HashChunk<K, V>.ChunkIter chunkIter = state.getChunkIter();
 
 
             while (!chunkIter.hasNext()) { // chunks can have only removed keys
@@ -740,10 +743,7 @@ class InternalOakHash<K, V> extends InternalOakBasics<K, V> {
         }
     }
 
-    class ValueIterator extends InternalOakHash.Iter<OakUnscopedBuffer> {
-        ValueIterator() {
-            super();
-        }
+    class ValueIterator extends Iter<OakUnscopedBuffer> {
 
         @Override
         public OakUnscopedBuffer next() {
@@ -752,14 +752,10 @@ class InternalOakHash<K, V> extends InternalOakBasics<K, V> {
         }
     }
 
-    class ValueStreamIterator extends InternalOakHash.Iter<OakUnscopedBuffer> {
+    class ValueStreamIterator extends Iter<OakUnscopedBuffer> {
 
         private final UnscopedBuffer<ValueBuffer> value =
                 new UnscopedBuffer<>(new ValueBuffer(valuesMemoryManager.getEmptySlice()));
-
-        ValueStreamIterator() {
-            super();
-        }
 
         @Override
         public OakUnscopedBuffer next() {
@@ -768,12 +764,11 @@ class InternalOakHash<K, V> extends InternalOakBasics<K, V> {
         }
     }
 
-    class ValueTransformIterator<T> extends InternalOakHash.Iter<T> {
+    class ValueTransformIterator<T> extends Iter<T> {
 
         final OakTransformer<T> transformer;
 
         ValueTransformIterator(OakTransformer<T> transformer) {
-            super();
             this.transformer = transformer;
         }
 
@@ -796,10 +791,7 @@ class InternalOakHash<K, V> extends InternalOakBasics<K, V> {
         }
     }
 
-    class EntryIterator extends InternalOakHash.Iter<Map.Entry<OakUnscopedBuffer, OakUnscopedBuffer>> {
-        EntryIterator() {
-            super();
-        }
+    class EntryIterator extends Iter<Map.Entry<OakUnscopedBuffer, OakUnscopedBuffer>> {
 
         public Map.Entry<OakUnscopedBuffer, OakUnscopedBuffer> next() {
             advance(true);
@@ -807,7 +799,7 @@ class InternalOakHash<K, V> extends InternalOakBasics<K, V> {
         }
     }
 
-    class EntryStreamIterator extends InternalOakHash.Iter<Map.Entry<OakUnscopedBuffer, OakUnscopedBuffer>>
+    class EntryStreamIterator extends Iter<Map.Entry<OakUnscopedBuffer, OakUnscopedBuffer>>
             implements Map.Entry<OakUnscopedBuffer, OakUnscopedBuffer> {
 
         private final UnscopedBuffer<KeyBuffer> key =
@@ -840,12 +832,11 @@ class InternalOakHash<K, V> extends InternalOakBasics<K, V> {
         }
     }
 
-    class EntryTransformIterator<T> extends InternalOakHash.Iter<T> {
+    class EntryTransformIterator<T> extends Iter<T> {
 
         final Function<Map.Entry<OakScopedReadBuffer, OakScopedReadBuffer>, T> transformer;
 
         EntryTransformIterator(Function<Map.Entry<OakScopedReadBuffer, OakScopedReadBuffer>, T> transformer) {
-            super();
             assert (transformer != null);
             this.transformer = transformer;
         }
@@ -875,11 +866,7 @@ class InternalOakHash<K, V> extends InternalOakBasics<K, V> {
     }
 
     // May return deleted keys
-    class KeyIterator extends InternalOakHash.Iter<OakUnscopedBuffer> {
-
-        KeyIterator() {
-            super();
-        }
+    class KeyIterator extends Iter<OakUnscopedBuffer> {
 
         @Override
         public OakUnscopedBuffer next() {
@@ -889,14 +876,10 @@ class InternalOakHash<K, V> extends InternalOakBasics<K, V> {
         }
     }
 
-    public class KeyStreamIterator extends InternalOakHash.Iter<OakUnscopedBuffer> {
+    public class KeyStreamIterator extends Iter<OakUnscopedBuffer> {
 
         private final UnscopedBuffer<KeyBuffer> key
                 = new UnscopedBuffer<>(new KeyBuffer(keysMemoryManager.getEmptySlice()));
-
-        KeyStreamIterator() {
-            super();
-        }
 
         @Override
         public OakUnscopedBuffer next() {
@@ -905,12 +888,11 @@ class InternalOakHash<K, V> extends InternalOakBasics<K, V> {
         }
     }
 
-    class KeyTransformIterator<T> extends InternalOakHash.Iter<T> {
+    class KeyTransformIterator<T> extends Iter<T> {
 
         final OakTransformer<T> transformer;
 
         KeyTransformIterator(OakTransformer<T> transformer) {
-            super();
             this.transformer = transformer;
         }
 
@@ -923,42 +905,40 @@ class InternalOakHash<K, V> extends InternalOakBasics<K, V> {
     // Factory methods for iterators
 
     Iterator<OakUnscopedBuffer> valuesBufferViewIterator() {
-        return new InternalOakHash.ValueIterator();
+        return new ValueIterator();
     }
 
     Iterator<Map.Entry<OakUnscopedBuffer, OakUnscopedBuffer>> entriesBufferViewIterator() {
-        return new InternalOakHash.EntryIterator();
+        return new EntryIterator();
     }
 
     Iterator<OakUnscopedBuffer> keysBufferViewIterator() {
-        return new InternalOakHash.KeyIterator();
+        return new KeyIterator();
     }
 
     Iterator<OakUnscopedBuffer> valuesStreamIterator() {
-        return new InternalOakHash.ValueStreamIterator();
+        return new ValueStreamIterator();
     }
 
     Iterator<Map.Entry<OakUnscopedBuffer, OakUnscopedBuffer>> entriesStreamIterator() {
-        return new InternalOakHash.EntryStreamIterator();
+        return new EntryStreamIterator();
     }
 
     Iterator<OakUnscopedBuffer> keysStreamIterator() {
-        return new InternalOakHash.KeyStreamIterator();
+        return new KeyStreamIterator();
     }
 
     <T> Iterator<T> valuesTransformIterator(OakTransformer<T> transformer) {
-        return new InternalOakHash.ValueTransformIterator<>(transformer);
+        return new ValueTransformIterator<>(transformer);
     }
 
-    <T> Iterator<T> entriesTransformIterator(K lo, boolean loInclusive, K hi, boolean hiInclusive,
-                                             boolean isDescending,
-                                             Function<Map.Entry<OakScopedReadBuffer, OakScopedReadBuffer>,
+    <T> Iterator<T> entriesTransformIterator(Function<Map.Entry<OakScopedReadBuffer, OakScopedReadBuffer>,
                                                      T> transformer) {
-        return new InternalOakMap.EntryTransformIterator<>(lo, loInclusive, hi, hiInclusive, isDescending, transformer);
+        return new EntryTransformIterator<>(transformer);
     }
 
     <T> Iterator<T> keysTransformIterator(OakTransformer<T> transformer) {
-        return new InternalOakHash.KeyTransformIterator<>(transformer);
+        return new KeyTransformIterator<>(transformer);
     }
 
 }
