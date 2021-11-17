@@ -9,6 +9,9 @@ package com.yahoo.oak.synchrobench.contention.benchmark;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+/**
+ * Some common tools for printing user-friendly messages.
+ */
 public class PrintTools {
 
     public static String dashLine(int sz) {

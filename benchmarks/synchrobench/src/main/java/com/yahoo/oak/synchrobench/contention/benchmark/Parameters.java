@@ -57,7 +57,9 @@ public class Parameters {
 
     public static String confScenario;
 
-    // Pre configured scenarios
+    /**
+     * Pre configured scenarios
+     */
     public static final Map<String, String[]> SCENARIOS = Stream.of(new String[][]{
         {"4a-put", "-a", "0", "-u", "100"},
         {"4b-putIfAbsentComputeIfPresent", "--buffer", "-u", "0", "-s", "100", "-c"},
@@ -84,6 +86,9 @@ public class Parameters {
         resetToDefault();
     }
 
+    /**
+     * Reset the parameters to default values.
+     */
     public static void resetToDefault() {
         confSmallFootprint = false;
 
@@ -360,6 +365,11 @@ public class Parameters {
         }
     }
 
+    /**
+     * Specialized integer parser that accepts numbers with comma/underscore number separators.
+     * @param number the number as string
+     * @return an integer
+     */
     public static int parseInt(String number) {
         return Integer.parseInt(number.replace("_", "").replace(",", ""));
     }

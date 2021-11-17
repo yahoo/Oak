@@ -130,15 +130,15 @@ public class Test {
      * Execute the main thread that starts and terminates the benchmark threads
      */
     private OpCounter.Stats execute(int milliseconds, boolean isWarmup) throws Exception {
-        HeapStats s1 = null;
+        MemoryUsageStats s1 = null;
         if (!isWarmup) {
-            s1 = new HeapStats("Before initial fill", oakBench);
+            s1 = new MemoryUsageStats("Before initial fill", oakBench);
         }
         fill(Parameters.confSize);
         if (!isWarmup) {
             s1.printHeaderRow();
             s1.printDataRow();
-            new HeapStats("After initial fill, before benchmark", oakBench).printDataRow();
+            new MemoryUsageStats("After initial fill, before benchmark", oakBench).printDataRow();
         }
 
         BenchLoopWorker[] benchLoopWorkers = new BenchLoopWorker[Parameters.confNumThreads];
@@ -164,17 +164,16 @@ public class Test {
             }
         }
 
+        // Might throw an exception if the worker reported an error.
         for (BenchLoopWorker benchLoopWorker : benchLoopWorkers) {
-            if (benchLoopWorker.error != null) {
-                throw benchLoopWorker.error;
-            }
+            benchLoopWorker.getError();
         }
 
         final long endTime = System.currentTimeMillis();
         double elapsedTime = ((double) (endTime - startTime)) / 1000.0;
 
         if (!isWarmup) {
-            new HeapStats("After benchmark", oakBench).printDataRow();
+            new MemoryUsageStats("After benchmark", oakBench).printDataRow();
             System.out.println();
         }
 

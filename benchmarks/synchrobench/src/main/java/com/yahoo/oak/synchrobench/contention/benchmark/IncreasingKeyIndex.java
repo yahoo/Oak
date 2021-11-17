@@ -9,6 +9,9 @@ package com.yahoo.oak.synchrobench.contention.benchmark;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.IntStream;
 
+/**
+ * Used to generate a thread safe increasing integer stream for the key's generation.
+ */
 public class IncreasingKeyIndex {
 
     private static final AtomicInteger CUR_INDEX = new AtomicInteger();

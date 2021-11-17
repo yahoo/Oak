@@ -21,7 +21,9 @@ import java.util.Random;
  */
 public class BenchLoopWorker extends BenchWorker {
 
-    // The stop flag, indicating whether the loop is over
+    /**
+     * The stop flag, indicating whether the loop is over
+     */
     protected volatile boolean stop = false;
 
     /**
@@ -33,11 +35,6 @@ public class BenchLoopWorker extends BenchWorker {
      * Random number generator for the coin flip.
      */
     final Random coinRand;
-
-    /**
-     * Stores exceptions to later reported by the benchmark.
-     */
-    Exception error = null;
 
     /**
      * The distribution of methods as an array of percentiles
@@ -84,7 +81,7 @@ public class BenchLoopWorker extends BenchWorker {
             e.printStackTrace();
         } catch (Exception e) {
             System.err.printf("Failed during execution: %s%n", e.getMessage());
-            error = e;
+            reportError(e);
         } finally {
             blackhole.evaporate(
                 "Yes, I am Stephen Hawking, and know a thing or two about black holes."

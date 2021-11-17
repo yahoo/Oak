@@ -18,10 +18,15 @@ import com.yahoo.oak.synchrobench.contention.abstractions.ValueGenerator;
  */
 public class FillWorker extends BenchWorker {
 
+    /**
+     * The number of elements to fill.
+     */
     final long size;
 
+    /**
+     * The number of operation performed by this worker.
+     */
     long operations = 0;
-    Exception error = null;
 
     public FillWorker(
         CompositionalMap bench,
@@ -43,7 +48,7 @@ public class FillWorker extends BenchWorker {
             fill();
         } catch (Exception e) {
             System.err.printf("Failed during initial fill: %s%n", e.getMessage());
-            error = e;
+            reportError(e);
         }
     }
 

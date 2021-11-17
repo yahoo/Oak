@@ -13,6 +13,9 @@ import java.util.Map;
 import java.util.stream.LongStream;
 import java.util.stream.Stream;
 
+/**
+ * Counts and report statistics on the benchmarks operations.
+ */
 public class OpCounter {
     public static final float NS = 1e-9f;
     public static final int NUM_OPS = BenchOp.values().length;
@@ -23,17 +26,6 @@ public class OpCounter {
     protected final KllFloatsSketch[] failedLatency = new KllFloatsSketch[NUM_OPS];
 
     public OpCounter() {
-        reset();
-    }
-
-    public OpCounter(OpCounter[] counters) {
-        this();
-        for (OpCounter c : counters) {
-            add(c);
-        }
-    }
-
-    void reset() {
         for (int i = 0; i < NUM_OPS; i++) {
             success[i] = 0;
             failed[i] = 0;
@@ -42,6 +34,22 @@ public class OpCounter {
         }
     }
 
+    /**
+     * Instantiate a counter with the aggregated statistics from the provided list.
+     * @param counters a list of counters to aggregate.
+     */
+    public OpCounter(OpCounter[] counters) {
+        this();
+        for (OpCounter c : counters) {
+            add(c);
+        }
+    }
+
+    /**
+     * Count operation without reporting its latency.
+     * @param op the operation to count
+     * @param successful the operation status
+     */
     void countOp(BenchOp op, boolean successful) {
         final int i = op.ordinal();
         if (successful) {
@@ -51,6 +59,12 @@ public class OpCounter {
         }
     }
 
+    /**
+     * Count operation and report its latency.
+     * @param op the operation to count
+     * @param successful the operation status
+     * @param latencyNano the operation latency
+     */
     void countOp(BenchOp op, boolean successful, long latencyNano) {
         final int i = op.ordinal();
         final float latencySec = latencyNano * NS;
@@ -63,6 +77,10 @@ public class OpCounter {
         }
     }
 
+    /**
+     * Aggregate the counters from another instance to this instance
+     * @param other the other counter instance
+     */
     void add(OpCounter other) {
         for (int i = 0; i < NUM_OPS; i++) {
             this.success[i] += other.success[i];
@@ -220,6 +238,9 @@ public class OpCounter {
         System.out.println();
     }
 
+    /**
+     * Aggregate all worker's counters and produce statistics report.
+     */
     public static class Stats extends OpCounter {
         final double time;
         final double numThreads;

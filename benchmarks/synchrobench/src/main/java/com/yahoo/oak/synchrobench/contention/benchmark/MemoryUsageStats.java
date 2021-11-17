@@ -8,7 +8,10 @@ package com.yahoo.oak.synchrobench.contention.benchmark;
 
 import com.yahoo.oak.synchrobench.contention.abstractions.CompositionalMap;
 
-class HeapStats {
+/**
+ * Collects and report statistics on the memory usage of the map.
+ */
+class MemoryUsageStats {
     String title;
     float heapSize;
     float heapFreeSize;
@@ -17,7 +20,7 @@ class HeapStats {
     float totalUsed;
     float totalAllocated;
 
-    HeapStats(String title, CompositionalMap map) {
+    MemoryUsageStats(String title, CompositionalMap map) {
         System.gc();
         this.title = title;
         this.heapSize = (float) Runtime.getRuntime().totalMemory() / (float) Test.GB;
