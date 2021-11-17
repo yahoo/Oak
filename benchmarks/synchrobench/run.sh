@@ -171,7 +171,7 @@ fi
 ARGS=$(${get_opt}\
         -o o:j:d:i:w:s:t:e:h:b:g:m:l:r:v\
         --long verify,consume-keys,consume-values,latency\
-        --long output-path:java-path:,duration:,iterations:,warmup:,heap-limit:,direct-limit:\
+        --long output-path:,java-path:,duration:,iterations:,warmup:,heap-limit:,direct-limit:\
         --long range-ratio:,size:,threads:,scenario:,benchmark:\
         --long gc:,java-mode:,key:,value:,key-size:,value-size:,fill-threads:\
         -s sh -n 'run' -- "$@"
