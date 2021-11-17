@@ -27,6 +27,12 @@ public abstract class BenchMap implements CompositionalMap {
     protected final KeyGenerator keyGen;
     protected final ValueGenerator valueGen;
 
+    /**
+     * The benchmark infrastructure expect all the constructors of the "CompositionalMap" implementations to
+     * accept the following parameters.
+     * @param keyGen the keys' generator
+     * @param valueGen the values' generator
+     */
     public BenchMap(KeyGenerator keyGen, ValueGenerator valueGen) {
         this.keyGen = keyGen;
         this.valueGen = valueGen;

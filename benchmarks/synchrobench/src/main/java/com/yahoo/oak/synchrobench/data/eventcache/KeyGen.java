@@ -16,24 +16,30 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.openjdk.jmh.infra.Blackhole;
 
+/**
+ * Key generator for the event-cache.
+ */
 public class KeyGen implements KeyGenerator {
     private static final int FIELD_1_OFFSET = 0;
     private static final int FIELD_2_OFFSET = FIELD_1_OFFSET + Long.BYTES;
     private static final int KEY_SIZE = FIELD_2_OFFSET + Long.BYTES;
 
-    public KeyGen(Integer keySize) {
+    public KeyGen() {
     }
 
+    /** {@inheritDoc} **/
     @Override
     public BenchKey getMinKey() {
         return new Key(Long.MIN_VALUE, Long.MIN_VALUE);
     }
 
+    /** {@inheritDoc} **/
     @Override
     public BenchKey getNextKey(int keyIndex) {
         return new Key(0, keyIndex);
     }
 
+    /** {@inheritDoc} **/
     @Override
     public void serialize(BenchKey inputKey, OakScopedWriteBuffer targetBuffer) {
         Key key = (Key) inputKey;
@@ -41,26 +47,31 @@ public class KeyGen implements KeyGenerator {
         targetBuffer.putLong(FIELD_2_OFFSET, getField2(key));
     }
 
+    /** {@inheritDoc} **/
     @Override
     public BenchKey deserialize(OakScopedReadBuffer keyBuffer) {
         return new Key(getField1(keyBuffer), getField2(keyBuffer));
     }
 
+    /** {@inheritDoc} **/
     @Override
     public String toString(BenchKey obj) {
         return obj.toString();
     }
 
+    /** {@inheritDoc} **/
     @Override
     public int calculateSize(BenchKey key) {
         return KEY_SIZE;
     }
 
+    /** {@inheritDoc} **/
     @Override
     public int calculateHash(BenchKey key) {
         return key.hashCode();
     }
 
+    /** {@inheritDoc} **/
     @Override
     public int compareKeys(BenchKey inputKey1, BenchKey inputKey2) {
         Key key1 = (Key) inputKey1;
@@ -69,12 +80,14 @@ public class KeyGen implements KeyGenerator {
         return ret != 0 ? ret : Long.compare(getField2(key1), getField2(key2));
     }
 
+    /** {@inheritDoc} **/
     @Override
     public int compareSerializedKeys(OakScopedReadBuffer key1, OakScopedReadBuffer key2) {
         int ret = Long.compare(getField1(key1), getField1(key2));
         return ret != 0 ? ret : Long.compare(getField2(key1), getField2(key2));
     }
 
+    /** {@inheritDoc} **/
     @Override
     public int compareKeyAndSerializedKey(BenchKey inputKey1, OakScopedReadBuffer key2) {
         Key key1 = (Key) inputKey1;
@@ -82,6 +95,7 @@ public class KeyGen implements KeyGenerator {
         return ret != 0 ? ret : Long.compare(getField2(key1), getField2(key2));
     }
 
+    /** {@inheritDoc} **/
     @Override
     public void consumeKey(BenchKey obj, Blackhole blackhole) {
         Key val = (Key) obj;
@@ -89,6 +103,7 @@ public class KeyGen implements KeyGenerator {
         blackhole.consume(getField2(val));
     }
 
+    /** {@inheritDoc} **/
     @Override
     public void consumeSerializedKey(OakBuffer val, Blackhole blackhole) {
         blackhole.consume(getField1(val));
@@ -111,6 +126,7 @@ public class KeyGen implements KeyGenerator {
         return key.getLong(FIELD_2_OFFSET);
     }
 
+    /** {@inheritDoc} **/
     @NotNull
     @Override
     public BenchKey read(Bytes in, long size, @Nullable BenchKey using) {
@@ -127,6 +143,7 @@ public class KeyGen implements KeyGenerator {
         return key;
     }
 
+    /** {@inheritDoc} **/
     @Override
     public void write(Bytes out, long size, @NotNull BenchKey toWrite) {
         Key key = (Key) toWrite;

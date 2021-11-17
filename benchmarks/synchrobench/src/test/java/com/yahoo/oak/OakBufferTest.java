@@ -36,12 +36,12 @@ public class OakBufferTest {
     public void init() {
         Parameters.confSmallFootprint = true;
         oakMapBench = new OakBenchMap(
-            new KeyGen(Parameters.confKeySize),
-            new ValueGen(Parameters.confValSize)
+            new KeyGen(),
+            new ValueGen()
         );
         oakHashBench = new OakBenchHash(
-            new KeyGen(Parameters.confKeySize),
-            new ValueGen(Parameters.confValSize)
+            new KeyGen(),
+            new ValueGen()
         );
         oakMapBench.init();
         oakHashBench.init();

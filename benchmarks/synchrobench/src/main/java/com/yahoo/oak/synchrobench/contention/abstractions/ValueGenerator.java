@@ -22,6 +22,9 @@ import java.util.Random;
  * Extends 'OakSerializer' for Oak.
  * Extends 'Transcoder' for Memcached.
  * Extends 'BytesReader/BytesWriter' for Chronicle.
+ *
+ * The constructor of the implementation should accept no parameters.
+ * It can use the benchmark's configuration to define its properties.
  */
 public interface ValueGenerator extends
     OakSerializer<BenchValue>,

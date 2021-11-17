@@ -25,15 +25,19 @@ import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.util.Random;
 
+/**
+ * Value generator for the event-cache.
+ */
 public class ValueGen implements ValueGenerator {
     private static final int FIELD_1_OFFSET = 0;
     private static final int FIELD_2_OFFSET = FIELD_1_OFFSET + Float.BYTES;
     private static final int FIELD_3_OFFSET = FIELD_2_OFFSET + Float.BYTES;
     private static final int VAL_SIZE = FIELD_3_OFFSET + Integer.BYTES;
 
-    public ValueGen(Integer valueSize) {
+    public ValueGen() {
     }
 
+    /** {@inheritDoc} **/
     @Override
     public BenchValue getNextValue(Random rnd) {
         assert rnd != null;
@@ -44,17 +48,20 @@ public class ValueGen implements ValueGenerator {
         );
     }
 
+    /** {@inheritDoc} **/
     @Override
     public void updateValue(BenchValue obj) {
         Value val = (Value) obj;
         val.setField3(~val.getField3());
     }
 
+    /** {@inheritDoc} **/
     @Override
     public void updateSerializedValue(OakScopedWriteBuffer b) {
         b.putInt(FIELD_3_OFFSET, ~b.getInt(FIELD_3_OFFSET));
     }
 
+    /** {@inheritDoc} **/
     @Override
     public void consumeValue(BenchValue obj, Blackhole blackhole) {
         Value val = (Value) obj;
@@ -63,6 +70,7 @@ public class ValueGen implements ValueGenerator {
         blackhole.consume(val.getField3());
     }
 
+    /** {@inheritDoc} **/
     @Override
     public void consumeSerializedValue(OakBuffer b, Blackhole blackhole) {
         blackhole.consume(b.getFloat(FIELD_1_OFFSET));
@@ -70,12 +78,14 @@ public class ValueGen implements ValueGenerator {
         blackhole.consume(b.getInt(FIELD_3_OFFSET));
     }
 
+    /** {@inheritDoc} **/
     @Override
     public void serialize(BenchValue inputVal, OakScopedWriteBuffer targetBuffer) {
         Value val = (Value) inputVal;
         storeValue(targetBuffer, val.getField1(), val.getField2(), val.getField3());
     }
 
+    /** {@inheritDoc} **/
     @Override
     public BenchValue deserialize(OakScopedReadBuffer valBuffer) {
         return new Value(
@@ -85,11 +95,13 @@ public class ValueGen implements ValueGenerator {
         );
     }
 
+    /** {@inheritDoc} **/
     @Override
     public boolean asyncDecode(CachedData d) {
         return false;
     }
 
+    /** {@inheritDoc} **/
     @Override
     public CachedData encode(BenchValue o) {
         Value val = (Value) o;
@@ -116,6 +128,7 @@ public class ValueGen implements ValueGenerator {
         }
     }
 
+    /** {@inheritDoc} **/
     @Override
     public BenchValue decode(CachedData d) {
         byte[] data = d.getData();
@@ -142,11 +155,13 @@ public class ValueGen implements ValueGenerator {
         }
     }
 
+    /** {@inheritDoc} **/
     @Override
     public int calculateSize(BenchValue key) {
         return VAL_SIZE;
     }
 
+    /** {@inheritDoc} **/
     @Override
     public int calculateHash(BenchValue key) {
         return 0;
@@ -159,6 +174,7 @@ public class ValueGen implements ValueGenerator {
         targetBuffer.putInt(FIELD_3_OFFSET, val3);
     }
 
+    /** {@inheritDoc} **/
     @NotNull
     @Override
     public BenchValue read(Bytes in, @Nullable BenchValue using) {
@@ -177,6 +193,7 @@ public class ValueGen implements ValueGenerator {
         return value;
     }
 
+    /** {@inheritDoc} **/
     @Override
     public void write(Bytes out, @NotNull BenchValue toWrite) {
         Value value = (Value) toWrite;

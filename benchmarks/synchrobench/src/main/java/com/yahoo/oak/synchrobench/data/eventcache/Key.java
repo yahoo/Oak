@@ -8,13 +8,12 @@ package com.yahoo.oak.synchrobench.data.eventcache;
 
 import com.yahoo.oak.synchrobench.contention.abstractions.BenchKey;
 
+/**
+ * Event-cache key: with two "long" fields.
+ */
 public class Key implements BenchKey {
     long field1;
     long field2;
-
-    public Key() {
-        this(0, 0);
-    }
 
     public Key(long field1, long field2) {
         this.field1 = field1;
@@ -29,7 +28,8 @@ public class Key implements BenchKey {
         return field2;
     }
 
-    @Override // for ConcurrentSkipListMap
+    /** {@inheritDoc} **/
+    @Override
     public int compareTo(Object inputObj) {
         Key o = (Key) inputObj;
         int ret = Long.compare(this.field1, o.field1);

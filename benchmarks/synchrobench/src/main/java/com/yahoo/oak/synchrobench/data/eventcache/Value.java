@@ -8,14 +8,13 @@ package com.yahoo.oak.synchrobench.data.eventcache;
 
 import com.yahoo.oak.synchrobench.contention.abstractions.BenchValue;
 
+/**
+ * Event-cache value: with two "float" fields and one "int" field.
+ */
 public class Value implements BenchValue {
     float field1;
     float field2;
     int field3;
-
-    public Value() {
-        this(0.f, 0.f, 0);
-    }
 
     public Value(float field1, float field2, int field3) {
         this.field1 = field1;
@@ -38,5 +37,4 @@ public class Value implements BenchValue {
     public void setField3(int field3) {
         this.field3 = field3;
     }
-
 }

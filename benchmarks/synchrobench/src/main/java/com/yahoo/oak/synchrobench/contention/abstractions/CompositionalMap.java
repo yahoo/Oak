@@ -10,6 +10,9 @@ import org.openjdk.jmh.infra.Blackhole;
 
 /**
  * To allow testing of a map implementation, the map should have a class that implement this interface.
+ *
+ * The benchmark infrastructure expect all the constructors of the `CompositionalMap` implementations to
+ * accept two parameters: `KeyGenerator` and `ValueGenerator`.
  */
 public interface CompositionalMap {
 

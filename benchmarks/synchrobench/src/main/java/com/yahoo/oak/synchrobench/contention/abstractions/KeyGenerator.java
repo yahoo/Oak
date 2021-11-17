@@ -19,6 +19,9 @@ import org.openjdk.jmh.infra.Blackhole;
  * Extends 'OakSerializer/OakComparator' for Oak.
  * Extends 'SizedReader/SizedWriter' for Chronicle.
  * Implements 'toString' for Memcached.
+ *
+ * The constructor of the implementation should accept no parameters.
+ * It can use the benchmark's configuration to define its properties.
  */
 public interface KeyGenerator extends
     OakSerializer<BenchKey>, OakComparator<BenchKey>,

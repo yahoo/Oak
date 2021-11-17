@@ -48,10 +48,10 @@ public class Test {
 
         // Instantiate abstraction
         Class<?> keyClass = Class.forName(String.format("%s.KeyGen", Parameters.confKeyClass));
-        keyGen = (KeyGenerator) keyClass.getConstructor(Integer.class).newInstance(Parameters.confKeySize);
+        keyGen = (KeyGenerator) keyClass.getConstructor().newInstance();
 
         Class<?> valueClass = Class.forName(String.format("%s.ValueGen", Parameters.confValueClass));
-        valueGen = (ValueGenerator) valueClass.getConstructor(Integer.class).newInstance(Parameters.confValSize);
+        valueGen = (ValueGenerator) valueClass.getConstructor().newInstance();
 
         Class<?> benchClass = Class.forName(Parameters.confBenchClass);
         if (!CompositionalMap.class.isAssignableFrom(benchClass)) {
