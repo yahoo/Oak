@@ -316,8 +316,8 @@ for scenario in ${test_scenarios[*]}; do for bench in ${test_benchmarks[*]}; do
           echo "jar_file_name: ${jar_file_name}"
           echo "classPath: ${classPath}"
           echo "scenario: ${scenario}"
-          echo "key_class": ${key_class}
-          echo "value_class": ${value_class}
+          echo "key_class: ${key_class}"
+          echo "value_class: ${value_class}"
           echo "key_size: ${key_size}"
           echo "value_size: ${value_size}"
           echo "warmup: ${warmup}"
