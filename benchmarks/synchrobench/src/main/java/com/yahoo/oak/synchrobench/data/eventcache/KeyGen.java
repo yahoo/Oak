@@ -16,8 +16,6 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.openjdk.jmh.infra.Blackhole;
 
-import java.util.Random;
-
 public class KeyGen implements KeyGenerator {
     private static final int FIELD_1_OFFSET = 0;
     private static final int FIELD_2_OFFSET = FIELD_1_OFFSET + Long.BYTES;
@@ -32,18 +30,8 @@ public class KeyGen implements KeyGenerator {
     }
 
     @Override
-    public BenchKey getNextKey(Random rnd, int range, BenchKey prev) {
-        final Key prevKey = prev == null ? null : (Key) prev;
-        long field1 = prevKey == null ? 0 : prevKey.getField1();
-        long field2;
-
-        if (rnd != null) {
-            field2 = rnd.nextInt(range);
-        } else {
-            long prevKey2 = prevKey == null ? 0 : prevKey.getField2();
-            field2 = (prevKey2 + 1) % range;
-        }
-        return new Key(field1, field2);
+    public BenchKey getNextKey(int keyIndex) {
+        return new Key(0, keyIndex);
     }
 
     @Override

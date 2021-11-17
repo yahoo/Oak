@@ -6,9 +6,7 @@
 
 package com.yahoo.oak.synchrobench.contention.benchmark;
 
-import com.yahoo.oak.synchrobench.contention.abstractions.BenchKey;
 import com.yahoo.oak.synchrobench.contention.abstractions.BenchOp;
-import com.yahoo.oak.synchrobench.contention.abstractions.BenchValue;
 import com.yahoo.oak.synchrobench.contention.abstractions.CompositionalMap;
 import com.yahoo.oak.synchrobench.contention.abstractions.KeyGenerator;
 import com.yahoo.oak.synchrobench.contention.abstractions.ValueGenerator;
@@ -21,20 +19,9 @@ import java.util.Random;
  *
  * @author Vincent Gramoli
  */
-public class BenchLoopWorker implements Runnable {
+public class BenchLoopWorker extends BenchWorker {
 
-    /**
-     * The instance of the running benchmark
-     */
-    CompositionalMap bench;
-    KeyGenerator keyGen;
-    ValueGenerator valueGen;
-
-    BenchKey lastKey;
-
-    /**
-     * The stop flag, indicating whether the loop is over
-     */
+    // The stop flag, indicating whether the loop is over
     protected volatile boolean stop = false;
 
     /**
@@ -43,11 +30,9 @@ public class BenchLoopWorker implements Runnable {
     protected final OpCounter counter = new OpCounter();
 
     /**
-     * Random number generators for creating new keys/values.
+     * Random number generator for the coin flip.
      */
     final Random coinRand;
-    final Random keyRand;
-    final Random valueRand;
 
     /**
      * Stores exceptions to later reported by the benchmark.
@@ -66,20 +51,10 @@ public class BenchLoopWorker implements Runnable {
     public BenchLoopWorker(
         CompositionalMap bench,
         KeyGenerator keyGen,
-        ValueGenerator valueGen,
-        BenchKey lastKey
+        ValueGenerator valueGen
     ) {
-        this.bench = bench;
-        this.keyGen = keyGen;
-        this.valueGen = valueGen;
+        super(bench, keyGen, valueGen);
         this.coinRand = new Random();
-        this.valueRand = new Random();
-        this.lastKey = lastKey;
-
-        // for the key distribution INCREASING we want to continue the increasing integers sequence,
-        // started in the initial filling of the map
-        // for the key distribution RANDOM the below value will be overwritten anyway
-        this.keyRand = Parameters.isRandomKeyDistribution() ? this.valueRand : null;
 
         /* initialize the method boundaries */
         cdf[0] = 10 * Parameters.confNumWriteAlls;
@@ -176,22 +151,6 @@ public class BenchLoopWorker implements Runnable {
         }
 
         throw new IllegalStateException(String.format("Coin failed: %s", coin));
-    }
-
-    /**
-     * @return a new randomly generated key
-     */
-    private BenchKey nextKey() {
-        BenchKey curKey = keyGen.getNextKey(keyRand, Parameters.confRange, lastKey);
-        lastKey = curKey;
-        return curKey;
-    }
-
-    /**
-     * @return a new randomly generated value
-     */
-    private BenchValue nextValue() {
-        return valueGen.getNextValue(valueRand, Parameters.confRange);
     }
 
     /**
