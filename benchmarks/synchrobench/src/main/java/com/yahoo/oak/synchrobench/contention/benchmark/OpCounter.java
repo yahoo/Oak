@@ -223,8 +223,8 @@ public class OpCounter {
     }
 
     public void printLatencyStats() {
-        System.out.printf("  %32s |                 Success Latency (ns)                  |" +
-            "                   Fail Latency (ns)                   |%n", "");
+        System.out.printf("  %32s | %20s Success Latency (ns) %20s |" +
+            " %22s Fail Latency (ns) %21s |%n", "", "", "", "", "");
         System.out.printf("  %32s | %10s | %10s | %10s | %10s | %10s | %10s | %10s | %10s | %10s | %10s |%n",
             "Operation", "MIN",  "p50", "p99", "p99.9", "MAX", "MIN",  "p50", "p99", "p99.9", "MAX");
         System.out.println(PrintTools.dashLine(148));
