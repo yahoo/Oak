@@ -15,6 +15,9 @@ import com.yahoo.oak.synchrobench.contention.abstractions.ValueGenerator;
 import java.util.Random;
 
 
+/**
+ * A worker that is used to fill the map concurrently before the benchmarks starts.
+ */
 public class FillWorker implements Runnable {
 
     // The instance of the running benchmark

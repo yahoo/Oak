@@ -25,6 +25,7 @@ public class Chronicle extends BenchMap {
         super(keyGen, valueGen);
     }
 
+    /** {@inheritDoc} **/
     @Override
     public void init() {
         this.map = ChronicleMapBuilder.of(BenchKey.class, BenchValue.class)
@@ -39,6 +40,7 @@ public class Chronicle extends BenchMap {
             .create();
     }
 
+    /** {@inheritDoc} **/
     @Override
     public void close() {
         map.clear();
@@ -46,6 +48,7 @@ public class Chronicle extends BenchMap {
         map = null;
     }
 
+    /** {@inheritDoc} **/
     @Override
     public boolean getOak(BenchKey key, Blackhole blackhole) {
         BenchValue val = map.get(key);
@@ -58,21 +61,25 @@ public class Chronicle extends BenchMap {
         return true;
     }
 
+    /** {@inheritDoc} **/
     @Override
     public void putOak(BenchKey key, BenchValue value) {
         map.put(key, value);
     }
 
+    /** {@inheritDoc} **/
     @Override
     public boolean putIfAbsentOak(BenchKey key, BenchValue value) {
         return map.putIfAbsent(key, value) == null;
     }
 
+    /** {@inheritDoc} **/
     @Override
     public void removeOak(BenchKey key) {
         map.remove(key);
     }
 
+    /** {@inheritDoc} **/
     @Override
     public boolean computeIfPresentOak(BenchKey key) {
         return map.computeIfPresent(key, (ignoredKey, val) -> {
@@ -81,6 +88,7 @@ public class Chronicle extends BenchMap {
         }) != null;
     }
 
+    /** {@inheritDoc} **/
     @Override
     public void computeOak(BenchKey key) {
         map.compute(key, (ignoredKey, val) -> {
@@ -89,27 +97,32 @@ public class Chronicle extends BenchMap {
         });
     }
 
+    /** {@inheritDoc} **/
     @Override
     public void putIfAbsentComputeIfPresentOak(BenchKey key, BenchValue value) {
     }
 
+    /** {@inheritDoc} **/
     @Override
     public boolean ascendOak(BenchKey from, int length, Blackhole blackhole) {
         return iterate(map.entrySet().iterator(), length, blackhole);
     }
 
+    /** {@inheritDoc} **/
     @Override
     public boolean descendOak(BenchKey from, int length, Blackhole blackhole) {
         return ascendOak(from, length, blackhole);
     }
 
+    /** {@inheritDoc} **/
     @Override
     public int size() {
         return map.size();
     }
 
+    /** {@inheritDoc} **/
     @Override
-    public float allocatedGB() {
+    public float nonHeapAllocatedGB() {
         return (float) map.offHeapMemoryUsed() / (float) GB;
     }
 }

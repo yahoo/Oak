@@ -23,6 +23,7 @@ public class OakBenchHash extends BenchOakMap {
         super(keyGen, valueGen);
     }
 
+    /** {@inheritDoc} **/
     @Override
     public void init() {
         ma = new NativeMemoryAllocator(OAK_MAX_OFF_MEMORY);
@@ -44,6 +45,7 @@ public class OakBenchHash extends BenchOakMap {
         oakHash = builder.buildHashMap();
     }
 
+    /** {@inheritDoc} **/
     @Override
     public void close() {
         super.close();
@@ -51,26 +53,32 @@ public class OakBenchHash extends BenchOakMap {
         oakHash = null;
     }
 
+    /** {@inheritDoc} **/
     @Override
     protected ConcurrentZCMap<BenchKey, BenchValue> map() {
         return oakHash;
     }
 
+    /** {@inheritDoc} **/
     @Override
     protected ZeroCopyMap<BenchKey, BenchValue> zc() {
         return oakHash.zc();
     }
 
+    /** {@inheritDoc} **/
     @Override
     public boolean ascendOak(BenchKey from, int length, Blackhole blackhole) {
         throw new UnsupportedOperationException("ALL ITERATORS ARE NOT YET SUPPORTED FOR HASH");
     }
 
+    /** {@inheritDoc} **/
     @Override
     public boolean descendOak(BenchKey from, int length, Blackhole blackhole) {
         throw new UnsupportedOperationException("ALL ITERATORS ARE NOT YET SUPPORTED FOR HASH");
     }
 
+    /** {@inheritDoc} **/
+    @Override
     public void printMemStats() {
         NativeMemoryAllocator.Stats stats = ma.getStats();
         System.out.printf("\tReleased buffers: \t\t%d\n", stats.releasedBuffers);

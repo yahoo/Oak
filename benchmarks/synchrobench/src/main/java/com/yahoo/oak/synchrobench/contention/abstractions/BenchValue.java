@@ -7,7 +7,8 @@
 package com.yahoo.oak.synchrobench.contention.abstractions;
 
 /**
- * This interface is used only for strict typing.
+ * All benchmarked values should implement this interface.
+ * It is used only for strict typing.
  */
 public interface BenchValue {
 }

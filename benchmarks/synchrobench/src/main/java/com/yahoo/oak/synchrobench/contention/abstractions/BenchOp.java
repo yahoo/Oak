@@ -10,7 +10,8 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
- * The operations that 'CompositionalMap' supports
+ * Enumerates the operations that 'CompositionalMap' supports.
+ * It is used to identify the current operation and to keep statistic on each operation.
  */
 public enum BenchOp {
     PUT,
@@ -21,6 +22,8 @@ public enum BenchOp {
     SCAN_ASCEND,
     SCAN_DESCEND,
     COMPUTE;
+
+    // The operation array/groups below are used to report aggregated statistics on these groups.
 
     public static BenchOp[] asArray(BenchOp... ops) {
         return ops;

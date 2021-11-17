@@ -7,7 +7,10 @@
 package com.yahoo.oak.synchrobench.contention.abstractions;
 
 /**
- * Extends 'Comparable' for ConcurrentSkipListMap.
+ * All benchmarked keys should implement this interface.
+ * It is used for strict typing purposes, but also to force the implementation of methods that required by
+ * on-heap maps.
+ * I.e., it extends 'Comparable', and require the implementation of hashCode().
  */
 public interface BenchKey extends Comparable<Object> {
     @Override

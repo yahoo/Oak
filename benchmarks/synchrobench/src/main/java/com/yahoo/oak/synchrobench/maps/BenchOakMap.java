@@ -37,11 +37,13 @@ public abstract class BenchOakMap extends BenchMap {
     protected abstract ConcurrentZCMap<BenchKey, BenchValue> map();
     protected abstract ZeroCopyMap<BenchKey, BenchValue> zc();
 
+    /** {@inheritDoc} **/
     @Override
     public void close() {
         map().close();
     }
 
+    /** {@inheritDoc} **/
     @Override
     public boolean getOak(BenchKey key, Blackhole blackhole) {
         if (Parameters.confZeroCopy) {
@@ -64,17 +66,19 @@ public abstract class BenchOakMap extends BenchMap {
         return true;
     }
 
+    /** {@inheritDoc} **/
     @Override
     public void putOak(BenchKey key, BenchValue value) {
         zc().put(key, value);
     }
 
-
+    /** {@inheritDoc} **/
     @Override
     public boolean putIfAbsentOak(BenchKey key, BenchValue value) {
         return zc().putIfAbsent(key, value);
     }
 
+    /** {@inheritDoc} **/
     @Override
     public void removeOak(BenchKey key) {
         if (Parameters.confZeroCopy) {
@@ -84,32 +88,43 @@ public abstract class BenchOakMap extends BenchMap {
         }
     }
 
+    /** {@inheritDoc} **/
     @Override
     public void computeOak(BenchKey key) {
     }
 
+    /** {@inheritDoc} **/
     @Override
     public boolean computeIfPresentOak(BenchKey key) {
         return false;
     }
 
+    /** {@inheritDoc} **/
     @Override
     public void putIfAbsentComputeIfPresentOak(BenchKey key, BenchValue value) {
         zc().putIfAbsentComputeIfPresent(key, value, valueGen::updateSerializedValue);
     }
 
+    /** {@inheritDoc} **/
     @Override
     public int size() {
         return map().size();
     }
 
+    /** {@inheritDoc} **/
     @Override
-    public float allocatedGB() {
+    public float nonHeapAllocatedGB() {
         return (float) map().memorySize() / (float) GB;
     }
 
+    /**
+     * Iterate over a map and consume the keys/values.
+     * @param subMap subset of the map
+     * @param length the number of items to iterate over
+     * @param blackhole used to consume the keys/values (if null, should not consume)
+     * @return true if iterated successfully on "length" items.
+     */
     protected boolean createAndScanView(OakMap<BenchKey, BenchValue> subMap, int length, Blackhole blackhole) {
-        // Iterator iter;
         if (Parameters.confZeroCopy) {
             Iterator<Map.Entry<OakUnscopedBuffer, OakUnscopedBuffer>> iter;
             if (Parameters.confStreamIteration) {
@@ -125,6 +140,13 @@ public abstract class BenchOakMap extends BenchMap {
         }
     }
 
+    /**
+     * Iterate over a map using ZC view and consume the keys/values.
+     * @param iter the map's iterator
+     * @param length the number of items to iterate over
+     * @param blackhole used to consume the keys/values (if null, should not consume)
+     * @return true if iterated successfully on "length" items.
+     */
     protected boolean iterateBuffer(Iterator<Map.Entry<OakUnscopedBuffer, OakUnscopedBuffer>> iter,
                                   int length, Blackhole blackhole) {
         int i = 0;

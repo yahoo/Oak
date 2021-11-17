@@ -40,16 +40,19 @@ public class Memcached extends BenchMap {
         );
     }
 
+    /** {@inheritDoc} **/
     @Override
     public void init() {
         mc.flush();
     }
 
+    /** {@inheritDoc} **/
     @Override
     public void close() {
         init();
     }
 
+    /** {@inheritDoc} **/
     @Override
     public boolean getOak(BenchKey key, Blackhole blackhole) {
         BenchValue val = mc.get(keyGen.toString(key), valueGen);
@@ -63,54 +66,64 @@ public class Memcached extends BenchMap {
         return true;
     }
 
+    /** {@inheritDoc} **/
     @Override
     public void putOak(BenchKey key, BenchValue value) {
         mc.set(keyGen.toString(key), DAY, value, valueGen);
     }
 
+    /** {@inheritDoc} **/
     @Override
     public boolean putIfAbsentOak(BenchKey key, BenchValue value) {
         mc.add(keyGen.toString(key), DAY, value, valueGen);
         return true;
     }
 
+    /** {@inheritDoc} **/
     @Override
     public void removeOak(BenchKey key) {
         mc.delete(keyGen.toString(key));
     }
 
+    /** {@inheritDoc} **/
     @Override
     public void computeOak(BenchKey key) {
         throw new UnsupportedOperationException("Memcached does not support generic updates.");
     }
 
+    /** {@inheritDoc} **/
     @Override
     public boolean computeIfPresentOak(BenchKey key) {
         throw new UnsupportedOperationException("Memcached does not support generic updates.");
     }
 
+    /** {@inheritDoc} **/
     @Override
     public void putIfAbsentComputeIfPresentOak(BenchKey key, BenchValue value) {
         throw new UnsupportedOperationException("Memcached does not support generic updates.");
     }
 
+    /** {@inheritDoc} **/
     @Override
     public boolean ascendOak(BenchKey from, int length, Blackhole blackhole) {
         throw new UnsupportedOperationException("Memcached does not support iterations.");
     }
 
+    /** {@inheritDoc} **/
     @Override
     public boolean descendOak(BenchKey from, int length, Blackhole blackhole) {
         throw new UnsupportedOperationException("Memcached does not support iterations.");
     }
 
+    /** {@inheritDoc} **/
     @Override
     public int size() {
         return Integer.parseInt(stats().get("total_items"));
     }
 
+    /** {@inheritDoc} **/
     @Override
-    public float allocatedGB() {
+    public float nonHeapAllocatedGB() {
         return (float) Long.parseLong(stats().get("bytes")) / (float) GB;
     }
 

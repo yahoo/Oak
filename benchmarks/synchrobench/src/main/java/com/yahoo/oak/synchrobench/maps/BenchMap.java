@@ -32,6 +32,13 @@ public abstract class BenchMap implements CompositionalMap {
         this.valueGen = valueGen;
     }
 
+    /**
+     * Iterate over a map and consume the keys/values.
+     * @param iter the map's iterator
+     * @param length the number of items to iterate over
+     * @param blackhole used to consume the keys/values (if null, should not consume)
+     * @return true if iterated successfully on "length" items.
+     */
     protected boolean iterate(Iterator<Map.Entry<BenchKey, BenchValue>> iter, int length, Blackhole blackhole) {
         int i = 0;
         while (iter.hasNext() && i < length) {

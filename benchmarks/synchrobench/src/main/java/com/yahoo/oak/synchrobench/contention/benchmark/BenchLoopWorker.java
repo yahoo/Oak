@@ -17,8 +17,7 @@ import org.openjdk.jmh.infra.Blackhole;
 import java.util.Random;
 
 /**
- * The loop executed by each thread of the map
- * benchmark.
+ * The loop executed by each thread of the map benchmark.
  *
  * @author Vincent Gramoli
  */
@@ -38,14 +37,21 @@ public class BenchLoopWorker implements Runnable {
      */
     protected volatile boolean stop = false;
 
-    protected final OpCounter counter = new OpCounter();
     /**
-     * The random number
+     * Keeps statistics on each of the operations.
+     */
+    protected final OpCounter counter = new OpCounter();
+
+    /**
+     * Random number generators for creating new keys/values.
      */
     final Random coinRand;
     final Random keyRand;
     final Random valueRand;
 
+    /**
+     * Stores exceptions to later reported by the benchmark.
+     */
     Exception error = null;
 
     /**
@@ -111,6 +117,10 @@ public class BenchLoopWorker implements Runnable {
         }
     }
 
+    /**
+     * The available operation types that provided by the distribution.
+     * TODO: Allow the user to provide full distribution of all operations.
+     */
     enum Coin {
         WRITE_ALL,
         WRITE,
@@ -118,6 +128,10 @@ public class BenchLoopWorker implements Runnable {
         OTHER
     }
 
+    /**
+     * Chooses an operation type based on the provided operation distribution.
+     * @return the operation type
+     */
     private Coin flip() {
         final int coin = coinRand.nextInt(1000);
         if (coin < cdf[0]) { // -a
@@ -131,6 +145,10 @@ public class BenchLoopWorker implements Runnable {
         }
     }
 
+    /**
+     * Chooses a random operation based on provided operation distribution and the benchmark configuration.
+     * @return the operation type
+     */
     private BenchOp getRandOp() {
         final Coin coin = flip();
         if (Parameters.confChange) {
@@ -160,16 +178,28 @@ public class BenchLoopWorker implements Runnable {
         throw new IllegalStateException(String.format("Coin failed: %s", coin));
     }
 
+    /**
+     * @return a new randomly generated key
+     */
     private BenchKey nextKey() {
         BenchKey curKey = keyGen.getNextKey(keyRand, Parameters.confRange, lastKey);
         lastKey = curKey;
         return curKey;
     }
 
+    /**
+     * @return a new randomly generated value
+     */
     private BenchValue nextValue() {
         return valueGen.getNextValue(valueRand, Parameters.confRange);
     }
 
+    /**
+     * Performs an operation.
+     * @param op the required operation
+     * @param blackhole a black-hole to be used by the operation
+     * @return true if the operation was successful
+     */
     private boolean doOp(BenchOp op, Blackhole blackhole) {
         switch (op) {
             case GET:
@@ -197,6 +227,10 @@ public class BenchLoopWorker implements Runnable {
         return false;
     }
 
+    /**
+     * Runs the benchmark loop without measuring latency.
+     * @param blackhole a black-hole to be used by the operation
+     */
     private void runWithoutLatency(Blackhole blackhole) {
         while (!stop) {
             BenchOp op = getRandOp();
@@ -205,6 +239,10 @@ public class BenchLoopWorker implements Runnable {
         }
     }
 
+    /**
+     * Runs the benchmark loop with measuring latency.
+     * @param blackhole a black-hole to be used by the operation
+     */
     private void runWithLatency(Blackhole blackhole) {
         while (!stop) {
             BenchOp op = getRandOp();

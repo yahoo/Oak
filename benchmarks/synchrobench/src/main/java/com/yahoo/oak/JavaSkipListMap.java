@@ -24,32 +24,38 @@ public class JavaSkipListMap extends BenchOnHeapMap {
         super(keyGen, valueGen);
     }
 
+    /** {@inheritDoc} **/
     @Override
     public void init() {
         skipListMap = new ConcurrentSkipListMap<>();
     }
 
+    /** {@inheritDoc} **/
     @Override
     public void close() {
         super.close();
         skipListMap = null;
     }
 
+    /** {@inheritDoc} **/
     @Override
     public boolean ascendOak(BenchKey from, int length, Blackhole blackhole) {
         return iterate(skipListMap.tailMap(from, true).entrySet().iterator(), length, blackhole);
     }
 
+    /** {@inheritDoc} **/
     @Override
     public boolean descendOak(BenchKey from, int length, Blackhole blackhole) {
         return iterate(skipListMap.descendingMap().tailMap(from, true).entrySet().iterator(), length, blackhole);
     }
 
+    /** {@inheritDoc} **/
     @Override
     protected AbstractMap<BenchKey, BenchValue> map() {
         return skipListMap;
     }
 
+    /** {@inheritDoc} **/
     @Override
     public int size() {
         return skipListMap.size();

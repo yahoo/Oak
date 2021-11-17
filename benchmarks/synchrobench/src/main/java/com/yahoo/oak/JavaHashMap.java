@@ -24,29 +24,34 @@ public class JavaHashMap extends BenchOnHeapMap {
         super(keyGen, valueGen);
     }
 
+    /** {@inheritDoc} **/
     @Override
     public void init() {
         hashMap = new ConcurrentHashMap<>();
     }
 
+    /** {@inheritDoc} **/
     @Override
     public void close() {
         super.close();
         hashMap = null;
     }
 
+    /** {@inheritDoc} **/
     @Override
     public boolean ascendOak(BenchKey from, int length, Blackhole blackhole) {
         // disregard from, it is left to be consistent with the API
         return iterate(map().entrySet().iterator(), length, blackhole);
     }
 
+    /** {@inheritDoc} **/
     @Override
     public boolean descendOak(BenchKey from, int length, Blackhole blackhole) {
         // impossible to descend unordered map
         return ascendOak(from, length, blackhole);
     }
 
+    /** {@inheritDoc} **/
     @Override
     protected AbstractMap<BenchKey, BenchValue> map() {
         return hashMap;

@@ -62,6 +62,7 @@ public class OffHeapList extends BenchMap {
         };
     }
 
+    /** {@inheritDoc} **/
     @Override
     public void init() {
         skipListMap = new ConcurrentSkipListMap<>(comparator);
@@ -71,6 +72,7 @@ public class OffHeapList extends BenchMap {
         mm = new SeqExpandMemoryManager(allocator);
     }
 
+    /** {@inheritDoc} **/
     @Override
     public void close() {
         skipListMap.values().forEach(cell -> {
@@ -84,6 +86,7 @@ public class OffHeapList extends BenchMap {
         mm = null;
     }
 
+    /** {@inheritDoc} **/
     @Override
     public boolean getOak(BenchKey key, Blackhole blackhole) {
         Cell value = skipListMap.get(key);
@@ -108,6 +111,7 @@ public class OffHeapList extends BenchMap {
         return true;
     }
 
+    /** {@inheritDoc} **/
     @Override
     public void putOak(BenchKey key, BenchValue value) {
         Cell newCell = new Cell();
@@ -141,6 +145,7 @@ public class OffHeapList extends BenchMap {
         }
     }
 
+    /** {@inheritDoc} **/
     @Override
     public boolean putIfAbsentOak(BenchKey key, BenchValue value) {
         //TODO YONIGO - this wont work with puts together.
@@ -166,6 +171,7 @@ public class OffHeapList extends BenchMap {
         }
     }
 
+    /** {@inheritDoc} **/
     @Override
     public void removeOak(BenchKey key) {
         Cell val = skipListMap.remove(key);
@@ -177,22 +183,26 @@ public class OffHeapList extends BenchMap {
         // TODO YONIGO - need some sync here!
     }
 
+    /** {@inheritDoc} **/
     @Override
     public boolean computeIfPresentOak(BenchKey key) {
         return false;
     }
 
+    /** {@inheritDoc} **/
     @Override
     public void computeOak(BenchKey key) {
 
     }
 
+    /** {@inheritDoc} **/
     @Override
     public boolean ascendOak(BenchKey from, int length, Blackhole blackhole) {
         Iterator<Map.Entry<Object, Cell>> iter = skipListMap.tailMap(from, true).entrySet().iterator();
         return iterateOffHeap(iter, length, blackhole);
     }
 
+    /** {@inheritDoc} **/
     @Override
     public boolean descendOak(BenchKey from, int length, Blackhole blackhole) {
         Iterator<Map.Entry<Object, Cell>> iter = skipListMap.descendingMap().tailMap(from, true).entrySet().iterator();
@@ -249,16 +259,19 @@ public class OffHeapList extends BenchMap {
         return i == length;
     }
 
+    /** {@inheritDoc} **/
     @Override
     public int size() {
         return skipListMap.size();
     }
 
+    /** {@inheritDoc} **/
     @Override
-    public float allocatedGB() {
+    public float nonHeapAllocatedGB() {
         return (float) allocator.allocated() / (float) GB;
     }
 
+    /** {@inheritDoc} **/
     @Override
     public void putIfAbsentComputeIfPresentOak(BenchKey key, BenchValue value) {
         Consumer<OakScopedWriteBuffer> computeFunction = writeBuffer -> {

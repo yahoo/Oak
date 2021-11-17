@@ -22,6 +22,7 @@ public class OakBenchMap extends BenchOakMap {
         super(keyGen, valueGen);
     }
 
+    /** {@inheritDoc} **/
     @Override
     public void init() {
         ma = new NativeMemoryAllocator(OAK_MAX_OFF_MEMORY);
@@ -34,6 +35,7 @@ public class OakBenchMap extends BenchOakMap {
         oak = builder.buildOrderedMap();
     }
 
+    /** {@inheritDoc} **/
     @Override
     public void close() {
         super.close();
@@ -41,16 +43,19 @@ public class OakBenchMap extends BenchOakMap {
         oak = null;
     }
 
+    /** {@inheritDoc} **/
     @Override
     protected ConcurrentZCMap<BenchKey, BenchValue> map() {
         return oak;
     }
 
+    /** {@inheritDoc} **/
     @Override
     protected ZeroCopyMap<BenchKey, BenchValue> zc() {
         return oak.zc();
     }
 
+    /** {@inheritDoc} **/
     @Override
     public boolean ascendOak(BenchKey from, int length, Blackhole blackhole) {
         OakMap<BenchKey, BenchValue> sub = oak.tailMap(from, true);
@@ -62,6 +67,7 @@ public class OakBenchMap extends BenchOakMap {
         return result;
     }
 
+    /** {@inheritDoc} **/
     @Override
     public boolean descendOak(BenchKey from, int length, Blackhole blackhole) {
         OakMap<BenchKey, BenchValue> desc = oak.descendingMap();
@@ -75,6 +81,8 @@ public class OakBenchMap extends BenchOakMap {
         return result;
     }
 
+    /** {@inheritDoc} **/
+    @Override
     public void printMemStats() {
         NativeMemoryAllocator.Stats stats = ma.getStats();
         System.out.printf("\tReleased buffers: \t\t%d\n", stats.releasedBuffers);

@@ -26,11 +26,13 @@ public abstract class BenchOnHeapMap extends BenchMap {
 
     protected abstract AbstractMap<BenchKey, BenchValue> map();
 
+    /** {@inheritDoc} **/
     @Override
     public void close() {
         map().clear();
     }
 
+    /** {@inheritDoc} **/
     @Override
     public boolean getOak(BenchKey key, Blackhole blackhole) {
         BenchValue val = map().get(key);
@@ -45,30 +47,36 @@ public abstract class BenchOnHeapMap extends BenchMap {
         return true;
     }
 
+    /** {@inheritDoc} **/
     @Override
     public void putOak(BenchKey key, BenchValue value) {
         map().put(key, value);
     }
 
+    /** {@inheritDoc} **/
     @Override
     public boolean putIfAbsentOak(BenchKey key, BenchValue value) {
         return map().putIfAbsent(key, value) == null;
     }
 
+    /** {@inheritDoc} **/
     @Override
     public void removeOak(BenchKey key) {
         map().remove(key);
     }
 
+    /** {@inheritDoc} **/
     @Override
     public boolean computeIfPresentOak(BenchKey key) {
         return false;
     }
 
+    /** {@inheritDoc} **/
     @Override
     public void computeOak(BenchKey key) {
     }
 
+    /** {@inheritDoc} **/
     @Override
     public void putIfAbsentComputeIfPresentOak(BenchKey key, BenchValue value) {
         map().merge(key, value, (old, v) -> {
@@ -79,6 +87,7 @@ public abstract class BenchOnHeapMap extends BenchMap {
         });
     }
 
+    /** {@inheritDoc} **/
     @Override
     public int size() {
         return map().size();

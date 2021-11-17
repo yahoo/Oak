@@ -23,7 +23,7 @@ class HeapStats {
         this.heapSize = (float) Runtime.getRuntime().totalMemory() / (float) Test.GB;
         this.heapFreeSize = (float) Runtime.getRuntime().freeMemory() / (float) Test.GB;
         this.heapUsed = heapSize - heapFreeSize;
-        this.directUsed = map.allocatedGB();
+        this.directUsed = map.nonHeapAllocatedGB();
         this.totalUsed = heapUsed + (Double.isNaN(directUsed) ? 0 : directUsed);
         this.totalAllocated = heapSize + (Double.isNaN(directUsed) ? 0 : directUsed);
     }
