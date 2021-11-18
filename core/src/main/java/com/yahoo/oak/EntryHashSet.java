@@ -255,7 +255,7 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
      * @return true if the entry at the given index is valid, false otherwise
      */
     public boolean isEntryIndexValidForScan(ThreadContext ctx, int idx) {
-        return readValue(ctx.value, idx);
+        return readValue(ctx.tempValue, idx);
     }
 
     int getCollisionChainLength() {
@@ -407,7 +407,7 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
 
             do {
                 redoSwitch = false;
-                // EntryState.VALID --> entry is occupied, continue to next possible location
+                // EntryState.VALID --> entry is occupied, if key is different, continue to next possible location
                 // EntryState.DELETED_NOT_FINALIZED --> finish the deletion, then try to insert here
                 // EntryState.UNKNOWN, EntryState.DELETED --> entry is vacant, try to insert the key here
                 // EntryState.INSERT_NOT_FINALIZED --> you can compete to associate value with the same key

@@ -113,6 +113,7 @@ public class EntryArray<K, V> {
     enum EntryState {
         /*
          * The state of the entry is yet to be checked or Entry is empty
+         * @TODO split into two separate states - UNKNOWN and EMPTY
          */
         UNKNOWN,
 

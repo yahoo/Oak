@@ -322,14 +322,10 @@ class HashChunk<K, V> extends BasicChunk<K, V> {
     }
 
     //*******************************************************************************************/
-    /*--------------------------------- Iterators Constructors ---------------------------------*/
+    /*--------------------------------- Iterators factory function ---------------------------------*/
 
-
-    /**
-
-     */
-    HashChunk<K, V>.ChunkIter hashChunkIter(ThreadContext ctx) {
-        return new HashChunk<K, V>.ChunkIter(ctx);
+    ChunkIter hashChunkIter(ThreadContext ctx) {
+        return new ChunkIter(ctx);
     }
 
 
@@ -339,9 +335,9 @@ class HashChunk<K, V> extends BasicChunk<K, V> {
         protected int next;         // index of the next entry to be returned
 
         ChunkIter(ThreadContext ctx) {
-            next = 0; // initial index
             next = getFirstValidEntryIndex(ctx);
         }
+
 
         int getFirstValidEntryIndex(ThreadContext ctx) {
             int firstValidIndex = 0;
@@ -353,6 +349,7 @@ class HashChunk<K, V> extends BasicChunk<K, V> {
         }
 
         int getNextValidEntryIndex(ThreadContext ctx, int curIndex) {
+            assert curIndex != INVALID_ENTRY_INDEX;
             int nextIndex = curIndex + 1;
             while (entryHashSet.isIndexInBound(nextIndex) && !entryHashSet.isEntryIndexValidForScan(ctx, nextIndex)) {
                 nextIndex++;
@@ -374,7 +371,7 @@ class HashChunk<K, V> extends BasicChunk<K, V> {
         @Override
         public int next(ThreadContext ctx) {
             int curIdx = next;
-            next = getNextValidEntryIndex(ctx, next);
+            next = getNextValidEntryIndex(ctx, curIdx);
             return curIdx;
         }
     }

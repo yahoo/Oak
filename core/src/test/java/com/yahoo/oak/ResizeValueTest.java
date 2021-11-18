@@ -25,6 +25,7 @@ import java.util.function.Supplier;
 public class ResizeValueTest {
     private ConcurrentZCMap<String, String> oak;
     private final Supplier<ConcurrentZCMap<String, String>> supplier;
+    String keyToUpdate = null;
 
     public ResizeValueTest(Supplier<ConcurrentZCMap<String, String>> supplier) {
         this.supplier = supplier;
@@ -75,13 +76,17 @@ public class ResizeValueTest {
 
     @Test
     public void retryIteratorTest() {
+        boolean hashTest = false;
         if (oak instanceof OakHashMap) {
-            // TODO: currently iterators are not supported for Hash, remove this later
-            return;
+            hashTest = true;
         }
+        final String key1 = new String("AAAAAAA");
+        final String key2 = new String("ZZZZZZZ");
+        final String shortValue = new String("h");
 
-        oak.zc().put("AAAAAAA", "h");
-        oak.zc().put("ZZZZZZZ", "h");
+
+        oak.zc().put(key1, shortValue);
+        oak.zc().put(key2, shortValue);
 
         StringBuilder stringBuilder = new StringBuilder();
         for (int i = 0; i < 100; i++) {
@@ -97,8 +102,16 @@ public class ResizeValueTest {
 
             Map.Entry<String, String> entry = iterator.next();
             String currentValue = valueIterator.next();
-            Assert.assertEquals("AAAAAAA", entry.getKey());
-            Assert.assertEquals("h", currentValue);
+            Assert.assertTrue(key1.equals(entry.getKey()) || key2.equals(entry.getKey()));
+
+            Assert.assertEquals(shortValue, currentValue);
+
+            if (key1.equals(entry.getKey())) {
+                keyToUpdate = key2;
+            } else {
+                keyToUpdate = key1;
+            }
+
             semaphore1.release();
             try {
                 semaphore2.acquire();
@@ -107,7 +120,7 @@ public class ResizeValueTest {
             }
             entry = iterator.next();
             currentValue = valueIterator.next();
-            Assert.assertEquals("ZZZZZZZ", entry.getKey());
+            Assert.assertEquals(keyToUpdate, entry.getKey());
             Assert.assertEquals(longValue, entry.getValue());
             Assert.assertEquals(longValue, currentValue);
         });
@@ -118,7 +131,7 @@ public class ResizeValueTest {
             } catch (InterruptedException e) {
                 e.printStackTrace();
             }
-            oak.zc().put("ZZZZZZZ", longValue);
+            oak.zc().put(keyToUpdate, longValue);
             semaphore2.release();
         });
         iteratorThread.start();

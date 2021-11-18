@@ -338,45 +338,45 @@ public class OakHashMap<K, V>  extends AbstractMap<K, V> implements AutoCloseabl
      * in ascending order of the corresponding keys.
      */
     private Iterator<V> valuesIterator() {
-        throw new UnsupportedOperationException();
+        return internalOakHash.valuesTransformIterator(           valueDeserializeTransformer);
     }
 
     /**
-     * Returns a {@link Iterator} of the mappings contained in this map in ascending key order.
+     * Returns a {@link Iterator} of the mappings contained in this map
      */
     private Iterator<Map.Entry<K, V>> entriesIterator() {
-        throw new UnsupportedOperationException();
+        return internalOakHash.entriesTransformIterator(entryDeserializeTransformer);
     }
 
     /**
-     * Returns a {@link Iterator} of the keys contained in this map in ascending order.
+     * Returns a {@link Iterator} of the keys contained in this map.
      */
     private Iterator<K> keysIterator() {
-        throw new UnsupportedOperationException();
+        return internalOakHash.keysTransformIterator(keyDeserializeTransformer);
     }
 
     private Iterator<OakUnscopedBuffer> keysBufferIterator() {
-        throw new UnsupportedOperationException();
+        return internalOakHash.keysBufferViewIterator();
     }
 
     private Iterator<OakUnscopedBuffer> valuesBufferIterator() {
-        throw new UnsupportedOperationException();
+        return internalOakHash.valuesBufferViewIterator();
     }
 
     private Iterator<Map.Entry<OakUnscopedBuffer, OakUnscopedBuffer>> entriesBufferIterator() {
-        throw new UnsupportedOperationException();
+        return internalOakHash.entriesBufferViewIterator();
     }
 
     private Iterator<OakUnscopedBuffer> keysStreamIterator() {
-        throw new UnsupportedOperationException();
+        return internalOakHash.keysStreamIterator();
     }
 
     private Iterator<OakUnscopedBuffer> valuesStreamIterator() {
-        throw new UnsupportedOperationException();
+        return internalOakHash.valuesStreamIterator();
     }
 
     private Iterator<Map.Entry<OakUnscopedBuffer, OakUnscopedBuffer>> entriesStreamIterator() {
-        throw new UnsupportedOperationException();
+        return internalOakHash.entriesStreamIterator();
     }
 
     /* ---------------- TODO: Move methods below to their proper place as they are implemented -------------- */
