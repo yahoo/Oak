@@ -16,7 +16,6 @@ import java.util.function.Function;
 class InternalOakHash<K, V> extends InternalOakBasics<K, V> {
     /*-------------- Members --------------*/
     private final FirstLevelHashArray<K, V> hashArray;    // first level of indexing
-    //private final OakComparator<K> comparator;
     private final OakSerializer<K> keySerializer;
     private final OakSerializer<V> valueSerializer;
     private final ValueUtils valueOperator;
@@ -32,7 +31,7 @@ class InternalOakHash<K, V> extends InternalOakBasics<K, V> {
         super(vMM, kMM);
         this.keySerializer = keySerializer;
         this.valueSerializer = valueSerializer;
-        //this.comparator = oakComparator;
+
         this.valueOperator = valueOperator;
 
         int msbForFirstLevelHash =
@@ -310,6 +309,7 @@ class InternalOakHash<K, V> extends InternalOakBasics<K, V> {
         }
         return transformer.apply(ctx.key);
     }
+
 
     private <T> T getValueTransformation(OakScopedReadBuffer key, OakTransformer<T> transformer) {
         K deserializedKey = keySerializer.deserialize(key);
@@ -644,10 +644,8 @@ class InternalOakHash<K, V> extends InternalOakBasics<K, V> {
                 chunk.readKey(ctx);
 
                 validState = ctx.isKeyValid();
-
-                assert validState;
-
-                if (needsValue) {
+                
+                if (validState & needsValue) {
                     // Set value references and checks for value validity.
                     // if value is deleted ctx.entryState is going to be invalid
                     chunk.readValue(ctx);

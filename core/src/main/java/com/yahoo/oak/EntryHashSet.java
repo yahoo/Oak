@@ -255,6 +255,8 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
      * @return true if the entry at the given index is valid, false otherwise
      */
     public boolean isEntryIndexValidForScan(ThreadContext ctx, int idx) {
+        // tempValue us used rather than value, since as a side effect value is updated by the readValue operation
+        // it may replace the value that is already read by the `advance` iterator method
         return readValue(ctx.tempValue, idx);
     }
 
