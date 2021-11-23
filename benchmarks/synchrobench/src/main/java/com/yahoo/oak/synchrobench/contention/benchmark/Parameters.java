@@ -111,7 +111,7 @@ public class Parameters {
         confConsumeKeys = false;
         confConsumeValues = false;
 
-        confScanLength = 1000;
+        confScanLength = 10_000;
 
         confKeyDistribution = KeyDist.RANDOM;
 
@@ -151,43 +151,47 @@ public class Parameters {
         printConf("-l", "Measure latency", "enables latency measurements",
             confMeasureLatency, isHelp);
 
-        printConf("-t thread-num", "Number of threads", "set the number of threads",
+        printConf("-t thread-num", "Number of threads", "number of threads",
             confNumThreads, isHelp);
         printConf("--fill-threads N", "Number of initialization threads",
-            "set the number of threads for initialization",
+            "number of threads for initialization",
             confNumFillThreads, isHelp);
 
-        printConf("-u updates", "Write ratio", "set the percentage of updates",
+        printConf("-u updates", "Write ratio", "percentage of updates",
             confNumWrites, isHelp);
-        printConf("-a writeAll", "WriteAll ratio", "set the percentage of composite updates",
+        printConf("-a writeAll", "WriteAll ratio", "percentage of composite updates",
             confNumWriteAlls, isHelp);
-        printConf("-s snapshot", "Snapshot ratio", "set the percentage of composite read-only operations",
+        printConf("-s snapshot", "Snapshot ratio", "percentage of composite read-only operations",
             confNumSnapshots, isHelp);
         printConf("-c", "Change", "change the operation",
             confChange, isHelp);
 
-        printConf("-i size", "Size", "set the data structure initial size",
+        printConf("--scan-length length", "Scan length",
+            "maximal number of items to iterate over during a scan operatio",
+            confScanLength, isHelp);
+
+        printConf("-i size", "Size", "data structure initial size",
             confSize, isHelp);
-        printConf("-r range", "Range", "set the cardinality of the keys",
+        printConf("-r range", "Range", "cardinality of the keys",
             confRange, isHelp);
 
-        printConf("-n iterations", "Iterations", "set the bench iterations in the same JVM",
+        printConf("-n iterations", "Iterations", "bench iterations in the same JVM",
             confIterations, isHelp);
-        printConf("-d duration", "Test duration (ms)", "set the duration of the benchmark, in milliseconds",
+        printConf("-d duration", "Test duration (ms)", "duration of the benchmark, in milliseconds",
             confNumMilliseconds, isHelp);
-        printConf("-W warmup", "Warmup duration (ms)", "set the JVM warmup duration, in milliseconds",
+        printConf("-W warmup", "Warmup duration (ms)", "JVM warmup duration, in milliseconds",
             confWarmupMilliseconds, isHelp);
 
-        printConf("-b benchmark", "Benchmark", "set the benchmark class name",
+        printConf("-b benchmark", "Benchmark", "benchmark class name",
             confBenchClass, isHelp);
-        printConf("--key key", "Key", "set the key class name",
+        printConf("--key key", "Key", "key class name",
             confKeyClass, isHelp);
-        printConf("--value val", "Value", "set the value class name",
+        printConf("--value val", "Value", "value class name",
             confValueClass, isHelp);
 
-        printConf("-k keySize", "Key size (bytes)", "set the size of the keys, in Bytes",
+        printConf("-k keySize", "Key size (bytes)", "size of the keys (in bytes)",
             confKeySize, isHelp);
-        printConf("-v valSize", "Value size (bytes)", "set the size of the values, in Bytes",
+        printConf("-v valSize", "Value size (bytes)", "size of the values (in bytes)",
             confValSize, isHelp);
 
         printConf("--consume-keys", "Consume keys", "enables key consumption",
@@ -197,13 +201,13 @@ public class Parameters {
 
         printConf("--si", "Stream iteration", "enables stream iteration for scan",
             confStreamIteration, isHelp);
-        printConf("--buffer", "Buffer view", "Use ZC interface when possible",
+        printConf("--buffer", "Buffer view", "use ZC interface when possible",
             confZeroCopy, isHelp);
 
-        printConf("--small-footprint", "Small footprint", "Configure the map for a small footprint",
+        printConf("--small-footprint", "Small footprint", "configure the map for a small footprint",
             confSmallFootprint, isHelp);
 
-        printConf("--scenario", "Scenario", "set one of pre defined scenarios",
+        printConf("--scenario", "Scenario", "use one of the pre defined scenarios",
             confScenario, isHelp);
     }
 
@@ -302,6 +306,9 @@ public class Parameters {
                     case "--snapshots":
                     case "-s":
                         confNumSnapshots = parseInt(args[argNumber++]);
+                        break;
+                    case "--scan-length":
+                        confScanLength = parseInt(args[argNumber++]);
                         break;
                     case "--size":
                     case "-i":

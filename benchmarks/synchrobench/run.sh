@@ -147,6 +147,9 @@ range_ratio="2"
 # Defines the number of threads used for initialization
 fill_threads="24"
 
+# Defines the default scan_length
+scan_length="10_000"
+
 # For flag arguments
 flag_arguments=""
 
@@ -173,7 +176,7 @@ ARGS=$(${get_opt}\
         --long verify,consume-keys,consume-values,latency\
         --long output-path:,java-path:,duration:,iterations:,warmup:,heap-limit:,direct-limit:\
         --long range-ratio:,size:,threads:,scenario:,benchmark:\
-        --long gc:,java-mode:,key:,value:,key-size:,value-size:,fill-threads:\
+        --long gc:,java-mode:,key:,value:,key-size:,value-size:,fill-threads:,scan-length:\
         -s sh -n 'run' -- "$@"
 )
 if [ $? != 0 ]; then
@@ -200,6 +203,7 @@ while true; do
   -b | --benchmark ) test_benchmarks="$2"; shift 2 ;;
   -g | --gc ) test_gc="$2"; shift 2 ;;
   -m | --java-mode ) test_java_modes="$2"; shift 2 ;;
+  --scan-length ) scan_length="$2"; shift 2 ;;
   --key ) key_class="$2"; shift 2 ;;
   --value ) value_class="$2"; shift 2 ;;
   --key-size ) key_size="$2"; shift 2 ;;
@@ -283,7 +287,7 @@ for scenario in ${test_scenarios[*]}; do for bench in ${test_benchmarks[*]}; do
           "--key ${data[${key_class}]} --value ${data[${value_class}]}"
           "-k ${key_size} -v ${value_size} -i ${size} -r ${range} -t ${threads}"
           "-W ${warmup} -n ${iterations} -d $((duration * 1000)) ${flag_arguments}"
-          "--fill-threads ${fill_threads}"
+          "--fill-threads ${fill_threads} --scan-length ${scan_length}"
         )
         cmd=${cmd_args[*]}
         echo "${cmd}"
@@ -322,6 +326,7 @@ for scenario in ${test_scenarios[*]}; do for bench in ${test_benchmarks[*]}; do
           echo "value_size: ${value_size}"
           echo "warmup: ${warmup}"
           echo "iterations: ${iterations}"
+          echo "scan_length: ${scan_length}"
           echo "size: ${size}"
           echo "range: ${range}"
           echo "range_ratio: ${range_ratio}"

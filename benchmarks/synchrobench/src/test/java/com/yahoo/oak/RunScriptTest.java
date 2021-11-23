@@ -177,6 +177,7 @@ public class RunScriptTest {
         PARAMETERS.put("-b", "bench");
         PARAMETERS.put("-g", "gc_alg");
         PARAMETERS.put("-m", "java_mode");
+        PARAMETERS.put("--scan-length", "scan_length");
         PARAMETERS.put("--key", "key_class");
         PARAMETERS.put("--value", "value_class");
         PARAMETERS.put("--key-size", "key_size");
