@@ -528,7 +528,7 @@ class NovaMemoryManager implements MemoryManager, KeyMemoryManager {
     @Override
     public <K> int compareKeyAndSerializedKey(K key, OakScopedReadBuffer serializedKey, OakComparator<K> cmp) {
         if (((ScopedReadBuffer) serializedKey).s.lockRead() != ValueResult.TRUE) {
-            throw new ErrorLockException();
+            throw new DeletedMemoryAccessException();
         }
         int res = cmp.compareKeyAndSerializedKey(key, serializedKey);
         ((ScopedReadBuffer) serializedKey).s.unlockRead();
@@ -540,7 +540,7 @@ class NovaMemoryManager implements MemoryManager, KeyMemoryManager {
             OakScopedReadBuffer serializedKey2, OakComparator<K> cmp) {
         if (    ((ScopedReadBuffer) serializedKey1).s.lockRead() != ValueResult.TRUE ||
                 ((ScopedReadBuffer) serializedKey2).s.lockRead() != ValueResult.TRUE) {
-            throw new ErrorLockException();
+            throw new DeletedMemoryAccessException();
         }
         int res = cmp.compareSerializedKeys(serializedKey1, serializedKey2);
         ((ScopedReadBuffer) serializedKey1).s.unlockRead();

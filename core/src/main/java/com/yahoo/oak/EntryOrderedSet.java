@@ -315,7 +315,7 @@ class EntryOrderedSet<K, V> extends EntryArray<K, V> {
     
     void releaseAllDeletedKeys() {
         KeyBuffer key = new KeyBuffer(keysMemoryManager.getEmptySlice());
-        for (int i = 0; i < numOfEntries.get() ; i++) {
+        for (int i = 0; i < entriesCapacity ; i++) {
             if (valuesMemoryManager.isReferenceDeleted(getValueReference(i))) {
                 if (keysMemoryManager.isReferenceValidAndNotDeleted(getKeyReference(i))) {
                     //TODO may add exception to isDelted and stop deleting if key is already deleted

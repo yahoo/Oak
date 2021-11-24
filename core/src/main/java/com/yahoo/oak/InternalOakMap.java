@@ -333,6 +333,9 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
 
         for (int i = 0; i < MAX_RETRIES; i++) {
             try {
+                // Adding try-catch block to enable deleting keys concurrently with keys access 
+                // in find chunk and lookup.
+                // If key was found to be deleted while looking we re-do the operation.
                 OrderedChunk<K, V> c = findChunk(key); // find orderedChunk matching key
                 c.lookUp(ctx, key);
                 // If there is a matching value reference for the given key, and it is not marked as deleted,
@@ -379,7 +382,7 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
                     checkRebalance(c);
                     return null; // null can be returned only in zero-copy case
                 }
-            } catch (ErrorLockException e) {
+            } catch (DeletedMemoryAccessException e) {
                 continue;
             }
         }
@@ -398,6 +401,9 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
 
         for (int i = 0; i < MAX_RETRIES; i++) {
             try {
+                // Adding try-catch block to enable deleting keys concurrently with keys access 
+                // in find chunk and lookup.
+                // If key was found to be deleted while looking we re-do the operation.
                 OrderedChunk<K, V> c = findChunk(key); // find orderedChunk matching key
                 c.lookUp(ctx, key);
                 // If exists a matching value reference for the given key, and it isn't marked deleted,
@@ -444,7 +450,7 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
                     checkRebalance(c);
                     return ctx.result.withFlag(ValueUtils.ValueResult.TRUE);
                 }
-            } catch (ErrorLockException e) {
+            } catch (DeletedMemoryAccessException e) {
                 continue;
             }
         }
@@ -464,6 +470,9 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
 
         for (int i = 0; i < MAX_RETRIES; i++) {
             try {
+                // Adding try-catch block to enable deleting keys concurrently with keys access 
+                // in find chunk and lookup.
+                // If key was found to be deleted while looking we re-do the operation.
                 OrderedChunk<K, V> c = findChunk(key); // find orderedChunk matching key
                 c.lookUp(ctx, key);
                 // If there is a matching value reference for the given key, and it is not marked as deleted,
@@ -508,7 +517,7 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
                     checkRebalance(c);
                     return true;
                 }
-            } catch (ErrorLockException e) {
+            } catch (DeletedMemoryAccessException e) {
                 continue;
             }
         }
@@ -531,6 +540,9 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
 
         for (int i = 0; i < MAX_RETRIES; i++) {
             try {
+                // Adding try-catch block to enable deleting keys concurrently with keys access 
+                // in find chunk and lookup.
+                // If key was found to be deleted while looking we re-do the operation.
                 OrderedChunk<K, V> c = findChunk(key); // find orderedChunk matching key
                 c.lookUp(ctx, key);
     
@@ -587,7 +599,7 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
                 finalizeDeletion(c, ctx); // includes publish/unpublish
                 return transformer == null ?
                     ctx.result.withFlag(ValueUtils.ValueResult.TRUE) : ctx.result.withValue(v);
-            } catch (ErrorLockException e) {
+            } catch (DeletedMemoryAccessException e) {
                 continue;
             }
         }
@@ -622,6 +634,9 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
 
         for (int i = 0; i < MAX_RETRIES; i++) {
             try {
+                // Adding try-catch block to enable deleting keys concurrently with keys access 
+                // in find chunk and lookup.
+                // If key was found to be deleted while looking we re-do the operation.
                 OrderedChunk<K, V> c = findChunk(key); // find orderedChunk matching key
                 c.lookUp(ctx, key);
                 if (ctx.isValueValid()) {
@@ -635,7 +650,7 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
                     }
                 }
                 return false;
-            } catch (ErrorLockException e) {
+            } catch (DeletedMemoryAccessException e) {
                 continue;
             }
         }
@@ -674,6 +689,9 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
 
         for (int i = 0; i < MAX_RETRIES; i++) {
             try {
+                // Adding try-catch block to enable deleting keys concurrently with keys access 
+                // in find chunk and lookup.
+                // If key was found to be deleted while looking we re-do the operation.
                 OrderedChunk<K, V> c = findChunk(key); // find orderedChunk matching key
                 c.lookUp(ctx, key);
                 if (!ctx.isValueValid()) {
@@ -685,7 +703,7 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
                     continue;
                 }
                 return (T) res.value;
-            } catch (ErrorLockException e) {
+            } catch (DeletedMemoryAccessException e) {
                 continue;
             }
         }
@@ -770,6 +788,9 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
 
         for (int i = 0; i < MAX_RETRIES; i++) {
             try {
+                // Adding try-catch block to enable deleting keys concurrently with keys access 
+                // in find chunk and lookup.
+                // If key was found to be deleted while looking we re-do the operation.
                 OrderedChunk<K, V> c = findChunk(key); // find orderedChunk matching key
                 c.lookUp(ctx, key);
                 if (!ctx.isValueValid()) {
@@ -783,7 +804,7 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
                 }
                 // it might be that this chunk is proceeding with rebalance -> help
                 helpRebalanceIfInProgress(c);
-            } catch (ErrorLockException e) {
+            } catch (DeletedMemoryAccessException e) {
                 continue;
             }
         }
@@ -796,6 +817,9 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
 
         for (int i = 0; i < MAX_RETRIES; i++) {
             try {
+                // Adding try-catch block to enable deleting keys concurrently with keys access 
+                // in find chunk and lookup.
+                // If key was found to be deleted while looking we re-do the operation.
                 OrderedChunk<K, V> c = findChunk(key); // find orderedChunk matching key
                 c.lookUp(ctx, key);
                 if (!ctx.isValueValid()) {
@@ -810,7 +834,7 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
                     continue;
                 }
                 return res == ValueUtils.ValueResult.TRUE;
-            } catch (ErrorLockException e) {
+            } catch (DeletedMemoryAccessException e) {
                 continue;
             }
         }

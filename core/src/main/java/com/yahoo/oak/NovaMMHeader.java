@@ -82,7 +82,7 @@ class NovaMMHeader {
     
     ValueUtils.ValueResult lockRead(final int onHeapVersion, long headerAddress) {
         if (onHeapVersion % 2 == 1) {
-            throw new ErrorLockException();
+            throw new DeletedMemoryAccessException();
         }
         return ValueUtils.ValueResult.TRUE;
     }
@@ -90,7 +90,7 @@ class NovaMMHeader {
     ValueUtils.ValueResult unlockRead(final int onHeapVersion, long headerAddress) {
         UnsafeUtils.UNSAFE.loadFence();
         if (! (onHeapVersion == (int) (UnsafeUtils.UNSAFE.getLong(headerAddress) & 0x1FFFFF))) {
-            throw new ErrorLockException();
+            throw new DeletedMemoryAccessException();
         }
         return ValueUtils.ValueResult.TRUE;
     }

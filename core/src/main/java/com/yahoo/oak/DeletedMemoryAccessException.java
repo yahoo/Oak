@@ -6,12 +6,12 @@
 
 package com.yahoo.oak;
 
-public class ErrorLockException extends RuntimeException {
-    public ErrorLockException() {
+public class DeletedMemoryAccessException extends RuntimeException {
+    public DeletedMemoryAccessException() {
         super();
     }
 
-    public ErrorLockException(String message) {
+    public DeletedMemoryAccessException(String message) {
         super(message);
     }
 }
