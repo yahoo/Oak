@@ -73,7 +73,7 @@ public class OffHeapList<K extends MyBuffer, V extends MyBuffer> implements Comp
 
         skipListMap = new ConcurrentSkipListMap<>(comparator);
         allocator = new NativeMemoryAllocator(OAK_MAX_OFF_MEMORY);
-        mm = new SyncRecycleMemoryManager(allocator);
+        mm = new SeqExpandMemoryManager(allocator);
     }
 
     @Override
