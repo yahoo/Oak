@@ -216,6 +216,7 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
         if (getKeyReference(idx) == keysMemoryManager.getInvalidReference()) {
             return EntryState.UNKNOWN;
         }
+
         // try to get consistent read of key, value, hash code, its update counter and valid bit
         do {
             ctx.keyHashAndUpdateCnt = getKeyHashAndUpdateCounter(idx);
