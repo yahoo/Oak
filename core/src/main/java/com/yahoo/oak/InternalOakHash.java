@@ -691,8 +691,8 @@ class InternalOakHash<K, V> extends InternalOakBasics<K, V> {
             advanceState();
         }
 
-
-        protected HashChunk<K, V> getNextChunk(HashChunk<K, V> current) {
+        @Override
+        protected BasicChunk<K, V> getNextChunk(BasicChunk<K, V> current) {
             KeyBuffer keyBuffer = ((IteratorState) getState()).getKeyBuffer();
             int lastKeyHash = 0;
             boolean hashValid = false;

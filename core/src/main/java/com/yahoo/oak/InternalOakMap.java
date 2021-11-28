@@ -1058,11 +1058,13 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
             advanceState();
         }
 
-        protected OrderedChunk<K, V> getNextChunk(OrderedChunk<K, V> current) {
+        @Override
+        protected BasicChunk<K, V> getNextChunk(BasicChunk<K, V> current) {
+            OrderedChunk<K, V> currentHashChunk = (OrderedChunk<K, V>) current;
             if (!isDescending) {
-                return  current.next.getReference();
+                return  currentHashChunk.next.getReference();
             } else {
-                Map.Entry<Object, OrderedChunk<K, V>> entry = skiplist.lowerEntry(current.minKey);
+                Map.Entry<Object, OrderedChunk<K, V>> entry = skiplist.lowerEntry(currentHashChunk.minKey);
                 if (entry == null) {
                     return null;
                 } else {

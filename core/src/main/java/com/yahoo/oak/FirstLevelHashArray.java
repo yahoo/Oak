@@ -120,7 +120,7 @@ class FirstLevelHashArray<K, V> {
         return chunks.get(index);
     }
 
-    HashChunk<K, V> getNextChunk(HashChunk<K, V> curChunk, int keyHash, boolean hashValid) {
+    BasicChunk<K, V> getNextChunk(BasicChunk<K, V> curChunk, int keyHash, boolean hashValid) {
         int idx = 0;
         boolean idxFound = false;
         if (hashValid) {

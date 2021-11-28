@@ -302,6 +302,7 @@ abstract class InternalOakBasics<K, V> {
             state = newState;
         }
 
+        protected abstract BasicChunk<K, V> getNextChunk(BasicChunk<K, V> current);
         protected abstract void advanceState();
 
     }
