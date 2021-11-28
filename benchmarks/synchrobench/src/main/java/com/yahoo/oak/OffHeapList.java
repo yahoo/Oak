@@ -153,6 +153,9 @@ public class OffHeapList<K extends MyBuffer, V extends MyBuffer> implements Comp
     @Override
     public void removeOak(K key) {
         Cell val = skipListMap.remove(key);
+        if (val == null) {
+            return;
+        }
         allocator.free(((ScopedReadBuffer) val.key.get()).getSlice());
         allocator.free(val.value.get().getSlice());
         // TODO YONIGO - need some sync here!
