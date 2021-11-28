@@ -25,6 +25,8 @@
             deploy this module's artifacts to Maven Central' staging repo
          -->
         <skipStaging>true</skipStaging>
+        <!-- Set default jacoco argument -->
+        <jacoco.argLine/>
     </properties>
 
 
@@ -142,9 +144,6 @@
                 <plugin>
                     <artifactId>maven-source-plugin</artifactId>
                     <version>2.2.1</version>
-                </plugin>
-                <plugin>
-                    <artifactId>maven-surefire-plugin</artifactId>
                 </plugin>
             </plugins>
         </pluginManagement>
