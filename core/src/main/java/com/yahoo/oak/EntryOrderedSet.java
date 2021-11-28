@@ -276,12 +276,7 @@ class EntryOrderedSet<K, V> extends EntryArray<K, V> {
 
         assert valuesMemoryManager.isReferenceConsistent(tempValue.getSlice().getReference());
 
-        // ARRAY COPY: using next as the base of the entry
-        // copy both the key and the value references and integer for future use => 5 integers via array copy
-        // the first field in an entry is next, and it is not copied since it should be assigned elsewhere
-        // therefore, to copy the rest of the entry we use the offset of next (which we assume is 0) and
-        // add 1 to start the copying from the subsequent field of the entry.
-        copyEntriesFrom(srcEntryOrderedSet, srcEntryIdx, destEntryIndex, 2);
+        copyEntryFrom(srcEntryOrderedSet, srcEntryIdx, destEntryIndex);
 
         assert valuesMemoryManager.isReferenceConsistent(getValueReference(destEntryIndex));
 

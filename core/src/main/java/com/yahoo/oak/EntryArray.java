@@ -6,9 +6,9 @@
 
 package com.yahoo.oak;
 
-import sun.misc.Unsafe;
+import sun.nio.ch.DirectBuffer;
 
-import java.util.Arrays;
+import java.nio.ByteBuffer;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /*
@@ -60,13 +60,20 @@ public class EntryArray<K, V> {
 
     final MemoryManager valuesMemoryManager;
     final MemoryManager keysMemoryManager;
-    private final long[] entries;    // array is initialized to 0 - this is important!
-    private final int fields;  // # of primitive fields in each item of entries array
+
+    // We store the buffer object here to avoid the buffer collection by the GC
+    private final ByteBuffer buffer;
+
+    // The direct address to the entries
+    private final long entries;     // buffer is initialized to 0 - this is important!
+
+    // Number of primitive fields in each entry
+    private final int fields;
 
     final int entriesCapacity; // number of entries (not longs) to be maximally held
 
     // Counts number of entries inserted & not deleted. Pay attention that not all entries (counted
-    // in number of entries) are finally are finally considered existing by the OrderedChunk above
+    // in number of entries) are finally considered existing by the OrderedChunk above
     // and participating in holding the "real" KV-mappings, the "real" are counted in OrderedChunk
     protected final AtomicInteger numOfEntries;
 
@@ -87,23 +94,12 @@ public class EntryArray<K, V> {
         this.valuesMemoryManager = vMM;
         this.keysMemoryManager = kMM;
         this.fields = additionalFieldCount + 2; // +2 for key and value references that always exist
-        this.entries = new long[entriesCapacity * this.fields];
+        this.buffer = ByteBuffer.allocateDirect(entriesCapacity * this.fields * Long.BYTES);
+        this.entries = ((DirectBuffer) this.buffer).address();
         this.numOfEntries = new AtomicInteger(0);
         this.entriesCapacity = entriesCapacity;
         this.keySerializer = keySerializer;
         this.valueSerializer = valueSerializer;
-    }
-
-    /**
-     * Brings the array to its initial state with all zeroes, and reset the number of entries
-     * Used when we want to empty the structure without reallocating all the objects/memory
-     * Exists only for hash, as for the map there are min keys in the off-heap memory
-     * and the full clear method is more subtle
-     * NOT THREAD SAFE !!!
-     */
-    protected void clear() {
-        Arrays.fill(entries, 0);
-        numOfEntries.set(0);
     }
 
     // EntryState is the state of the entry after inspection of the states of its key and value
@@ -151,23 +147,9 @@ public class EntryArray<K, V> {
     }
 
 
-    /********************************************************************************************/
-    /*---------------- Methods for setting and getting specific entry's field ------------------*/
-
-    /**
-     * Converts external entry-index to internal array index.
-     * <p>
-     * We use the following terminology:
-     *  - longIdx for the long's index inside the entries array (referred as a set of longs)
-     *  - entryIdx for the index of entry array (referred as a set of entries)
-     *
-     * @param entryIdx external entry-index
-     * @return the internal array index
-     */
-    private int entryIdx2LongIdx(int entryIdx) {
-        return entryIdx * fields;
-    }
-
+    /* ######################################################################################## */
+    /* # Methods for setting and getting specific entry's field                               # */
+    /* ######################################################################################## */
 
     /**
      * Returns the number of entries allocated and not deleted for this EntryArray instance.
@@ -179,32 +161,71 @@ public class EntryArray<K, V> {
     }
 
     /**
-     * Atomically reads long field of the entries array.
+     * Brings the array to its initial state with all zeroes, and reset the number of entries
+     * Used when we want to empty the structure without reallocating all the objects/memory
+     * Exists only for hash, as for the map there are min keys in the off-heap memory
+     * and the full clear method is more subtle
+     * NOT THREAD SAFE !!!
      */
-    protected long getEntryFieldLong(int entryIndex, int entryOffset) {
-        return entries[entryIdx2LongIdx(entryIndex) + entryOffset];
-    }
-
-    protected void setEntryFieldLong(int entryIndex, int entryOffset, long value) {
-        entries[entryIdx2LongIdx(entryIndex) + entryOffset] = value;
+    protected void clear() {
+        UnsafeUtils.UNSAFE.setMemory(null, this.entries, buffer.capacity(), (byte) 0);
+        numOfEntries.set(0);
     }
 
     /**
-     * Performs CAS of given long field of the entries longs array,
-     * that should be associated with some entry.
-     * CAS from 'expectedLongValue' to 'newLongValue' for field at specified offset
-     *
+     * Converts external entry-index and field-index to the field's direct memory address.
+     * <p>
+     * @param entryIndex the index of the entry
+     * @param fieldIndex the field (long) index inside the entry
+     * @return the field's direct memory address
      */
-    protected boolean casEntryFieldLong(int entryIndex, int entryOffset, long expectedLongValue,
-                                      long newLongValue) {
-        int index = Unsafe.ARRAY_LONG_BASE_OFFSET +
-                (entryIdx2LongIdx(entryIndex) + entryOffset) * Unsafe.ARRAY_LONG_INDEX_SCALE;
-        return UnsafeUtils.UNSAFE.compareAndSwapLong(entries, index, expectedLongValue, newLongValue);
+    private long entryMemoryAddress(int entryIndex, int fieldIndex) {
+        int offset = (entryIndex * fields) + fieldIndex;
+        return entries + ((long) offset * (long) Long.BYTES);
+    }
+
+    /**
+     * Atomically reads long field of an entry.
+     */
+    protected final long getEntryFieldLong(int entryIndex, int fieldIndex) {
+        return UnsafeUtils.getLong(entryMemoryAddress(entryIndex, fieldIndex));
+    }
+
+    /**
+     * Atomically sets long field of an entry.
+     */
+    protected final void setEntryFieldLong(int entryIndex, int fieldIndex, long value) {
+        UnsafeUtils.putLong(entryMemoryAddress(entryIndex, fieldIndex), value);
+    }
+
+    /**
+     * Performs CAS of given long field of an entry.
+     */
+    protected boolean casEntryFieldLong(int entryIndex, int fieldIndex,
+                                        long expectedLongValue, long newLongValue) {
+        return UnsafeUtils.UNSAFE.compareAndSwapLong(null,
+                entryMemoryAddress(entryIndex, fieldIndex),
+                expectedLongValue, newLongValue);
+    }
+
+    /**
+     * Copy both the key and the value references from another entry array.
+     * @param other The entry array to copy from
+     * @param srcEntryIndex The source entry index (from the other array)
+     * @param destEntryIndex the destination entry index (to this array)
+     */
+    protected final void copyEntryFrom(EntryArray<K, V> other, int srcEntryIndex, int destEntryIndex) {
+        UnsafeUtils.UNSAFE.copyMemory(
+            other.entryMemoryAddress(srcEntryIndex, 0),
+            this.entryMemoryAddress(destEntryIndex, 0),
+            2L * Long.BYTES // We copy two fields (key and value references)
+        );
     }
 
 
-    /********************************************************************************************/
-    /*--------------- Methods for setting and getting specific key and/or value ----------------*/
+    /* ######################################################################################## */
+    /* # Methods for setting and getting specific key and/or value                            # */
+    /* ######################################################################################## */
 
     /**
      * Atomically reads the key reference from the entry (given by entry index "ei")
@@ -244,18 +265,6 @@ public class EntryArray<K, V> {
      */
     protected boolean casValueReference(int ei, long valueRefOld, long valueRefNew) {
         return casEntryFieldLong(ei, VALUE_REF_OFFSET, valueRefOld, valueRefNew);
-    }
-
-    protected void copyEntriesFrom(EntryArray<K, V> other, int srcEntryIdx, int destEntryIndex, int fieldCount) {
-        // ARRAY COPY: using next as the base of the entry
-        // copy both the key and the value references and integer for future use => 5 integers via array copy
-        // the first field in an entry is next, and it is not copied since it should be assigned elsewhere
-        // therefore, to copy the rest of the entry we use the offset of next (which we assume is 0) and
-        // add 1 to start the copying from the subsequent field of the entry.
-        System.arraycopy(other.entries,  // source entries array
-                entryIdx2LongIdx(srcEntryIdx),
-                entries,                        // this entries array
-                entryIdx2LongIdx(destEntryIndex), fieldCount);
     }
 
     /*
