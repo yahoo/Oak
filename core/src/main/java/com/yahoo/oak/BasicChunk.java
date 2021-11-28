@@ -57,6 +57,14 @@ abstract class BasicChunk<K, V> {
         child.state.set(State.INFANT);
         return;
     }
+    /*---------------Abstract Read methods -----------------------*/
+    abstract void readKey(ThreadContext ctx);
+
+    abstract void readValue(ThreadContext ctx);
+
+    abstract boolean readKeyFromEntryIndex(KeyBuffer key, int ei);
+
+    abstract boolean readValueFromEntryIndex(ValueBuffer value, int ei);
 
     /*-------------- Publishing related methods and getters ---------------*/
     /**
@@ -280,6 +288,7 @@ abstract class BasicChunk<K, V> {
     }
 
     /********************************************************************************************/
+
     interface BasicChunkIter {
         boolean hasNext();
 

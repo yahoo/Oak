@@ -51,8 +51,7 @@ public class OakMap<K, V> extends AbstractMap<K, V>
     OakMap(K minKey, OakSerializer<K> keySerializer, OakSerializer<V> valueSerializer, OakComparator<K> oakComparator,
         int chunkMaxItems, MemoryManager vMM, MemoryManager kMM) {
 
-        //this.valuesMemoryManager = vMM;
-        //this.keysMemoryManager = kMM;
+
         this.comparator = oakComparator;
         this.internalOakMap = new InternalOakMap<>(minKey, keySerializer, valueSerializer, oakComparator,
                 vMM, kMM, chunkMaxItems, new ValueUtils());
@@ -73,8 +72,7 @@ public class OakMap<K, V> extends AbstractMap<K, V>
     private OakMap(OakMap<K, V> oakMap, K fromKey, boolean fromInclusive, K toKey,
                    boolean toInclusive, boolean isDescending) {
         this.internalOakMap = oakMap.internalOakMap;
-        //this.valuesMemoryManager = oakMap.valuesMemoryManager;
-        //this.keysMemoryManager = oakMap.keysMemoryManager;
+
         this.keyDeserializeTransformer = oakMap.keyDeserializeTransformer;
         this.valueDeserializeTransformer = oakMap.valueDeserializeTransformer;
         this.entryDeserializeTransformer = oakMap.entryDeserializeTransformer;

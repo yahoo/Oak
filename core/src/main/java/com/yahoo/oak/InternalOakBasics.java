@@ -7,6 +7,8 @@
 package com.yahoo.oak;
 
 import java.io.IOException;
+import java.util.Iterator;
+import java.util.NoSuchElementException;
 import java.util.concurrent.atomic.AtomicInteger;
 
 abstract class InternalOakBasics<K, V> {
@@ -171,6 +173,138 @@ abstract class InternalOakBasics<K, V> {
         return new UnscopedValueBufferSynced(ctx.key, ctx.value, this);
     }
 
+    // Iterator State base class
+    static class BasicIteratorState<K, V> {
+
+        private BasicChunk<K, V> chunk;
+        private BasicChunk.BasicChunkIter chunkIter;
+        private int index;
+
+        public void set(BasicChunk<K, V> chunk, BasicChunk.BasicChunkIter chunkIter, int index) {
+            this.chunk = chunk;
+            this.chunkIter = chunkIter;
+            this.index = index;
+        }
+
+        protected BasicIteratorState(BasicChunk<K, V> nextChunk, BasicChunk.BasicChunkIter nextChunkIter,
+                                     int nextIndex) {
+
+            this.chunk = nextChunk;
+            this.chunkIter = nextChunkIter;
+            this.index = nextIndex;
+        }
+
+        BasicChunk<K, V> getChunk() {
+            return chunk;
+        }
+
+        BasicChunk.BasicChunkIter getChunkIter() {
+            return chunkIter;
+        }
+
+        public int getIndex() {
+            return index;
+        }
+
+    }
+
+
+    /************************/
+    /* Basic Iterator class */
+    /************************/
+    abstract class BasicIter<T> implements Iterator<T> {
+
+
+        /**
+         * the next node to return from next();
+         */
+        private BasicIteratorState<K, V> state;
+
+        /**
+         * An iterator cannot be accesses concurrently by multiple threads.
+         * Thus, it is safe to have its own thread context.
+         */
+        protected ThreadContext ctx;
+
+        /**
+         * Initializes ascending iterator for entire range.
+         */
+        BasicIter() {
+            this.ctx = new ThreadContext(keysMemoryManager, valuesMemoryManager);
+        }
+
+        public boolean hasNext() {
+            return (state != null);
+        }
+
+        protected abstract void initAfterRebalance();
+
+
+        // the actual next()
+        public abstract T next();
+
+        /**
+         * Advances next to higher entry.
+         *  previous index
+         *
+         * The first long is the key's reference, the integer is the value's version and the second long is
+         * the value's reference. If {@code needsValue == false}, then the value of the map entry is {@code null}.
+         */
+        void advance(boolean needsValue) {
+            boolean validState = false;
+
+            while (!validState) {
+                if (state == null) {
+                    throw new NoSuchElementException();
+                }
+
+                final BasicChunk<K, V> chunk = state.getChunk();
+                if (chunk.state() == BasicChunk.State.RELEASED) {
+                    initAfterRebalance();
+                    continue;
+                }
+
+                final int curIndex = state.getIndex();
+
+                // build the entry context that sets key references and does not check for value validity.
+                ctx.initEntryContext(curIndex);
+
+
+                chunk.readKey(ctx);
+
+                validState = ctx.isKeyValid();
+
+                if (validState & needsValue) {
+                    // Set value references and checks for value validity.
+                    // if value is deleted ctx.entryState is going to be invalid
+                    chunk.readValue(ctx);
+                    validState = ctx.isValueValid();
+                }
+
+                advanceState();
+            }
+        }
+
+        /**
+         * Advances next to the next entry without creating a ByteBuffer for the key.
+         * Return previous index
+         */
+        abstract void advanceStream(UnscopedBuffer<KeyBuffer> key, UnscopedBuffer<ValueBuffer> value);
+
+
+
+
+
+        protected BasicIteratorState getState() {
+            return state;
+        }
+        protected void setState(BasicIteratorState newState) {
+            state = newState;
+        }
+
+        protected abstract void advanceState();
+
+    }
 }
 
 

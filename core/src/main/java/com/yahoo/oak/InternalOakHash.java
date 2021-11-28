@@ -531,39 +531,34 @@ class InternalOakHash<K, V> extends InternalOakBasics<K, V> {
     /*-------------- Iterators --------------*/
     //////////////////////////////////////////////////////////////////////////////
 
-    private static final class IteratorState<K, V> {
+    private static final class IteratorState<K, V> extends InternalOakBasics.BasicIteratorState {
 
-        private HashChunk<K, V> hashChunk;
-        private HashChunk<K, V>.ChunkIter chunkIter;
-        private int index;
+        private KeyBuffer lastKeyAccessed = null;
+        private boolean keyBufferValid = false;
 
-        public void set(HashChunk<K, V> hashChunk, HashChunk<K, V>.ChunkIter chunkIter, int index) {
-            this.hashChunk = hashChunk;
-            this.chunkIter = chunkIter;
-            this.index = index;
+        private IteratorState(HashChunk<K, V> nextHashChunk, HashChunk<K, V>.HashChunkIter nextChunkIter,
+                              int nextIndex) {
+            super(nextHashChunk, nextChunkIter, nextIndex);
         }
 
-        private IteratorState(HashChunk<K, V> nextHashChunk, HashChunk<K, V>.ChunkIter nextChunkIter, int nextIndex) {
-
-            this.hashChunk = nextHashChunk;
-            this.chunkIter = nextChunkIter;
-            this.index = nextIndex;
+        private KeyBuffer getKeyBuffer() {
+            if (keyBufferValid) {
+                return lastKeyAccessed;
+            } else {
+                return null;
+            }
         }
 
-        HashChunk<K, V> getHashChunk() {
-            return hashChunk;
+        private void setKeyBuffer(KeyBuffer newBuffer) {
+            lastKeyAccessed = newBuffer;
         }
 
-        HashChunk<K, V>.ChunkIter getChunkIter() {
-            return chunkIter;
-        }
-
-        public int getIndex() {
-            return index;
+        private void setKeyValid(boolean keyBufferValid) {
+            this.keyBufferValid = keyBufferValid;
         }
 
         static <K, V> InternalOakHash.IteratorState<K, V> newInstance(
-                HashChunk<K, V> nextHashChunk, HashChunk<K, V>.ChunkIter nextChunkIter) {
+                HashChunk<K, V> nextHashChunk, HashChunk<K, V>.HashChunkIter nextChunkIter) {
 
             return new InternalOakHash.IteratorState<>(nextHashChunk, nextChunkIter, HashChunk.INVALID_ENTRY_INDEX);
         }
@@ -573,36 +568,15 @@ class InternalOakHash<K, V> extends InternalOakBasics<K, V> {
     /**
      * Base of iterator classes:
      */
-    abstract class Iter<T> implements Iterator<T> {
+    abstract class HashIter<T> extends BasicIter<T> {
 
-
-        /**
-         * the next node to return from next();
-         */
-        private InternalOakHash.IteratorState<K, V> state;
-
-        /**
-         * An iterator cannot be accesses concurrently by multiple threads.
-         * Thus, it is safe to have its own thread context.
-         */
-        protected ThreadContext ctx;
-
-        /**
-         * Initializes ascending iterator for entire range.
-         */
-        Iter() {
-            this.ctx = new ThreadContext(keysMemoryManager, valuesMemoryManager);
+        HashIter() {
             initState();
-
         }
-
-        public final boolean hasNext() {
-            return (state != null);
-        }
-
-        private void initAfterRebalance() {
+        @Override
+        protected void initAfterRebalance() {
             //TODO - refactor to use OakReadBuffer without deserializing.
-            state.getHashChunk().readKeyFromEntryIndex(ctx.tempKey, state.getIndex());
+            getState().getChunk().readKeyFromEntryIndex(ctx.tempKey, getState().getIndex());
             K nextKey = keySerializer.deserialize(ctx.tempKey);
 
 
@@ -611,9 +585,6 @@ class InternalOakHash<K, V> extends InternalOakBasics<K, V> {
         }
 
 
-        // the actual next()
-        public abstract T next();
-
         /**
          * Advances next to higher entry.
          *  previous index
@@ -621,21 +592,21 @@ class InternalOakHash<K, V> extends InternalOakBasics<K, V> {
          * The first long is the key's reference, the integer is the value's version and the second long is
          * the value's reference. If {@code needsValue == false}, then the value of the map entry is {@code null}.
          */
+        @Override
         void advance(boolean needsValue) {
             boolean validState = false;
 
             while (!validState) {
-                if (state == null) {
+                if (getState() == null) {
                     throw new NoSuchElementException();
                 }
 
-                final HashChunk<K, V> chunk = state.getHashChunk();
+                final BasicChunk<K, V> chunk = getState().getChunk();
                 if (chunk.state() == BasicChunk.State.RELEASED) {
-                    initAfterRebalance();
-                    continue;
+                    throw new UnsupportedOperationException("rebalance in not supported by InternalOakHash iterator");
                 }
 
-                final int curIndex = state.getIndex();
+                final int curIndex = getState().getIndex();
 
                 // build the entry context that sets key references and does not check for value validity.
                 ctx.initEntryContext(curIndex);
@@ -643,11 +614,14 @@ class InternalOakHash<K, V> extends InternalOakBasics<K, V> {
 
                 chunk.readKey(ctx);
 
+                ((IteratorState) getState()).setKeyBuffer(ctx.key);
+                ((IteratorState) getState()).setKeyValid(ctx.isKeyValid());
                 validState = ctx.isKeyValid();
-                
+
                 if (validState & needsValue) {
                     // Set value references and checks for value validity.
                     // if value is deleted ctx.entryState is going to be invalid
+
                     chunk.readValue(ctx);
                     validState = ctx.isValueValid();
                 }
@@ -660,26 +634,30 @@ class InternalOakHash<K, V> extends InternalOakBasics<K, V> {
          * Advances next to the next entry without creating a ByteBuffer for the key.
          * Return previous index
          */
-        void advanceStream(UnscopedBuffer<KeyBuffer> key, UnscopedBuffer<ValueBuffer> value) {
+        @Override
+        protected void  advanceStream(UnscopedBuffer<KeyBuffer> key, UnscopedBuffer<ValueBuffer> value) {
             assert key != null || value != null;
 
             boolean validState = false;
 
             while (!validState) {
-                if (state == null) {
+                if (getState() == null) {
                     throw new NoSuchElementException();
                 }
 
-                final HashChunk<K, V> c = state.getHashChunk();
+                final BasicChunk<K, V> c = getState().getChunk();
                 if (c.state() == BasicChunk.State.RELEASED) {
                     initAfterRebalance();
                     continue;
                 }
 
-                final int curIndex = state.getIndex();
+                final int curIndex = getState().getIndex();
 
                 if (key != null) {
                     validState = c.readKeyFromEntryIndex(key.getInternalScopedReadBuffer(), curIndex);
+                    ((IteratorState) getState()).setKeyBuffer(key.getInternalScopedReadBuffer());
+                    ((IteratorState) getState()).setKeyValid(validState);
+
                     assert validState;
                 }
 
@@ -692,56 +670,70 @@ class InternalOakHash<K, V> extends InternalOakBasics<K, V> {
             }
         }
 
-        private void initState() {
+        protected void initState() {
 
-            HashChunk<K, V>.ChunkIter nextChunkIter;
+            HashChunk<K, V>.HashChunkIter nextChunkIter;
             HashChunk<K, V> nextHashChunk;
             int fstChunkIdx = 0;
 
             nextHashChunk = hashArray.getChunk(fstChunkIdx);
             if (nextHashChunk != null) {
-                nextChunkIter = nextHashChunk.hashChunkIter(ctx);
+                nextChunkIter = (HashChunk<K, V>.HashChunkIter) nextHashChunk.chunkIter(ctx);
             } else {
-                state = null;
+                setState(null);
                 return;
             }
 
 
             //Init state, not valid yet, must move forward
-            state = InternalOakHash.IteratorState.newInstance(nextHashChunk, nextChunkIter);
+            setState(InternalOakHash.IteratorState.newInstance(nextHashChunk, nextChunkIter));
+            ((IteratorState) getState()).setKeyValid(false);
             advanceState();
         }
 
-        private HashChunk<K, V> getNextChunk(HashChunk<K, V> current) {
-            return hashArray.getNextChunk(current);
+
+        protected HashChunk<K, V> getNextChunk(HashChunk<K, V> current) {
+            KeyBuffer keyBuffer = ((IteratorState) getState()).getKeyBuffer();
+            int lastKeyHash = 0;
+            boolean hashValid = false;
+            if (keyBuffer == null) {
+                hashValid = false;
+            } else {
+                K deserializedKey = keySerializer.deserialize(ctx.key);
+
+                lastKeyHash = calculateKeyHash(deserializedKey, ctx);
+                hashValid = true;
+            }
+            return hashArray.getNextChunk(current, lastKeyHash, hashValid);
         }
 
-        private HashChunk<K, V>.ChunkIter getChunkIter(HashChunk<K, V> current) {
-            return current.hashChunkIter(ctx);
-        }
+        @Override
+        protected void advanceState() {
 
-        private void advanceState() {
-
-            HashChunk<K, V> hashChunk = state.getHashChunk();
-            HashChunk<K, V>.ChunkIter chunkIter = state.getChunkIter();
+            HashChunk<K, V> hashChunk = (HashChunk<K, V>) getState().getChunk();
+            BasicChunk.BasicChunkIter chunkIter = getState().getChunkIter();
 
 
             while (!chunkIter.hasNext()) { // chunks can have only removed keys
-                hashChunk = getNextChunk(hashChunk);
+                hashChunk = (HashChunk<K, V>) getNextChunk(hashChunk);
                 if (hashChunk == null) {
                     //End of iteration
-                    state = null;
+                    setState(null);
                     return;
                 }
                 chunkIter = getChunkIter(hashChunk);
             }
 
             int nextIndex = chunkIter.next(ctx);
-            state.set(hashChunk, chunkIter, nextIndex);
+            getState().set(hashChunk, chunkIter, nextIndex);
+        }
+
+        protected HashChunk<K, V>.HashChunkIter getChunkIter(HashChunk<K, V> current) {
+            return current.chunkIter(ctx);
         }
     }
 
-    class ValueIterator extends Iter<OakUnscopedBuffer> {
+    class ValueIterator extends HashIter<OakUnscopedBuffer> {
 
         @Override
         public OakUnscopedBuffer next() {
@@ -750,7 +742,7 @@ class InternalOakHash<K, V> extends InternalOakBasics<K, V> {
         }
     }
 
-    class ValueStreamIterator extends Iter<OakUnscopedBuffer> {
+    class ValueStreamIterator extends HashIter<OakUnscopedBuffer> {
 
         private final UnscopedBuffer<ValueBuffer> value =
                 new UnscopedBuffer<>(new ValueBuffer(valuesMemoryManager.getEmptySlice()));
@@ -762,7 +754,7 @@ class InternalOakHash<K, V> extends InternalOakBasics<K, V> {
         }
     }
 
-    class ValueTransformIterator<T> extends Iter<T> {
+    class ValueTransformIterator<T> extends HashIter<T> {
 
         final OakTransformer<T> transformer;
 
@@ -789,7 +781,7 @@ class InternalOakHash<K, V> extends InternalOakBasics<K, V> {
         }
     }
 
-    class EntryIterator extends Iter<Map.Entry<OakUnscopedBuffer, OakUnscopedBuffer>> {
+    class EntryIterator extends HashIter<Map.Entry<OakUnscopedBuffer, OakUnscopedBuffer>> {
 
         public Map.Entry<OakUnscopedBuffer, OakUnscopedBuffer> next() {
             advance(true);
@@ -797,7 +789,7 @@ class InternalOakHash<K, V> extends InternalOakBasics<K, V> {
         }
     }
 
-    class EntryStreamIterator extends Iter<Map.Entry<OakUnscopedBuffer, OakUnscopedBuffer>>
+    class EntryStreamIterator extends HashIter<Map.Entry<OakUnscopedBuffer, OakUnscopedBuffer>>
             implements Map.Entry<OakUnscopedBuffer, OakUnscopedBuffer> {
 
         private final UnscopedBuffer<KeyBuffer> key =
@@ -830,7 +822,7 @@ class InternalOakHash<K, V> extends InternalOakBasics<K, V> {
         }
     }
 
-    class EntryTransformIterator<T> extends Iter<T> {
+    class EntryTransformIterator<T> extends HashIter<T> {
 
         final Function<Map.Entry<OakScopedReadBuffer, OakScopedReadBuffer>, T> transformer;
 
@@ -864,7 +856,7 @@ class InternalOakHash<K, V> extends InternalOakBasics<K, V> {
     }
 
     // May return deleted keys
-    class KeyIterator extends Iter<OakUnscopedBuffer> {
+    class KeyIterator extends HashIter<OakUnscopedBuffer> {
 
         @Override
         public OakUnscopedBuffer next() {
@@ -874,7 +866,7 @@ class InternalOakHash<K, V> extends InternalOakBasics<K, V> {
         }
     }
 
-    public class KeyStreamIterator extends Iter<OakUnscopedBuffer> {
+    public class KeyStreamIterator extends HashIter<OakUnscopedBuffer> {
 
         private final UnscopedBuffer<KeyBuffer> key
                 = new UnscopedBuffer<>(new KeyBuffer(keysMemoryManager.getEmptySlice()));
@@ -886,7 +878,7 @@ class InternalOakHash<K, V> extends InternalOakBasics<K, V> {
         }
     }
 
-    class KeyTransformIterator<T> extends Iter<T> {
+    class KeyTransformIterator<T> extends HashIter<T> {
 
         final OakTransformer<T> transformer;
 

@@ -120,19 +120,31 @@ class FirstLevelHashArray<K, V> {
         return chunks.get(index);
     }
 
-    HashChunk<K, V> getNextChunk(HashChunk<K, V> curChunk) {
+    HashChunk<K, V> getNextChunk(HashChunk<K, V> curChunk, int keyHash, boolean hashValid) {
         int idx = 0;
-
-        // find the index of the current chunk
-        while (idx < chunks.length() && curChunk != getChunk(idx)) {
-            idx++;
-        }
-        // should never happen, but just to be on the safe side
-        if (! (idx < chunks.length())) {
-            return null;
+        boolean idxFound = false;
+        if (hashValid) {
+            idx = calculateHashArrayIdx(keyHash);
+            if (curChunk == getChunk(idx)) {
+                idxFound = true;
+            }
         }
 
-        int nextIdx = idx + 1;
+        if (!idxFound) {
+            // find the index of the current chunk
+            while (idx < chunks.length() && curChunk != getChunk(idx)) {
+                idx++;
+            }
+            // should never happen, but just to be on the safe side
+            if (!(idx < chunks.length())) {
+                return null;
+            }
+        }
+        int  nextIdx;
+        do {
+            nextIdx = idx + 1;
+        } while (nextIdx < chunks.length() && curChunk == getChunk(nextIdx));
+
 
         HashChunk<K, V> nxtChunk;
         if (!(nextIdx < chunks.length())) {

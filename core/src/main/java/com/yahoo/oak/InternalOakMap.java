@@ -253,7 +253,7 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
 
         // remove all old chunks from index.
         while (iterEngaged.hasNext()) {
-            OrderedChunk engagedToRemove = iterEngaged.next();
+            OrderedChunk<K, V> engagedToRemove = iterEngaged.next();
             skiplist.remove(engagedToRemove.minKey, engagedToRemove); // conditional remove is used
         }
 
@@ -276,7 +276,7 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
 
     // returns false when restart is needed
     // (if rebalance happened or another valid entry with same key was found)
-    private boolean allocateAndLinkEntry(OrderedChunk c, ThreadContext ctx, K key, boolean isPutIfAbsent) {
+    private boolean allocateAndLinkEntry(OrderedChunk<K, V> c, ThreadContext ctx, K key, boolean isPutIfAbsent) {
         // There was no such key found, going to allocate a new key.
         // EntryOrderedSet allocates the entry (holding the key) and ctx is going to be updated
         // to be used by EntryOrderedSet's subsequent requests to write value
@@ -624,7 +624,7 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
      *
      * @param ctx The context key should be initialized with the key to refresh, and the context value
      *            will be updated with the refreshed value.
-     * @reutrn true if the refresh was successful.
+     * @return true if the refresh was successful.
      */
     @Override
     boolean refreshValuePosition(ThreadContext ctx) {
@@ -830,36 +830,11 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
 
     /*-------------- Iterators --------------*/
 
-    private static final class IteratorState<K, V> {
-
-        private OrderedChunk<K, V> orderedChunk;
-        private OrderedChunk.ChunkIter chunkIter;
-        private int index;
-
-        public void set(OrderedChunk<K, V> orderedChunk, OrderedChunk.ChunkIter chunkIter, int index) {
-            this.orderedChunk = orderedChunk;
-            this.chunkIter = chunkIter;
-            this.index = index;
-        }
+    private static final class IteratorState<K, V> extends InternalOakBasics.BasicIteratorState {
 
         private IteratorState(
             OrderedChunk<K, V> nextOrderedChunk, OrderedChunk.ChunkIter nextChunkIter, int nextIndex) {
-
-            this.orderedChunk = nextOrderedChunk;
-            this.chunkIter = nextChunkIter;
-            this.index = nextIndex;
-        }
-
-        OrderedChunk<K, V> getOrderedChunk() {
-            return orderedChunk;
-        }
-
-        OrderedChunk.ChunkIter getChunkIter() {
-            return chunkIter;
-        }
-
-        public int getIndex() {
-            return index;
+            super(nextOrderedChunk, nextChunkIter, nextIndex);
         }
 
         static <K, V> IteratorState<K, V> newInstance(
@@ -879,7 +854,7 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
     /**
      * Base of iterator classes:
      */
-    abstract class Iter<T> implements Iterator<T> {
+    abstract class OrderedIter<T> extends  BasicIter<T> {
 
         private K lo;
 
@@ -892,21 +867,11 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
         /* direction */
         private final boolean isDescending;
 
-        /**
-         * the next node to return from next();
-         */
-        private IteratorState<K, V> state;
-
-        /**
-         * An iterator cannot be accesses concurrently by multiple threads.
-         * Thus, it is safe to have its own thread context.
-         */
-        protected ThreadContext ctx;
 
         /**
          * Initializes ascending iterator for entire range.
          */
-        Iter(K lo, boolean loInclusive, K hi, boolean hiInclusive, boolean isDescending) {
+        OrderedIter(K lo, boolean loInclusive, K hi, boolean hiInclusive, boolean isDescending) {
             validateBoundariesOrder(lo, hi);
 
             this.lo = lo;
@@ -914,9 +879,7 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
             this.hi = hi;
             this.hiInclusive = hiInclusive;
             this.isDescending = isDescending;
-            this.ctx = new ThreadContext(keysMemoryManager, valuesMemoryManager);
             initState(isDescending, lo, loInclusive, hi, hiInclusive);
-
         }
 
         private boolean tooLow(OakScopedReadBuffer key) {
@@ -944,13 +907,10 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
             }
         }
 
-        public final boolean hasNext() {
-            return (state != null);
-        }
-
-        private void initAfterRebalance() {
+        @Override
+        protected void initAfterRebalance() {
             //TODO - refactor to use OakReadBuffer without deserializing.
-            state.getOrderedChunk().readKeyFromEntryIndex(ctx.tempKey, state.getIndex());
+            getState().getChunk().readKeyFromEntryIndex(ctx.tempKey, getState().getIndex());
             K nextKey = keySerializer.deserialize(ctx.tempKey);
 
             if (isDescending) {
@@ -965,10 +925,6 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
             initState(isDescending, lo, loInclusive, hi, hiInclusive);
         }
 
-
-        // the actual next()
-        public abstract T next();
-
         /**
          * Advances next to higher entry.
          * Return previous index
@@ -976,26 +932,27 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
          * @return The first long is the key's reference, the integer is the value's version and the second long is
          * the value's reference. If {@code needsValue == false}, then the value of the map entry is {@code null}.
          */
+        @Override
         void advance(boolean needsValue) {
             boolean validState = false;
 
             while (!validState) {
-                if (state == null) {
+                if (getState() == null) {
                     throw new NoSuchElementException();
                 }
 
-                final OrderedChunk<K, V> c = state.getOrderedChunk();
+                final BasicChunk<K, V> c = getState().getChunk();
                 if (c.state() == BasicChunk.State.RELEASED) {
                     initAfterRebalance();
                     continue;
                 }
 
-                final int curIndex = state.getIndex();
+                final int curIndex = getState().getIndex();
 
                 // build the entry context that sets key references and does not check for value validity.
                 ctx.initEntryContext(curIndex);
 
-                if (!state.chunkIter.isBoundCheckNeeded()) {
+                if (!((OrderedChunk.ChunkIter) getState().getChunkIter()).isBoundCheckNeeded()) {
                     c.readKey(ctx);
                 } else {
                     // If we checked the boundary, then we already read the current key into ctx.tempKey
@@ -1019,26 +976,27 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
          * Advances next to the next entry without creating a ByteBuffer for the key.
          * Return previous index
          */
+        @Override
         void advanceStream(UnscopedBuffer<KeyBuffer> key, UnscopedBuffer<ValueBuffer> value) {
             assert key != null || value != null;
 
             boolean validState = false;
 
             while (!validState) {
-                if (state == null) {
+                if (getState() == null) {
                     throw new NoSuchElementException();
                 }
 
-                final OrderedChunk<K, V> c = state.getOrderedChunk();
+                final BasicChunk<K, V> c = getState().getChunk();
                 if (c.state() == BasicChunk.State.RELEASED) {
                     initAfterRebalance();
                     continue;
                 }
 
-                final int curIndex = state.getIndex();
+                final int curIndex = getState().getIndex();
 
                 if (key != null) {
-                    if (!state.chunkIter.isBoundCheckNeeded()) {
+                    if (!((OrderedChunk.ChunkIter) getState().getChunkIter()).isBoundCheckNeeded()) {
                         validState = c.readKeyFromEntryIndex(key.getInternalScopedReadBuffer(), curIndex);
                         assert validState;
                     } else {
@@ -1057,7 +1015,7 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
             }
         }
 
-        private void initState(boolean isDescending, K lowerBound, boolean lowerInclusive,
+        protected void initState(boolean isDescending, K lowerBound, boolean lowerInclusive,
                                K upperBound, boolean upperInclusive) {
 
             OrderedChunk.ChunkIter nextChunkIter;
@@ -1078,7 +1036,7 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
                         : nextOrderedChunk
                         .ascendingIter(ctx, upperBound, upperInclusive, upperBoundKeyForChunk);
                 } else {
-                    state = null;
+                    setState(null);
                     return;
                 }
             } else {
@@ -1090,19 +1048,19 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
                                 .descendingIter(ctx, upperBound, upperInclusive, lowerBound, lowerInclusive)
                         : nextOrderedChunk.descendingIter(ctx, lowerBound, lowerInclusive);
                 } else {
-                    state = null;
+                    setState(null);
                     return;
                 }
             }
 
             //Init state, not valid yet, must move forward
-            state = IteratorState.newInstance(nextOrderedChunk, nextChunkIter);
+            setState(IteratorState.newInstance(nextOrderedChunk, nextChunkIter));
             advanceState();
         }
 
-        private OrderedChunk<K, V> getNextChunk(OrderedChunk<K, V> current) {
+        protected OrderedChunk<K, V> getNextChunk(OrderedChunk<K, V> current) {
             if (!isDescending) {
-                return current.next.getReference();
+                return  current.next.getReference();
             } else {
                 Map.Entry<Object, OrderedChunk<K, V>> entry = skiplist.lowerEntry(current.minKey);
                 if (entry == null) {
@@ -1139,36 +1097,36 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
             return upperBoundKeyForChunk;
         }
 
-        private void advanceState() {
+        protected void advanceState() {
 
-            OrderedChunk<K, V> orderedChunk = state.getOrderedChunk();
-            OrderedChunk.ChunkIter chunkIter = state.getChunkIter();
+            OrderedChunk<K, V> orderedChunk = (OrderedChunk<K, V>) getState().getChunk();
+            OrderedChunk.ChunkIter chunkIter = (OrderedChunk.ChunkIter) getState().getChunkIter();
 
             while (!chunkIter.hasNext()) { // chunks can have only removed keys
-                orderedChunk = getNextChunk(orderedChunk);
+                orderedChunk = (OrderedChunk<K, V>) getNextChunk(orderedChunk);
                 if (orderedChunk == null) {
                     //End of iteration
-                    state = null;
+                    setState(null);
                     return;
                 }
                 chunkIter = getChunkIter(orderedChunk);
             }
 
             int nextIndex = chunkIter.next(ctx);
-            state.set(orderedChunk, chunkIter, nextIndex);
+            getState().set(orderedChunk, chunkIter, nextIndex);
 
             // The boundary check is costly and need to be performed only when required,
             // meaning not on the full scan.
             if (chunkIter.isBoundCheckNeeded()) {
                 orderedChunk.readKeyFromEntryIndex(ctx.tempKey, nextIndex);
                 if (!inBounds(ctx.tempKey)) {
-                    state = null;
+                    setState(null);
                 }
             }
         }
     }
 
-    class ValueIterator extends Iter<OakUnscopedBuffer> {
+    class ValueIterator extends OrderedIter<OakUnscopedBuffer> {
 
 
 
@@ -1185,7 +1143,7 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
         }
     }
 
-    class ValueStreamIterator extends Iter<OakUnscopedBuffer> {
+    class ValueStreamIterator extends OrderedIter<OakUnscopedBuffer> {
 
         private final UnscopedBuffer<ValueBuffer> value =
                 new UnscopedBuffer<>(new ValueBuffer(valuesMemoryManager.getEmptySlice()));
@@ -1201,7 +1159,7 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
         }
     }
 
-    class ValueTransformIterator<T> extends Iter<T> {
+    class ValueTransformIterator<T> extends OrderedIter<T> {
 
         final OakTransformer<T> transformer;
 
@@ -1230,7 +1188,7 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
         }
     }
 
-    class EntryIterator extends Iter<Map.Entry<OakUnscopedBuffer, OakUnscopedBuffer>> {
+    class EntryIterator extends OrderedIter<Map.Entry<OakUnscopedBuffer, OakUnscopedBuffer>> {
 
         private final InternalOakMap<K, V> internalOakMap;
 
@@ -1246,7 +1204,7 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
         }
     }
 
-    class EntryStreamIterator extends Iter<Map.Entry<OakUnscopedBuffer, OakUnscopedBuffer>>
+    class EntryStreamIterator extends OrderedIter<Map.Entry<OakUnscopedBuffer, OakUnscopedBuffer>>
             implements Map.Entry<OakUnscopedBuffer, OakUnscopedBuffer> {
 
         private final UnscopedBuffer<KeyBuffer> key =
@@ -1279,7 +1237,7 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
         }
     }
 
-    class EntryTransformIterator<T> extends Iter<T> {
+    class EntryTransformIterator<T> extends OrderedIter<T> {
 
         final Function<Map.Entry<OakScopedReadBuffer, OakScopedReadBuffer>, T> transformer;
 
@@ -1315,7 +1273,7 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
     }
 
     // May return deleted keys
-    class KeyIterator extends Iter<OakUnscopedBuffer> {
+    class KeyIterator extends OrderedIter<OakUnscopedBuffer> {
 
         KeyIterator(K lo, boolean loInclusive, K hi, boolean hiInclusive, boolean isDescending) {
             super(lo, loInclusive, hi, hiInclusive, isDescending);
@@ -1329,7 +1287,7 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
         }
     }
 
-    public class KeyStreamIterator extends Iter<OakUnscopedBuffer> {
+    public class KeyStreamIterator extends OrderedIter<OakUnscopedBuffer> {
 
         private final UnscopedBuffer<KeyBuffer> key
             = new UnscopedBuffer<>(new KeyBuffer(keysMemoryManager.getEmptySlice()));
@@ -1345,7 +1303,7 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
         }
     }
 
-    class KeyTransformIterator<T> extends Iter<T> {
+    class KeyTransformIterator<T> extends OrderedIter<T> {
 
         final OakTransformer<T> transformer;
 

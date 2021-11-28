@@ -324,17 +324,17 @@ class HashChunk<K, V> extends BasicChunk<K, V> {
     //*******************************************************************************************/
     /*--------------------------------- Iterators factory function ---------------------------------*/
 
-    ChunkIter hashChunkIter(ThreadContext ctx) {
-        return new ChunkIter(ctx);
+    HashChunkIter chunkIter(ThreadContext ctx) {
+        return new HashChunkIter(ctx);
     }
 
 
     /********************************************************************************************/
 
-    class ChunkIter implements BasicChunkIter {
+    class HashChunkIter implements BasicChunkIter {
         protected int next;         // index of the next entry to be returned
 
-        ChunkIter(ThreadContext ctx) {
+        HashChunkIter(ThreadContext ctx) {
             next = getFirstValidEntryIndex(ctx);
         }
 
