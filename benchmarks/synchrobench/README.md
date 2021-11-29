@@ -4,6 +4,18 @@ Oak and other Oak like maps.
 It is inspired, and largely based on the [synchro-bench 
 benchmarks suite](https://github.com/gramoli/synchrobench).
 
+## Prerequisites
+
+Install bash version higher than 5 and getopt.
+
+In Mac, use:
+```shell
+brew reinstall bash
+brew install gnu-getopt
+```
+
+Make sure to open a new terminal window after install bash.
+
 ## Adding a new map
 To add a new map, the developer needs to implement 
 `CompositionalMap`.
