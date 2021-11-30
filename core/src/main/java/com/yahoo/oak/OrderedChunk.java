@@ -11,7 +11,47 @@ import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicMarkableReference;
 
-class OrderedChunk<K, V> extends BasicChunk<K, V> {
+/* OrderedChunk keeps a set of entries linked to a link list. Entry is reference to key and value, both located
+ * off-heap. It provides access, updates and manipulation on each entry, provided its index.
+ *
+ * Entry is a set of at least 2 fields (consecutive longs), part of "entries" int array. The definition
+ * of each long is explained below. Also bits of each long (references) are represented in a very special
+ * way (also explained below). The bits manipulations are ReferenceCodec responsibility.
+ * Please update with care.
+ *
+ * Entries Array:
+ * --------------------------------------------------------------------------------------
+ * 0 | Key Reference          | Reference encoding all info needed to           |
+ *   |                        | access the key off-heap                         | entry with
+ * -----------------------------------------------------------------------------| entry index
+ * 1 | Value Reference        | Reference encoding all info needed to           | 0
+ *   |                        | access the key off-heap.                        |
+ *   |                        | The encoding of key and value can be different  | entry that
+ * -----------------------------------------------------------------------------| was allocated
+ * 2 | NEXT  - entry index of the entry following the entry with entry index 0  | first
+ * ---------------------------------------------------------------------------------------
+ * 3 | Key Reference          | Reference encoding all info needed to           |
+ *   |                        | access the key off-heap                         |
+ * -----------------------------------------------------------------------------| entry with
+ * 4 | Value Reference        | Reference encoding all info needed to           | entry index
+ *   |                        | access the key off-heap.                        | 1
+ * -----------------------------------------------------------------------------|
+ * 5 | NEXT  - entry index of the entry following the entry with entry index 1  |
+ * ---------------------------------------------------------------------------------------
+ * 6 | Key Reference          | Reference encoding all info needed to           |
+ *   |                        | access the key off-heap                         |
+ * -----------------------------------------------------------------------------| entry with
+ * 7 | Value Reference        | Reference encoding all info needed to           | entry index
+ *   |                        | access the key off-heap.                        | 2
+ * -----------------------------------------------------------------------------|
+ * 8 | NEXT  - entry index of the entry following the entry with entry index 2  |
+ * ---------------------------------------------------------------------------------------
+ * ...
+ *
+ *
+ * Internal class, package visibility
+ */
+class OrderedChunk<K, V> extends EntryArray<K, V> {
     // an entry with NONE_NEXT as its next pointer, points to a null entry
     static final int NONE_NEXT = EntryArray.INVALID_ENTRY_INDEX;
 
@@ -28,7 +68,6 @@ class OrderedChunk<K, V> extends BasicChunk<K, V> {
     /*-------------- Members --------------*/
     KeyBuffer minKey;       // minimal key that can be put in this chunk
     AtomicMarkableReference<OrderedChunk<K, V>> next;
-    private final EntryOrderedSet<K, V> entryOrderedSet;
 
     // # of sorted items at entry-array's beginning (resulting from split)
     private final AtomicInteger sortedCount;
@@ -38,28 +77,22 @@ class OrderedChunk<K, V> extends BasicChunk<K, V> {
      * This constructor is only used internally to instantiate a OrderedChunk without a creator and a min-key.
      * The caller should set the creator and min-key before returning the OrderedChunk to the user.
      */
-    private OrderedChunk(int maxItems, AtomicInteger externalSize, MemoryManager vMM, MemoryManager kMM,
-        OakComparator<K> comparator, OakSerializer<K> keySerializer,
-        OakSerializer<V> valueSerializer) {
-        super(maxItems, externalSize, comparator);
-        this.entryOrderedSet =
-            new EntryOrderedSet<>(vMM, kMM, maxItems, keySerializer, valueSerializer);
+    private OrderedChunk(OakSharedConfig<K, V> config, int entriesCapacity) {
+        super(config, ADDITIONAL_FIELDS, entriesCapacity);
         // sortedCount keeps the number of  subsequent and ordered entries in the entries array,
         // which are subject to binary search
         this.sortedCount = new AtomicInteger(0);
-        this.minKey = new KeyBuffer(kMM.getEmptySlice());
+        this.minKey = new KeyBuffer(config.keysMemoryManager.getEmptySlice());
         this.next = new AtomicMarkableReference<>(null, false);
+        this.nextFreeIndex = new AtomicInteger( 0);
     }
 
     /**
      * This constructor is only used when creating the first ever chunk (without a creator).
      */
-    OrderedChunk(K minKey, int maxItems, AtomicInteger externalSize, MemoryManager vMM, MemoryManager kMM,
-        OakComparator<K> comparator, OakSerializer<K> keySerializer,
-        OakSerializer<V> valueSerializer) {
-
-        this(maxItems, externalSize, vMM, kMM, comparator, keySerializer, valueSerializer);
-        entryOrderedSet.writeKey(minKey, this.minKey);
+    OrderedChunk(OakSharedConfig<K, V> config, K minKey, int entriesCapacity) {
+        this(config, entriesCapacity);
+        writeKey(minKey, this.minKey);
     }
 
     /**
@@ -68,10 +101,7 @@ class OrderedChunk<K, V> extends BasicChunk<K, V> {
      * (without duplicating the KeyBuffer data).
      */
     OrderedChunk<K, V> createFirstChild() {
-        OrderedChunk<K, V> child =
-            new OrderedChunk<>(getMaxItems(), externalSize,
-                entryOrderedSet.valuesMemoryManager, entryOrderedSet.keysMemoryManager,
-                comparator, entryOrderedSet.keySerializer, entryOrderedSet.valueSerializer);
+        OrderedChunk<K, V> child = new OrderedChunk<>(config, entriesCapacity);
         updateBasicChild(child);
         child.minKey.copyFrom(this.minKey);
         return child;
@@ -82,9 +112,7 @@ class OrderedChunk<K, V> extends BasicChunk<K, V> {
      * The child OrderedChunk will use a duplicate minKey of the input (allocates a new buffer).
      */
     OrderedChunk<K, V> createNextChild(KeyBuffer minKey) {
-        OrderedChunk<K, V> child = new OrderedChunk<>(getMaxItems(), externalSize,
-            entryOrderedSet.valuesMemoryManager, entryOrderedSet.keysMemoryManager,
-            comparator, entryOrderedSet.keySerializer, entryOrderedSet.valueSerializer);
+        OrderedChunk<K, V> child = new OrderedChunk<>(config, entriesCapacity);
         updateBasicChild(child);
         duplicateKeyBuffer(minKey, child.minKey);
         return child;
@@ -108,79 +136,11 @@ class OrderedChunk<K, V> extends BasicChunk<K, V> {
     /*-----------------------------  Wrappers for EntryOrderedSet methods -----------------------------*/
 
     /**
-     * See {@code EntryOrderedSet.isValueRefValidAndNotDeleted(int)} for more information
-     */
-    boolean isValueRefValidAndNotDeleted(int ei) {
-        return entryOrderedSet.isValueRefValidAndNotDeleted(ei);
-    }
-
-    /**
-     * See {@code EntryOrderedSet.readKey(ThreadContext)} for more information
-     */
-    void readKey(ThreadContext ctx) {
-        entryOrderedSet.readKey(ctx);
-    }
-
-    /**
-     * See {@code EntryOrderedSet.readValue(ThreadContext)} for more information
-     */
-    void readValue(ThreadContext ctx) {
-        entryOrderedSet.readValue(ctx);
-    }
-
-    /**
-     * See {@code EntryOrderedSet.readKey(KeyBuffer)} for more information
-     */
-    boolean readKeyFromEntryIndex(KeyBuffer key, int ei) {
-        return entryOrderedSet.readKey(key, ei);
-    }
-
-    /**
-     * See {@code EntryOrderedSet.readValue(ValueBuffer)} for more information
-     */
-    boolean readValueFromEntryIndex(ValueBuffer value, int ei) {
-        return entryOrderedSet.readValue(value, ei);
-    }
-
-    /**
-     * Writes the key off-heap and allocates an entry with the reference pointing to the given key
-     * See {@code EntryOrderedSet.allocateEntryAndWriteKey(ThreadContext)} for more information
-     */
-    @Override
-    boolean allocateEntryAndWriteKey(ThreadContext ctx, K key) {
-        return entryOrderedSet.allocateEntryAndWriteKey(ctx, key);
-    }
-
-    /**
-     * See {@code EntryOrderedSet.allocateValue(ThreadContext)} for more information
-     */
-    @Override
-    void allocateValue(ThreadContext ctx, V value, boolean writeForMove) {
-        entryOrderedSet.allocateValue(ctx, value, writeForMove);
-    }
-
-    /**
-     * See {@code EntryOrderedSet.releaseKey(ThreadContext)} for more information
-     */
-    @Override
-    void releaseKey(ThreadContext ctx) {
-        entryOrderedSet.releaseKey(ctx);
-    }
-
-    /**
-     * See {@code EntryOrderedSet.releaseNewValue(ThreadContext)} for more information
-     */
-    @Override
-    void releaseNewValue(ThreadContext ctx) {
-        entryOrderedSet.releaseNewValue(ctx);
-    }
-
-    /**
      * @param key a key buffer to be updated with the minimal key
      * @return true if successful
      */
     boolean readMinKey(KeyBuffer key) {
-        return entryOrderedSet.readKey(key, entryOrderedSet.getHeadNextEntryIndex());
+        return readKey(key, getHeadNextEntryIndex());
     }
 
     /**
@@ -188,15 +148,7 @@ class OrderedChunk<K, V> extends BasicChunk<K, V> {
      * @return true if successful
      */
     boolean readMaxKey(KeyBuffer key) {
-        return entryOrderedSet.readKey(key, getLastItemEntryIndex());
-    }
-
-    /**
-     * @return the index of the first item in the chunk
-     * See {@code EntryOrderedSet.getHeadNextIndex} for more information.
-     */
-    final int getFirstItemEntryIndex() {
-        return entryOrderedSet.getHeadNextEntryIndex();
+        return readKey(key, getLastItemEntryIndex());
     }
 
     /**
@@ -207,11 +159,11 @@ class OrderedChunk<K, V> extends BasicChunk<K, V> {
     private int getLastItemEntryIndex() {
         int sortedCount = this.sortedCount.get();
         int entryIndex = sortedCount == 0 ?
-            entryOrderedSet.getHeadNextEntryIndex() : getLastSortedEntryIndex(sortedCount);
-        int nextEntryIndex = entryOrderedSet.getNextEntryIndex(entryIndex);
+            getHeadNextEntryIndex() : getLastSortedEntryIndex(sortedCount);
+        int nextEntryIndex = getNextEntryIndex(entryIndex);
         while (nextEntryIndex != NONE_NEXT) {
             entryIndex = nextEntryIndex;
-            nextEntryIndex = entryOrderedSet.getNextEntryIndex(entryIndex);
+            nextEntryIndex = getNextEntryIndex(entryIndex);
         }
         return entryIndex;
     }
@@ -223,21 +175,6 @@ class OrderedChunk<K, V> extends BasicChunk<K, V> {
     /********************************************************************************************/
     /*-----------------------  Methods for looking up item in this chunk -----------------------*/
 
-    /**
-     * Compare a key with a serialized key that is pointed by a specific entry index
-     *
-     * @param tempKeyBuff a reusable buffer object for internal temporary usage
-     *                    As a side effect, this buffer will contain the compared
-     *                    serialized key.
-     * @param key         the key to compare
-     * @param ei          the entry index to compare with
-     * @return the comparison result
-     */
-    int compareKeyAndEntryIndex(KeyBuffer tempKeyBuff, K key, int ei) {
-        boolean isAllocated = entryOrderedSet.readKey(tempKeyBuff, ei);
-        assert isAllocated;
-        return comparator.compareKeyAndSerializedKey(key, tempKeyBuff);
-    }
 
     /**
      * Look up a key in this chunk.
@@ -264,7 +201,7 @@ class OrderedChunk<K, V> extends BasicChunk<K, V> {
         // binary search sorted part of key array to quickly find node to start search at
         // it finds previous-to-key
         int curr = binaryFind(ctx.tempKey, key);
-        curr = (curr == NONE_NEXT) ? entryOrderedSet.getHeadNextEntryIndex() : entryOrderedSet.getNextEntryIndex(curr);
+        curr = (curr == NONE_NEXT) ? getHeadNextEntryIndex() : getNextEntryIndex(curr);
 
         // iterate until end of list (or key is found)
         while (curr != NONE_NEXT) {
@@ -280,11 +217,11 @@ class OrderedChunk<K, V> extends BasicChunk<K, V> {
                 // Updates the entry's context
                 // ctx.key was already updated as a side effect of compareKeyAndEntryIndex()
                 ctx.entryIndex = curr;
-                entryOrderedSet.readValue(ctx);
+                readValue(ctx);
                 return;
             }
             // otherwise- proceed to next item
-            curr = entryOrderedSet.getNextEntryIndex(curr);
+            curr = getNextEntryIndex(curr);
         }
 
         // Reset entry context to be INVALID
@@ -312,7 +249,7 @@ class OrderedChunk<K, V> extends BasicChunk<K, V> {
 
         // if the first item is already larger than key,
         // return NONE_NEXT to indicate that a regular linear search is needed
-        if (compareKeyAndEntryIndex(tempKey, key, entryOrderedSet.getHeadNextEntryIndex()) <= 0) {
+        if (compareKeyAndEntryIndex(tempKey, key, getHeadNextEntryIndex()) <= 0) {
             return NONE_NEXT;
         }
 
@@ -340,39 +277,6 @@ class OrderedChunk<K, V> extends BasicChunk<K, V> {
     }
 
     /*---------- Methods for managing the put/remove path of the keys and values  --------------*/
-    /**
-     * As written in {@code writeValueFinish(ctx)}, when changing an entry, the value reference is CASed first and
-     * later the value version, and the same applies when removing a value. However, there is another step before
-     * changing an entry to remove a value and it is marking the value off-heap (the LP). This function is used to
-     * first CAS the value reference to {@code INVALID_VALUE_REFERENCE} and then CAS the version to be a negative one.
-     * Other threads seeing a marked value call this function before they proceed (e.g., before performing a
-     * successful {@code putIfAbsent()}).
-     *
-     * @param ctx The context that follows the operation since the key was found/created.
-     *            Holds the entry to change, the old value reference to CAS out, and the current value version.
-     * @return true if a rebalance is needed
-     * IMPORTANT: whether deleteValueFinish succeeded to mark the entry's value reference as
-     * deleted, or not, if there were no request to rebalance FALSE is going to be returned
-     */
-    @Override
-    boolean finalizeDeletion(ThreadContext ctx) {
-        if (ctx.entryState != EntryArray.EntryState.DELETED_NOT_FINALIZED) {
-            return false;
-        }
-        if (!publish()) {
-            return true;
-        }
-        try {
-            if (!entryOrderedSet.deleteValueFinish(ctx)) {
-                return false;
-            }
-            externalSize.decrementAndGet();
-            statistics.decrementAddedCount();
-            return false;
-        } finally {
-            unpublish();
-        }
-    }
 
     /**
      * @param ctx the context that follows the operation since the key was found/created
@@ -392,10 +296,10 @@ class OrderedChunk<K, V> extends BasicChunk<K, V> {
         while (true) {
             if (anchor == NONE_NEXT) {
                 prev = NONE_NEXT;
-                curr = entryOrderedSet.getHeadNextEntryIndex();
+                curr = getHeadNextEntryIndex();
             } else {
                 prev = anchor;
-                curr = entryOrderedSet.getNextEntryIndex(anchor);    // index of next item in list
+                curr = getNextEntryIndex(anchor);    // index of next item in list
             }
 
             //TODO: use ctx and location window inside ctx (when key wasn't found),
@@ -420,18 +324,18 @@ class OrderedChunk<K, V> extends BasicChunk<K, V> {
                 }
 
                 prev = curr;
-                curr = entryOrderedSet.getNextEntryIndex(prev);    // index of next item in list
+                curr = getNextEntryIndex(prev);    // index of next item in list
             }
 
             // link to list between curr and previous, first change this entry's next to point to curr
             // no need for CAS since put is not even published yet
-            entryOrderedSet.setNextEntryIndex(ei, curr);
+            setNextEntryIndex(ei, curr);
 
             boolean linkSuccess;
             if (prev != NONE_NEXT) {
-                linkSuccess = entryOrderedSet.casNextEntryIndex(prev, curr, ei);
+                linkSuccess = casNextEntryIndex(prev, curr, ei);
             } else {
-                linkSuccess = entryOrderedSet.casHeadEntryIndex(curr, ei);
+                linkSuccess = casHeadEntryIndex(curr, ei);
             }
             if (linkSuccess) {
                 // Here is the single place where we do enter a new entry to the chunk, meaning
@@ -457,31 +361,9 @@ class OrderedChunk<K, V> extends BasicChunk<K, V> {
         }
     }
 
-    /**
-     * This function does the physical CAS of the value reference, which is the LP of the insertion. It then tries to
-     * complete the insertion @see writeValueFinish(ctx).
-     * This is also the only place in which the size of Oak is updated.
-     *
-     * @param ctx The context that follows the operation since the key was found/created.
-     *            Holds the entry to which the value reference is linked, the old and new value references and
-     *            the old and new value versions.
-     * @return true if the value reference was CASed successfully.
-     */
-    @Override
-    ValueUtils.ValueResult linkValue(ThreadContext ctx) {
-        if (entryOrderedSet.writeValueCommit(ctx) == ValueUtils.ValueResult.FALSE) {
-            return ValueUtils.ValueResult.FALSE;
-        }
-
-        // If we move a value, the statistics shouldn't change
-        if (!ctx.isNewValueForMove) {
-            statistics.incrementAddedCount();
-            externalSize.incrementAndGet();
-        }
-        return ValueUtils.ValueResult.TRUE;
-    }
-
     /*------------------------- Methods that are used for rebalance  ---------------------------*/
+
+    /** {@inheritDoc} **/
     @Override
     boolean shouldRebalance() {
         // perform actual check only in pre defined percentage of puts
@@ -493,16 +375,16 @@ class OrderedChunk<K, V> extends BasicChunk<K, V> {
         if (!isEngaged(null)) {
             return false;
         }
-        int numOfEntries = entryOrderedSet.getNumOfEntries();
+        int numOfEntries = getNumOfEntries();
         int numOfItems = statistics.getTotalCount();
         int sortedCount = this.sortedCount.get();
         // Reasons for executing a rebalance:
         // 1. There are no sorted keys and the total number of entries is above a certain threshold.
         // 2. There are sorted keys, but the total number of unsorted keys is too big.
         // 3. Out of the occupied entries, there are not enough actual items.
-        return (sortedCount == 0 && (numOfEntries * MAX_ENTRIES_FACTOR) > getMaxItems())
+        return (sortedCount == 0 && (numOfEntries * MAX_ENTRIES_FACTOR) > entriesCapacity)
                 || (sortedCount > 0 && (sortedCount * SORTED_REBALANCE_RATIO) < numOfEntries)
-                || ((numOfEntries * MAX_IDLE_ENTRIES_FACTOR) > getMaxItems()
+                || ((numOfEntries * MAX_IDLE_ENTRIES_FACTOR) > entriesCapacity
                     && (numOfItems * MAX_IDLE_ENTRIES_FACTOR) < numOfEntries);
     }
 
@@ -525,22 +407,22 @@ class OrderedChunk<K, V> extends BasicChunk<K, V> {
         }
 
         // use local variables and just set the atomic variables once at the end
-        int thisNumOfEntries = entryOrderedSet.getNumOfEntries();
+        int thisNumOfEntries = getNumOfEntries();
 
         // check that we are not beyond allowed number of entries to copy from source chunk
         if (thisNumOfEntries >= maxCapacity) {
             return srcEntryIdx;
         }
         // assuming that all chunks are bounded with same number of entries to hold
-        assert srcEntryIdx <= getMaxItems();
+        assert srcEntryIdx <= entriesCapacity;
 
         // set the next entry index (previous entry or head) from where we start to copy
         // if sortedThisEntryIndex is one (first entry to be occupied on this chunk)
         // we are exactly going to update the head (ei=0)
         if (thisNumOfEntries == 0) {
-            entryOrderedSet.setHeadEntryIndex(thisNumOfEntries);
+            setHeadEntryIndex(thisNumOfEntries);
         } else {
-            entryOrderedSet.setNextEntryIndex(thisNumOfEntries - 1, thisNumOfEntries);
+            setNextEntryIndex(thisNumOfEntries - 1, thisNumOfEntries);
         }
 
         // Here was the code that was trying to read entries from srcEntryIdx on the source chunk
@@ -550,19 +432,19 @@ class OrderedChunk<K, V> extends BasicChunk<K, V> {
 
         // copy entry by entry traversing the source linked list
         int curEntryIdx = srcEntryIdx;
-        while (entryOrderedSet.copyEntry(tempValue, srcOrderedChunk.entryOrderedSet, curEntryIdx)) {
+        while (copyEntry(tempValue, srcOrderedChunk, curEntryIdx)) {
             // the source entry was either copied or disregarded as deleted
             // anyway move to next source entry (according to the linked list)
-            curEntryIdx = srcOrderedChunk.entryOrderedSet.getNextEntryIndex(curEntryIdx);
+            curEntryIdx = srcOrderedChunk.getNextEntryIndex(curEntryIdx);
 
             // if entry was ignored as deleted (no change in this EntryOrderedSet num of entries), continue
-            if (thisNumOfEntries == entryOrderedSet.getNumOfEntries()) {
+            if (thisNumOfEntries == getNumOfEntries()) {
                 continue;
             }
 
             // we indeed copied the entry, update the number of entries and the next pointer
             thisNumOfEntries++;
-            entryOrderedSet.setNextEntryIndex(thisNumOfEntries - 1, thisNumOfEntries);
+            setNextEntryIndex(thisNumOfEntries - 1, thisNumOfEntries);
 
             // check that we are not beyond allowed number of entries to copy from source chunk
             if (thisNumOfEntries >= maxCapacity) {
@@ -579,9 +461,9 @@ class OrderedChunk<K, V> extends BasicChunk<K, V> {
 
         // the last next pointer was set to what is there in the source to copy, reset it to null
         if (thisNumOfEntries == 0) {
-            entryOrderedSet.setHeadEntryIndex(NONE_NEXT);
+            setHeadEntryIndex(NONE_NEXT);
         } else {
-            entryOrderedSet.setNextEntryIndex(thisNumOfEntries - 1, NONE_NEXT);
+            setNextEntryIndex(thisNumOfEntries - 1, NONE_NEXT);
         }
 
         // sorted count keeps the number of sorted entries
@@ -589,7 +471,7 @@ class OrderedChunk<K, V> extends BasicChunk<K, V> {
         statistics.updateInitialCount(sortedCount.get());
 
         // check the validity of the new entryOrderedSet
-        assert entryOrderedSet.isEntrySetValidAfterRebalance();
+        assert isEntrySetValidAfterRebalance();
 
         return curEntryIdx; // if NONE_NEXT then we finished copying old chunk, else we reached max in new chunk
     }
@@ -717,7 +599,7 @@ class OrderedChunk<K, V> extends BasicChunk<K, V> {
                 // it is caught when traversing to the start bound and midIdx is set to -1
 
                 // is the key in the middle index already above the upper limit to stop on?
-                readKeyFromEntryIndex(ctx.tempKey, midIdx);
+                readKey(ctx.tempKey, midIdx);
                 if (!isKeyOutOfEndBound(ctx.tempKey)) {
                     isEndBoundCheckNeeded = IterEndBoundCheck.MID_END_BOUNDARY_CHECK;
                 }
@@ -732,7 +614,7 @@ class OrderedChunk<K, V> extends BasicChunk<K, V> {
 
         AscendingIter(ThreadContext ctx, K to, boolean toInclusive,
             OakScopedReadBuffer nextChunkMinKey) {
-            next = entryOrderedSet.getHeadNextEntryIndex();
+            next = getHeadNextEntryIndex();
             next = advanceNextIndexNoBound(next, ctx);
             setIsEndBoundCheckNeeded(ctx, to, toInclusive, nextChunkMinKey);
         }
@@ -749,15 +631,15 @@ class OrderedChunk<K, V> extends BasicChunk<K, V> {
             // if not binaryFind will return midIdx or higher
 
             next = (next == NONE_NEXT) ?
-                entryOrderedSet.getHeadNextEntryIndex() : entryOrderedSet.getNextEntryIndex(next);
+                getHeadNextEntryIndex() : getNextEntryIndex(next);
             int compare = -1;
             if (next != NONE_NEXT) {
                 compare = compareKeyAndEntryIndex(tempKeyBuff, from, next);
             }
             while (next != NONE_NEXT &&
                     (compare > 0 || (compare >= 0 && !fromInclusive) ||
-                        !entryOrderedSet.isValueRefValidAndNotDeleted(next))) {
-                next = entryOrderedSet.getNextEntryIndex(next);
+                        !isValueRefValidAndNotDeleted(next))) {
+                next = getNextEntryIndex(next);
                 if (next != NONE_NEXT) {
                     compare = compareKeyAndEntryIndex(tempKeyBuff, from, next);
                 }
@@ -768,7 +650,7 @@ class OrderedChunk<K, V> extends BasicChunk<K, V> {
         }
 
         private void advance(ThreadContext ctx) {
-            next = entryOrderedSet.getNextEntryIndex(next);
+            next = getNextEntryIndex(next);
             // if there is no need to check the end-boundary on this chunk (IterEndBoundCheck.NEVER_END_BOUNDARY_CHECK),
             // or if the caller will check the end-boundary (IterEndBoundCheck.ALWAYS_END_BOUNDARY_CHECK),
             // then advance next without additional checks
@@ -793,8 +675,8 @@ class OrderedChunk<K, V> extends BasicChunk<K, V> {
 
         private int advanceNextIndex(final int entryIndex, ThreadContext ctx) {
             int next = entryIndex;
-            while (next != NONE_NEXT && !entryOrderedSet.isValueRefValidAndNotDeleted(next)) {
-                next = entryOrderedSet.getNextEntryIndex(next);
+            while (next != NONE_NEXT && !isValueRefValidAndNotDeleted(next)) {
+                next = getNextEntryIndex(next);
                 if (isEndBoundCheckNeeded == IterEndBoundCheck.MID_END_BOUNDARY_CHECK && next == midIdx) {
                     // update isEndBoundCheckNeeded to ALWAYS_END_BOUNDARY_CHECK
                     // when reaching the midIndex
@@ -806,8 +688,8 @@ class OrderedChunk<K, V> extends BasicChunk<K, V> {
 
         private int advanceNextIndexNoBound(final int entryIndex, ThreadContext ctx) {
             int next = entryIndex;
-            while (next != NONE_NEXT && !entryOrderedSet.isValueRefValidAndNotDeleted(next)) {
-                next = entryOrderedSet.getNextEntryIndex(next);
+            while (next != NONE_NEXT && !isValueRefValidAndNotDeleted(next)) {
+                next = getNextEntryIndex(next);
             }
             return next;
         }
@@ -833,16 +715,18 @@ class OrderedChunk<K, V> extends BasicChunk<K, V> {
         private final IntStack stack;
         private final K from;
         private boolean fromInclusive;
-        private final int skipEntriesForBiggerStack = Math.max(1, getMaxItems() / 10); // 1 is the lowest possible value
+
+        // 1 is the lowest possible value
+        private final int skipEntriesForBiggerStack = Math.max(1, entriesCapacity / 10);
 
         DescendingIter(ThreadContext ctx, K to, boolean toInclusive) {
             KeyBuffer tempKeyBuff = ctx.tempKey;
             setIsEndBoundCheckNeeded(ctx, to, toInclusive, minKey);
             from = null;
-            stack = new IntStack(entryOrderedSet.getLastEntryIndex() + 1);
+            stack = new IntStack(getLastEntryIndex() + 1);
             int sortedCnt = sortedCount.get();
             anchor = // this is the last sorted entry
-                    (sortedCnt == 0 ? entryOrderedSet.getHeadNextEntryIndex() : sortedCnt - 1);
+                    (sortedCnt == 0 ? getHeadNextEntryIndex() : sortedCnt - 1);
             stack.push(anchor);
             initNext(tempKeyBuff);
         }
@@ -852,7 +736,7 @@ class OrderedChunk<K, V> extends BasicChunk<K, V> {
 
             this.from = from;
             this.fromInclusive = fromInclusive;
-            stack = new IntStack(entryOrderedSet.getLastEntryIndex());
+            stack = new IntStack(getLastEntryIndex());
             anchor = binaryFind(tempKeyBuff, from);
 
             if (anchor <= midIdx) { // binaryFind output is always less than sorted Count; or NONE_NEXT
@@ -862,7 +746,7 @@ class OrderedChunk<K, V> extends BasicChunk<K, V> {
             // if not binaryFind will return midIdx or less
 
             // translate to be valid index, if anchor is head we know to stop the iteration
-            anchor = (anchor == NONE_NEXT) ? entryOrderedSet.getHeadNextEntryIndex() : anchor;
+            anchor = (anchor == NONE_NEXT) ? getHeadNextEntryIndex() : anchor;
             stack.push(anchor);
             initNext(tempKeyBuff);
             setIsEndBoundCheckNeeded(ctx, to, toInclusive, minKey);
@@ -882,7 +766,7 @@ class OrderedChunk<K, V> extends BasicChunk<K, V> {
                 return;
             }
             next = stack.pop();
-            while (next != NONE_NEXT && !entryOrderedSet.isValueRefValidAndNotDeleted(next)) {
+            while (next != NONE_NEXT && !isValueRefValidAndNotDeleted(next)) {
                 if (!stack.empty()) {
                     next = stack.pop();
                 } else {
@@ -896,11 +780,11 @@ class OrderedChunk<K, V> extends BasicChunk<K, V> {
             while (next != NONE_NEXT) {
                 if (!compareWithPrevAnchor) {
                     stack.push(next);
-                    next = entryOrderedSet.getNextEntryIndex(next);
+                    next = getNextEntryIndex(next);
                 } else {
                     if (next != prevAnchor) {
                         stack.push(next);
-                        next = entryOrderedSet.getNextEntryIndex(next);
+                        next = getNextEntryIndex(next);
                     } else {
                         break;
                     }
@@ -915,11 +799,11 @@ class OrderedChunk<K, V> extends BasicChunk<K, V> {
          */
         private void traverseLinkedList(KeyBuffer tempKeyBuff, boolean firstTimeInvocation) {
             assert stack.size() == 1;   // ancor is in the stack
-            if (prevAnchor == entryOrderedSet.getNextEntryIndex(anchor)) {
+            if (prevAnchor == getNextEntryIndex(anchor)) {
                 next = NONE_NEXT;   // there is no next;
                 return;
             }
-            next = entryOrderedSet.getNextEntryIndex(anchor);
+            next = getNextEntryIndex(anchor);
             if (from == null) {
                 // if this is not the first invocation, stop when reaching previous anchor
                 pushToStack(!firstTimeInvocation);
@@ -931,7 +815,7 @@ class OrderedChunk<K, V> extends BasicChunk<K, V> {
                     //     when non-fromInclusive: CMP > 0
                     while (next != NONE_NEXT && compareKeyAndEntryIndex(tempKeyBuff, from, next) > threshold) {
                         stack.push(next);
-                        next = entryOrderedSet.getNextEntryIndex(next);
+                        next = getNextEntryIndex(next);
                     }
                 } else {
                     // stop when reaching previous anchor
@@ -946,11 +830,11 @@ class OrderedChunk<K, V> extends BasicChunk<K, V> {
         private void findNewAnchor() {
             assert stack.empty();
             prevAnchor = anchor;
-            if (anchor == entryOrderedSet.getHeadNextEntryIndex()) {
+            if (anchor == getHeadNextEntryIndex()) {
                 next = NONE_NEXT; // there is no more in this chunk
                 return;
             } else if (anchor == 1) { // cannot get below the first index
-                anchor = entryOrderedSet.getHeadNextEntryIndex();
+                anchor = getHeadNextEntryIndex();
             } else {
                 if ((anchor - skipEntriesForBiggerStack) > 1) {
                     // try to skip more then one backward step at a time
@@ -977,7 +861,7 @@ class OrderedChunk<K, V> extends BasicChunk<K, V> {
                     return;
                 }
                 // there is no next in stack
-                if (anchor == entryOrderedSet.getHeadNextEntryIndex()) {
+                if (anchor == getHeadNextEntryIndex()) {
                     // there is no next at all
                     return;
                 }
@@ -1044,5 +928,258 @@ class OrderedChunk<K, V> extends BasicChunk<K, V> {
             return top;
         }
 
+    }
+
+    /*  ################################################################################
+        # EntryOrderedSet
+        ################################################################################ */
+
+    /*-------------- Constants --------------*/
+
+    /***
+     * NEXT - the next index of this entry (one integer). Must be with offset 0, otherwise, copying an entire
+     * entry should be fixed (In function {@code copyPartOfEntries}, search for "LABEL").
+     */
+    private static final int NEXT_FIELD_OFFSET = 2;
+
+    // the size of the head in longs
+    // how much it takes to keep the index of the first item in the list, after the head
+    // (not necessarily first in the array!)
+    private static final int ADDITIONAL_FIELDS = 1;  // # of primitive fields in each item of entries array
+
+    // location of the first (head) node
+    private final AtomicInteger headEntryIndex = new AtomicInteger(INVALID_ENTRY_INDEX);
+
+    // points to next free index of entry array, counted in "entries" and not in integers
+    private final AtomicInteger nextFreeIndex;
+
+    /*----------------- Constructor -------------------*/
+
+    int getLastEntryIndex() {
+        return nextFreeIndex.get();
+    }
+
+    /********************************************************************************************/
+    /*------------- Methods for managing next entry indexes (package visibility) ---------------*/
+
+    /**
+     * getNextEntryIndex returns the next entry index (of the entry given by entry index "ei")
+     * The method serves external EntryOrderedSet users.
+     */
+    int getNextEntryIndex(int ei) {
+        if (!isIndexInBound(ei)) {
+            return INVALID_ENTRY_INDEX;
+        }
+        return (int) getEntryFieldLong(ei, NEXT_FIELD_OFFSET);
+    }
+
+    /**
+     * setNextEntryIndex sets the next entry index (of the entry given by entry index "ei")
+     * to be the "next". Input parameter "next" must be a valid entry index (not integer index!).
+     * The method serves external EntryOrderedSet users.
+     */
+    void setNextEntryIndex(int ei, int next) {
+        assert ei <= nextFreeIndex.get() && next <= nextFreeIndex.get();
+        setEntryFieldLong(ei, NEXT_FIELD_OFFSET, next);
+    }
+
+    /**
+     * Set the index of the first entry in the linked list,
+     * when there is no concurrency (i.e. rebalance)
+     * @param headEntryIndex
+     */
+    void setHeadEntryIndex(int headEntryIndex) {
+        this.headEntryIndex.set(headEntryIndex);
+    }
+
+    /**
+     * casNextEntryIndex CAS the next entry index (of the entry given by entry index "ei") to be the
+     * "nextNew" only if it was "nextOld". Input parameter "nextNew" must be a valid entry index.
+     * The method serves external EntryOrderedSet users.
+     */
+    boolean casNextEntryIndex(int ei, int nextOld, int nextNew) {
+        return casEntryFieldLong(ei, NEXT_FIELD_OFFSET, nextOld, nextNew);
+    }
+
+    /**
+     * CAS the index of the first entry in the linked list, when concurrency can cause other
+     * concurrent trials to update the same field
+     * @param nextOld
+     * @param nextNew
+     * @return
+     */
+    boolean casHeadEntryIndex(int nextOld, int nextNew) {
+        return this.headEntryIndex.compareAndSet(nextOld, nextNew);
+    }
+
+
+    /**
+     * getHeadEntryIndex returns the entry index of the entry first in the array,
+     * which is written in the first integer of the array
+     * The method serves external EntryOrderedSet users.
+     */
+    int getHeadNextEntryIndex() {
+        return headEntryIndex.get();
+    }
+
+
+    /********************************************************************************************/
+    /*--------- Methods for managing the write/remove path of the keys and values  -------------*/
+
+    /**
+     * Creates/allocates an entry for the key. An entry is always associated with a key,
+     * therefore the key is written to off-heap and associated with the entry simultaneously.
+     * The value of the new entry is set to NULL: (INVALID_VALUE_REFERENCE)
+     *
+     * @param ctx the context that will follow the operation following this key allocation
+     * @param key the key to write
+     * @return true only if the allocation was successful.
+     *         Otherwise, it means that the EntryOrderedSet is full (may require a re-balance).
+     **/
+    boolean allocateEntryAndWriteKey(ThreadContext ctx, K key) {
+        ctx.invalidate();
+
+        int ei = nextFreeIndex.getAndIncrement();
+
+        if (!isIndexInBound(ei)) {
+            return false;
+        }
+        numOfEntries.getAndIncrement();
+        ctx.entryIndex = ei;
+        // Write given key object "key" (to off-heap) as a serialized key, referenced by entry
+        // that was set in this context ({@code ctx}).
+        writeKey(key, ctx.key);
+        // The entry key reference is set. The value reference is already set to zero, because
+        // the entries array is initialized that way (see specs).
+        setKeyReference(ctx.entryIndex, ctx.key.getSlice().getReference());
+
+        return true;
+    }
+
+    /**
+     * deleteValueFinish completes the deletion of a value in Oak, by marking the value reference in
+     * entry, after the on-heap value was already marked as deleted.
+     *
+     * deleteValueFinish is used to CAS the value reference to it's deleted mode
+     *
+     * @param ctx The context that follows the operation since the key was found/created.
+     *            Holds the entry to change, the old value reference to CAS out, and the current value reference.
+     * @return true if the deletion indeed updated the entry to be deleted as a unique operation
+     * <p>
+     * Note 1: the value in {@code ctx} is updated in this method to be the DELETED.
+     * <p>
+     * Note 2: updating of the entries MUST be under published operation. The invoker of this method
+     * is responsible to call it inside the publish/unpublish scope.
+     */
+    @Override
+    boolean deleteValueFinish(ThreadContext ctx) {
+        if (valuesMemoryManager.isReferenceDeleted(ctx.value.getSlice().getReference())) {
+            return false; // value reference in the slice is marked deleted
+        }
+
+        assert ctx.entryState == EntryState.DELETED_NOT_FINALIZED;
+
+        // Value's reference codec prepares the reference to be used after value is deleted
+        long expectedReference = ctx.value.getSlice().getReference();
+        long newReference = valuesMemoryManager.alterReferenceForDelete(expectedReference);
+        // Scenario:
+        // 1. The value's slice is marked as deleted off-heap and the thread that started
+        //    deleteValueFinish falls asleep.
+        // 2. This value's slice space is allocated once again and assigned into the same entry.
+        // 3. A valid value reference is CASed to invalid.
+        //
+        // This is ABA problem and resolved via always changing deleted variation of the reference
+        // Also value's off-heap slice is released to memory manager only after deleteValueFinish
+        // is done.
+        if (casEntryFieldLong(ctx.entryIndex, VALUE_REF_OFFSET, expectedReference, newReference)) {
+            assert valuesMemoryManager.isReferenceConsistent(getValueReference(ctx.entryIndex));
+            numOfEntries.getAndDecrement();
+            ctx.value.getSlice().release();
+            ctx.value.invalidate();
+            ctx.entryState = EntryState.DELETED;
+
+            return true;
+        }
+        // CAS wasn't successful, someone else set the value reference as deleted and
+        // maybe value was allocated again. Let the context's value to be updated
+        readValue(ctx);
+        return false;
+    }
+
+    /************************* REBALANCE *****************************************/
+    /*
+     * All the functionality that links entries into a linked list or updates the linked list
+     * is provided by the user of the entry set. EntryOrderedSet provides the possibility to update the
+     * next entry index via set or CAS, but does it only as a result of the user request.
+     * */
+
+    /**
+     * copyEntry copies one entry from source EntryOrderedSet (at source entry index "srcEntryIdx")
+     * to this EntryOrderedSet.
+     * The destination entry index is chosen according to this nextFreeIndex which is increased with
+     * each copy. Deleted entry (marked on-heap or off-heap) is not copied (disregarded).
+     * <p>
+     * The next pointers of the entries are requested to be set by the user if needed.
+     *
+     * @param tempValue   a reusable buffer object for internal temporary usage
+     * @param srcEntryOrderedSet another EntryOrderedSet to copy from
+     * @param srcEntryIdx the entry index to copy from {@code srcEntryOrderedSet}
+     * @return false when this EntryOrderedSet is full
+     * <p>
+     * Note: NOT THREAD SAFE
+     */
+    boolean copyEntry(ValueBuffer tempValue, OrderedChunk<K, V> srcEntryOrderedSet, int srcEntryIdx) {
+        if (srcEntryIdx == INVALID_ENTRY_INDEX) {
+            return false;
+        }
+
+        assert srcEntryOrderedSet.isIndexInBound(srcEntryIdx);
+
+        // don't increase the nextFreeIndex yet, as the source entry might not be copies
+        int destEntryIndex = nextFreeIndex.get();
+
+        if (!isIndexInBound(destEntryIndex)) {
+            return false;
+        }
+
+        if (srcEntryOrderedSet.isValueDeleted(tempValue, srcEntryIdx)) {
+            return true;
+        }
+
+        assert valuesMemoryManager.isReferenceConsistent(tempValue.getSlice().getReference());
+
+        // ARRAY COPY: using next as the base of the entry
+        // copy both the key and the value references and integer for future use => 5 integers via array copy
+        // the first field in an entry is next, and it is not copied since it should be assigned elsewhere
+        // therefore, to copy the rest of the entry we use the offset of next (which we assume is 0) and
+        // add 1 to start the copying from the subsequent field of the entry.
+        copyEntriesFrom(srcEntryOrderedSet, srcEntryIdx, destEntryIndex, 2);
+
+        assert valuesMemoryManager.isReferenceConsistent(getValueReference(destEntryIndex));
+
+        // now it is the time to increase nextFreeIndex
+        nextFreeIndex.getAndIncrement();
+        numOfEntries.getAndIncrement();
+        return true;
+    }
+
+    boolean isEntrySetValidAfterRebalance() {
+        int currIndex = getHeadNextEntryIndex();
+        int prevIndex = INVALID_ENTRY_INDEX;
+        while (currIndex > getLastEntryIndex()) {
+            if (!isValueRefValidAndNotDeleted(currIndex)) {
+                return false;
+            }
+            if (!valuesMemoryManager.isReferenceConsistent(getValueReference(currIndex))) {
+                return false;
+            }
+            if (prevIndex != INVALID_ENTRY_INDEX && currIndex - prevIndex != 1) {
+                return false;
+            }
+            prevIndex = currIndex;
+            currIndex = getNextEntryIndex(currIndex);
+        }
+
+        return true;
     }
 }

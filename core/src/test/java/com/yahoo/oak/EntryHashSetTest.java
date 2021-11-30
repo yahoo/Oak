@@ -9,14 +9,20 @@ package com.yahoo.oak;
 
 import com.yahoo.oak.common.integer.OakIntComparator;
 import com.yahoo.oak.common.integer.OakIntSerializer;
+import org.junit.After;
 import org.junit.Assert;
 import org.junit.Test;
 
 public class EntryHashSetTest {
     private final ValueUtils valueOperator = new ValueUtils();
 
+    @After
+    public void tearDown() {
+        BlocksPool.clear();
+    }
+
     private void allocateSimpleKeyValue(
-        ThreadContext ctx, EntryHashSet ehs, SyncRecycleMemoryManager memoryManager) {
+        ThreadContext ctx, HashChunk ehs, SyncRecycleMemoryManager memoryManager) {
 
         // simple one key insert
         assert ehs.allocateEntryAndWriteKey(ctx, new Integer(5), 7 /*000111*/, 39 /*100111*/ );
@@ -51,14 +57,14 @@ public class EntryHashSetTest {
         Assert.assertNotEquals(ctx.key.getSlice().getReference(), memoryManager.getInvalidReference());
         Assert.assertEquals(ctx.value.getSlice().getReference(), memoryManager.getInvalidReference());
         Assert.assertNotEquals(ctx.newValue.getSlice().getReference(), memoryManager.getInvalidReference());
-        Assert.assertEquals(ehs.getCollisionChainLength(), EntryHashSet.DEFAULT_COLLISION_CHAIN_LENGTH);
+        Assert.assertEquals(ehs.getCollisionChainLength(), HashChunk.DEFAULT_COLLISION_CHAIN_LENGTH);
 
         // commit the value, insert linearization points
         assert ehs.writeValueCommit(ctx) == ValueUtils.ValueResult.TRUE;
     }
 
     private void allocateMoreKeyValue(
-        ThreadContext ctx, EntryHashSet ehs, SyncRecycleMemoryManager memoryManager) {
+        ThreadContext ctx, HashChunk ehs, SyncRecycleMemoryManager memoryManager) {
 
         // insert different key with the same hash idx and the same full hash idx
         // (without exceeding default collision escape number)
@@ -68,7 +74,7 @@ public class EntryHashSetTest {
         Assert.assertNotEquals(ctx.key.getSlice().getReference(), memoryManager.getInvalidReference());
         Assert.assertEquals(ctx.value.getSlice().getReference(), memoryManager.getInvalidReference());
         Assert.assertEquals(ctx.newValue.getSlice().getReference(), memoryManager.getInvalidReference());
-        Assert.assertEquals(ehs.getCollisionChainLength(), EntryHashSet.DEFAULT_COLLISION_CHAIN_LENGTH);
+        Assert.assertEquals(ehs.getCollisionChainLength(), HashChunk.DEFAULT_COLLISION_CHAIN_LENGTH);
 
         // add value allocation
         ehs.allocateValue(ctx, new Integer(250), false);
@@ -77,7 +83,7 @@ public class EntryHashSetTest {
         Assert.assertNotEquals(ctx.key.getSlice().getReference(), memoryManager.getInvalidReference());
         Assert.assertEquals(ctx.value.getSlice().getReference(), memoryManager.getInvalidReference());
         Assert.assertNotEquals(ctx.newValue.getSlice().getReference(), memoryManager.getInvalidReference());
-        Assert.assertEquals(ehs.getCollisionChainLength(), EntryHashSet.DEFAULT_COLLISION_CHAIN_LENGTH);
+        Assert.assertEquals(ehs.getCollisionChainLength(), HashChunk.DEFAULT_COLLISION_CHAIN_LENGTH);
 
         assert ehs.writeValueCommit(ctx) == ValueUtils.ValueResult.TRUE;
 
@@ -90,7 +96,7 @@ public class EntryHashSetTest {
         Assert.assertNotEquals(ctx.key.getSlice().getReference(), memoryManager.getInvalidReference());
         Assert.assertEquals(ctx.value.getSlice().getReference(), memoryManager.getInvalidReference());
         Assert.assertEquals(ctx.newValue.getSlice().getReference(), memoryManager.getInvalidReference());
-        Assert.assertEquals(ehs.getCollisionChainLength(), EntryHashSet.DEFAULT_COLLISION_CHAIN_LENGTH);
+        Assert.assertEquals(ehs.getCollisionChainLength(), HashChunk.DEFAULT_COLLISION_CHAIN_LENGTH);
 
         // add value allocation
         ehs.allocateValue(ctx, new Integer(550), false);
@@ -99,7 +105,7 @@ public class EntryHashSetTest {
         Assert.assertNotEquals(ctx.key.getSlice().getReference(), memoryManager.getInvalidReference());
         Assert.assertEquals(ctx.value.getSlice().getReference(), memoryManager.getInvalidReference());
         Assert.assertNotEquals(ctx.newValue.getSlice().getReference(), memoryManager.getInvalidReference());
-        Assert.assertEquals(ehs.getCollisionChainLength(), EntryHashSet.DEFAULT_COLLISION_CHAIN_LENGTH);
+        Assert.assertEquals(ehs.getCollisionChainLength(), HashChunk.DEFAULT_COLLISION_CHAIN_LENGTH);
 
         assert ehs.writeValueCommit(ctx) == ValueUtils.ValueResult.TRUE;
 
@@ -127,7 +133,7 @@ public class EntryHashSetTest {
         ehs.allocateValue(ctx, new Integer(50), false);
         Assert.assertEquals(ctx.entryIndex, 7);
         Assert.assertEquals(ctx.entryState, EntryArray.EntryState.VALID);
-        Assert.assertEquals(ehs.getCollisionChainLength(), EntryHashSet.DEFAULT_COLLISION_CHAIN_LENGTH);
+        Assert.assertEquals(ehs.getCollisionChainLength(), HashChunk.DEFAULT_COLLISION_CHAIN_LENGTH);
         Assert.assertEquals(ctx.key.getSlice().getReference(), memoryManager.getInvalidReference());
         Assert.assertEquals(ctx.value.getSlice().getReference(), memoryManager.getInvalidReference());
         Assert.assertNotEquals(ctx.newValue.getSlice().getReference(), memoryManager.getInvalidReference());
@@ -148,7 +154,7 @@ public class EntryHashSetTest {
         ehs.allocateValue(ctx, new Integer(40), false);
         Assert.assertEquals(ctx.entryIndex, 11);
         Assert.assertEquals(ctx.entryState, EntryArray.EntryState.UNKNOWN);
-        Assert.assertEquals(ehs.getCollisionChainLength(), EntryHashSet.DEFAULT_COLLISION_CHAIN_LENGTH);
+        Assert.assertEquals(ehs.getCollisionChainLength(), HashChunk.DEFAULT_COLLISION_CHAIN_LENGTH);
         Assert.assertNotEquals(ctx.key.getSlice().getReference(), memoryManager.getInvalidReference());
         Assert.assertEquals(ctx.value.getSlice().getReference(), memoryManager.getInvalidReference());
         Assert.assertNotEquals(ctx.newValue.getSlice().getReference(), memoryManager.getInvalidReference());
@@ -161,7 +167,7 @@ public class EntryHashSetTest {
         assert (ehs.allocateEntryAndWriteKey(ctx, new Integer(35), 8 /*000111*/, 23 /*010111*/ ));
         Assert.assertEquals(ctx.entryIndex, 12);
         Assert.assertEquals(ctx.entryState, EntryArray.EntryState.UNKNOWN);
-        Assert.assertTrue(ehs.getCollisionChainLength() > EntryHashSet.DEFAULT_COLLISION_CHAIN_LENGTH);
+        Assert.assertTrue(ehs.getCollisionChainLength() > HashChunk.DEFAULT_COLLISION_CHAIN_LENGTH);
         Assert.assertNotEquals(ctx.key.getSlice().getReference(), memoryManager.getInvalidReference());
         Assert.assertEquals(ctx.value.getSlice().getReference(), memoryManager.getInvalidReference());
         Assert.assertEquals(ctx.newValue.getSlice().getReference(), memoryManager.getInvalidReference());
@@ -170,7 +176,7 @@ public class EntryHashSetTest {
         ehs.allocateValue(ctx, new Integer(350), false);
         Assert.assertEquals(ctx.entryIndex, 12);
         Assert.assertEquals(ctx.entryState, EntryArray.EntryState.UNKNOWN);
-        Assert.assertTrue(ehs.getCollisionChainLength() > EntryHashSet.DEFAULT_COLLISION_CHAIN_LENGTH);
+        Assert.assertTrue(ehs.getCollisionChainLength() > HashChunk.DEFAULT_COLLISION_CHAIN_LENGTH);
         Assert.assertNotEquals(ctx.key.getSlice().getReference(), memoryManager.getInvalidReference());
         Assert.assertEquals(ctx.value.getSlice().getReference(), memoryManager.getInvalidReference());
         Assert.assertNotEquals(ctx.newValue.getSlice().getReference(), memoryManager.getInvalidReference());
@@ -179,7 +185,7 @@ public class EntryHashSetTest {
     }
 
     private void readKeyValue(
-        ThreadContext ctx, EntryHashSet ehs, SyncRecycleMemoryManager memoryManager,
+        ThreadContext ctx, HashChunk ehs, SyncRecycleMemoryManager memoryManager,
         OakIntSerializer serializer) {
 
         ctx.invalidate();
@@ -253,8 +259,6 @@ public class EntryHashSetTest {
         result = valueOperator.transform(new Result(), ctx.value, buf -> serializer.deserialize(buf));
         Assert.assertEquals(ValueUtils.ValueResult.TRUE, result.operationResult);
         Assert.assertEquals(350, ((Integer) result.value).intValue());
-
-
     }
 
     // the main (single threaded) test flow
@@ -265,9 +269,17 @@ public class EntryHashSetTest {
         OakIntSerializer serializer = new OakIntSerializer();
 
         // create EntryHashSet
-        EntryHashSet ehs =
-            new EntryHashSet(memoryManager, memoryManager, 100,
-                serializer, serializer, new OakIntComparator());
+        HashChunk<Integer, Integer> ehs = new HashChunk<>(
+                new OakSharedConfig<>(
+                        allocator, memoryManager, memoryManager, serializer, serializer, new OakIntComparator()
+                ), 100,
+                new UnionCodec(
+                        1,
+                        UnionCodec.AUTO_CALCULATE_BIT_SIZE,
+                        1,
+                        Integer.SIZE
+                )
+        );
 
         ThreadContext ctx = new ThreadContext(memoryManager, memoryManager);
 
@@ -329,7 +341,7 @@ public class EntryHashSetTest {
         Assert.assertNotEquals(ctx.value.getSlice().getReference(), memoryManager.getInvalidReference());
         Assert.assertNotEquals(ctx.newValue.getSlice().getReference(), memoryManager.getInvalidReference());
         Assert.assertTrue(memoryManager.isReferenceDeleted(ctx.value.getSlice().getReference()));
-        Assert.assertTrue(ehs.getCollisionChainLength() > EntryHashSet.DEFAULT_COLLISION_CHAIN_LENGTH);
+        Assert.assertTrue(ehs.getCollisionChainLength() > HashChunk.DEFAULT_COLLISION_CHAIN_LENGTH);
 
         // commit the value, insert linearization points
         assert ehs.writeValueCommit(ctx) == ValueUtils.ValueResult.TRUE;
@@ -390,7 +402,7 @@ public class EntryHashSetTest {
         Assert.assertNotEquals(ctx.value.getSlice().getReference(), memoryManager.getInvalidReference());
         Assert.assertNotEquals(ctx.newValue.getSlice().getReference(), memoryManager.getInvalidReference());
         Assert.assertTrue(memoryManager.isReferenceDeleted(ctx.value.getSlice().getReference()));
-        Assert.assertTrue(ehs.getCollisionChainLength() > EntryHashSet.DEFAULT_COLLISION_CHAIN_LENGTH);
+        Assert.assertTrue(ehs.getCollisionChainLength() > HashChunk.DEFAULT_COLLISION_CHAIN_LENGTH);
 
         // commit the value, insert linearization points
         assert ehs.writeValueCommit(ctx) == ValueUtils.ValueResult.TRUE;

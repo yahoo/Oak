@@ -7,6 +7,7 @@
 package com.yahoo.oak;
 
 import com.yahoo.oak.common.OakCommonBuildersFactory;
+import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
@@ -53,6 +54,12 @@ public class ResizeValueTest {
     @Before
     public void initStuff() {
         oak = supplier.get();
+    }
+
+    @After
+    public void tearDown() {
+        oak.close();
+        BlocksPool.clear();
     }
 
     @Test

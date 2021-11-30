@@ -13,7 +13,6 @@ import org.junit.Test;
 
 import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CyclicBarrier;
-import java.util.concurrent.atomic.AtomicInteger;
 
 public class HashChunkNoSplitTest {
     private static final int MAX_ITEMS_PER_CHUNK = 64;
@@ -26,10 +25,9 @@ public class HashChunkNoSplitTest {
         new UnionCodec(5, // the size of the first, as these are LSBs
             UnionCodec.AUTO_CALCULATE_BIT_SIZE, Integer.SIZE); // the second (MSB) will be calculated
 
-
-    private final HashChunk c = new HashChunk(
-        MAX_ITEMS_PER_CHUNK, new AtomicInteger(0), memoryManager, memoryManager,
-        new OakIntComparator(), serializer, serializer, hashIndexCodec);
+    private final HashChunk c = new HashChunk(new OakSharedConfig<>(
+            allocator, memoryManager, memoryManager, serializer, serializer, new OakIntComparator()
+    ), MAX_ITEMS_PER_CHUNK, hashIndexCodec);
 
     // the put flow done by InternalOakHashMap
     private void putNotExisting(Integer key, ThreadContext ctx, boolean concurrent) {

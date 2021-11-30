@@ -41,6 +41,7 @@ public class ViewTests {
     @After
     public void tearDown() {
         oak.close();
+        BlocksPool.clear();
     }
 
     @Test

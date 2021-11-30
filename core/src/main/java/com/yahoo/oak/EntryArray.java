@@ -10,6 +10,7 @@ import sun.misc.Unsafe;
 
 import java.util.Arrays;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 /*
 * EntryArray is array of entries based on primitive array of longs.
@@ -45,7 +46,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  * ...
  *
 * */
-public class EntryArray<K, V> {
+abstract class EntryArray<K, V> {
     /***
      * KEY_REF_OFFSET - offset in primitive fields of one entry, to a reference as coded by
      * keysMemoryManager, of the key pointed from this entry (size of long)
@@ -57,6 +58,8 @@ public class EntryArray<K, V> {
     protected static final int KEY_REF_OFFSET = 0;
     protected static final int VALUE_REF_OFFSET = 1;
     static final int INVALID_ENTRY_INDEX = -1;
+
+    protected final OakSharedConfig<K, V> config;
 
     final MemoryManager valuesMemoryManager;
     final MemoryManager keysMemoryManager;
@@ -73,25 +76,48 @@ public class EntryArray<K, V> {
     // for writing the keys into the off-heap
     final OakSerializer<K> keySerializer;
     final OakSerializer<V> valueSerializer;
+    // to compare serilized and object keys
+    protected final OakComparator<K> comparator;
 
-    /**
-     * Create a new instance
-     * @param vMM   for values off-heap allocations and releases
-     * @param kMM off-heap allocations and releases for keys
-     * @param entriesCapacity how many entries should this instance keep at maximum
-     * @param keySerializer   used to serialize the key when written to off-heap
-     */
-    EntryArray(MemoryManager vMM, MemoryManager kMM, int additionalFieldCount, int entriesCapacity,
-               OakSerializer<K> keySerializer,
-             OakSerializer<V> valueSerializer) {
-        this.valuesMemoryManager = vMM;
-        this.keysMemoryManager = kMM;
+
+    /*-------------- Chunks fields --------------*/
+    enum State {
+        INFANT,
+        NORMAL,
+        FROZEN,
+        RELEASED
+    }
+
+    // in split/compact process, represents parent of split (can be null!)
+    private final AtomicReference<EntryArray<K, V>> creator;
+    // chunk can be in the following states: normal, frozen or infant(has a creator)
+    private final AtomicReference<State> state;
+    private final AtomicReference<Rebalancer<K, V>> rebalancer;
+    private final AtomicInteger pendingOps;
+
+    protected AtomicInteger externalSize; // for updating oak's size (reference to one global per Oak size)
+    protected final Statistics statistics;
+
+    EntryArray(OakSharedConfig<K, V> config, int additionalFieldCount, int entriesCapacity) {
+        this.config = config;
+        this.externalSize = config.size;
+        this.valuesMemoryManager = config.valuesMemoryManager;
+        this.keysMemoryManager = config.keysMemoryManager;
+        this.keySerializer = config.keySerializer;
+        this.valueSerializer = config.valueSerializer;
+        this.comparator = config.comparator;
+
+        this.entriesCapacity = entriesCapacity;
+
         this.fields = additionalFieldCount + 2; // +2 for key and value references that always exist
         this.entries = new long[entriesCapacity * this.fields];
         this.numOfEntries = new AtomicInteger(0);
-        this.entriesCapacity = entriesCapacity;
-        this.keySerializer = keySerializer;
-        this.valueSerializer = valueSerializer;
+
+        this.creator = new AtomicReference<>(null);
+        this.state = new AtomicReference<>(State.NORMAL);
+        this.pendingOps = new AtomicInteger();
+        this.rebalancer = new AtomicReference<>(null); // to be updated on rebalance
+        this.statistics = new Statistics();
     }
 
     /**
@@ -258,14 +284,14 @@ public class EntryArray<K, V> {
                 entryIdx2LongIdx(destEntryIndex), fieldCount);
     }
 
-    /*
+    /**
      * isValueRefValidAndNotDeleted is used only to check whether the value reference, which is part of the
      * entry on entry index "ei" is valid and not deleted. No off-heap value deletion mark check.
      * Reference being marked as deleted is checked.
      *
      * Pay attention that (given entry's) value may be deleted asynchronously by other thread just
      * after this check. For the thread safety use a copy of value reference.
-     * */
+     */
     boolean isValueRefValidAndNotDeleted(int ei) {
         long valRef = getValueReference(ei);
         return valuesMemoryManager.isReferenceValidAndNotDeleted(valRef);
@@ -496,5 +522,272 @@ public class EntryArray<K, V> {
      **/
     void releaseNewValue(ThreadContext ctx) {
         ctx.newValue.getSlice().release();
+    }
+
+    abstract boolean deleteValueFinish(ThreadContext ctx);
+
+
+    /* ########################################################################
+       # Chunk
+       ######################################################################## */
+
+    /**
+     * Compare a key with a serialized key that is pointed by a specific entry index
+     *
+     * @param tempKeyBuff a reusable buffer object for internal temporary usage
+     *                    As a side effect, this buffer will contain the compared
+     *                    serialized key.
+     * @param key         the key to compare
+     * @param ei          the entry index to compare with
+     * @return the comparison result
+     */
+    int compareKeyAndEntryIndex(KeyBuffer tempKeyBuff, K key, int ei) {
+        boolean isAllocated = readKey(tempKeyBuff, ei);
+        assert isAllocated;
+        return comparator.compareKeyAndSerializedKey(key, tempKeyBuff);
+    }
+
+    /**
+     * Create a child BasicChunk where this BasicChunk object as its creator.
+     */
+    protected void updateBasicChild(EntryArray<K, V> child) {
+        child.creator.set(this);
+        child.state.set(State.INFANT);
+    }
+
+    /*-------------- Publishing related methods and getters ---------------*/
+    /**
+     * publish operation so rebalance will wait for it
+     * if CAS didn't succeed then this means that a rebalancer got here first and chunk is frozen
+     *
+     * @return result of CAS
+     **/
+    boolean publish() {
+        pendingOps.incrementAndGet();
+        State currentState = state.get();
+        if (currentState == State.FROZEN || currentState == State.RELEASED) {
+            pendingOps.decrementAndGet();
+            return false;
+        }
+        return true;
+    }
+
+    /**
+     * un-publish operation
+     * if CAS didn't succeed then this means that a rebalancer did this already
+     **/
+    void unpublish() {
+        pendingOps.decrementAndGet();
+    }
+
+    /*------------------------- Methods that are used for rebalance  ---------------------------*/
+    /**
+     * Engage the chunk to a rebalancer r.
+     *
+     * @param r -- a rebalancer to engage with
+     */
+    void engage(Rebalancer<K, V> r) {
+        rebalancer.compareAndSet(null, r);
+    }
+
+    /**
+     * Checks whether the chunk is engaged with a given rebalancer.
+     *
+     * @param r -- a rebalancer object. If r is null, verifies that the chunk is not engaged to any rebalancer
+     * @return true if the chunk is engaged with r, false otherwise
+     */
+    boolean isEngaged(Rebalancer<K, V> r) {
+        return rebalancer.get() == r;
+    }
+
+    /**
+     * Fetch a rebalancer engaged with the chunk.
+     *
+     * @return rebalancer object or null if not engaged.
+     */
+    Rebalancer<K, V> getRebalancer() {
+        return rebalancer.get();
+    }
+
+    /*----------------------- Methods for managing the chunk's state  --------------------------*/
+    /**
+     *  To normalize the chunk once its split/merge/rebalance is finished
+     */
+    void normalize() {
+        state.compareAndSet(State.INFANT, State.NORMAL);
+        creator.set(null);
+        // using fence so other puts can continue working immediately on this chunk
+        UnsafeUtils.UNSAFE.storeFence();
+    }
+
+    State state() {
+        return state.get();
+    }
+
+    EntryArray<K, V> creator() {
+        return creator.get();
+    }
+
+    private void setState(State state) {
+        this.state.set(state);
+    }
+
+    /**
+     * freezes chunk so no more changes can be done to it (marks pending items as frozen)
+     */
+    void freeze() {
+        setState(State.FROZEN); // prevent new puts to this chunk
+        while (pendingOps.get() != 0) {
+            assert Boolean.TRUE;
+        }
+    }
+
+    /**
+     * try to change the state from frozen to released
+     */
+    void release() {
+        state.compareAndSet(State.FROZEN, State.RELEASED);
+    }
+
+    /*----------------------- Abstract Rebalance-related Methods  --------------------------*/
+
+    /**
+     * Check whether this better to be rebalanced (not a necessary). Necessary rebalance is
+     * triggered anyway regardless to this method.
+     * */
+    abstract boolean shouldRebalance();
+
+    /*----------------------- Abstract Mappings-related Methods  --------------------------*/
+
+    /**
+     * Writes the key off-heap and allocates an entry with the reference pointing to the given key
+     * See concrete implementation for more information
+     */
+    abstract boolean allocateEntryAndWriteKey(ThreadContext ctx, K key);
+
+    /**
+     * This function does the physical CAS of the value reference, which is the
+     * Linearization Point of the insertion.
+     * It then tries to complete the insertion ({@link EntryArray#writeValueCommit(ThreadContext)}}).
+     * This is also the only place in which the size of Oak is updated.
+     *
+     * @param ctx The context that follows the operation since the key was found/created.
+     *            Holds the entry to which the value reference is linked, the old and new value references and
+     *            the old and new value versions.
+     * @return true if the value reference was CASed successfully.
+     */
+    ValueUtils.ValueResult linkValue(ThreadContext ctx) {
+        if (writeValueCommit(ctx) == ValueUtils.ValueResult.FALSE) {
+            return ValueUtils.ValueResult.FALSE;
+        }
+
+        // If we move a value, the statistics shouldn't change
+        if (!ctx.isNewValueForMove) {
+            statistics.incrementAddedCount();
+            externalSize.incrementAndGet();
+        }
+        return ValueUtils.ValueResult.TRUE;
+    }
+
+    /**
+     * As written in {@link EntryArray#writeValueCommit(ThreadContext)}, when changing an entry,
+     * the value reference is CASed first and
+     * later the value version, and the same applies when removing a value. However, there is another step before
+     * changing an entry to remove a value and it is marking the value off-heap (the LP). This function is used to
+     * first CAS the value reference to invalid reference and then CAS the version to be a negative one.
+     * Other threads seeing a marked value call this function before they proceed (e.g., before performing a
+     * successful {@link ConcurrentZCMap#putIfAbsent(Object, Object)}).
+     *
+     * @param ctx The context that follows the operation since the key was found/created.
+     *            Holds the entry to change, the old value reference to CAS out, and the current value version.
+     * @return true if a rebalance is needed
+     * IMPORTANT: whether deleteValueFinish succeeded to mark the entry's value reference as
+     * deleted, or not, if there were no request to rebalance FALSE is going to be returned
+     */
+    boolean finalizeDeletion(ThreadContext ctx) {
+        if (ctx.entryState != EntryArray.EntryState.DELETED_NOT_FINALIZED) {
+            return false;
+        }
+        if (!publish()) {
+            return true;
+        }
+        try {
+            if (!deleteValueFinish(ctx)) {
+                return false;
+            }
+            externalSize.decrementAndGet();
+            statistics.decrementAddedCount();
+            return false;
+        } finally {
+            unpublish();
+        }
+    }
+
+    /*-------------- Methods for managing existing value (for ValueUtils) --------------*/
+    boolean overwriteExistingValueForMove(ThreadContext ctx, V newVal) {
+        // given old entry index (inside ctx) and new value, while old value is locked,
+        // allocate new value, new value is going to be locked as well, write the new value
+        allocateValue(ctx, newVal, true);
+
+        // in order to connect/overwrite the old entry to point to new value
+        // we need to publish as in the normal write process
+        if (!publish()) {
+            releaseNewValue(ctx);
+            return false;
+        }
+
+        // updating the old entry index
+        if (linkValue(ctx) != ValueUtils.ValueResult.TRUE) {
+            releaseNewValue(ctx);
+            unpublish();
+            return false;
+        }
+
+        unpublish();
+        return true;
+    }
+
+    /*-------------- Statistics --------------*/
+    /**
+     * This class contains information about chunk utilization.
+     */
+    static class Statistics {
+        private final AtomicInteger addedCount = new AtomicInteger(0);
+        private int initialCount = 0;
+
+        /**
+         * Initial sorted count here is immutable after chunk re-balance
+         */
+        void updateInitialCount(int sortedCount) {
+            this.initialCount = sortedCount;
+        }
+
+        /**
+         * @return number of items chunk will contain after compaction.
+         */
+        int getTotalCount() {
+            return initialCount + addedCount.get();
+        }
+
+        /**
+         * Incremented when put a key that was removed before
+         */
+        void incrementAddedCount() {
+            addedCount.incrementAndGet();
+        }
+
+        /**
+         * Decrement when remove a key that was put before
+         */
+        void decrementAddedCount() {
+            addedCount.decrementAndGet();
+        }
+    }
+
+    /**
+     * @return statistics object containing approximate utilization information.
+     */
+    Statistics getStatistics() {
+        return statistics;
     }
 }

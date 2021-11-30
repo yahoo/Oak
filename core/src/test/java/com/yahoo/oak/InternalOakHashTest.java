@@ -7,6 +7,7 @@
 package com.yahoo.oak;
 
 import com.yahoo.oak.common.OakCommonBuildersFactory;
+import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
@@ -33,11 +34,19 @@ public class InternalOakHashTest {
         // meaning in the first level hash array there are 2^8=256 chunks
         int firstLevelBitSize = 8;
         // 8 LSBs taken from keyHash for a chunk index, meaning in chunk there are 2^8=256 entries
-        int secondLevelBitSize = BITS_TO_DEFINE_CHUNK_SIZE;
 
-        testMap = new InternalOakHash<Integer, Integer>(OakCommonBuildersFactory.DEFAULT_INT_SERIALIZER,
-                OakCommonBuildersFactory.DEFAULT_INT_SERIALIZER, OakCommonBuildersFactory.DEFAULT_INT_COMPARATOR,
-                memoryManager, memoryManager, new ValueUtils(), firstLevelBitSize, secondLevelBitSize);
+        testMap = new InternalOakHash<>(new OakSharedConfig<>(
+                ma, memoryManager, memoryManager,
+                OakCommonBuildersFactory.DEFAULT_INT_SERIALIZER,
+                OakCommonBuildersFactory.DEFAULT_INT_SERIALIZER,
+                OakCommonBuildersFactory.DEFAULT_INT_COMPARATOR
+        ), new ValueUtils(), firstLevelBitSize, BITS_TO_DEFINE_CHUNK_SIZE);
+    }
+
+    @After
+    public void tearDown() {
+        testMap.close();
+        BlocksPool.clear();
     }
 
     private static Integer slowDeserialize(OakScopedReadBuffer bb) {

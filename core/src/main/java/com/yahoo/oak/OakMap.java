@@ -28,62 +28,58 @@ public class OakMap<K, V> extends AbstractMap<K, V>
         implements AutoCloseable, ConcurrentNavigableMap<K, V>, ConcurrentZCMap<K, V> {
 
     private final InternalOakMap<K, V> internalOakMap;
-    /*
-     * Memory manager cares for allocation, de-allocation and reuse of the internally pre-allocated
-     * memory. There can be separate memory managing algorithms for keys and values.
-     * */
-    private final MemoryManager valuesMemoryManager;
-    private final MemoryManager keysMemoryManager;
+
+    // Used for iterators
     private final OakTransformer<K> keyDeserializeTransformer;
     private final OakTransformer<V> valueDeserializeTransformer;
     private final Function<Map.Entry<OakScopedReadBuffer, OakScopedReadBuffer>,
             Map.Entry<K, V>> entryDeserializeTransformer;
+
     private final OakComparator<K> comparator;
 
     // SubOakMap fields
     private final K fromKey;
     private final boolean fromInclusive;
     private final K toKey;
-    private boolean toInclusive;
+    private final boolean toInclusive;
     private final boolean isDescending;
 
-    // internal constructor, to create OakMap use OakMapBuilder
-    OakMap(K minKey, OakSerializer<K> keySerializer, OakSerializer<V> valueSerializer, OakComparator<K> oakComparator,
-        int chunkMaxItems, MemoryManager vMM, MemoryManager kMM) {
-
-        this.valuesMemoryManager = vMM;
-        this.keysMemoryManager = kMM;
-        this.comparator = oakComparator;
-        this.internalOakMap = new InternalOakMap<>(minKey, keySerializer, valueSerializer, oakComparator,
-                this.valuesMemoryManager, kMM, chunkMaxItems, new ValueUtils());
-
-        this.fromKey = null;
-        this.fromInclusive = false;
-        this.toKey = null;
-        this.isDescending = false;
-
-        this.keyDeserializeTransformer = keySerializer::deserialize;
-        this.valueDeserializeTransformer = valueSerializer::deserialize;
-        this.entryDeserializeTransformer = entry -> new AbstractMap.SimpleEntry<>(
-                keySerializer.deserialize(entry.getKey()),
-                valueSerializer.deserialize(entry.getValue()));
-    }
-
-    // set constructor, mostly used for subMap
-    private OakMap(OakMap<K, V> oakMap, K fromKey, boolean fromInclusive, K toKey,
+    private OakMap(InternalOakMap<K, V> internalOakMap,
+                   K fromKey, boolean fromInclusive, K toKey,
                    boolean toInclusive, boolean isDescending) {
-        this.internalOakMap = oakMap.internalOakMap;
-        this.valuesMemoryManager = oakMap.valuesMemoryManager;
-        this.keysMemoryManager = oakMap.keysMemoryManager;
-        this.keyDeserializeTransformer = oakMap.keyDeserializeTransformer;
-        this.valueDeserializeTransformer = oakMap.valueDeserializeTransformer;
-        this.entryDeserializeTransformer = oakMap.entryDeserializeTransformer;
-        this.comparator = oakMap.comparator;
+        OakSharedConfig<K, V> config = internalOakMap.config;
+
+        this.internalOakMap = internalOakMap;
+
         this.fromKey = fromKey;
         this.fromInclusive = fromInclusive;
         this.toKey = toKey;
         this.toInclusive = toInclusive;
         this.isDescending = isDescending;
+
+        this.comparator = config.comparator;
+        this.keyDeserializeTransformer = config.keySerializer::deserialize;
+        this.valueDeserializeTransformer = config.valueSerializer::deserialize;
+        this.entryDeserializeTransformer = entry -> new AbstractMap.SimpleEntry<>(
+                keyDeserializeTransformer.apply(entry.getKey()),
+                valueDeserializeTransformer.apply(entry.getValue()));
+    }
+
+    // internal constructor, to create OakMap use OakMapBuilder
+    OakMap(OakSharedConfig<K, V> config, K minKey, int chunkMaxItems) {
+        this(
+                new InternalOakMap<>(config, minKey, chunkMaxItems),
+                null, false, null, false, false
+        );
+    }
+
+    // set constructor, mostly used for subMap
+    private OakMap(OakMap<K, V> oakMap, K fromKey, boolean fromInclusive, K toKey,
+                   boolean toInclusive, boolean isDescending) {
+        this(
+                oakMap.internalOakMap,
+                fromKey, fromInclusive, toKey, toInclusive, isDescending
+        );
     }
 
     /* ------ Map API methods ------ */
@@ -477,7 +473,7 @@ public class OakMap<K, V> extends AbstractMap<K, V>
     }
 
     public MemoryManager getValuesMemoryManager() {
-        return valuesMemoryManager;
+        return internalOakMap.valuesMemoryManager;
     }
 
     public static class OakZeroCopyMap<K, V> implements ZeroCopyMap<K, V> {

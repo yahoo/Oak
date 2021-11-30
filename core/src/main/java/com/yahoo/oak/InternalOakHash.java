@@ -11,23 +11,15 @@ import java.util.function.Consumer;
 class InternalOakHash<K, V> extends InternalOakBasics<K, V> {
     /*-------------- Members --------------*/
     private final FirstLevelHashArray<K, V> hashArray;    // first level of indexing
-    private final OakComparator<K> comparator;
-    private final OakSerializer<K> keySerializer;
-    private final OakSerializer<V> valueSerializer;
     private final ValueUtils valueOperator;
 
     private static final int DEFAULT_MOST_SIGN_BITS_NUM = 16;
     static final int USE_DEFAULT_FIRST_TO_SECOND_BITS_PARTITION = -1;
 
     /*-------------- Constructors --------------*/
-    InternalOakHash(OakSerializer<K> keySerializer, OakSerializer<V> valueSerializer,
-        OakComparator<K> oakComparator, MemoryManager vMM, MemoryManager kMM,
-        ValueUtils valueOperator, int firstLevelBitSize, int secondLevelBitSize) {
-
-        super(vMM, kMM);
-        this.keySerializer = keySerializer;
-        this.valueSerializer = valueSerializer;
-        this.comparator = oakComparator;
+    InternalOakHash(OakSharedConfig<K, V> config,
+                    ValueUtils valueOperator, int firstLevelBitSize, int secondLevelBitSize) {
+        super(config);
         this.valueOperator = valueOperator;
 
         int msbForFirstLevelHash =
@@ -35,9 +27,7 @@ class InternalOakHash<K, V> extends InternalOakBasics<K, V> {
                 ? DEFAULT_MOST_SIGN_BITS_NUM : firstLevelBitSize;
 
         this.hashArray =
-            new FirstLevelHashArray<K, V>(msbForFirstLevelHash, secondLevelBitSize,
-                this.size, vMM, kMM, oakComparator,
-                keySerializer, valueSerializer, 1);
+            new FirstLevelHashArray<>(config, msbForFirstLevelHash, secondLevelBitSize, 1);
 
     }
 
@@ -72,7 +62,7 @@ class InternalOakHash<K, V> extends InternalOakBasics<K, V> {
 
     /*-------------- Generic to specific rebalance --------------*/
     @Override
-    protected void rebalanceBasic(BasicChunk<K, V> basicChunk) {
+    protected void rebalanceBasic(EntryArray<K, V> basicChunk) {
         rebalance((HashChunk<K, V>) basicChunk); // exception will be triggered on wrong type
     }
 
@@ -88,7 +78,7 @@ class InternalOakHash<K, V> extends InternalOakBasics<K, V> {
 
     /*----------- Centralized invocation of the default hash function on the input key -----------*/
     private int calculateKeyHash(K key, ThreadContext ctx) {
-        if (ctx.operationKeyHash != EntryHashSet.INVALID_KEY_HASH) {
+        if (ctx.operationKeyHash != HashChunk.INVALID_KEY_HASH) {
             return ctx.operationKeyHash;
         }
 
@@ -283,11 +273,8 @@ class InternalOakHash<K, V> extends InternalOakBasics<K, V> {
         ThreadContext ctx = getThreadContext();
         // find chunk matching key, puts this key hash into ctx.operationKeyHash
         HashChunk<K, V> c = hashArray.findChunk(key, ctx, calculateKeyHash(key, ctx));
-        c.lookUpForGetOnly(ctx, key);
-        if (!ctx.isValueValid()) {
-            return null;
-        }
-        return ctx;
+        boolean found = c.lookUpForGetOnly(ctx, key);
+        return found ? ctx : null;
     }
 
     // the zero-copy version of get
@@ -318,8 +305,8 @@ class InternalOakHash<K, V> extends InternalOakBasics<K, V> {
         for (int i = 0; i < MAX_RETRIES; i++) {
             // find chunk matching key, puts this key hash into ctx.operationKeyHash
             HashChunk<K, V> c = hashArray.findChunk(key, ctx, calculateKeyHash(key, ctx));
-            c.lookUpForGetOnly(ctx, key);
-            if (!ctx.isValueValid()) {
+            boolean found = c.lookUpForGetOnly(ctx, key);
+            if (!found) {
                 return null;
             }
 

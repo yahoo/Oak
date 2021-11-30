@@ -40,9 +40,9 @@ class Rebalancer<K, V> {
     /*-------------- Constructors --------------*/
 
     Rebalancer(OrderedChunk<K, V> orderedChunk) {
-        this.entriesLowThreshold = (int) (orderedChunk.getMaxItems() * LOW_THRESHOLD);
-        this.maxRangeToAppend = (int) (orderedChunk.getMaxItems() * APPEND_THRESHOLD);
-        this.maxAfterMergeItems = (int) (orderedChunk.getMaxItems() * MAX_AFTER_MERGE_PART);
+        this.entriesLowThreshold = (int) (orderedChunk.entriesCapacity * LOW_THRESHOLD);
+        this.maxRangeToAppend = (int) (orderedChunk.entriesCapacity * APPEND_THRESHOLD);
+        this.maxAfterMergeItems = (int) (orderedChunk.entriesCapacity * MAX_AFTER_MERGE_PART);
         nextToEngage = new AtomicReference<>(orderedChunk);
         this.first = orderedChunk;
         last = orderedChunk;
@@ -116,7 +116,7 @@ class Rebalancer<K, V> {
         OrderedChunk<K, V> currFrozen = firstFrozen;
         OrderedChunk<K, V> currNewOrderedChunk = firstFrozen.createFirstChild();
 
-        int ei = firstFrozen.getFirstItemEntryIndex();
+        int ei = firstFrozen.getHeadNextEntryIndex();
         List<OrderedChunk<K, V>> newOrderedChunks = new LinkedList<>();
 
         KeyBuffer keyBuff = ctx.tempKey;
@@ -132,7 +132,7 @@ class Rebalancer<K, V> {
                 }
 
                 currFrozen = iterFrozen.next();
-                ei = currFrozen.getFirstItemEntryIndex();
+                ei = currFrozen.getHeadNextEntryIndex();
 
             } else { // filled new chunk up to entriesLowThreshold
 
@@ -149,7 +149,7 @@ class Rebalancer<K, V> {
                     // here we create a new minimal key buffer for the second new chunk,
                     // created by the split. The new min key is a copy of the older one
 
-                    currFrozen.readKeyFromEntryIndex(keyBuff, ei);
+                    currFrozen.readKey(keyBuff, ei);
                     OrderedChunk<K, V> c = firstFrozen.createNextChild(keyBuff);
                     currNewOrderedChunk.next.set(c, false);
                     newOrderedChunks.add(currNewOrderedChunk);
@@ -186,7 +186,7 @@ class Rebalancer<K, V> {
         ValueBuffer tempValue, OrderedChunk<K, V> dest,
         final int ei, List<OrderedChunk<K, V>> srcOrderedChunks) {
 
-        final int maxItems = dest.getMaxItems();
+        final int maxItems = dest.entriesCapacity;
         Iterator<OrderedChunk<K, V>> iter = srcOrderedChunks.iterator();
 
         OrderedChunk<K, V> src = iter.next();
@@ -194,7 +194,7 @@ class Rebalancer<K, V> {
 
         while (iter.hasNext()) {
             OrderedChunk<K, V> curSrc = iter.next();
-            int curEntryIndex = src.getFirstItemEntryIndex();
+            int curEntryIndex = src.getHeadNextEntryIndex();
             dest.copyPartOfEntries(tempValue, curSrc, curEntryIndex, maxItems);
         }
     }
@@ -251,8 +251,8 @@ class Rebalancer<K, V> {
     private boolean isCandidate(OrderedChunk<K, V> orderedChunk) {
         // do not take chunks that are engaged with another rebalancer or infant
         return orderedChunk != null && orderedChunk.isEngaged(null) && (
-            orderedChunk.state() != BasicChunk.State.INFANT) &&
-                (orderedChunk.state() != BasicChunk.State.RELEASED);
+            orderedChunk.state() != EntryArray.State.INFANT) &&
+                (orderedChunk.state() != EntryArray.State.RELEASED);
     }
 
     private List<OrderedChunk<K, V>> createEngagedList() {
