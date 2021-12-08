@@ -118,7 +118,6 @@ public class OakMapBuilder<K, V> {
         }
     }
 
-
     public OakMap<K, V> buildOrderedMap() {
         if (preferredBlockSizeBytes != null) {
             BlocksPool.preferBlockSize(preferredBlockSizeBytes);
@@ -131,15 +130,14 @@ public class OakMapBuilder<K, V> {
         MemoryManager valuesMemoryManager = new SyncRecycleMemoryManager(memoryAllocator);
         MemoryManager keysMemoryManager = new SeqExpandMemoryManager(memoryAllocator);
         checkPreconditions();
+
         if (minKey == null) {
             throw new IllegalStateException("Must provide a non-null minimal key object to build the OakMap");
         }
-        return new OakMap<>(
-                minKey,
-                keySerializer,
-                valueSerializer,
-                comparator, orderedChunkMaxItems,
-                valuesMemoryManager, keysMemoryManager);
+        return new OakMap<>(new OakSharedConfig<>(
+                memoryAllocator, keysMemoryManager, valuesMemoryManager,
+                keySerializer, valueSerializer, comparator
+        ), minKey, orderedChunkMaxItems);
     }
 
 
@@ -167,9 +165,11 @@ public class OakMapBuilder<K, V> {
         System.gc(); // the below is memory costly, be sure all unreachable memory is cleared
 
         checkPreconditions();
-        return new OakHashMap<>(keySerializer, valueSerializer,
-                comparator,
-                bitsToKeepChunkSize, bitsToKeepChunksNum, valuesMemoryManager, keysMemoryManager);
+
+        return new OakHashMap<>(new OakSharedConfig<>(
+                memoryAllocator, keysMemoryManager, valuesMemoryManager,
+                keySerializer, valueSerializer, comparator
+        ), bitsToKeepChunkSize, bitsToKeepChunksNum);
     }
 
 }

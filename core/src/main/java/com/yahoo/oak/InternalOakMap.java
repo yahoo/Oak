@@ -7,7 +7,6 @@
 package com.yahoo.oak;
 
 import java.util.AbstractMap;
-import java.util.Comparator;
 import java.util.ConcurrentModificationException;
 import java.util.Iterator;
 import java.util.List;
@@ -25,16 +24,11 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
 
     final ConcurrentSkipListMap<Object, OrderedChunk<K, V>> skiplist;    // skiplist of chunks for fast navigation
     private final AtomicReference<OrderedChunk<K, V>> head;
-    private final OakComparator<K> comparator;
-    private final MemoryManager valuesMemoryManager;
-    private final MemoryManager keysMemoryManager;
-    private final OakSerializer<K> keySerializer;
-    private final OakSerializer<V> valueSerializer;
+
     // The reference count is used to count the upper objects wrapping this internal map:
     // OakMaps (including subMaps and Views) when all of the above are closed,
     // his map can be closed and memory released.
     private final AtomicInteger referenceCount = new AtomicInteger(1);
-    private final ValueUtils valueOperator;
 
     /*-------------- Constructors --------------*/
 
@@ -42,44 +36,31 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
      * init with capacity = 2g
      */
 
-    InternalOakMap(K minKey, OakSerializer<K> keySerializer, OakSerializer<V> valueSerializer,
-        OakComparator<K> oakComparator, MemoryManager vMM, MemoryManager kMM, int chunkMaxItems,
-        ValueUtils valueOperator) {
-
-        super(vMM, kMM);
-        this.valuesMemoryManager = vMM;
-        this.keysMemoryManager = kMM;
-        this.keySerializer = keySerializer;
-        this.valueSerializer = valueSerializer;
-
-        this.comparator = oakComparator;
+    InternalOakMap(OakSharedConfig<K, V> config, K minKey, int chunkMaxItems) {
+        super(config);
 
         // This is a trick for letting us search through the skiplist using both serialized and unserialized keys.
         // Might be nicer to replace it with a proper visitor
-        Comparator<Object> mixedKeyComparator = (o1, o2) -> {
+        this.skiplist = new ConcurrentSkipListMap<>((o1, o2) -> {
             if (o1 instanceof OakScopedReadBuffer) {
                 if (o2 instanceof OakScopedReadBuffer) {
-                    return oakComparator.compareSerializedKeys((OakScopedReadBuffer) o1, (OakScopedReadBuffer) o2);
+                    return comparator.compareSerializedKeys((OakScopedReadBuffer) o1, (OakScopedReadBuffer) o2);
                 } else {
                     // Note the inversion of arguments, hence sign flip
-                    return (-1) * oakComparator.compareKeyAndSerializedKey((K) o2, (OakScopedReadBuffer) o1);
+                    return (-1) * comparator.compareKeyAndSerializedKey((K) o2, (OakScopedReadBuffer) o1);
                 }
             } else {
                 if (o2 instanceof OakScopedReadBuffer) {
-                    return oakComparator.compareKeyAndSerializedKey((K) o1, (OakScopedReadBuffer) o2);
+                    return comparator.compareKeyAndSerializedKey((K) o1, (OakScopedReadBuffer) o2);
                 } else {
-                    return oakComparator.compareKeys((K) o1, (K) o2);
+                    return comparator.compareKeys((K) o1, (K) o2);
                 }
             }
-        };
-        this.skiplist = new ConcurrentSkipListMap<>(mixedKeyComparator);
+        });
 
-        OrderedChunk<K, V>
-            head = new OrderedChunk<>(minKey, chunkMaxItems, this.size, vMM, kMM, this.comparator,
-                keySerializer, valueSerializer);
+        OrderedChunk<K, V> head = new OrderedChunk<>(config, minKey, chunkMaxItems);
         this.skiplist.put(head.minKey, head);    // add first orderedChunk (head) into skiplist
         this.head = new AtomicReference<>(head);
-        this.valueOperator = valueOperator;
     }
 
     /*-------------- Closable --------------*/
@@ -135,7 +116,7 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
     }
 
     @Override
-    protected void rebalanceBasic(BasicChunk<K, V> basicChunk) {
+    protected void rebalanceBasic(EntryArray<K, V> basicChunk) {
         rebalance((OrderedChunk<K, V>) basicChunk); // exception will be triggered on wrong type
     }
 
@@ -262,7 +243,7 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
         while (iterChildren.hasNext()) {
             OrderedChunk<K, V> childToAdd = iterChildren.next();
             synchronized (childToAdd) {
-                if (childToAdd.state() == BasicChunk.State.INFANT) { // make sure it wasn't add before
+                if (childToAdd.state() == EntryArray.State.INFANT) { // make sure it wasn't add before
                     skiplist.putIfAbsent(childToAdd.minKey, childToAdd);
                     childToAdd.normalize();
                 }
@@ -276,7 +257,7 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
 
     // returns false when restart is needed
     // (if rebalance happened or another valid entry with same key was found)
-    private boolean allocateAndLinkEntry(OrderedChunk c, ThreadContext ctx, K key, boolean isPutIfAbsent) {
+    private boolean allocateAndLinkEntry(OrderedChunk<K, V> c, ThreadContext ctx, K key, boolean isPutIfAbsent) {
         // There was no such key found, going to allocate a new key.
         // EntryOrderedSet allocates the entry (holding the key) and ctx is going to be updated
         // to be used by EntryOrderedSet's subsequent requests to write value
@@ -812,7 +793,7 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
         K keyDeserialized = keySerializer.deserialize(ctx.tempKey);
 
         // get value associated with this (prev) key
-        boolean isAllocated = c.readValueFromEntryIndex(ctx.value, prevIndex);
+        boolean isAllocated = c.readValue(ctx.value, prevIndex);
         if (!isAllocated) { // value reference was invalid, try again
             return lowerEntry(key);
         }
@@ -946,7 +927,7 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
 
         private void initAfterRebalance() {
             //TODO - refactor to use OakReadBuffer without deserializing.
-            state.getOrderedChunk().readKeyFromEntryIndex(ctx.tempKey, state.getIndex());
+            state.getOrderedChunk().readKey(ctx.tempKey, state.getIndex());
             K nextKey = keySerializer.deserialize(ctx.tempKey);
 
             if (isDescending) {
@@ -981,7 +962,7 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
                 }
 
                 final OrderedChunk<K, V> c = state.getOrderedChunk();
-                if (c.state() == BasicChunk.State.RELEASED) {
+                if (c.state() == EntryArray.State.RELEASED) {
                     initAfterRebalance();
                     continue;
                 }
@@ -1026,7 +1007,7 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
                 }
 
                 final OrderedChunk<K, V> c = state.getOrderedChunk();
-                if (c.state() == BasicChunk.State.RELEASED) {
+                if (c.state() == EntryArray.State.RELEASED) {
                     initAfterRebalance();
                     continue;
                 }
@@ -1035,7 +1016,7 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
 
                 if (key != null) {
                     if (!state.chunkIter.isBoundCheckNeeded()) {
-                        validState = c.readKeyFromEntryIndex(key.getInternalScopedReadBuffer(), curIndex);
+                        validState = c.readKey(key.getInternalScopedReadBuffer(), curIndex);
                         assert validState;
                     } else {
                         // If we checked the boundary, than we already read the current key into ctx.tempKey
@@ -1046,7 +1027,7 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
 
                 if (value != null) {
                     // If the current value is deleted, then advance and try again
-                    validState = c.readValueFromEntryIndex(value.getInternalScopedReadBuffer(), curIndex);
+                    validState = c.readValue(value.getInternalScopedReadBuffer(), curIndex);
                 }
 
                 advanceState();
@@ -1156,7 +1137,7 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
             // The boundary check is costly and need to be performed only when required,
             // meaning not on the full scan.
             if (chunkIter.isBoundCheckNeeded()) {
-                orderedChunk.readKeyFromEntryIndex(ctx.tempKey, nextIndex);
+                orderedChunk.readKey(ctx.tempKey, nextIndex);
                 if (!inBounds(ctx.tempKey)) {
                     state = null;
                 }

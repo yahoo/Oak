@@ -67,6 +67,7 @@ public class ParametrizedMapApiTest {
     @After
     public void finish() {
         oak.close();
+        BlocksPool.clear();
     }
 
     @Test

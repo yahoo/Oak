@@ -13,15 +13,30 @@ abstract class InternalOakBasics<K, V> {
     /*-------------- Members --------------*/
     protected static final int MAX_RETRIES = 1024;
 
+    protected final OakSharedConfig<K, V> config;
+
     protected final MemoryManager valuesMemoryManager;
     protected final MemoryManager keysMemoryManager;
+
+    protected final OakSerializer<K> keySerializer;
+    protected final OakSerializer<V> valueSerializer;
+
+    protected final OakComparator<K> comparator;
+
+    protected final ValueUtils valueOperator;
+
     protected final AtomicInteger size;
 
     /*-------------- Constructors --------------*/
-    InternalOakBasics(MemoryManager vMM, MemoryManager kMM) {
-        this.size = new AtomicInteger(0);
-        this.valuesMemoryManager = vMM;
-        this.keysMemoryManager = kMM;
+    InternalOakBasics(OakSharedConfig<K, V> config) {
+        this.config = config;
+        this.keysMemoryManager = config.keysMemoryManager;
+        this.valuesMemoryManager = config.valuesMemoryManager;
+        this.keySerializer = config.keySerializer;
+        this.valueSerializer = config.valueSerializer;
+        this.comparator = config.comparator;
+        this.valueOperator = config.valueOperator;
+        this.size = config.size;
     }
 
     /*-------------- Closable --------------*/
@@ -73,28 +88,28 @@ abstract class InternalOakBasics<K, V> {
     /**
     * Tunneling for a specific chunk rebalance to be implemented in concrete internal map or hash
     * */
-    protected abstract void rebalanceBasic(BasicChunk<K, V> c);
+    protected abstract void rebalanceBasic(EntryArray<K, V> c);
 
-    protected void checkRebalance(BasicChunk<K, V> c) {
+    protected void checkRebalance(EntryArray<K, V> c) {
         if (c.shouldRebalance()) {
             rebalanceBasic(c);
         }
     }
 
-    protected void helpRebalanceIfInProgress(BasicChunk<K, V> c) {
-        if (c.state() == BasicChunk.State.FROZEN) {
+    protected void helpRebalanceIfInProgress(EntryArray<K, V> c) {
+        if (c.state() == EntryArray.State.FROZEN) {
             rebalanceBasic(c);
         }
     }
 
-    protected boolean inTheMiddleOfRebalance(BasicChunk<K, V> c) {
-        BasicChunk.State state = c.state();
-        if (state == BasicChunk.State.INFANT) {
+    protected boolean inTheMiddleOfRebalance(EntryArray<K, V> c) {
+        EntryArray.State state = c.state();
+        if (state == EntryArray.State.INFANT) {
             // the infant is already connected so rebalancer won't add this put
             rebalanceBasic(c.creator());
             return true;
         }
-        if (state == BasicChunk.State.FROZEN || state == BasicChunk.State.RELEASED) {
+        if (state == EntryArray.State.FROZEN || state == EntryArray.State.RELEASED) {
             rebalanceBasic(c);
             return true;
         }
@@ -102,7 +117,7 @@ abstract class InternalOakBasics<K, V> {
     }
 
     /*-------------- Common actions --------------*/
-    protected boolean finalizeDeletion(BasicChunk<K, V> c, ThreadContext ctx) {
+    protected boolean finalizeDeletion(EntryArray<K, V> c, ThreadContext ctx) {
         if (c.finalizeDeletion(ctx)) {
             rebalanceBasic(c);
             return true;
@@ -110,7 +125,7 @@ abstract class InternalOakBasics<K, V> {
         return false;
     }
 
-    protected boolean isAfterRebalanceOrValueUpdate(BasicChunk<K, V> c, ThreadContext ctx) {
+    protected boolean isAfterRebalanceOrValueUpdate(EntryArray<K, V> c, ThreadContext ctx) {
         // If orderedChunk is frozen or infant, can't proceed with put, need to help rebalancer first,
         // rebalance is done as part of inTheMiddleOfRebalance.
         // Also if value is off-heap deleted, we need to finalizeDeletion on-heap, which can
@@ -124,11 +139,7 @@ abstract class InternalOakBasics<K, V> {
         // But in the meanwhile value was reset to be another, valid value.
         // In Hash case value will be always invalid in the context, but the changes will be caught
         // during next entry allocation
-        if (ctx.isValueValid()) {
-            return true;
-        }
-
-        return false;
+        return ctx.isValueValid();
     }
 
     /**
@@ -163,7 +174,7 @@ abstract class InternalOakBasics<K, V> {
 
     /*-------------- Different Oak Buffer creations --------------*/
 
-    protected UnscopedBuffer getKeyUnscopedBuffer(ThreadContext ctx) {
+    protected UnscopedBuffer<KeyBuffer> getKeyUnscopedBuffer(ThreadContext ctx) {
         return new UnscopedBuffer<>(new KeyBuffer(ctx.key));
     }
 

@@ -74,8 +74,8 @@ class ThreadContext {
         this.tempKey = new KeyBuffer(kmm.getEmptySlice());
         this.tempValue = new ValueBuffer(vmm.getEmptySlice());
 
-        this.keyHashAndUpdateCnt = EntryHashSet.INVALID_KEY_HASH_AND_UPD_CNT;
-        this.operationKeyHash = EntryHashSet.INVALID_KEY_HASH;
+        this.keyHashAndUpdateCnt = HashChunk.INVALID_KEY_HASH_AND_UPD_CNT;
+        this.operationKeyHash = HashChunk.INVALID_KEY_HASH;
     }
 
     void invalidate() {
@@ -86,7 +86,7 @@ class ThreadContext {
         result.invalidate();
         entryState = EntryArray.EntryState.UNKNOWN;
         isNewValueForMove = false;
-        this.keyHashAndUpdateCnt = EntryHashSet.INVALID_KEY_HASH_AND_UPD_CNT;
+        this.keyHashAndUpdateCnt = HashChunk.INVALID_KEY_HASH_AND_UPD_CNT;
         // No need to invalidate the temporary buffers
     }
 
