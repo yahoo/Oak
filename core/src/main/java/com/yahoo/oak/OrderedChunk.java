@@ -51,9 +51,9 @@ import java.util.concurrent.atomic.AtomicMarkableReference;
  *
  * Internal class, package visibility
  */
-class OrderedChunk<K, V> extends EntryArray<K, V> {
+class OrderedChunk<K, V> extends Chunk<K, V> {
     // an entry with NONE_NEXT as its next pointer, points to a null entry
-    static final int NONE_NEXT = EntryArray.INVALID_ENTRY_INDEX;
+    static final int NONE_NEXT = Chunk.INVALID_ENTRY_INDEX;
 
     /*-------------- Constants --------------*/
     // used for checking if rebalance is needed
@@ -101,7 +101,7 @@ class OrderedChunk<K, V> extends EntryArray<K, V> {
      * (without duplicating the KeyBuffer data).
      */
     OrderedChunk<K, V> createFirstChild() {
-        OrderedChunk<K, V> child = new OrderedChunk<>(config, entriesCapacity);
+        OrderedChunk<K, V> child = new OrderedChunk<>(config, array.entryCount());
         updateBasicChild(child);
         child.minKey.copyFrom(this.minKey);
         return child;
@@ -112,7 +112,7 @@ class OrderedChunk<K, V> extends EntryArray<K, V> {
      * The child OrderedChunk will use a duplicate minKey of the input (allocates a new buffer).
      */
     OrderedChunk<K, V> createNextChild(KeyBuffer minKey) {
-        OrderedChunk<K, V> child = new OrderedChunk<>(config, entriesCapacity);
+        OrderedChunk<K, V> child = new OrderedChunk<>(config, array.entryCount());
         updateBasicChild(child);
         duplicateKeyBuffer(minKey, child.minKey);
         return child;
@@ -382,9 +382,9 @@ class OrderedChunk<K, V> extends EntryArray<K, V> {
         // 1. There are no sorted keys and the total number of entries is above a certain threshold.
         // 2. There are sorted keys, but the total number of unsorted keys is too big.
         // 3. Out of the occupied entries, there are not enough actual items.
-        return (sortedCount == 0 && (numOfEntries * MAX_ENTRIES_FACTOR) > entriesCapacity)
+        return (sortedCount == 0 && (numOfEntries * MAX_ENTRIES_FACTOR) > array.entryCount())
                 || (sortedCount > 0 && (sortedCount * SORTED_REBALANCE_RATIO) < numOfEntries)
-                || ((numOfEntries * MAX_IDLE_ENTRIES_FACTOR) > entriesCapacity
+                || ((numOfEntries * MAX_IDLE_ENTRIES_FACTOR) > array.entryCount()
                     && (numOfItems * MAX_IDLE_ENTRIES_FACTOR) < numOfEntries);
     }
 
@@ -414,7 +414,7 @@ class OrderedChunk<K, V> extends EntryArray<K, V> {
             return srcEntryIdx;
         }
         // assuming that all chunks are bounded with same number of entries to hold
-        assert srcEntryIdx <= entriesCapacity;
+        assert srcEntryIdx <= array.entryCount();
 
         // set the next entry index (previous entry or head) from where we start to copy
         // if sortedThisEntryIndex is one (first entry to be occupied on this chunk)
@@ -717,7 +717,7 @@ class OrderedChunk<K, V> extends EntryArray<K, V> {
         private boolean fromInclusive;
 
         // 1 is the lowest possible value
-        private final int skipEntriesForBiggerStack = Math.max(1, entriesCapacity / 10);
+        private final int skipEntriesForBiggerStack = Math.max(1, array.entryCount() / 10);
 
         DescendingIter(ThreadContext ctx, K to, boolean toInclusive) {
             KeyBuffer tempKeyBuff = ctx.tempKey;
@@ -970,7 +970,7 @@ class OrderedChunk<K, V> extends EntryArray<K, V> {
         if (!isIndexInBound(ei)) {
             return INVALID_ENTRY_INDEX;
         }
-        return (int) getEntryFieldLong(ei, NEXT_FIELD_OFFSET);
+        return (int) array.getEntryFieldLong(ei, NEXT_FIELD_OFFSET);
     }
 
     /**
@@ -980,7 +980,7 @@ class OrderedChunk<K, V> extends EntryArray<K, V> {
      */
     void setNextEntryIndex(int ei, int next) {
         assert ei <= nextFreeIndex.get() && next <= nextFreeIndex.get();
-        setEntryFieldLong(ei, NEXT_FIELD_OFFSET, next);
+        array.setEntryFieldLong(ei, NEXT_FIELD_OFFSET, next);
     }
 
     /**
@@ -998,7 +998,7 @@ class OrderedChunk<K, V> extends EntryArray<K, V> {
      * The method serves external EntryOrderedSet users.
      */
     boolean casNextEntryIndex(int ei, int nextOld, int nextNew) {
-        return casEntryFieldLong(ei, NEXT_FIELD_OFFSET, nextOld, nextNew);
+        return array.casEntryFieldLong(ei, NEXT_FIELD_OFFSET, nextOld, nextNew);
     }
 
     /**
@@ -1091,7 +1091,7 @@ class OrderedChunk<K, V> extends EntryArray<K, V> {
         // This is ABA problem and resolved via always changing deleted variation of the reference
         // Also value's off-heap slice is released to memory manager only after deleteValueFinish
         // is done.
-        if (casEntryFieldLong(ctx.entryIndex, VALUE_REF_OFFSET, expectedReference, newReference)) {
+        if (array.casEntryFieldLong(ctx.entryIndex, VALUE_REF_OFFSET, expectedReference, newReference)) {
             assert valuesMemoryManager.isReferenceConsistent(getValueReference(ctx.entryIndex));
             numOfEntries.getAndDecrement();
             ctx.value.getSlice().release();
@@ -1153,7 +1153,7 @@ class OrderedChunk<K, V> extends EntryArray<K, V> {
         // the first field in an entry is next, and it is not copied since it should be assigned elsewhere
         // therefore, to copy the rest of the entry we use the offset of next (which we assume is 0) and
         // add 1 to start the copying from the subsequent field of the entry.
-        copyEntriesFrom(srcEntryOrderedSet, srcEntryIdx, destEntryIndex, 2);
+        array.copyEntryFrom(srcEntryOrderedSet.array, srcEntryIdx, destEntryIndex, 2);
 
         assert valuesMemoryManager.isReferenceConsistent(getValueReference(destEntryIndex));
 

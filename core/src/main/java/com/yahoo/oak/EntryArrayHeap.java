@@ -7,12 +7,10 @@
 package com.yahoo.oak;
 
 import sun.misc.Unsafe;
-import sun.nio.ch.DirectBuffer;
 
-import java.nio.ByteBuffer;
 import java.util.Arrays;
 
-public class EntryArrayHeap implements EntryArrayInterface {
+public class EntryArrayHeap implements EntryArray {
 
     // The array is initialized to 0 - this is important!
     private final long[] entries;
@@ -86,7 +84,7 @@ public class EntryArrayHeap implements EntryArrayInterface {
      * {@inheritDoc}
      */
     @Override
-    public void copyEntryFrom(EntryArrayInterface other, int srcEntryIndex, int destEntryIndex, int fieldCount) {
+    public void copyEntryFrom(EntryArray other, int srcEntryIndex, int destEntryIndex, int fieldCount) {
         assert fieldCount <= this.fieldCount;
         EntryArrayHeap o = (EntryArrayHeap) other;
         System.arraycopy(o.entries,  // source entries array

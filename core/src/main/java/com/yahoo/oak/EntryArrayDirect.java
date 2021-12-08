@@ -10,7 +10,7 @@ import sun.nio.ch.DirectBuffer;
 
 import java.nio.ByteBuffer;
 
-public class EntryArrayDirect implements EntryArrayInterface {
+public class EntryArrayDirect implements EntryArray {
 
     // We store the buffer object here to avoid the buffer collection by the GC
     // The buffer is initialized to 0 - this is important!
@@ -47,6 +47,10 @@ public class EntryArrayDirect implements EntryArrayInterface {
         int offset = (entryIndex * fieldCount) + fieldIndex;
         return entriesAddress + ((long) offset * (long) Long.BYTES);
     }
+
+    /* ########################################################################################
+       # EntryArray Interface
+       ######################################################################################## */
 
     /** {@inheritDoc} */
     @Override
@@ -88,7 +92,7 @@ public class EntryArrayDirect implements EntryArrayInterface {
 
     /** {@inheritDoc} */
     @Override
-    public void copyEntryFrom(EntryArrayInterface other, int srcEntryIndex, int destEntryIndex, int fieldCount) {
+    public void copyEntryFrom(EntryArray other, int srcEntryIndex, int destEntryIndex, int fieldCount) {
         assert fieldCount <= this.fieldCount;
         EntryArrayDirect o = (EntryArrayDirect) other;
         UnsafeUtils.UNSAFE.copyMemory(

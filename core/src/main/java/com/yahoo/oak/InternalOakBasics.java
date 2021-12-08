@@ -88,28 +88,28 @@ abstract class InternalOakBasics<K, V> {
     /**
     * Tunneling for a specific chunk rebalance to be implemented in concrete internal map or hash
     * */
-    protected abstract void rebalanceBasic(EntryArray<K, V> c);
+    protected abstract void rebalanceBasic(Chunk<K, V> c);
 
-    protected void checkRebalance(EntryArray<K, V> c) {
+    protected void checkRebalance(Chunk<K, V> c) {
         if (c.shouldRebalance()) {
             rebalanceBasic(c);
         }
     }
 
-    protected void helpRebalanceIfInProgress(EntryArray<K, V> c) {
-        if (c.state() == EntryArray.State.FROZEN) {
+    protected void helpRebalanceIfInProgress(Chunk<K, V> c) {
+        if (c.state() == Chunk.State.FROZEN) {
             rebalanceBasic(c);
         }
     }
 
-    protected boolean inTheMiddleOfRebalance(EntryArray<K, V> c) {
-        EntryArray.State state = c.state();
-        if (state == EntryArray.State.INFANT) {
+    protected boolean inTheMiddleOfRebalance(Chunk<K, V> c) {
+        Chunk.State state = c.state();
+        if (state == Chunk.State.INFANT) {
             // the infant is already connected so rebalancer won't add this put
             rebalanceBasic(c.creator());
             return true;
         }
-        if (state == EntryArray.State.FROZEN || state == EntryArray.State.RELEASED) {
+        if (state == Chunk.State.FROZEN || state == Chunk.State.RELEASED) {
             rebalanceBasic(c);
             return true;
         }
@@ -117,7 +117,7 @@ abstract class InternalOakBasics<K, V> {
     }
 
     /*-------------- Common actions --------------*/
-    protected boolean finalizeDeletion(EntryArray<K, V> c, ThreadContext ctx) {
+    protected boolean finalizeDeletion(Chunk<K, V> c, ThreadContext ctx) {
         if (c.finalizeDeletion(ctx)) {
             rebalanceBasic(c);
             return true;
@@ -125,7 +125,7 @@ abstract class InternalOakBasics<K, V> {
         return false;
     }
 
-    protected boolean isAfterRebalanceOrValueUpdate(EntryArray<K, V> c, ThreadContext ctx) {
+    protected boolean isAfterRebalanceOrValueUpdate(Chunk<K, V> c, ThreadContext ctx) {
         // If orderedChunk is frozen or infant, can't proceed with put, need to help rebalancer first,
         // rebalance is done as part of inTheMiddleOfRebalance.
         // Also if value is off-heap deleted, we need to finalizeDeletion on-heap, which can

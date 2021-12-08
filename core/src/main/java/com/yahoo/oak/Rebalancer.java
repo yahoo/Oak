@@ -40,9 +40,9 @@ class Rebalancer<K, V> {
     /*-------------- Constructors --------------*/
 
     Rebalancer(OrderedChunk<K, V> orderedChunk) {
-        this.entriesLowThreshold = (int) (orderedChunk.entriesCapacity * LOW_THRESHOLD);
-        this.maxRangeToAppend = (int) (orderedChunk.entriesCapacity * APPEND_THRESHOLD);
-        this.maxAfterMergeItems = (int) (orderedChunk.entriesCapacity * MAX_AFTER_MERGE_PART);
+        this.entriesLowThreshold = (int) (orderedChunk.array.entryCount() * LOW_THRESHOLD);
+        this.maxRangeToAppend = (int) (orderedChunk.array.entryCount() * APPEND_THRESHOLD);
+        this.maxAfterMergeItems = (int) (orderedChunk.array.entryCount() * MAX_AFTER_MERGE_PART);
         nextToEngage = new AtomicReference<>(orderedChunk);
         this.first = orderedChunk;
         last = orderedChunk;
@@ -186,7 +186,7 @@ class Rebalancer<K, V> {
         ValueBuffer tempValue, OrderedChunk<K, V> dest,
         final int ei, List<OrderedChunk<K, V>> srcOrderedChunks) {
 
-        final int maxItems = dest.entriesCapacity;
+        final int maxItems = dest.array.entryCount();
         Iterator<OrderedChunk<K, V>> iter = srcOrderedChunks.iterator();
 
         OrderedChunk<K, V> src = iter.next();
@@ -251,8 +251,8 @@ class Rebalancer<K, V> {
     private boolean isCandidate(OrderedChunk<K, V> orderedChunk) {
         // do not take chunks that are engaged with another rebalancer or infant
         return orderedChunk != null && orderedChunk.isEngaged(null) && (
-            orderedChunk.state() != EntryArray.State.INFANT) &&
-                (orderedChunk.state() != EntryArray.State.RELEASED);
+            orderedChunk.state() != Chunk.State.INFANT) &&
+                (orderedChunk.state() != Chunk.State.RELEASED);
     }
 
     private List<OrderedChunk<K, V>> createEngagedList() {

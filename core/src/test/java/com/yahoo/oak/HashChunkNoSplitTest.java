@@ -49,10 +49,10 @@ public class HashChunkNoSplitTest {
         assert c.allocateEntryAndWriteKey(ctx, key);
         if (concurrent) { // for concurrency the entry state can be also deleted
             // (from this or other key being previously inserted and fully deleted)
-            Assert.assertTrue(ctx.entryState == EntryArray.EntryState.DELETED
-                || ctx.entryState == EntryArray.EntryState.UNKNOWN);
+            Assert.assertTrue(ctx.entryState == Chunk.EntryState.DELETED
+                || ctx.entryState == Chunk.EntryState.UNKNOWN);
         } else {
-            Assert.assertEquals(ctx.entryState, EntryArray.EntryState.UNKNOWN);
+            Assert.assertEquals(ctx.entryState, Chunk.EntryState.UNKNOWN);
         }
         Assert.assertTrue(ctx.isKeyValid());
         Assert.assertFalse(ctx.isValueValid());
@@ -61,7 +61,7 @@ public class HashChunkNoSplitTest {
         if (!concurrent) { // for concurrency we cannot change the thread context values
             // look for unfinished insert key once again
             c.lookUp(ctx, key);
-            Assert.assertEquals(ctx.entryState, EntryArray.EntryState.INSERT_NOT_FINALIZED);
+            Assert.assertEquals(ctx.entryState, Chunk.EntryState.INSERT_NOT_FINALIZED);
             Assert.assertTrue(ctx.isKeyValid());
             Assert.assertFalse(ctx.isValueValid());
             Assert.assertNotEquals(ctx.key.getSlice().getReference(), memoryManager.getInvalidReference());
@@ -70,9 +70,9 @@ public class HashChunkNoSplitTest {
 
         // allocate and write the value
         c.allocateValue(ctx, key + 1, false);
-        Assert.assertTrue(ctx.entryState == EntryArray.EntryState.INSERT_NOT_FINALIZED
-            || ctx.entryState == EntryArray.EntryState.UNKNOWN
-            || ctx.entryState == EntryArray.EntryState.DELETED);
+        Assert.assertTrue(ctx.entryState == Chunk.EntryState.INSERT_NOT_FINALIZED
+            || ctx.entryState == Chunk.EntryState.UNKNOWN
+            || ctx.entryState == Chunk.EntryState.DELETED);
         Assert.assertTrue(ctx.isKeyValid());
         Assert.assertNotEquals(ctx.key.getSlice().getReference(), memoryManager.getInvalidReference());
         Assert.assertNotEquals(ctx.newValue.getSlice().getReference(), memoryManager.getInvalidReference());
@@ -128,8 +128,8 @@ public class HashChunkNoSplitTest {
     private void deleteExisting(Integer key, ThreadContext ctx, boolean concurrent) {
         // delete firstly inserted entries, first look for a key and mark its value as deleted
         c.lookUp(ctx, key);
-        Assert.assertNotEquals(ctx.entryIndex, EntryArray.INVALID_ENTRY_INDEX);
-        Assert.assertEquals(ctx.entryState, EntryArray.EntryState.VALID);
+        Assert.assertNotEquals(ctx.entryIndex, Chunk.INVALID_ENTRY_INDEX);
+        Assert.assertEquals(ctx.entryState, Chunk.EntryState.VALID);
         Assert.assertNotEquals(ctx.key.getSlice().getReference(), memoryManager.getInvalidReference());
         Assert.assertNotEquals(ctx.value.getSlice().getReference(), memoryManager.getInvalidReference());
         Assert.assertEquals(ctx.newValue.getSlice().getReference(), memoryManager.getInvalidReference());
@@ -141,12 +141,12 @@ public class HashChunkNoSplitTest {
 
         ValueUtils.ValueResult vr = ctx.value.s.logicalDelete();
         assert vr == ValueUtils.ValueResult.TRUE;
-        ctx.entryState = EntryArray.EntryState.DELETED_NOT_FINALIZED;
+        ctx.entryState = Chunk.EntryState.DELETED_NOT_FINALIZED;
 
         // expect false because no rebalance should be requested. Includes publish/unpublish
         assert !c.finalizeDeletion(ctx);
         if (!concurrent) {
-            Assert.assertEquals(ctx.entryState, EntryArray.EntryState.DELETED);
+            Assert.assertEquals(ctx.entryState, Chunk.EntryState.DELETED);
             Assert.assertEquals("\nKey reference is " + ctx.key.getSlice().getReference()
                 + " and not invalid reference", ctx.key.getSlice().getReference(),
                 memoryManager.getInvalidReference());

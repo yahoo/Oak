@@ -50,7 +50,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  *
  * Internal class, package visibility
  */
-class HashChunk<K, V> extends EntryArray<K, V> {
+class HashChunk<K, V> extends Chunk<K, V> {
     // defaults
     public static final int HASH_CHUNK_MAX_ITEMS_DEFAULT = 2048; //2^11
 
@@ -86,7 +86,7 @@ class HashChunk<K, V> extends EntryArray<K, V> {
      * Create a child HashChunk where this HashChunk object as its creator.
      */
     HashChunk<K, V> createChild(UnionCodec hashIndexCodec) {
-        HashChunk<K, V> child = new HashChunk<>(config, entriesCapacity, hashIndexCodec);
+        HashChunk<K, V> child = new HashChunk<>(config, array.entryCount(), hashIndexCodec);
         updateBasicChild(child);
         return child;
     }
@@ -205,7 +205,7 @@ class HashChunk<K, V> extends EntryArray<K, V> {
 
     void printSummaryDebug() {
         System.out.print(" Entries: " + statistics.getTotalCount() + ", capacity: "
-            + entriesCapacity + ", collisions: "
+            + array.entryCount() + ", collisions: "
             + getCollisionChainLength() + ", average accesses: ");
     }
 
@@ -266,7 +266,7 @@ class HashChunk<K, V> extends EntryArray<K, V> {
      */
     private long getKeyHashAndUpdateCounter(int ei) {
         assert isIndexInBound(ei);
-        return getEntryFieldLong(ei, HASH_FIELD_OFFSET);
+        return array.getEntryFieldLong(ei, HASH_FIELD_OFFSET);
     }
 
     /**
@@ -291,7 +291,7 @@ class HashChunk<K, V> extends EntryArray<K, V> {
         int updCnt = HASH_CODEC.getSecond(oldKeyHash);
         long newFullHashField = // last one, means setting the valid bit
                 HASH_CODEC.encode(newKeyHash, updCnt + 1, 1);
-        return casEntryFieldLong(ei, HASH_FIELD_OFFSET, oldKeyHash, newFullHashField);
+        return array.casEntryFieldLong(ei, HASH_FIELD_OFFSET, oldKeyHash, newFullHashField);
     }
 
     /**
@@ -306,7 +306,7 @@ class HashChunk<K, V> extends EntryArray<K, V> {
         int keyHash = HASH_CODEC.getFirst(oldKeyHash);
         long newKeyHash = // last zero, means re-setting the valid bit
                 HASH_CODEC.encode(keyHash, updCnt + 1, 0);
-        return casEntryFieldLong(ei, HASH_FIELD_OFFSET, oldKeyHash, newKeyHash);
+        return array.casEntryFieldLong(ei, HASH_FIELD_OFFSET, oldKeyHash, newKeyHash);
     }
 
     /*----- Private Helpers -------*/
@@ -425,7 +425,7 @@ class HashChunk<K, V> extends EntryArray<K, V> {
         // as far as we didn't check more than `collisionChainLength` indexes
         for (int i = 0; i < collisionChainLengthLocal; i++) {
             ctx.invalidate(); // before checking new entry forget what was known about other entry
-            ctx.entryIndex = (idx + i) % entriesCapacity; // check the entry candidate, cyclic increase
+            ctx.entryIndex = (idx + i) % array.entryCount(); // check the entry candidate, cyclic increase
             // entry's key is read into ctx.tempKey as a side effect
             ctx.entryState = getEntryState(ctx, ctx.entryIndex, key, keyHash);
 
@@ -476,7 +476,7 @@ class HashChunk<K, V> extends EntryArray<K, V> {
         // as far as we didn't check more than `collisionChainLength` indexes
         for (int i = 0; i < collisionChainLengthLocal; i++) {
             // thread context comes invalidated
-            ctx.entryIndex = (idx + i) % entriesCapacity; // check the entry candidate, cyclic increase
+            ctx.entryIndex = (idx + i) % array.entryCount(); // check the entry candidate, cyclic increase
 
             long keyReference = getKeyReference(ctx.entryIndex);
             if (keyReference == keysMemoryManager.getInvalidReference()) {
@@ -540,7 +540,7 @@ class HashChunk<K, V> extends EntryArray<K, V> {
         // as far as we didn't check more than `collisionChainLength` indexes
         for (int i = 0; !entryFound && (i < collisionChainLengthLocal); i++) {
             ctx.invalidate();
-            ctx.entryIndex = (idx + i) % entriesCapacity; // check the entry candidate, cyclic increase
+            ctx.entryIndex = (idx + i) % array.entryCount(); // check the entry candidate, cyclic increase
             // entry's key is read into ctx.tempKey as a side effect
             ctx.entryState = getEntryState(ctx, ctx.entryIndex, key, keyHash);
 
@@ -593,7 +593,7 @@ class HashChunk<K, V> extends EntryArray<K, V> {
                 System.out.println(
                         "WARNING!: Too much collisions for the hash function may cause performance degradation");
             }
-            if (collisionChainLengthLocal > entriesCapacity) {
+            if (collisionChainLengthLocal > array.entryCount()) {
                 System.out.println(
                         "FAILURE!: Too much collisions (" + collisionChainLength.get() +
                                 ") to be kept in one chunk. Make sure to enlarge chunk!");
@@ -754,7 +754,7 @@ class HashChunk<K, V> extends EntryArray<K, V> {
         // Also value's off-heap slice is released to memory manager only after deleteValueFinish
         // is done.
         if (!valuesMemoryManager.isReferenceDeleted(expectedValueReference)) {
-            if (casEntryFieldLong(ctx.entryIndex, VALUE_REF_OFFSET, expectedValueReference,
+            if (array.casEntryFieldLong(ctx.entryIndex, VALUE_REF_OFFSET, expectedValueReference,
                     newValueReference)) {
                 // the deletion of the value and its release should be successful only once and for one
                 // thread, therefore the reference and slice should be still valid here
@@ -767,7 +767,7 @@ class HashChunk<K, V> extends EntryArray<K, V> {
         // mark key reference as deleted, if needed
         if (!isKeyReferenceDeleted) {
             long newKeyReference = keysMemoryManager.alterReferenceForDelete(expectedKeyReference);
-            if (casEntryFieldLong(ctx.entryIndex, KEY_REF_OFFSET, expectedKeyReference,
+            if (array.casEntryFieldLong(ctx.entryIndex, KEY_REF_OFFSET, expectedKeyReference,
                     newKeyReference)) {
                 assert keysMemoryManager.isReferenceConsistent(getKeyReference(ctx.entryIndex));
                 ctx.key.getSlice().release();

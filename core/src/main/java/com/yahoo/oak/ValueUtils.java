@@ -44,9 +44,9 @@ class ValueUtils {
 
     /**
      * Does not return the value previously written off-heap
-     * @see #exchange(EntryArray, ThreadContext, Object, OakTransformer, OakSerializer)
+     * @see #exchange(Chunk, ThreadContext, Object, OakTransformer, OakSerializer)
      */
-    <V> ValueResult put(EntryArray<?, V> chunk, ThreadContext ctx, V newVal, OakSerializer<V> serializer) {
+    <V> ValueResult put(Chunk<?, V> chunk, ThreadContext ctx, V newVal, OakSerializer<V> serializer) {
 
         ValueResult result = ctx.value.s.lockWrite();
         if (result != ValueResult.TRUE) {
@@ -60,8 +60,8 @@ class ValueUtils {
         return result;
     }
 
-    private <V> ValueResult innerPut(EntryArray<?, V> chunk, ThreadContext ctx, V newVal,
-        OakSerializer<V> serializer) {
+    private <V> ValueResult innerPut(Chunk<?, V> chunk, ThreadContext ctx, V newVal,
+                                     OakSerializer<V> serializer) {
 
         int capacity = serializer.calculateSize(newVal);
         if (capacity > ctx.value.getLength()) {
@@ -71,7 +71,7 @@ class ValueUtils {
         return ValueResult.TRUE;
     }
 
-    private <V> ValueResult moveValue(EntryArray<?, V> chunk, ThreadContext ctx, V newVal) {
+    private <V> ValueResult moveValue(Chunk<?, V> chunk, ThreadContext ctx, V newVal) {
 
         boolean moved = chunk.overwriteExistingValueForMove(ctx, newVal);
         if (!moved) {
@@ -180,8 +180,8 @@ class ValueUtils {
      * Along side the flag of the result, in case the exchange succeeded, it also returns the value that
      * was written before the exchange.
      */
-    <V> Result exchange(EntryArray<?, V> chunk, ThreadContext ctx, V value,
-        OakTransformer<V> valueDeserializeTransformer, OakSerializer<V> serializer) {
+    <V> Result exchange(Chunk<?, V> chunk, ThreadContext ctx, V value,
+                        OakTransformer<V> valueDeserializeTransformer, OakSerializer<V> serializer) {
 
         ValueResult result = ctx.value.s.lockWrite();
         if (result != ValueResult.TRUE) {
@@ -207,10 +207,10 @@ class ValueUtils {
      * {@code FAILURE} if the value is deleted or if the actual value referenced in {@code ctx} does not equal to
      * {@code expected}
      * {@code RETRY} for the same reasons as exchange
-     * @see #exchange(EntryArray, ThreadContext, Object, OakTransformer, OakSerializer)
+     * @see #exchange(Chunk, ThreadContext, Object, OakTransformer, OakSerializer)
      */
-    <V> ValueResult compareExchange(EntryArray<?, V> chunk, ThreadContext ctx, V expected,
-        V value, OakTransformer<V> valueDeserializeTransformer, OakSerializer<V> serializer) {
+    <V> ValueResult compareExchange(Chunk<?, V> chunk, ThreadContext ctx, V expected, V value,
+                                    OakTransformer<V> valueDeserializeTransformer, OakSerializer<V> serializer) {
 
         ValueResult result = ctx.value.s.lockWrite();
         if (result != ValueResult.TRUE) {
