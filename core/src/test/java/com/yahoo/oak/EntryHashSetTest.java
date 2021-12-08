@@ -27,14 +27,14 @@ public class EntryHashSetTest {
         // simple one key insert
         assert ehs.allocateEntryAndWriteKey(ctx, new Integer(5), 7 /*000111*/, 39 /*100111*/ );
         Assert.assertEquals(ctx.entryIndex, 7);
-        Assert.assertEquals(ctx.entryState, Chunk.EntryState.UNKNOWN);
+        Assert.assertEquals(ctx.entryState, BasicChunk.EntryState.UNKNOWN);
         Assert.assertNotEquals(ctx.key.getSlice().getReference(), memoryManager.getInvalidReference());
         Assert.assertEquals(ctx.value.getSlice().getReference(), memoryManager.getInvalidReference());
 
         // simple value allocation
         ehs.allocateValue(ctx, new Integer(50), false);
         Assert.assertEquals(ctx.entryIndex, 7);
-        Assert.assertEquals(ctx.entryState, Chunk.EntryState.UNKNOWN);
+        Assert.assertEquals(ctx.entryState, BasicChunk.EntryState.UNKNOWN);
         Assert.assertNotEquals(ctx.key.getSlice().getReference(), memoryManager.getInvalidReference());
         Assert.assertEquals(ctx.value.getSlice().getReference(), memoryManager.getInvalidReference());
         Assert.assertNotEquals(ctx.newValue.getSlice().getReference(), memoryManager.getInvalidReference());
@@ -46,14 +46,14 @@ public class EntryHashSetTest {
         // simple another insert to the same hash idx different full hash idx
         assert ehs.allocateEntryAndWriteKey(ctx, new Integer(15), 7 /*000111*/, 23 /*010111*/ );
         Assert.assertEquals(ctx.entryIndex, 8);
-        Assert.assertEquals(ctx.entryState, Chunk.EntryState.UNKNOWN);
+        Assert.assertEquals(ctx.entryState, BasicChunk.EntryState.UNKNOWN);
         Assert.assertNotEquals(ctx.key.getSlice().getReference(), memoryManager.getInvalidReference());
         Assert.assertEquals(ctx.value.getSlice().getReference(), memoryManager.getInvalidReference());
 
         // add value allocation
         ehs.allocateValue(ctx, new Integer(150), false);
         Assert.assertEquals(ctx.entryIndex, 8);
-        Assert.assertEquals(ctx.entryState, Chunk.EntryState.UNKNOWN);
+        Assert.assertEquals(ctx.entryState, BasicChunk.EntryState.UNKNOWN);
         Assert.assertNotEquals(ctx.key.getSlice().getReference(), memoryManager.getInvalidReference());
         Assert.assertEquals(ctx.value.getSlice().getReference(), memoryManager.getInvalidReference());
         Assert.assertNotEquals(ctx.newValue.getSlice().getReference(), memoryManager.getInvalidReference());
@@ -70,7 +70,7 @@ public class EntryHashSetTest {
         // (without exceeding default collision escape number)
         assert ehs.allocateEntryAndWriteKey(ctx, new Integer(25), 7 /*000111*/, 23 /*010111*/ );
         Assert.assertEquals(ctx.entryIndex, 9);
-        Assert.assertEquals(ctx.entryState, Chunk.EntryState.UNKNOWN);
+        Assert.assertEquals(ctx.entryState, BasicChunk.EntryState.UNKNOWN);
         Assert.assertNotEquals(ctx.key.getSlice().getReference(), memoryManager.getInvalidReference());
         Assert.assertEquals(ctx.value.getSlice().getReference(), memoryManager.getInvalidReference());
         Assert.assertEquals(ctx.newValue.getSlice().getReference(), memoryManager.getInvalidReference());
@@ -79,7 +79,7 @@ public class EntryHashSetTest {
         // add value allocation
         ehs.allocateValue(ctx, new Integer(250), false);
         Assert.assertEquals(ctx.entryIndex, 9);
-        Assert.assertEquals(ctx.entryState, Chunk.EntryState.UNKNOWN);
+        Assert.assertEquals(ctx.entryState, BasicChunk.EntryState.UNKNOWN);
         Assert.assertNotEquals(ctx.key.getSlice().getReference(), memoryManager.getInvalidReference());
         Assert.assertEquals(ctx.value.getSlice().getReference(), memoryManager.getInvalidReference());
         Assert.assertNotEquals(ctx.newValue.getSlice().getReference(), memoryManager.getInvalidReference());
@@ -92,7 +92,7 @@ public class EntryHashSetTest {
         // (without exceeding (but reaching) the default collision escape number)
         assert ehs.allocateEntryAndWriteKey(ctx, new Integer(55), 7 /*000111*/, 23 /*010111*/ );
         Assert.assertEquals(ctx.entryIndex, 10);
-        Assert.assertEquals(ctx.entryState, Chunk.EntryState.UNKNOWN);
+        Assert.assertEquals(ctx.entryState, BasicChunk.EntryState.UNKNOWN);
         Assert.assertNotEquals(ctx.key.getSlice().getReference(), memoryManager.getInvalidReference());
         Assert.assertEquals(ctx.value.getSlice().getReference(), memoryManager.getInvalidReference());
         Assert.assertEquals(ctx.newValue.getSlice().getReference(), memoryManager.getInvalidReference());
@@ -101,7 +101,7 @@ public class EntryHashSetTest {
         // add value allocation
         ehs.allocateValue(ctx, new Integer(550), false);
         Assert.assertEquals(ctx.entryIndex, 10);
-        Assert.assertEquals(ctx.entryState, Chunk.EntryState.UNKNOWN);
+        Assert.assertEquals(ctx.entryState, BasicChunk.EntryState.UNKNOWN);
         Assert.assertNotEquals(ctx.key.getSlice().getReference(), memoryManager.getInvalidReference());
         Assert.assertEquals(ctx.value.getSlice().getReference(), memoryManager.getInvalidReference());
         Assert.assertNotEquals(ctx.newValue.getSlice().getReference(), memoryManager.getInvalidReference());
@@ -121,18 +121,18 @@ public class EntryHashSetTest {
         // The key and value buffers are populated with the found key
         assert ehs.allocateEntryAndWriteKey(ctx, new Integer(5), 7 /*000111*/, 39 /*100111*/ );
         Assert.assertEquals(ctx.entryIndex, 7);
-        Assert.assertEquals(ctx.entryState, Chunk.EntryState.VALID);
+        Assert.assertEquals(ctx.entryState, BasicChunk.EntryState.VALID);
         Assert.assertNotEquals(ctx.key.getSlice().getReference(), memoryManager.getInvalidReference());
         Assert.assertNotEquals(ctx.value.getSlice().getReference(), memoryManager.getInvalidReference());
         Assert.assertEquals(ctx.newValue.getSlice().getReference(), memoryManager.getInvalidReference());
 
         ctx.invalidate();
         ctx.entryIndex = 7;
-        ctx.entryState = Chunk.EntryState.VALID;
+        ctx.entryState = BasicChunk.EntryState.VALID;
         // allocate another value to test double value commit for key 5 later
         ehs.allocateValue(ctx, new Integer(50), false);
         Assert.assertEquals(ctx.entryIndex, 7);
-        Assert.assertEquals(ctx.entryState, Chunk.EntryState.VALID);
+        Assert.assertEquals(ctx.entryState, BasicChunk.EntryState.VALID);
         Assert.assertEquals(ehs.getCollisionChainLength(), HashChunk.DEFAULT_COLLISION_CHAIN_LENGTH);
         Assert.assertEquals(ctx.key.getSlice().getReference(), memoryManager.getInvalidReference());
         Assert.assertEquals(ctx.value.getSlice().getReference(), memoryManager.getInvalidReference());
@@ -145,7 +145,7 @@ public class EntryHashSetTest {
         // simple one insert, different hashIdx, same full hash idx
         assert ehs.allocateEntryAndWriteKey(ctx, new Integer(4), 10 /*000111*/, 23 /*100111*/ );
         Assert.assertEquals(ctx.entryIndex, 11);
-        Assert.assertEquals(ctx.entryState, Chunk.EntryState.UNKNOWN);
+        Assert.assertEquals(ctx.entryState, BasicChunk.EntryState.UNKNOWN);
         Assert.assertNotEquals(ctx.key.getSlice().getReference(), memoryManager.getInvalidReference());
         Assert.assertEquals(ctx.value.getSlice().getReference(), memoryManager.getInvalidReference());
         Assert.assertEquals(ctx.newValue.getSlice().getReference(), memoryManager.getInvalidReference());
@@ -153,7 +153,7 @@ public class EntryHashSetTest {
         // add value allocation
         ehs.allocateValue(ctx, new Integer(40), false);
         Assert.assertEquals(ctx.entryIndex, 11);
-        Assert.assertEquals(ctx.entryState, Chunk.EntryState.UNKNOWN);
+        Assert.assertEquals(ctx.entryState, BasicChunk.EntryState.UNKNOWN);
         Assert.assertEquals(ehs.getCollisionChainLength(), HashChunk.DEFAULT_COLLISION_CHAIN_LENGTH);
         Assert.assertNotEquals(ctx.key.getSlice().getReference(), memoryManager.getInvalidReference());
         Assert.assertEquals(ctx.value.getSlice().getReference(), memoryManager.getInvalidReference());
@@ -166,7 +166,7 @@ public class EntryHashSetTest {
         // should not fail and increase collision escapes
         assert (ehs.allocateEntryAndWriteKey(ctx, new Integer(35), 8 /*000111*/, 23 /*010111*/ ));
         Assert.assertEquals(ctx.entryIndex, 12);
-        Assert.assertEquals(ctx.entryState, Chunk.EntryState.UNKNOWN);
+        Assert.assertEquals(ctx.entryState, BasicChunk.EntryState.UNKNOWN);
         Assert.assertTrue(ehs.getCollisionChainLength() > HashChunk.DEFAULT_COLLISION_CHAIN_LENGTH);
         Assert.assertNotEquals(ctx.key.getSlice().getReference(), memoryManager.getInvalidReference());
         Assert.assertEquals(ctx.value.getSlice().getReference(), memoryManager.getInvalidReference());
@@ -175,7 +175,7 @@ public class EntryHashSetTest {
         // add value allocation
         ehs.allocateValue(ctx, new Integer(350), false);
         Assert.assertEquals(ctx.entryIndex, 12);
-        Assert.assertEquals(ctx.entryState, Chunk.EntryState.UNKNOWN);
+        Assert.assertEquals(ctx.entryState, BasicChunk.EntryState.UNKNOWN);
         Assert.assertTrue(ehs.getCollisionChainLength() > HashChunk.DEFAULT_COLLISION_CHAIN_LENGTH);
         Assert.assertNotEquals(ctx.key.getSlice().getReference(), memoryManager.getInvalidReference());
         Assert.assertEquals(ctx.value.getSlice().getReference(), memoryManager.getInvalidReference());
@@ -192,7 +192,7 @@ public class EntryHashSetTest {
 
         assert ehs.lookUp(ctx, new Integer(5), 7 /*000111*/, 39 /*100111*/ );
         Assert.assertEquals(ctx.entryIndex, 7);
-        Assert.assertEquals(ctx.entryState, Chunk.EntryState.VALID);
+        Assert.assertEquals(ctx.entryState, BasicChunk.EntryState.VALID);
         Assert.assertNotEquals(ctx.key.getSlice().getReference(), memoryManager.getInvalidReference());
         Assert.assertNotEquals(ctx.value.getSlice().getReference(), memoryManager.getInvalidReference());
         Assert.assertEquals(ctx.newValue.getSlice().getReference(), memoryManager.getInvalidReference());
@@ -205,7 +205,7 @@ public class EntryHashSetTest {
         // read from next hashIdx
         assert ehs.lookUp(ctx, new Integer(15), 7 /*000111*/, 23 /*100111*/ );
         Assert.assertEquals(ctx.entryIndex, 8);
-        Assert.assertEquals(ctx.entryState, Chunk.EntryState.VALID);
+        Assert.assertEquals(ctx.entryState, BasicChunk.EntryState.VALID);
         Assert.assertNotEquals(ctx.key.getSlice().getReference(), memoryManager.getInvalidReference());
         Assert.assertNotEquals(ctx.value.getSlice().getReference(), memoryManager.getInvalidReference());
         Assert.assertEquals(ctx.newValue.getSlice().getReference(), memoryManager.getInvalidReference());
@@ -218,7 +218,7 @@ public class EntryHashSetTest {
         // read from next next hashIdx
         assert ehs.lookUp(ctx, new Integer(25), 7 /*000111*/, 23 /*100111*/ );
         Assert.assertEquals(ctx.entryIndex, 9);
-        Assert.assertEquals(ctx.entryState, Chunk.EntryState.VALID);
+        Assert.assertEquals(ctx.entryState, BasicChunk.EntryState.VALID);
         Assert.assertNotEquals(ctx.key.getSlice().getReference(), memoryManager.getInvalidReference());
         Assert.assertNotEquals(ctx.value.getSlice().getReference(), memoryManager.getInvalidReference());
         Assert.assertEquals(ctx.newValue.getSlice().getReference(), memoryManager.getInvalidReference());
@@ -230,27 +230,27 @@ public class EntryHashSetTest {
 
         // look for not existing key
         assert !ehs.lookUp(ctx, new Integer(3), 7 /*000111*/, 23 /*100111*/ );
-        Assert.assertEquals(ctx.entryIndex, Chunk.INVALID_ENTRY_INDEX);
-        Assert.assertEquals(ctx.entryState, Chunk.EntryState.UNKNOWN);
+        Assert.assertEquals(ctx.entryIndex, BasicChunk.INVALID_ENTRY_INDEX);
+        Assert.assertEquals(ctx.entryState, BasicChunk.EntryState.UNKNOWN);
         Assert.assertEquals(ctx.key.getSlice().getReference(), memoryManager.getInvalidReference());
         Assert.assertEquals(ctx.value.getSlice().getReference(), memoryManager.getInvalidReference());
         Assert.assertEquals(ctx.newValue.getSlice().getReference(), memoryManager.getInvalidReference());
 
         // look for existing key with different full hash index -> should not be found
         assert !ehs.lookUp(ctx, new Integer(5), 7 /*000111*/, 11 );
-        Assert.assertEquals(ctx.entryIndex, Chunk.INVALID_ENTRY_INDEX);
-        Assert.assertEquals(ctx.entryState, Chunk.EntryState.UNKNOWN);
+        Assert.assertEquals(ctx.entryIndex, BasicChunk.INVALID_ENTRY_INDEX);
+        Assert.assertEquals(ctx.entryState, BasicChunk.EntryState.UNKNOWN);
         Assert.assertEquals(ctx.key.getSlice().getReference(), memoryManager.getInvalidReference());
         Assert.assertEquals(ctx.value.getSlice().getReference(), memoryManager.getInvalidReference());
 
         // look for a key on within increased 'collision escapes' distance -> should be found
         assert ehs.lookUp(ctx, new Integer(35), 8 /*000111*/, 23 /*010111*/ );
-        assert ctx.entryIndex == 12 && ctx.entryState == Chunk.EntryState.VALID
+        assert ctx.entryIndex == 12 && ctx.entryState == BasicChunk.EntryState.VALID
             && ctx.key.getSlice().getReference() != memoryManager.getInvalidReference()
             && ctx.value.getSlice().getReference() != memoryManager.getInvalidReference()
             && ctx.isValueValid();
         Assert.assertEquals(ctx.entryIndex, 12);
-        Assert.assertEquals(ctx.entryState, Chunk.EntryState.VALID);
+        Assert.assertEquals(ctx.entryState, BasicChunk.EntryState.VALID);
         Assert.assertNotEquals(ctx.key.getSlice().getReference(), memoryManager.getInvalidReference());
         Assert.assertNotEquals(ctx.value.getSlice().getReference(), memoryManager.getInvalidReference());
         Assert.assertEquals(ctx.newValue.getSlice().getReference(), memoryManager.getInvalidReference());
@@ -290,7 +290,7 @@ public class EntryHashSetTest {
         // delete firstly inserted entries, first look for a key and mark its value as deleted
         assert ehs.lookUp(ctx, new Integer(5), 7 /*000111*/, 39 /*100111*/ );
         Assert.assertEquals(ctx.entryIndex, 7);
-        Assert.assertEquals(ctx.entryState, Chunk.EntryState.VALID);
+        Assert.assertEquals(ctx.entryState, BasicChunk.EntryState.VALID);
         Assert.assertNotEquals(ctx.key.getSlice().getReference(), memoryManager.getInvalidReference());
         Assert.assertNotEquals(ctx.value.getSlice().getReference(), memoryManager.getInvalidReference());
         Assert.assertEquals(ctx.newValue.getSlice().getReference(), memoryManager.getInvalidReference());
@@ -302,11 +302,11 @@ public class EntryHashSetTest {
 
         ValueUtils.ValueResult vr = ctx.value.s.logicalDelete(); //DELETE LINEARIZATION POINT
         assert vr == ValueUtils.ValueResult.TRUE;
-        ctx.entryState = Chunk.EntryState.DELETED_NOT_FINALIZED;
+        ctx.entryState = BasicChunk.EntryState.DELETED_NOT_FINALIZED;
 
         assert ehs.deleteValueFinish(ctx);
         Assert.assertEquals(ctx.entryIndex, 7);
-        Assert.assertEquals(ctx.entryState, Chunk.EntryState.DELETED);
+        Assert.assertEquals(ctx.entryState, BasicChunk.EntryState.DELETED);
         Assert.assertEquals(ctx.key.getSlice().getReference(), memoryManager.getInvalidReference());
         Assert.assertEquals(ctx.value.getSlice().getReference(), memoryManager.getInvalidReference());
         Assert.assertEquals(ctx.newValue.getSlice().getReference(), memoryManager.getInvalidReference());
@@ -315,8 +315,8 @@ public class EntryHashSetTest {
 
         //look for the key once again to check it is not found
         assert !ehs.lookUp(ctx, new Integer(5), 7 /*000111*/, 39 /*100111*/ );
-        Assert.assertEquals(ctx.entryIndex, Chunk.INVALID_ENTRY_INDEX);
-        Assert.assertEquals(ctx.entryState, Chunk.EntryState.UNKNOWN);
+        Assert.assertEquals(ctx.entryIndex, BasicChunk.INVALID_ENTRY_INDEX);
+        Assert.assertEquals(ctx.entryState, BasicChunk.EntryState.UNKNOWN);
         Assert.assertEquals(ctx.key.getSlice().getReference(), memoryManager.getInvalidReference());
         Assert.assertEquals(ctx.value.getSlice().getReference(), memoryManager.getInvalidReference());
         Assert.assertEquals(ctx.newValue.getSlice().getReference(), memoryManager.getInvalidReference());
@@ -327,7 +327,7 @@ public class EntryHashSetTest {
         Integer key = new Integer(5);
         assert ehs.allocateEntryAndWriteKey(ctx, key, 7 /*000111*/, key.hashCode() /*100111*/ );
         Assert.assertEquals(ctx.entryIndex, 7);
-        Assert.assertEquals(ctx.entryState, Chunk.EntryState.DELETED);
+        Assert.assertEquals(ctx.entryState, BasicChunk.EntryState.DELETED);
         Assert.assertNotEquals(ctx.key.getSlice().getReference(), memoryManager.getInvalidReference());
         Assert.assertNotEquals(ctx.value.getSlice().getReference(), memoryManager.getInvalidReference());
         Assert.assertEquals(ctx.newValue.getSlice().getReference(), memoryManager.getInvalidReference());
@@ -336,7 +336,7 @@ public class EntryHashSetTest {
         // simple value allocation
         ehs.allocateValue(ctx, new Integer(50), false);
         Assert.assertEquals(ctx.entryIndex, 7);
-        Assert.assertEquals(ctx.entryState, Chunk.EntryState.DELETED);
+        Assert.assertEquals(ctx.entryState, BasicChunk.EntryState.DELETED);
         Assert.assertNotEquals(ctx.key.getSlice().getReference(), memoryManager.getInvalidReference());
         Assert.assertNotEquals(ctx.value.getSlice().getReference(), memoryManager.getInvalidReference());
         Assert.assertNotEquals(ctx.newValue.getSlice().getReference(), memoryManager.getInvalidReference());
@@ -352,7 +352,7 @@ public class EntryHashSetTest {
         // delete firstly inserted entries, first look for a key and mark its value as deleted
         assert ehs.lookUp(ctx, key, 7 /*000111*/, key.hashCode() );
         Assert.assertEquals(ctx.entryIndex, 7);
-        Assert.assertEquals(ctx.entryState, Chunk.EntryState.VALID);
+        Assert.assertEquals(ctx.entryState, BasicChunk.EntryState.VALID);
         Assert.assertNotEquals(ctx.key.getSlice().getReference(), memoryManager.getInvalidReference());
         Assert.assertNotEquals(ctx.value.getSlice().getReference(), memoryManager.getInvalidReference());
         Assert.assertEquals(ctx.newValue.getSlice().getReference(), memoryManager.getInvalidReference());
@@ -364,11 +364,11 @@ public class EntryHashSetTest {
 
         vr = ctx.value.s.logicalDelete();
         assert vr == ValueUtils.ValueResult.TRUE;
-        ctx.entryState = Chunk.EntryState.DELETED_NOT_FINALIZED;
+        ctx.entryState = BasicChunk.EntryState.DELETED_NOT_FINALIZED;
 
         assert ehs.deleteValueFinish(ctx);
         Assert.assertEquals(ctx.entryIndex, 7);
-        Assert.assertEquals(ctx.entryState, Chunk.EntryState.DELETED);
+        Assert.assertEquals(ctx.entryState, BasicChunk.EntryState.DELETED);
         Assert.assertEquals(ctx.key.getSlice().getReference(), memoryManager.getInvalidReference());
         Assert.assertEquals(ctx.value.getSlice().getReference(), memoryManager.getInvalidReference());
         Assert.assertEquals(ctx.newValue.getSlice().getReference(), memoryManager.getInvalidReference());
@@ -377,8 +377,8 @@ public class EntryHashSetTest {
 
         //look for the key once again to check it is not found
         assert !ehs.lookUp(ctx, key, 7, key.hashCode() );
-        Assert.assertEquals(ctx.entryIndex, Chunk.INVALID_ENTRY_INDEX);
-        Assert.assertEquals(ctx.entryState, Chunk.EntryState.UNKNOWN);
+        Assert.assertEquals(ctx.entryIndex, BasicChunk.INVALID_ENTRY_INDEX);
+        Assert.assertEquals(ctx.entryState, BasicChunk.EntryState.UNKNOWN);
         Assert.assertEquals(ctx.key.getSlice().getReference(), memoryManager.getInvalidReference());
         Assert.assertEquals(ctx.value.getSlice().getReference(), memoryManager.getInvalidReference());
         Assert.assertEquals(ctx.newValue.getSlice().getReference(), memoryManager.getInvalidReference());
@@ -388,7 +388,7 @@ public class EntryHashSetTest {
         //insert on top of the deleted entry
         assert ehs.allocateEntryAndWriteKey(ctx, key, 7, key.hashCode() );
         Assert.assertEquals(ctx.entryIndex, 7);
-        Assert.assertEquals(ctx.entryState, Chunk.EntryState.DELETED);
+        Assert.assertEquals(ctx.entryState, BasicChunk.EntryState.DELETED);
         Assert.assertNotEquals(ctx.key.getSlice().getReference(), memoryManager.getInvalidReference());
         Assert.assertNotEquals(ctx.value.getSlice().getReference(), memoryManager.getInvalidReference());
         Assert.assertEquals(ctx.newValue.getSlice().getReference(), memoryManager.getInvalidReference());
@@ -397,7 +397,7 @@ public class EntryHashSetTest {
         // simple value allocation
         ehs.allocateValue(ctx, new Integer(50), false);
         Assert.assertEquals(ctx.entryIndex, 7);
-        Assert.assertEquals(ctx.entryState, Chunk.EntryState.DELETED);
+        Assert.assertEquals(ctx.entryState, BasicChunk.EntryState.DELETED);
         Assert.assertNotEquals(ctx.key.getSlice().getReference(), memoryManager.getInvalidReference());
         Assert.assertNotEquals(ctx.value.getSlice().getReference(), memoryManager.getInvalidReference());
         Assert.assertNotEquals(ctx.newValue.getSlice().getReference(), memoryManager.getInvalidReference());
@@ -411,7 +411,7 @@ public class EntryHashSetTest {
         // delete firstly inserted entries, first look for a key and mark its value as deleted
         assert ehs.lookUp(ctx, key, 7, key.hashCode() );
         Assert.assertEquals(ctx.entryIndex, 7);
-        Assert.assertEquals(ctx.entryState, Chunk.EntryState.VALID);
+        Assert.assertEquals(ctx.entryState, BasicChunk.EntryState.VALID);
         Assert.assertNotEquals(ctx.key.getSlice().getReference(), memoryManager.getInvalidReference());
         Assert.assertNotEquals(ctx.value.getSlice().getReference(), memoryManager.getInvalidReference());
         Assert.assertEquals(ctx.newValue.getSlice().getReference(), memoryManager.getInvalidReference());
@@ -423,7 +423,7 @@ public class EntryHashSetTest {
 
         vr = ctx.value.s.logicalDelete();
         assert vr == ValueUtils.ValueResult.TRUE;
-        ctx.entryState = Chunk.EntryState.DELETED_NOT_FINALIZED;
+        ctx.entryState = BasicChunk.EntryState.DELETED_NOT_FINALIZED;
 
         assert ehs.isEntryDeleted(ctx.tempValue, 7);
 

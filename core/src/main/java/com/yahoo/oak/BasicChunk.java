@@ -43,7 +43,7 @@ import java.util.concurrent.atomic.AtomicReference;
  * ...
  *
 * */
-abstract class Chunk<K, V> {
+abstract class BasicChunk<K, V> {
     /**
      * offset in primitive fields of one entry, to a reference as coded by
      * keysMemoryManager, of the key pointed from this entry (size of long)
@@ -87,7 +87,7 @@ abstract class Chunk<K, V> {
     }
 
     // in split/compact process, represents parent of split (can be null!)
-    private final AtomicReference<Chunk<K, V>> creator;
+    private final AtomicReference<BasicChunk<K, V>> creator;
     // chunk can be in the following states: normal, frozen or infant(has a creator)
     private final AtomicReference<State> state;
     private final AtomicReference<Rebalancer<K, V>> rebalancer;
@@ -96,7 +96,7 @@ abstract class Chunk<K, V> {
     protected AtomicInteger externalSize; // for updating oak's size (reference to one global per Oak size)
     protected final Statistics statistics;
 
-    Chunk(OakSharedConfig<K, V> config, int additionalFieldCount, int entriesCapacity) {
+    BasicChunk(OakSharedConfig<K, V> config, int additionalFieldCount, int entriesCapacity) {
         this.config = config;
         this.externalSize = config.size;
         this.valuesMemoryManager = config.valuesMemoryManager;
@@ -499,7 +499,7 @@ abstract class Chunk<K, V> {
     /**
      * Create a child BasicChunk where this BasicChunk object as its creator.
      */
-    protected void updateBasicChild(Chunk<K, V> child) {
+    protected void updateBasicChild(BasicChunk<K, V> child) {
         child.creator.set(this);
         child.state.set(State.INFANT);
     }
@@ -576,7 +576,7 @@ abstract class Chunk<K, V> {
         return state.get();
     }
 
-    Chunk<K, V> creator() {
+    BasicChunk<K, V> creator() {
         return creator.get();
     }
 
@@ -620,7 +620,7 @@ abstract class Chunk<K, V> {
     /**
      * This function does the physical CAS of the value reference, which is the
      * Linearization Point of the insertion.
-     * It then tries to complete the insertion ({@link Chunk#writeValueCommit(ThreadContext)}}).
+     * It then tries to complete the insertion ({@link BasicChunk#writeValueCommit(ThreadContext)}}).
      * This is also the only place in which the size of Oak is updated.
      *
      * @param ctx The context that follows the operation since the key was found/created.
@@ -642,7 +642,7 @@ abstract class Chunk<K, V> {
     }
 
     /**
-     * As written in {@link Chunk#writeValueCommit(ThreadContext)}, when changing an entry,
+     * As written in {@link BasicChunk#writeValueCommit(ThreadContext)}, when changing an entry,
      * the value reference is CASed first and
      * later the value version, and the same applies when removing a value. However, there is another step before
      * changing an entry to remove a value and it is marking the value off-heap (the LP). This function is used to
@@ -657,7 +657,7 @@ abstract class Chunk<K, V> {
      * deleted, or not, if there were no request to rebalance FALSE is going to be returned
      */
     boolean finalizeDeletion(ThreadContext ctx) {
-        if (ctx.entryState != Chunk.EntryState.DELETED_NOT_FINALIZED) {
+        if (ctx.entryState != BasicChunk.EntryState.DELETED_NOT_FINALIZED) {
             return false;
         }
         if (!publish()) {

@@ -20,7 +20,7 @@ class ThreadContext {
     final KeyBuffer key;
 
     /* The state of the value */
-    Chunk.EntryState entryState;
+    BasicChunk.EntryState entryState;
 
     /* value is used for easier access to the off-heap memory */
     final ValueBuffer value;
@@ -63,8 +63,8 @@ class ThreadContext {
     final ValueBuffer tempValue;
 
     ThreadContext(MemoryManager kmm, MemoryManager vmm) {
-        entryIndex = Chunk.INVALID_ENTRY_INDEX;
-        entryState = Chunk.EntryState.UNKNOWN;
+        entryIndex = BasicChunk.INVALID_ENTRY_INDEX;
+        entryState = BasicChunk.EntryState.UNKNOWN;
         isNewValueForMove = false;
 
         this.key = new KeyBuffer(kmm.getEmptySlice());
@@ -79,12 +79,12 @@ class ThreadContext {
     }
 
     void invalidate() {
-        entryIndex = Chunk.INVALID_ENTRY_INDEX;
+        entryIndex = BasicChunk.INVALID_ENTRY_INDEX;
         key.invalidate();
         value.invalidate();
         newValue.invalidate();
         result.invalidate();
-        entryState = Chunk.EntryState.UNKNOWN;
+        entryState = BasicChunk.EntryState.UNKNOWN;
         isNewValueForMove = false;
         this.keyHashAndUpdateCnt = HashChunk.INVALID_KEY_HASH_AND_UPD_CNT;
         // No need to invalidate the temporary buffers

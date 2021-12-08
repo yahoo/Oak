@@ -50,7 +50,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  *
  * Internal class, package visibility
  */
-class HashChunk<K, V> extends Chunk<K, V> {
+class HashChunk<K, V> extends BasicChunk<K, V> {
     // defaults
     public static final int HASH_CHUNK_MAX_ITEMS_DEFAULT = 2048; //2^11
 

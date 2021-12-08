@@ -251,8 +251,8 @@ class Rebalancer<K, V> {
     private boolean isCandidate(OrderedChunk<K, V> orderedChunk) {
         // do not take chunks that are engaged with another rebalancer or infant
         return orderedChunk != null && orderedChunk.isEngaged(null) && (
-            orderedChunk.state() != Chunk.State.INFANT) &&
-                (orderedChunk.state() != Chunk.State.RELEASED);
+            orderedChunk.state() != BasicChunk.State.INFANT) &&
+                (orderedChunk.state() != BasicChunk.State.RELEASED);
     }
 
     private List<OrderedChunk<K, V>> createEngagedList() {

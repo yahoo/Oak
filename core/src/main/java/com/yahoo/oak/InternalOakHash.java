@@ -62,7 +62,7 @@ class InternalOakHash<K, V> extends InternalOakBasics<K, V> {
 
     /*-------------- Generic to specific rebalance --------------*/
     @Override
-    protected void rebalanceBasic(Chunk<K, V> basicChunk) {
+    protected void rebalanceBasic(BasicChunk<K, V> basicChunk) {
         rebalance((HashChunk<K, V>) basicChunk); // exception will be triggered on wrong type
     }
 
@@ -160,7 +160,7 @@ class InternalOakHash<K, V> extends InternalOakBasics<K, V> {
             return false;
         }
 
-        if (ctx.entryState == Chunk.EntryState.VALID) {
+        if (ctx.entryState == BasicChunk.EntryState.VALID) {
             // the requested key already exists and can not be added
             // entry wasn't allocated and key wasn't written
             // returning false so the key will be caught on next look up
@@ -245,9 +245,9 @@ class InternalOakHash<K, V> extends InternalOakBasics<K, V> {
 
             // AT THIS POINT value was marked deleted off-heap by this thread,
             // continue to set the entry's value reference as deleted
-            assert ctx.entryIndex != Chunk.INVALID_ENTRY_INDEX;
+            assert ctx.entryIndex != BasicChunk.INVALID_ENTRY_INDEX;
             assert ctx.isValueValid();
-            ctx.entryState = Chunk.EntryState.DELETED_NOT_FINALIZED;
+            ctx.entryState = BasicChunk.EntryState.DELETED_NOT_FINALIZED;
 
             if (inTheMiddleOfRebalance(c)) {
                 continue;

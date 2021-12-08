@@ -51,9 +51,9 @@ import java.util.concurrent.atomic.AtomicMarkableReference;
  *
  * Internal class, package visibility
  */
-class OrderedChunk<K, V> extends Chunk<K, V> {
+class OrderedChunk<K, V> extends BasicChunk<K, V> {
     // an entry with NONE_NEXT as its next pointer, points to a null entry
-    static final int NONE_NEXT = Chunk.INVALID_ENTRY_INDEX;
+    static final int NONE_NEXT = BasicChunk.INVALID_ENTRY_INDEX;
 
     /*-------------- Constants --------------*/
     // used for checking if rebalance is needed

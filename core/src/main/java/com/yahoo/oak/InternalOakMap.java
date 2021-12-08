@@ -116,7 +116,7 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
     }
 
     @Override
-    protected void rebalanceBasic(Chunk<K, V> basicChunk) {
+    protected void rebalanceBasic(BasicChunk<K, V> basicChunk) {
         rebalance((OrderedChunk<K, V>) basicChunk); // exception will be triggered on wrong type
     }
 
@@ -243,7 +243,7 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
         while (iterChildren.hasNext()) {
             OrderedChunk<K, V> childToAdd = iterChildren.next();
             synchronized (childToAdd) {
-                if (childToAdd.state() == Chunk.State.INFANT) { // make sure it wasn't add before
+                if (childToAdd.state() == BasicChunk.State.INFANT) { // make sure it wasn't add before
                     skiplist.putIfAbsent(childToAdd.minKey, childToAdd);
                     childToAdd.normalize();
                 }
@@ -535,9 +535,9 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
 
             // AT THIS POINT value was marked deleted off-heap by this thread,
             // continue to set the entry's value reference as deleted
-            assert ctx.entryIndex != Chunk.INVALID_ENTRY_INDEX;
+            assert ctx.entryIndex != BasicChunk.INVALID_ENTRY_INDEX;
             assert ctx.isValueValid();
-            ctx.entryState = Chunk.EntryState.DELETED_NOT_FINALIZED;
+            ctx.entryState = BasicChunk.EntryState.DELETED_NOT_FINALIZED;
 
             if (inTheMiddleOfRebalance(c)) {
                 continue;
@@ -962,7 +962,7 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
                 }
 
                 final OrderedChunk<K, V> c = state.getOrderedChunk();
-                if (c.state() == Chunk.State.RELEASED) {
+                if (c.state() == BasicChunk.State.RELEASED) {
                     initAfterRebalance();
                     continue;
                 }
@@ -1007,7 +1007,7 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
                 }
 
                 final OrderedChunk<K, V> c = state.getOrderedChunk();
-                if (c.state() == Chunk.State.RELEASED) {
+                if (c.state() == BasicChunk.State.RELEASED) {
                     initAfterRebalance();
                     continue;
                 }
