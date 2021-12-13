@@ -254,7 +254,7 @@
         </profile>
         <profile>
         	<activation>
-			<jdk>[9,)</jdk>
+                <jdk>[17,)</jdk>
             </activation>
             <properties>
             	<maven.compiler.release>17</maven.compiler.release>

@@ -31,8 +31,8 @@
             <artifactId>maven-compiler-plugin</artifactId>
                 <version>${maven-compiler-plugin.version}</version>
                 <configuration>
-                    <source>${java.version}</source>
-                    <target>${java.version}</target>
+                    <source>8</source>
+                    <target>8</target>
                 </configuration>
             </plugin>
 
@@ -86,9 +86,9 @@
     </dependencies>
     <profiles>
     	<profile>
-    		<activation>
-    			<jdk>[9,)</jdk>
-   			</activation>
+            <activation>
+                <jdk>[17,)</jdk>
+            </activation>
             <build>
             	<plugins>
             		<plugin>

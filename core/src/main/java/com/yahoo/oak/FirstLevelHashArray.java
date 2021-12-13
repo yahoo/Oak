@@ -120,9 +120,21 @@ class FirstLevelHashArray<K, V> {
         return chunks.get(index);
     }
 
+    /**
+     * Function that returns the reference to the next chunk in the array, following the given chunk.
+     * Used by the iterator.
+     * @param curChunk - reference to the current chunk
+     * @param keyHash - hash code of a key, residing in curChunk
+     * @param hashValid - hash code is valid. Hash code is not valid if curChunk includes no keys
+     * @return reference to the next chunk, or null, if could not find the next chunk
+     */
     BasicChunk<K, V> getNextChunk(BasicChunk<K, V> curChunk, int keyHash, boolean hashValid) {
         int idx = 0;
         boolean idxFound = false;
+
+        // if hash code valid, it can be translated to the chunk index in the array
+        // however, just to be on the safe side, we check that the chunk at the index
+        // is the same as current chunk
         if (hashValid) {
             idx = calculateHashArrayIdx(keyHash);
             if (curChunk == getChunk(idx)) {
@@ -130,19 +142,25 @@ class FirstLevelHashArray<K, V> {
             }
         }
 
+        // if hash code is not valid, iterate over all the array to find the index of the current chunk
         if (!idxFound) {
             // find the index of the current chunk
             while (idx < chunks.length() && curChunk != getChunk(idx)) {
                 idx++;
             }
-            // should never happen, but just to be on the safe side
+            // should never happen, since rebalancing is not supported yet,
+            // but just to be on the safe side
             if (!(idx < chunks.length())) {
                 return null;
             }
         }
         int  nextIdx;
+        // two array indexes can reference the same chunk,
+        // therefore we increment the index till the chunk at the index is different from the
+        // current chunk
+        nextIdx = idx;
         do {
-            nextIdx = idx + 1;
+            nextIdx++;
         } while (nextIdx < chunks.length() && curChunk == getChunk(nextIdx));
 
 
