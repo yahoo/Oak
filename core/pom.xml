@@ -15,7 +15,8 @@
         <java.version>1.8</java.version>
         <jacoco.version>0.8.6</jacoco.version>
         <jacoco.skip>true</jacoco.skip>
-        <jacocoArgLine/>
+        <!-- Set default jacoco argument -->
+        <jacoco.argLine/>
     </properties>
 
     <build>
@@ -35,7 +36,6 @@
                     <target>8</target>
                 </configuration>
             </plugin>
-
             <plugin>
                 <groupId>org.jacoco</groupId>
                 <artifactId>jacoco-maven-plugin</artifactId>
@@ -47,7 +47,7 @@
                             <goal>prepare-agent</goal>
                         </goals>
                         <configuration>
-                            <propertyName>jacocoArgLine</propertyName>
+                            <propertyName>jacoco.argLine</propertyName>
                         </configuration>
                     </execution>
                     <execution>
@@ -59,21 +59,6 @@
                     </execution>
                 </executions>
             </plugin>
-
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-surefire-plugin</artifactId>
-                <version>2.22.2</version>
-                <configuration>
-                    <argLine>
-                        -Xmx20g
-                        @{jacocoArgLine}
-                        -XX:MaxDirectMemorySize=4g
-                    </argLine>
-                    <reuseForks>false</reuseForks>
-                    <forkCount>1</forkCount>
-                </configuration>
-            </plugin>
         </plugins>
     </build>
     <dependencies>
@@ -84,29 +69,4 @@
             <scope>test</scope>
         </dependency>
     </dependencies>
-    <profiles>
-    	<profile>
-            <activation>
-                <jdk>[17,)</jdk>
-            </activation>
-            <build>
-            	<plugins>
-            		<plugin>
-                        <artifactId>maven-surefire-plugin</artifactId>
-                        <configuration>
-                            <argLine>
-                        		-Xmx20g
-                        		@{jacocoArgLine}
-                        		-XX:MaxDirectMemorySize=4g
-                        		--add-modules jdk.incubator.foreign
-                        		--add-opens jdk.incubator.foreign/jdk.internal.foreign=ALL-UNNAMED
-                        		--add-opens java.base/java.nio=ALL-UNNAMED
-                        		--enable-native-access=ALL-UNNAMED
-                        	 </argLine>
-                        </configuration>
-                     </plugin>
-            	</plugins>
-            </build>
-    	</profile>
-   	</profiles>
 </project>

@@ -66,7 +66,7 @@ public class FirstLevelHashArrayTest {
     }
 
     @Test
-    public void testGetNextChunk(){
+    public void testGetNextChunk() {
         int expectedIdx = 1;
         // verify getNextChunk by the current chunk
         HashChunk<Integer, Integer> nxtChunkByIdx = chunks.getChunk(2 * (expectedIdx + 1));
