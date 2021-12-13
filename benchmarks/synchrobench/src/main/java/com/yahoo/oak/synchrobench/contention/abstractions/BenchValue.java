@@ -7,15 +7,8 @@
 package com.yahoo.oak.synchrobench.contention.abstractions;
 
 /**
- * Compositional map interface
- *
- * @author Vincent Gramoli
+ * All benchmarked values should implement this interface.
+ * It is used only for strict typing.
  */
-public interface MaintenanceAlg {
-
-    boolean stopMaintenance();
-
-    long getStructMods();
-
-    int numNodes();
+public interface BenchValue {
 }
