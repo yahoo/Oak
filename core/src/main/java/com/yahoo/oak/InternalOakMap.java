@@ -26,10 +26,8 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
     final ConcurrentSkipListMap<Object, OrderedChunk<K, V>> skiplist;    // skiplist of chunks for fast navigation
     private final AtomicReference<OrderedChunk<K, V>> head;
     private final OakComparator<K> comparator;
-    private final MemoryManager valuesMemoryManager;
-    private final MemoryManager keysMemoryManager;
-    private final OakSerializer<K> keySerializer;
-    private final OakSerializer<V> valueSerializer;
+
+
     // The reference count is used to count the upper objects wrapping this internal map:
     // OakMaps (including subMaps and Views) when all of the above are closed,
     // his map can be closed and memory released.
@@ -46,11 +44,7 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
         OakComparator<K> oakComparator, MemoryManager vMM, MemoryManager kMM, int chunkMaxItems,
         ValueUtils valueOperator) {
 
-        super(vMM, kMM);
-        this.valuesMemoryManager = vMM;
-        this.keysMemoryManager = kMM;
-        this.keySerializer = keySerializer;
-        this.valueSerializer = valueSerializer;
+        super(vMM, kMM, keySerializer, valueSerializer);
 
         this.comparator = oakComparator;
 
@@ -114,7 +108,9 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
         }
     }
 
-    /*-------------- Methods --------------*/
+    /* getter methods */
+
+
 
     /**
      * finds and returns the orderedChunk where key should be located, starting from given orderedChunk
@@ -335,7 +331,7 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
             // then this put changes the slice pointed by this value reference.
             if (ctx.isValueValid()) {
                 // there is a value and it is not deleted
-                Result res = valueOperator.exchange(c, ctx, value, transformer, valueSerializer);
+                Result res = valueOperator.exchange(c, ctx, value, transformer, getValueSerializer());
                 if (res.operationResult == ValueUtils.ValueResult.TRUE) {
                     return (V) res.value;
                 }
@@ -628,20 +624,16 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
      */
     @Override
     boolean refreshValuePosition(ThreadContext ctx) {
-        K deserializedKey = keySerializer.deserialize(ctx.key);
+        K deserializedKey = getKeySerializer().deserialize(ctx.key);
         OrderedChunk<K, V> c = findChunk(deserializedKey); // find orderedChunk matching key
         c.lookUp(ctx, deserializedKey);
         return ctx.isValueValid();
     }
 
-    public MemoryManager getValuesMemoryManager() {
-        return this.valuesMemoryManager;
-    }
-
-    private <T> T getValueTransformation(OakScopedReadBuffer key, OakTransformer<T> transformer) {
-        K deserializedKey = keySerializer.deserialize(key);
-        return getValueTransformation(deserializedKey, transformer);
-    }
+    //private <T> T getValueTransformation(OakScopedReadBuffer key, OakTransformer<T> transformer) {
+    //    K deserializedKey = getKeySerializer().deserialize(key);
+    //    return getValueTransformation(deserializedKey, transformer);
+    //}
 
     // the non-ZC variation of the get
     <T> T getValueTransformation(K key, OakTransformer<T> transformer) {
@@ -751,7 +743,7 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
             }
 
             // will return null if the value is deleted
-            Result result = valueOperator.exchange(c, ctx, value, valueDeserializeTransformer, valueSerializer);
+            Result result = valueOperator.exchange(c, ctx, value, valueDeserializeTransformer, getValueSerializer());
             if (result.operationResult != ValueUtils.ValueResult.RETRY) {
                 return (V) result.value;
             }
@@ -773,7 +765,7 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
             }
 
             ValueUtils.ValueResult res = valueOperator.compareExchange(c, ctx, oldValue, newValue,
-                    valueDeserializeTransformer, valueSerializer);
+                    valueDeserializeTransformer, getValueSerializer());
             if (res == ValueUtils.ValueResult.RETRY) {
                 // it might be that this chunk is proceeding with rebalance -> help
                 helpRebalanceIfInProgress(c);
@@ -813,7 +805,7 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
             return new AbstractMap.SimpleImmutableEntry<>(null, null);
         }
         // ctx.tempKey was updated with prevIndex key as a side effect of compareKeyAndEntryIndex()
-        K keyDeserialized = keySerializer.deserialize(ctx.tempKey);
+        K keyDeserialized = getKeySerializer().deserialize(ctx.tempKey);
 
         // get value associated with this (prev) key
         boolean isAllocated = c.readValueFromEntryIndex(ctx.value, prevIndex);
@@ -821,7 +813,7 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
             return lowerEntry(key);
         }
         Result valueDeserialized = valueOperator.transform(ctx.result, ctx.value,
-                valueSerializer::deserialize);
+                getValueSerializer()::deserialize);
         if (valueDeserialized.operationResult != ValueUtils.ValueResult.TRUE) {
             return lowerEntry(key);
         }
@@ -911,7 +903,7 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
         protected void initAfterRebalance() {
             //TODO - refactor to use OakReadBuffer without deserializing.
             getState().getChunk().readKeyFromEntryIndex(ctx.tempKey, getState().getIndex());
-            K nextKey = keySerializer.deserialize(ctx.tempKey);
+            K nextKey = getKeySerializer().deserialize(ctx.tempKey);
 
             if (isDescending) {
                 hiInclusive = true;
@@ -1148,7 +1140,7 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
     class ValueStreamIterator extends OrderedIter<OakUnscopedBuffer> {
 
         private final UnscopedBuffer<ValueBuffer> value =
-                new UnscopedBuffer<>(new ValueBuffer(valuesMemoryManager.getEmptySlice()));
+                new UnscopedBuffer<>(new ValueBuffer(getValuesMemoryManager().getEmptySlice()));
 
         ValueStreamIterator(K lo, boolean loInclusive, K hi, boolean hiInclusive, boolean isDescending) {
             super(lo, loInclusive, hi, hiInclusive, isDescending);
@@ -1210,9 +1202,9 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
             implements Map.Entry<OakUnscopedBuffer, OakUnscopedBuffer> {
 
         private final UnscopedBuffer<KeyBuffer> key =
-            new UnscopedBuffer<>(new KeyBuffer(keysMemoryManager.getEmptySlice()));
+            new UnscopedBuffer<>(new KeyBuffer(getKeysMemoryManager().getEmptySlice()));
         private final UnscopedBuffer<ValueBuffer> value =
-                new UnscopedBuffer<>(new ValueBuffer(valuesMemoryManager.getEmptySlice()));
+                new UnscopedBuffer<>(new ValueBuffer(getValuesMemoryManager().getEmptySlice()));
 
         EntryStreamIterator(K lo, boolean loInclusive, K hi, boolean hiInclusive, boolean isDescending) {
             super(lo, loInclusive, hi, hiInclusive, isDescending);
@@ -1292,7 +1284,7 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
     public class KeyStreamIterator extends OrderedIter<OakUnscopedBuffer> {
 
         private final UnscopedBuffer<KeyBuffer> key
-            = new UnscopedBuffer<>(new KeyBuffer(keysMemoryManager.getEmptySlice()));
+            = new UnscopedBuffer<>(new KeyBuffer(getKeysMemoryManager().getEmptySlice()));
 
         KeyStreamIterator(K lo, boolean loInclusive, K hi, boolean hiInclusive, boolean isDescending) {
             super(lo, loInclusive, hi, hiInclusive, isDescending);

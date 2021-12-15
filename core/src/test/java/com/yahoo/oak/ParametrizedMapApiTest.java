@@ -251,10 +251,6 @@ public class ParametrizedMapApiTest {
 
     @Test
     public void entrySet() {
-        //if (oak instanceof OakHashMap) {
-        //    // TODO: currently iterators are not supported for Hash, remove this later
-        //    return;
-        //}
         int numKeys = 10;
         for (int i = 0; i < numKeys; i++) {
             oak.put(i, i);

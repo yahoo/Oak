@@ -680,18 +680,12 @@ class OrderedChunk<K, V> extends BasicChunk<K, V> {
         protected IterEndBoundCheck isEndBoundCheckNeeded = IterEndBoundCheck.NEVER_END_BOUNDARY_CHECK;
         protected int midIdx = sortedCount.get() / 2; // approximately index of the middle key in the chunk
 
-        //abstract boolean hasNext();
-
-        /** Returns the index of the entry that should be returned next by the iterator.
-         ** NONE_NEXT is returned when iterator came to its end.
-         **/
-        //abstract int next(ThreadContext ctx);
 
         boolean isBoundCheckNeeded() {
             return isEndBoundCheckNeeded == IterEndBoundCheck.ALWAYS_END_BOUNDARY_CHECK;
         };
 
-        /* Checks if the given 'boundKey' key is beyond the scope of the given scan,
+        /** Checks if the given 'boundKey' key is beyond the scope of the given scan,
         ** meaning that scan is near to its end.
         ** For descending scan it is the low key, for ascending scan it is the high.
         **/

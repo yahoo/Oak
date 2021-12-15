@@ -15,15 +15,22 @@ abstract class InternalOakBasics<K, V> {
     /*-------------- Members --------------*/
     protected static final int MAX_RETRIES = 1024;
 
-    protected final MemoryManager valuesMemoryManager;
-    protected final MemoryManager keysMemoryManager;
+    private final MemoryManager valuesMemoryManager;
+    private final MemoryManager keysMemoryManager;
+
+    private final OakSerializer<K> keySerializer;
+    private final OakSerializer<V> valueSerializer;
+
     protected final AtomicInteger size;
 
     /*-------------- Constructors --------------*/
-    InternalOakBasics(MemoryManager vMM, MemoryManager kMM) {
+    InternalOakBasics(MemoryManager vMM, MemoryManager kMM,
+                      OakSerializer<K> keySerializer, OakSerializer<V> valueSerializer) {
         this.size = new AtomicInteger(0);
         this.valuesMemoryManager = vMM;
         this.keysMemoryManager = kMM;
+        this.keySerializer = keySerializer;
+        this.valueSerializer = valueSerializer;
     }
 
     /*-------------- Closable --------------*/
@@ -61,6 +68,22 @@ abstract class InternalOakBasics<K, V> {
         return size.get();
     }
 
+    /* getter methods */
+    public MemoryManager getValuesMemoryManager() {
+        return this.valuesMemoryManager;
+    }
+
+    public MemoryManager getKeysMemoryManager() {
+        return keysMemoryManager;
+    }
+
+    protected OakSerializer<K> getKeySerializer() {
+        return this.keySerializer;
+    }
+
+    protected OakSerializer<V> getValueSerializer() {
+        return this.valueSerializer;
+    }
     /*-------------- Context --------------*/
     /**
      * Should only be called from API methods at the beginning of the method and be reused in internal calls.
@@ -163,6 +186,15 @@ abstract class InternalOakBasics<K, V> {
      */
     abstract boolean refreshValuePosition(ThreadContext ctx);
 
+
+    protected <T> T getValueTransformation(OakScopedReadBuffer key, OakTransformer<T> transformer) {
+        K deserializedKey = keySerializer.deserialize(key);
+        return getValueTransformation(deserializedKey, transformer);
+    }
+
+    // the non-ZC variation of the get
+    abstract <T> T getValueTransformation(K key, OakTransformer<T> transformer);
+
     /*-------------- Different Oak Buffer creations --------------*/
 
     protected UnscopedBuffer getKeyUnscopedBuffer(ThreadContext ctx) {
@@ -209,9 +241,9 @@ abstract class InternalOakBasics<K, V> {
     }
 
 
-    /************************/
-    /* Basic Iterator class */
-    /************************/
+    /************************
+    * Basic Iterator class
+    *************************/
     abstract class BasicIter<T> implements Iterator<T> {
 
 
@@ -260,6 +292,7 @@ abstract class InternalOakBasics<K, V> {
 
                 final BasicChunk<K, V> chunk = state.getChunk();
                 if (chunk.state() == BasicChunk.State.RELEASED) {
+                    // @TODO not to access the keys on the RELEASED chunk once the key might be released
                     initAfterRebalance();
                     continue;
                 }
@@ -295,10 +328,10 @@ abstract class InternalOakBasics<K, V> {
 
 
 
-        protected BasicIteratorState getState() {
+        protected BasicIteratorState<K, V> getState() {
             return state;
         }
-        protected void setState(BasicIteratorState newState) {
+        protected void setState(BasicIteratorState<K, V> newState) {
             state = newState;
         }
 
