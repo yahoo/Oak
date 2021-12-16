@@ -198,10 +198,10 @@ public class ParametrizedMapApiTest {
 
     @Test
     public void keySet() {
-        if (oak instanceof OakHashMap) {
-            // TODO: currently iterators are not supported for Hash, remove this later
-            return;
-        }
+        //if (oak instanceof OakHashMap) {
+        //    // TODO: currently iterators are not supported for Hash, remove this later
+        //    return;
+        //}
         int numKeys = 10;
         for (int i = 0; i < numKeys; i++) {
             oak.put(i, i);
@@ -216,9 +216,11 @@ public class ParametrizedMapApiTest {
 
     @Test
     public void iterTest() {
+        boolean testingHash = false;
         if (oak instanceof OakHashMap) {
-            // TODO: currently iterators are not supported for Hash, remove this later
-            return;
+            testingHash = true;
+        } else {
+            testingHash = false;
         }
         int numKeys = 10;
         for (int i = 0; i < numKeys; i++) {
@@ -226,19 +228,29 @@ public class ParametrizedMapApiTest {
         }
 
 
-        int expected = 0;
-        for (Integer i :oak.values()) {
-            Assert.assertEquals(expected, i.intValue());
-            expected++;
+        if (testingHash) {
+            // For Hash the scan order is not known in advance,
+            // we need to check that each value appears exactly once
+            int[] valuesPresent = new int[numKeys];
+            for (Integer i :oak.values()) {
+                valuesPresent[i.intValue()]++;
+            }
+            for (int valuePresent:valuesPresent) {
+                Assert.assertEquals(1, valuePresent);
+            }
+        } else {
+            int expected = 0;
+            for (Integer i : oak.values()) {
+                Assert.assertEquals(expected, i.intValue());
+                expected++;
+            }
         }
+
+
     }
 
     @Test
     public void entrySet() {
-        if (oak instanceof OakHashMap) {
-            // TODO: currently iterators are not supported for Hash, remove this later
-            return;
-        }
         int numKeys = 10;
         for (int i = 0; i < numKeys; i++) {
             oak.put(i, i);

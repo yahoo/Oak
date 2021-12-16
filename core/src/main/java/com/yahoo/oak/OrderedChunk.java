@@ -672,7 +672,7 @@ class OrderedChunk<K, V> extends BasicChunk<K, V> {
         ALWAYS_END_BOUNDARY_CHECK
     }
 
-    abstract class ChunkIter {
+    abstract class ChunkIter implements BasicChunkIter {
         protected int next;         // index of the next entry to be returned
         protected K endBound;       // stop bound key, or null if no stop bound
         protected boolean endBoundInclusive;  // inclusion flag for "to"
@@ -680,18 +680,12 @@ class OrderedChunk<K, V> extends BasicChunk<K, V> {
         protected IterEndBoundCheck isEndBoundCheckNeeded = IterEndBoundCheck.NEVER_END_BOUNDARY_CHECK;
         protected int midIdx = sortedCount.get() / 2; // approximately index of the middle key in the chunk
 
-        abstract boolean hasNext();
-
-        /** Returns the index of the entry that should be returned next by the iterator.
-         ** NONE_NEXT is returned when iterator came to its end.
-         **/
-        abstract int next(ThreadContext ctx);
 
         boolean isBoundCheckNeeded() {
             return isEndBoundCheckNeeded == IterEndBoundCheck.ALWAYS_END_BOUNDARY_CHECK;
         };
 
-        /* Checks if the given 'boundKey' key is beyond the scope of the given scan,
+        /** Checks if the given 'boundKey' key is beyond the scope of the given scan,
         ** meaning that scan is near to its end.
         ** For descending scan it is the low key, for ascending scan it is the high.
         **/
@@ -914,7 +908,7 @@ class OrderedChunk<K, V> extends BasicChunk<K, V> {
          * @param firstTimeInvocation
          */
         private void traverseLinkedList(KeyBuffer tempKeyBuff, boolean firstTimeInvocation) {
-            assert stack.size() == 1;   // ancor is in the stack
+            assert stack.size() == 1;   // anchor is in the stack
             if (prevAnchor == entryOrderedSet.getNextEntryIndex(anchor)) {
                 next = NONE_NEXT;   // there is no next;
                 return;
