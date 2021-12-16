@@ -19,6 +19,7 @@ abstract class BasicChunk<K, V> {
         RELEASED
     }
 
+
     /*-------------- Members --------------*/
     // to compare serilized and object keys
     protected OakComparator<K> comparator;
@@ -56,6 +57,14 @@ abstract class BasicChunk<K, V> {
         child.state.set(State.INFANT);
         return;
     }
+    /*---------------Abstract Read methods -----------------------*/
+    abstract void readKey(ThreadContext ctx);
+
+    abstract void readValue(ThreadContext ctx);
+
+    abstract boolean readKeyFromEntryIndex(KeyBuffer key, int ei);
+
+    abstract boolean readValueFromEntryIndex(ValueBuffer value, int ei);
 
     /*-------------- Publishing related methods and getters ---------------*/
     /**
@@ -276,5 +285,16 @@ abstract class BasicChunk<K, V> {
      */
     Statistics getStatistics() {
         return statistics;
+    }
+
+    /********************************************************************************************/
+
+    interface BasicChunkIter {
+        boolean hasNext();
+
+        /** Returns the index of the entry that should be returned next by the iterator.
+         ** NONE_NEXT is returned when iterator came to its end.
+         **/
+        int next(ThreadContext ctx);
     }
 }

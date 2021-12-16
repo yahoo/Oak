@@ -112,7 +112,8 @@ public class EntryArray<K, V> {
     // Entry marked deleted only off-heap is already considered deleted
     enum EntryState {
         /*
-         * The state of the entry is yet to be checked.
+         * The state of the entry is yet to be checked or Entry is empty
+         * @TODO split into two separate states - UNKNOWN and EMPTY
          */
         UNKNOWN,
 

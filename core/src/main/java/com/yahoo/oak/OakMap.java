@@ -32,8 +32,8 @@ public class OakMap<K, V> extends AbstractMap<K, V>
      * Memory manager cares for allocation, de-allocation and reuse of the internally pre-allocated
      * memory. There can be separate memory managing algorithms for keys and values.
      * */
-    private final MemoryManager valuesMemoryManager;
-    private final MemoryManager keysMemoryManager;
+    //private final MemoryManager valuesMemoryManager;
+    //private final MemoryManager keysMemoryManager;
     private final OakTransformer<K> keyDeserializeTransformer;
     private final OakTransformer<V> valueDeserializeTransformer;
     private final Function<Map.Entry<OakScopedReadBuffer, OakScopedReadBuffer>,
@@ -51,11 +51,10 @@ public class OakMap<K, V> extends AbstractMap<K, V>
     OakMap(K minKey, OakSerializer<K> keySerializer, OakSerializer<V> valueSerializer, OakComparator<K> oakComparator,
         int chunkMaxItems, MemoryManager vMM, MemoryManager kMM) {
 
-        this.valuesMemoryManager = vMM;
-        this.keysMemoryManager = kMM;
+
         this.comparator = oakComparator;
         this.internalOakMap = new InternalOakMap<>(minKey, keySerializer, valueSerializer, oakComparator,
-                this.valuesMemoryManager, kMM, chunkMaxItems, new ValueUtils());
+                vMM, kMM, chunkMaxItems, new ValueUtils());
 
         this.fromKey = null;
         this.fromInclusive = false;
@@ -73,8 +72,7 @@ public class OakMap<K, V> extends AbstractMap<K, V>
     private OakMap(OakMap<K, V> oakMap, K fromKey, boolean fromInclusive, K toKey,
                    boolean toInclusive, boolean isDescending) {
         this.internalOakMap = oakMap.internalOakMap;
-        this.valuesMemoryManager = oakMap.valuesMemoryManager;
-        this.keysMemoryManager = oakMap.keysMemoryManager;
+
         this.keyDeserializeTransformer = oakMap.keyDeserializeTransformer;
         this.valueDeserializeTransformer = oakMap.valueDeserializeTransformer;
         this.entryDeserializeTransformer = oakMap.entryDeserializeTransformer;
@@ -477,7 +475,7 @@ public class OakMap<K, V> extends AbstractMap<K, V>
     }
 
     public MemoryManager getValuesMemoryManager() {
-        return valuesMemoryManager;
+        return this.internalOakMap.getValuesMemoryManager();
     }
 
     public static class OakZeroCopyMap<K, V> implements ZeroCopyMap<K, V> {
