@@ -266,6 +266,19 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
         return readValue(ctx.tempValue, idx);
     }
 
+    /**
+     * Function checks if an entry at given index is valid for the scan purpose
+     *
+     * @param ctx the context used as temporal storage, used for convenience
+     * @param idx index of the entry to check
+     * @return true if the entry at the given index is valid, false otherwise
+     */
+    public boolean isEntryIndexValidForScan(ThreadContext ctx, int idx) {
+        // tempValue us used rather than value, since as a side effect value is updated by the readValue operation
+        // it may replace the value that is already read by the `advance` iterator method
+        return readValue(ctx.tempValue, idx);
+    }
+
     int getCollisionChainLength() {
         return collisionChainLength.get();
     }
