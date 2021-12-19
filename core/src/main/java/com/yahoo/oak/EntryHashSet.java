@@ -8,7 +8,7 @@ package com.yahoo.oak;
 
 import java.util.concurrent.atomic.AtomicInteger;
 
-/* EntryHashSet keeps a set of entries placed according to the key hash.
+/* EntryHashSet keeps a set of entries placed according to the key hash number modulo capacity.
  * Entry is reference to key and value, both located off-heap.
  * EntryHashSet provides access, updates and manipulation on each entry, provided its entry index.
  *
