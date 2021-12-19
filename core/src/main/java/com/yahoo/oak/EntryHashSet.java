@@ -56,7 +56,7 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
 
     static final int DEFAULT_COLLISION_CHAIN_LENGTH = 4;
     // HASH - the key hash of this entry (long includes the update counter)
-    // hey hash is first, update counter is second, valid bit is third
+    // key hash is first, update counter is second, valid bit is third
     private static final int HASH_FIELD_OFFSET = 2;
     private static final int KEY_HASH_BITS = 32; // Hash needs to be an integer
     private static final int UPDATE_COUNTER_BITS = 31;
@@ -105,7 +105,8 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
      */
     private int getKeyHash(int ei) {
         assert isIndexInBound(ei);
-        // extract the hash number (first) from the updates counter (second)
+        // extract the key hash number
+        // (first of the three fields squeezed into KeyHashAndUpdateCounter of an entry)
         return HASH_CODEC.getFirst(getKeyHashAndUpdateCounter(ei));
     }
 
@@ -115,7 +116,8 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
      */
     private int getUpdCntFromHash(int ei) {
         assert isIndexInBound(ei);
-        // extract the hash number (first) from the updates counter (second)
+        // extract the update counter of the entry
+        // (second of the three fields squeezed into KeyHashAndUpdateCounter of an entry)
         return HASH_CODEC.getSecond(getKeyHashAndUpdateCounter(ei));
     }
 
@@ -214,40 +216,39 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
         if (getKeyReference(idx) == keysMemoryManager.getInvalidReference()) {
             return EntryState.UNKNOWN;
         }
-        // try to get constant read of key, value, hash code, its update counter and valid bit
+        // try to get consistent read of key, value, hash code, its update counter and valid bit
         do {
             ctx.keyHashAndUpdateCnt = getKeyHashAndUpdateCounter(idx);
             // entry is occupied (anyhow), read the key, remember the result
             keyReadResult = readKey(ctx.key, idx);
             // read value, if value is invalid or deleted reference the read will fail
             valueReadResult = readValue(ctx.value, idx);
-        } while (HASH_CODEC.getSecond(ctx.keyHashAndUpdateCnt) != getUpdCntFromHash(idx));
+        } while (ctx.keyHashAndUpdateCnt != getKeyHashAndUpdateCounter(idx));
 
         if (valueReadResult) { // was value read successful?
             // Entry is Valid, but can be in deletion process
             // checking the off-heap value header's delete bit
             return (ctx.value.getSlice().isDeleted() != ValueUtils.ValueResult.FALSE) ?
                 EntryState.DELETED_NOT_FINALIZED : EntryState.VALID;
-        } else {
+        } else if (keyReadResult) {
             // value invalid or deleted
             // Entry is either not yet inserted, or in deletion process or already deleted
-            if (keyReadResult) { // was key read successful?
-                // Entry is in insertion process. Return insert_not_finished only if this is the
-                // same key, but we shouldn't rely on compare with key marked deleted in the off-heap.
-                // Otherwise, return entry is valid and it will be skipped for new insertion.
-                if (isKeyAndEntryKeyEqual(ctx.key, key, idx, keyHash)) {
-                    // checking the off-heap key header's delete bit
-                    if (ctx.key.getSlice().isDeleted() != ValueUtils.ValueResult.FALSE) {
-                        return isKeyHashValid(idx) ? EntryState.DELETED_NOT_FINALIZED : EntryState.DELETED;
-                    }
-                    return EntryState.INSERT_NOT_FINALIZED;
-                } else {
-                    return EntryState.VALID;
+            // But key read was successful
+            // Entry is in insertion process. Return insert_not_finished only if this is the
+            // same key, but we shouldn't rely on compare with key marked deleted in the off-heap.
+            // Otherwise, return entry is valid and it will be skipped for new insertion.
+            if (isKeyAndEntryKeyEqual(ctx.key, key, idx, keyHash)) {
+                // checking the off-heap key header's delete bit
+                if (ctx.key.getSlice().isDeleted() != ValueUtils.ValueResult.FALSE) {
+                    return isKeyHashValid(idx) ? EntryState.DELETED_NOT_FINALIZED : EntryState.DELETED;
                 }
+                return EntryState.INSERT_NOT_FINALIZED;
             } else {
-                // Both value and key are deleted. Does HashUpdCntValid have valid bit on?
-                return isKeyHashValid(idx) ? EntryState.DELETED_NOT_FINALIZED : EntryState.DELETED;
+                return EntryState.VALID;
             }
+        } else {
+            // Both value and key are deleted. Does HashUpdCntValid have valid bit on?
+            return isKeyHashValid(idx) ? EntryState.DELETED_NOT_FINALIZED : EntryState.DELETED;
         }
     }
 
