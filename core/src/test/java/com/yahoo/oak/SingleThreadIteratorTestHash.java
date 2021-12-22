@@ -36,17 +36,28 @@ public class SingleThreadIteratorTestHash {
         oak.close();
     }
 
-    @Test
-    public void testIterator() {
-        Integer value;
-
+    private void populate() {
         for (Integer i = 0; i < 2 * maxItemsPerChunk; i++) {
             oak.zc().put(i, i);
         }
+    }
+
+    @Test
+    public void basicSanityCheck() {
+        Integer value;
+
+        populate();
+
         for (Integer i = 0; i < 2 * maxItemsPerChunk; i++) {
             value = oak.get(i);
             Assert.assertEquals(i, value);
         }
+    }
+    @Test
+    public void testIterator() {
+        Integer value;
+
+        populate();
 
         Iterator<Integer> valIter = oak.values().iterator();
         Iterator<Map.Entry<Integer, Integer>> entryIter = oak.entrySet().iterator();
@@ -127,5 +138,63 @@ public class SingleThreadIteratorTestHash {
         Assert.assertEquals((Integer) 0, valIter.next());
         Assert.assertTrue(valIter.hasNext());
         Assert.assertEquals((Integer) (2 * maxItemsPerChunk - 1), valIter.next());
+    }
+
+    @Test
+    public void testIteratorRemove() {
+        Integer value;
+
+        Integer valToRemove1 = 10;
+        Integer valToRemove2 = 20;
+
+        populate();
+
+        Iterator<Integer> valIter = oak.values().iterator();
+        Iterator<Map.Entry<Integer, Integer>> entryIter = oak.entrySet().iterator();
+        boolean valuesPresent[] = new boolean[2 * maxItemsPerChunk];
+        while (valIter.hasNext()) {
+            Integer expectedVal = valIter.next();
+            Assert.assertFalse(valuesPresent[expectedVal]);
+            valuesPresent[expectedVal] = true;
+
+            Map.Entry<Integer, Integer> e = entryIter.next();
+
+            if (expectedVal == valToRemove1) {
+                valIter.remove();
+            }
+            if (expectedVal == valToRemove2) {
+                entryIter.remove();
+            }
+
+            Assert.assertEquals(expectedVal, e.getKey());
+            Assert.assertEquals(expectedVal, e.getValue());
+        }
+        for (boolean flag:valuesPresent) {
+            Assert.assertTrue(flag);
+        }
+
+
+        // iterate over the remaining entries
+        valIter = oak.values().iterator();
+        entryIter = oak.entrySet().iterator();
+        valuesPresent = new boolean[2 * maxItemsPerChunk];
+        while (valIter.hasNext()) {
+            Integer expectedVal = valIter.next();
+            Assert.assertFalse(valuesPresent[expectedVal]);
+            valuesPresent[expectedVal] = true;
+
+            Map.Entry<Integer, Integer> e = entryIter.next();
+
+            Assert.assertEquals(expectedVal, e.getKey());
+            Assert.assertEquals(expectedVal, e.getValue());
+        }
+
+        for (int idx = 0; idx < valuesPresent.length; idx++) {
+            if (idx == valToRemove1 || idx == valToRemove2) {
+                Assert.assertFalse(valuesPresent[idx]);
+            } else {
+                Assert.assertTrue(valuesPresent[idx]);
+            }
+        }
     }
 }

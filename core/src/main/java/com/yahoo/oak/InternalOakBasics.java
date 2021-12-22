@@ -6,6 +6,7 @@
 
 package com.yahoo.oak;
 
+
 import java.io.IOException;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
@@ -21,16 +22,19 @@ abstract class InternalOakBasics<K, V> {
     private final OakSerializer<K> keySerializer;
     private final OakSerializer<V> valueSerializer;
 
+    private final ValueUtils valueOperator;
+
     protected final AtomicInteger size;
 
     /*-------------- Constructors --------------*/
     InternalOakBasics(MemoryManager vMM, MemoryManager kMM,
-                      OakSerializer<K> keySerializer, OakSerializer<V> valueSerializer) {
+                      OakSerializer<K> keySerializer, OakSerializer<V> valueSerializer, ValueUtils valueOperator) {
         this.size = new AtomicInteger(0);
         this.valuesMemoryManager = vMM;
         this.keysMemoryManager = kMM;
         this.keySerializer = keySerializer;
         this.valueSerializer = valueSerializer;
+        this.valueOperator = valueOperator;
     }
 
     /*-------------- Closable --------------*/
@@ -84,6 +88,10 @@ abstract class InternalOakBasics<K, V> {
     protected OakSerializer<V> getValueSerializer() {
         return this.valueSerializer;
     }
+
+    protected ValueUtils getValueOperator() {
+        return valueOperator;
+    }
     /*-------------- Context --------------*/
     /**
      * Should only be called from API methods at the beginning of the method and be reused in internal calls.
@@ -127,6 +135,85 @@ abstract class InternalOakBasics<K, V> {
     }
 
     /*-------------- Common actions --------------*/
+
+    Result remove(K key, V oldValue, OakTransformer<V> transformer) {
+        if (key == null) {
+            throw new NullPointerException();
+        }
+
+        // when logicallyDeleted is true, it means we have marked the value as deleted.
+        // Note that the entry will remain linked until rebalance happens.
+        boolean logicallyDeleted = false;
+        V v = null;
+
+        ThreadContext ctx = getThreadContext();
+
+        for (int i = 0; i < MAX_RETRIES; i++) {
+            // find chunk matching key, puts this key hash into ctx.operationKeyHash
+            BasicChunk<K, V> c = findChunk(key, ctx);
+            c.lookUp(ctx, key);
+
+            if (!ctx.isKeyValid()) {
+                // There is no such key. If we did logical deletion and someone else did the physical deletion,
+                // then the old value is saved in v. Otherwise v is (correctly) null
+                return transformer == null ? ctx.result.withFlag(logicallyDeleted) : ctx.result.withValue(v);
+            } else if (!ctx.isValueValid()) {
+                // There is such a key, but the value is invalid,
+                // either deleted (maybe only off-heap) or not yet allocated
+                if (!finalizeDeletion(c, ctx)) {
+                    // finalize deletion returns false, meaning no rebalance was requested
+                    // and there was an attempt to finalize deletion
+                    return transformer == null ? ctx.result.withFlag(logicallyDeleted) : ctx.result.withValue(v);
+                }
+                continue;
+            }
+
+            // AT THIS POINT Key was found (key and value not valid) and context is updated
+            if (logicallyDeleted) {
+                // This is the case where we logically deleted this entry (marked the value off-heap as deleted),
+                // but someone helped and (marked the value reference as deleted) and reused the entry
+                // before we marked the value reference as deleted. We have the previous value saved in v.
+                return transformer == null ? ctx.result.withFlag(ValueUtils.ValueResult.TRUE) : ctx.result.withValue(v);
+            } else {
+                Result removeResult = valueOperator.remove(ctx, oldValue, transformer);
+                if (removeResult.operationResult == ValueUtils.ValueResult.FALSE) {
+                    // we didn't succeed to remove the value: it didn't contain oldValue, or was already marked
+                    // as deleted by someone else)
+                    return ctx.result.withFlag(ValueUtils.ValueResult.FALSE);
+                } else if (removeResult.operationResult == ValueUtils.ValueResult.RETRY) {
+                    continue;
+                }
+                // we have marked this value as deleted (successful remove)
+                logicallyDeleted = true;
+                v = (V) removeResult.value;
+            }
+
+            // AT THIS POINT value was marked deleted off-heap by this thread,
+            // continue to set the entry's value reference as deleted
+            assert ctx.entryIndex != EntryArray.INVALID_ENTRY_INDEX;
+            assert ctx.isValueValid();
+            ctx.entryState = EntryArray.EntryState.DELETED_NOT_FINALIZED;
+
+            if (inTheMiddleOfRebalance(c)) {
+                continue;
+            }
+
+            // If finalize deletion returns true, meaning rebalance was done and there was NO
+            // attempt to finalize deletion. There is going the help anyway, by next rebalance
+            // or updater. Thus it is OK not to restart, the linearization point of logical deletion
+            // is owned by this thread anyway and old value is kept in v.
+            finalizeDeletion(c, ctx); // includes publish/unpublish
+            return transformer == null ?
+                    ctx.result.withFlag(ValueUtils.ValueResult.TRUE) : ctx.result.withValue(v);
+        }
+
+        throw new RuntimeException("remove failed: reached retry limit (1024).");
+    }
+
+    // the zero-copy version of get
+    abstract OakUnscopedBuffer get(K key);
+
+    protected abstract BasicChunk<K, V> findChunk(K key, ThreadContext ctx);
     protected boolean finalizeDeletion(BasicChunk<K, V> c, ThreadContext ctx) {
         if (c.finalizeDeletion(ctx)) {
             rebalanceBasic(c);
@@ -238,6 +325,12 @@ abstract class InternalOakBasics<K, V> {
             return index;
         }
 
+        public void copyState(BasicIteratorState<K, V> other) {
+            assert other != null;
+            this.chunk = other.chunk;
+            this.chunkIter = other.chunkIter;
+            this.index = other.index;
+        }
     }
 
 
@@ -251,7 +344,8 @@ abstract class InternalOakBasics<K, V> {
          * the next node to return from next();
          */
         private BasicIteratorState<K, V> state;
-
+        private BasicIteratorState<K, V> prevIterState;
+        private boolean prevIterStateValid = false;
         /**
          * An iterator cannot be accesses concurrently by multiple threads.
          * Thus, it is safe to have its own thread context.
@@ -275,6 +369,26 @@ abstract class InternalOakBasics<K, V> {
         // the actual next()
         public abstract T next();
 
+        /**
+         * The function removes the element returned by the last call to next() function
+         * If the next() was not called, exception is thrown
+         * If the entry was changed, between the call of the next() and remove(), it is deleted regardless
+         */
+        @Override
+        public void remove() {
+            if (!isPrevIterStateValid()) {
+                throw new IllegalStateException("next() was not called in due order");
+            }
+            BasicChunk prevChunk = getPrevIterState().getChunk();
+            int preIdx = getPrevIterState().getIndex();
+            boolean validState = prevChunk.readKeyFromEntryIndex(ctx.key, preIdx);
+            if (validState) {
+                K prevKey = getKeySerializer().deserialize(ctx.key);
+                InternalOakBasics.this.remove(prevKey, null, null);
+            }
+
+            invalidatePrevState();
+        }
         /**
          * Advances next to higher entry.
          *  previous index
@@ -334,9 +448,57 @@ abstract class InternalOakBasics<K, V> {
         protected void setState(BasicIteratorState<K, V> newState) {
             state = newState;
         }
+        protected void setPrevState(BasicIteratorState<K, V> newState) {
+            prevIterState = newState;
+        }
+
+        protected BasicIteratorState<K, V> getPrevIterState() {
+            return prevIterState;
+        }
+        /**
+         * function copies the fields of the current iterator state to the fields of the pre.IterState
+         * This is used by the remove function of the iterator
+         */
+        protected void storeIterState() {
+            prevIterState.copyState(state);
+            prevIterStateValid = true;
+        }
+
+        protected boolean isPrevIterStateValid() {
+            return prevIterStateValid;
+        }
+        protected void invalidatePrevState() {
+            prevIterStateValid = false;
+        }
 
         protected abstract BasicChunk<K, V> getNextChunk(BasicChunk<K, V> current);
-        protected abstract void advanceState();
+        protected abstract BasicChunk.BasicChunkIter getChunkIter(BasicChunk<K, V> current);
+
+        /**
+         * advance state to the new position
+         * @return if new position found, return true, else, set State to null and return false
+         */
+        protected boolean advanceState() {
+
+            BasicChunk<K, V> chunk = getState().getChunk();
+            BasicChunk.BasicChunkIter chunkIter = getState().getChunkIter();
+
+            while (!chunkIter.hasNext()) { // skip empty chunks
+                chunk = getNextChunk(chunk);
+                if (chunk == null) {
+                    //End of iteration
+                    setState(null);
+                    return false;
+                }
+                chunkIter = getChunkIter(chunk);
+            }
+
+            int nextIndex = chunkIter.next(ctx);
+            storeIterState();
+            getState().set(chunk, chunkIter, nextIndex);
+
+            return true;
+        }
 
     }
 }

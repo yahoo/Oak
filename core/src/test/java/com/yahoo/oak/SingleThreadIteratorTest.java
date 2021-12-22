@@ -485,4 +485,52 @@ public class SingleThreadIteratorTest {
 
     }
 
+    @Test
+    public void testIteratorRemove() {
+        Integer value;
+
+        Integer valToRemove1 = 2;
+        Integer valToRemove2 = 4;
+
+        for (Integer i = 0; i < 2 * maxItemsPerChunk; i++) {
+            oak.zc().put(i, i);
+        }
+
+        Iterator<Integer> valIter = oak.values().iterator();
+        Iterator<Map.Entry<Integer, Integer>> entryIter = oak.entrySet().iterator();
+        Integer expectedVal = 0;
+        while (valIter.hasNext()) {
+            Assert.assertEquals(expectedVal, valIter.next());
+            Map.Entry<Integer, Integer> e = entryIter.next();
+            Assert.assertEquals(expectedVal, e.getKey());
+            Assert.assertEquals(expectedVal, e.getValue());
+
+            if (expectedVal == valToRemove1) {
+                valIter.remove();
+            }
+            if (expectedVal == valToRemove2) {
+                entryIter.remove();
+            }
+
+            expectedVal++;
+        }
+
+        valIter = oak.values().iterator();
+        entryIter = oak.entrySet().iterator();
+        expectedVal = 0;
+
+        while (valIter.hasNext()) {
+            if (expectedVal == valToRemove1 || expectedVal == valToRemove2) {
+                expectedVal++;
+                continue;
+            }
+            Assert.assertEquals(expectedVal, valIter.next());
+            Map.Entry<Integer, Integer> e = entryIter.next();
+            Assert.assertEquals(expectedVal, e.getKey());
+            Assert.assertEquals(expectedVal, e.getValue());
+            expectedVal++;
+
+        }
+
+    }
 }
