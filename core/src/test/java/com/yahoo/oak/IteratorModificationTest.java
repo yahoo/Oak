@@ -53,6 +53,7 @@ public class IteratorModificationTest {
     @After
     public void tearDown() {
         oak.close();
+        BlocksPool.clear();
     }
 
 

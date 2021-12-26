@@ -6,10 +6,16 @@
 
 package com.yahoo.oak;
 
+import org.junit.After;
 import org.junit.Assert;
 import org.junit.Test;
 
 public class NativeManagerTest {
+
+    @After
+    public void tearDown() {
+        BlocksPool.clear();
+    }
 
     @Test
     public void reuseTest() {

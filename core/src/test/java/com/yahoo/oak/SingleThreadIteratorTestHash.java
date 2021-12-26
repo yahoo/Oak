@@ -34,6 +34,7 @@ public class SingleThreadIteratorTestHash {
     @After
     public void finish() {
         oak.close();
+        BlocksPool.clear();
     }
 
     @Test
