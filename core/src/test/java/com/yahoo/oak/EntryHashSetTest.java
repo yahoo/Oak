@@ -9,11 +9,17 @@ package com.yahoo.oak;
 
 import com.yahoo.oak.common.integer.OakIntComparator;
 import com.yahoo.oak.common.integer.OakIntSerializer;
+import org.junit.After;
 import org.junit.Assert;
 import org.junit.Test;
 
 public class EntryHashSetTest {
     private final ValueUtils valueOperator = new ValueUtils();
+
+    @After
+    public void tearDown() {
+        BlocksPool.clear();
+    }
 
     private void allocateSimpleKeyValue(
         ThreadContext ctx, EntryHashSet ehs, SyncRecycleMemoryManager memoryManager) {
@@ -253,8 +259,6 @@ public class EntryHashSetTest {
         result = valueOperator.transform(new Result(), ctx.value, buf -> serializer.deserialize(buf));
         Assert.assertEquals(ValueUtils.ValueResult.TRUE, result.operationResult);
         Assert.assertEquals(350, ((Integer) result.value).intValue());
-
-
     }
 
     // the main (single threaded) test flow

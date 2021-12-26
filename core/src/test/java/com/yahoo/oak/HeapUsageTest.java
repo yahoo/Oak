@@ -74,6 +74,7 @@ public class HeapUsageTest {
     @After
     public void finish() {
         oak.close();
+        BlocksPool.clear();
     }
 
     @Test

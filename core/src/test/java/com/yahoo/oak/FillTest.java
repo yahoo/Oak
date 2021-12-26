@@ -76,11 +76,14 @@ public class FillTest {
     public void setup() {
         latch = new CountDownLatch(1);
         executor = new ExecutorUtils<>(NUM_THREADS);
+        oak = this.builder.get();
     }
 
     @After
     public void tearDown() {
         executor.shutdownNow();
+        oak.close();
+        BlocksPool.clear();
     }
 
     static class RunThreads implements Callable<Void> {
@@ -134,8 +137,6 @@ public class FillTest {
         int id = (int) Thread.currentThread().getId();
         id = id % ThreadIndexCalculator.MAX_THREADS;
 
-        oak = this.builder.get();
-
         //executor.submitTasks(NUM_THREADS, i -> new RunThreads(latch));
 
         for (Integer i = 1; i < (int) Math.round(NUM_OF_ENTRIES * 0.5); i++) {
@@ -154,7 +155,5 @@ public class FillTest {
             Assert.assertEquals(i, val);
         }
         long elapsedTime = stopTime - startTime;
-        oak.close();
-
     }
 }

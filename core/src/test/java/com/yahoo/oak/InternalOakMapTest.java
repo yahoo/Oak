@@ -7,6 +7,7 @@
 package com.yahoo.oak;
 
 import com.yahoo.oak.common.OakCommonBuildersFactory;
+import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
@@ -33,6 +34,11 @@ public class InternalOakMapTest {
                 memoryManager, seqExpandMemoryManager, chunkMaxItems, new ValueUtils());
     }
 
+    @After
+    public void tearDown() {
+        testMap.close();
+        BlocksPool.clear();
+    }
 
     private static Integer slowDeserialize(OakScopedReadBuffer bb) {
         try {

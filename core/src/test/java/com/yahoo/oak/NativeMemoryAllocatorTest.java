@@ -40,6 +40,7 @@ public class NativeMemoryAllocatorTest {
     @After
     public void finish() {
         executor.shutdownNow();
+        BlocksPool.clear();
     }
 
     static int calcExpectedSize(int keyCount, int valueCount) {

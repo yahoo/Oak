@@ -7,6 +7,7 @@
 package com.yahoo.oak;
 
 import com.yahoo.oak.common.OakCommonBuildersFactory;
+import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
@@ -56,6 +57,12 @@ public class ResizeValueTest {
         oak = supplier.get();
     }
 
+    @After
+    public void tearDown() {
+        oak.close();
+        BlocksPool.clear();
+    }
+
     @Test
     public void simpleSequentialResizeTest() {
         String key = "Hello";
@@ -76,14 +83,9 @@ public class ResizeValueTest {
 
     @Test
     public void retryIteratorTest() {
-        boolean hashTest = false;
-        if (oak instanceof OakHashMap) {
-            hashTest = true;
-        }
-        final String key1 = new String("AAAAAAA");
-        final String key2 = new String("ZZZZZZZ");
-        final String shortValue = new String("h");
-
+        final String key1 = "AAAAAAA";
+        final String key2 = "ZZZZZZZ";
+        final String shortValue = "h";
 
         oak.zc().put(key1, shortValue);
         oak.zc().put(key2, shortValue);
