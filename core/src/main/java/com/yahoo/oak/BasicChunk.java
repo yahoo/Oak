@@ -21,15 +21,16 @@ abstract class BasicChunk<K, V> {
 
 
     /*-------------- Members --------------*/
-    // to compare serilized and object keys
+    protected final OakSharedConfig<K, V> config;
     protected OakComparator<K> comparator;
+
     // in split/compact process, represents parent of split (can be null!)
     private final AtomicReference<BasicChunk<K, V>> creator;
     // chunk can be in the following states: normal, frozen or infant(has a creator)
     private final AtomicReference<State> state;
     private final AtomicReference<Rebalancer<K, V>> rebalancer;
     private final AtomicInteger pendingOps;
-    private final int maxItems;
+    protected final int maxItems;
     protected AtomicInteger externalSize; // for updating oak's size (reference to one global per Oak size)
     protected final Statistics statistics;
 
@@ -37,11 +38,15 @@ abstract class BasicChunk<K, V> {
     /**
      * This constructor is only used internally to instantiate a BasicChunk without a creator and a state.
      * The caller should set the creator and state before returning the BasicChunk to the user.
+     *
+     * @param config shared configuration
+     * @param maxItems maximal capacity
      */
-    protected BasicChunk(int maxItems, AtomicInteger externalSize, OakComparator<K> comparator) {
+    protected BasicChunk(OakSharedConfig<K, V> config, int maxItems) {
+        this.config = config;
         this.maxItems = maxItems;
-        this.externalSize = externalSize;
-        this.comparator = comparator;
+        this.externalSize = config.size;
+        this.comparator = config.comparator;
         this.creator = new AtomicReference<>(null);
         this.state = new AtomicReference<>(State.NORMAL);
         this.pendingOps = new AtomicInteger();
@@ -55,7 +60,6 @@ abstract class BasicChunk<K, V> {
     protected void updateBasicChild(BasicChunk<K, V> child) {
         child.creator.set(this);
         child.state.set(State.INFANT);
-        return;
     }
     /*---------------Abstract Read methods -----------------------*/
     abstract void readKey(ThreadContext ctx);

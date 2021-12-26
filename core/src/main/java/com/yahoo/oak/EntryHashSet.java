@@ -86,16 +86,12 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
 
     /*----------------- Constructor -------------------*/
     /**
-     * Create a new EntryHashSet
-     * @param vMM   for values off-heap allocations and releases
-     * @param kMM off-heap allocations and releases for keys
+     * @param config shared configuration
      * @param entriesCapacity how many entries should this EntryOrderedSet keep at maximum
-     * @param keySerializer   used to serialize the key when written to off-heap
      */
-    EntryHashSet(MemoryManager vMM, MemoryManager kMM, int entriesCapacity, OakSerializer<K> keySerializer,
-        OakSerializer<V> valueSerializer, OakComparator<K> comparator) {
-        super(vMM, kMM, ADDITIONAL_FIELDS, entriesCapacity, keySerializer, valueSerializer);
-        this.comparator = comparator;
+    EntryHashSet(OakSharedConfig<K, V> config, int entriesCapacity) {
+        super(config, ADDITIONAL_FIELDS, entriesCapacity);
+        this.comparator = config.comparator;
     }
 
     /*---------- Private methods for managing key hash entry field -------------*/

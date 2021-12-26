@@ -24,9 +24,6 @@ public class FirstLevelHashArrayTest {
     final int lsbForSecondLevelHash = 9;
     @Before
     public void initArray() {
-
-        AtomicInteger externalSize = new AtomicInteger(0);
-
         final NativeMemoryAllocator allocator = new NativeMemoryAllocator(128);
         SyncRecycleMemoryManager vMM = new SyncRecycleMemoryManager(allocator);
         SyncRecycleMemoryManager kMM = new SyncRecycleMemoryManager(allocator);
@@ -35,10 +32,9 @@ public class FirstLevelHashArrayTest {
         OakSerializer<Integer> keySerializer = new OakIntSerializer();
         OakSerializer<Integer> valueSerializer = new OakIntSerializer();
         int multipleReferenceNum = 2;
-        chunks = new FirstLevelHashArray<>(msbForFirstLevelHash, lsbForSecondLevelHash, externalSize,
-        vMM, kMM, comparator, keySerializer, valueSerializer, multipleReferenceNum);
-
-
+        chunks = new FirstLevelHashArray<>(new OakSharedConfig<>(
+                allocator, kMM, vMM, keySerializer, valueSerializer, new OakIntComparator()
+        ), msbForFirstLevelHash, lsbForSecondLevelHash, multipleReferenceNum);
     }
 
     private int setMsb(int numOfBits, int msbValue, int currentValue) {

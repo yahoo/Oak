@@ -58,40 +58,38 @@ public class EntryArray<K, V> {
     protected static final int VALUE_REF_OFFSET = 1;
     static final int INVALID_ENTRY_INDEX = -1;
 
-    final MemoryManager valuesMemoryManager;
     final MemoryManager keysMemoryManager;
+    final MemoryManager valuesMemoryManager;
+
+    // for writing the keys into the off-heap
+    final OakSerializer<K> keySerializer;
+    final OakSerializer<V> valueSerializer;
+
     private final long[] entries;    // array is initialized to 0 - this is important!
     private final int fields;  // # of primitive fields in each item of entries array
 
     final int entriesCapacity; // number of entries (not longs) to be maximally held
 
     // Counts number of entries inserted & not deleted. Pay attention that not all entries (counted
-    // in number of entries) are finally are finally considered existing by the OrderedChunk above
+    // in number of entries) are finally considered existing by the OrderedChunk above
     // and participating in holding the "real" KV-mappings, the "real" are counted in OrderedChunk
     protected final AtomicInteger numOfEntries;
 
-    // for writing the keys into the off-heap
-    final OakSerializer<K> keySerializer;
-    final OakSerializer<V> valueSerializer;
-
     /**
-     * Create a new instance
-     * @param vMM   for values off-heap allocations and releases
-     * @param kMM off-heap allocations and releases for keys
+     * @param config shared configuration
+     * @param additionalFieldCount number of additional fields
      * @param entriesCapacity how many entries should this instance keep at maximum
-     * @param keySerializer   used to serialize the key when written to off-heap
      */
-    EntryArray(MemoryManager vMM, MemoryManager kMM, int additionalFieldCount, int entriesCapacity,
-               OakSerializer<K> keySerializer,
-             OakSerializer<V> valueSerializer) {
-        this.valuesMemoryManager = vMM;
-        this.keysMemoryManager = kMM;
+    EntryArray(OakSharedConfig<K, V> config, int additionalFieldCount, int entriesCapacity) {
+        this.keysMemoryManager = config.keysMemoryManager;
+        this.valuesMemoryManager = config.valuesMemoryManager;
+        this.keySerializer = config.keySerializer;
+        this.valueSerializer = config.valueSerializer;
+
         this.fields = additionalFieldCount + 2; // +2 for key and value references that always exist
         this.entries = new long[entriesCapacity * this.fields];
         this.numOfEntries = new AtomicInteger(0);
         this.entriesCapacity = entriesCapacity;
-        this.keySerializer = keySerializer;
-        this.valueSerializer = valueSerializer;
     }
 
     /**

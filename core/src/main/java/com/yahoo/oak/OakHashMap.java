@@ -21,47 +21,35 @@ import java.util.function.Function;
 /**
  * A concurrent map implementation which supports off-heap memory.
  */
-public class OakHashMap<K, V>  extends AbstractMap<K, V> implements AutoCloseable, ConcurrentZCMap<K , V> {
+public class OakHashMap<K, V> extends AbstractMap<K, V> implements AutoCloseable, ConcurrentZCMap<K , V> {
 
-    /*
-     * Memory manager cares for allocation, de-allocation and reuse of the internally pre-allocated
-     * memory. There can be separate memory managing algorithms for keys and values.
-     * */
-    private final MemoryManager valuesMemoryManager;
-    private final MemoryManager keysMemoryManager;
+    // Used for iterators
     private final OakTransformer<K> keyDeserializeTransformer;
     private final OakTransformer<V> valueDeserializeTransformer;
     private final Function<Map.Entry<OakScopedReadBuffer, OakScopedReadBuffer>,
             Map.Entry<K, V>> entryDeserializeTransformer;
-    private final OakComparator<K> comparator;
 
     private final InternalOakHash<K , V> internalOakHash;
 
 
     // internal constructor, to create OakHashMap use OakMapBuilder
-    OakHashMap(
-        OakSerializer<K> keySerializer, OakSerializer<V> valueSerializer, OakComparator<K> oakComparator,
-        int log2NumOfItemsInOneChunk, int log2NumOfChunks, MemoryManager vMM, MemoryManager kMM) {
+    OakHashMap(OakSharedConfig<K, V> config,
+        int log2NumOfItemsInOneChunk, int log2NumOfChunks) {
 
-        this.valuesMemoryManager = vMM;
-        this.keysMemoryManager = kMM;
-        this.comparator = oakComparator;
-        this.keyDeserializeTransformer = keySerializer::deserialize;
-        this.valueDeserializeTransformer = valueSerializer::deserialize;
+        this.keyDeserializeTransformer = config.keySerializer::deserialize;
+        this.valueDeserializeTransformer = config.valueSerializer::deserialize;
         this.entryDeserializeTransformer = entry -> new AbstractMap.SimpleEntry<>(
-                keySerializer.deserialize(entry.getKey()),
-                valueSerializer.deserialize(entry.getValue()));
+                keyDeserializeTransformer.apply(entry.getKey()),
+                valueDeserializeTransformer.apply(entry.getValue()));
 
         // In order to use USE_DEFAULT_FIRST_TO_SECOND_BITS_PARTITION configuration
         // we need to let Java to use about 14GB of onheap memory anywhere OakHashMap is used,
         // also for testings (each test allocate and release!!!).
         // Therefore using less than default memory here: 2^log2NumOfChunks <-- number of chunks;
         // 2^log2NumOfItemsInOneChunk <-- number of entries in each chunk
-        this.internalOakHash = new InternalOakHash<>(keySerializer, valueSerializer,
-            comparator, vMM, kMM,  new ValueUtils(),
+        this.internalOakHash = new InternalOakHash<>(config,
             log2NumOfChunks, // defines number of hash chunks
             log2NumOfItemsInOneChunk); // defines number of entries in the hash chunk
-
     }
 
     /* ------ Map API methods ------ */
@@ -214,7 +202,7 @@ public class OakHashMap<K, V>  extends AbstractMap<K, V> implements AutoCloseabl
     }
 
     public MemoryManager getValuesMemoryManager() {
-        return valuesMemoryManager;
+        return internalOakHash.valuesMemoryManager;
     }
 
     public static class OakZeroCopyMap<K, V> implements ZeroCopyMap<K, V> {

@@ -269,9 +269,9 @@ public class EntryHashSetTest {
         OakIntSerializer serializer = new OakIntSerializer();
 
         // create EntryHashSet
-        EntryHashSet ehs =
-            new EntryHashSet(memoryManager, memoryManager, 100,
-                serializer, serializer, new OakIntComparator());
+        EntryHashSet ehs = new EntryHashSet(new OakSharedConfig<>(
+                allocator, memoryManager, memoryManager, serializer, serializer, new OakIntComparator()
+        ), 100);
 
         ThreadContext ctx = new ThreadContext(memoryManager, memoryManager);
 

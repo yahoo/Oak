@@ -17,29 +17,19 @@ class InternalOakHash<K, V> extends InternalOakBasics<K, V> {
     /*-------------- Members --------------*/
     private final FirstLevelHashArray<K, V> hashArray;    // first level of indexing
 
-    private final ValueUtils valueOperator;
-
     private static final int DEFAULT_MOST_SIGN_BITS_NUM = 16;
     static final int USE_DEFAULT_FIRST_TO_SECOND_BITS_PARTITION = -1;
 
     /*-------------- Constructors --------------*/
-    InternalOakHash(OakSerializer<K> keySerializer, OakSerializer<V> valueSerializer,
-        OakComparator<K> oakComparator, MemoryManager vMM, MemoryManager kMM,
-        ValueUtils valueOperator, int firstLevelBitSize, int secondLevelBitSize) {
-
-        super(vMM, kMM, keySerializer, valueSerializer);
-
-        this.valueOperator = valueOperator;
+    InternalOakHash(OakSharedConfig<K, V> config, int firstLevelBitSize, int secondLevelBitSize) {
+        super(config);
 
         int msbForFirstLevelHash =
             (firstLevelBitSize == USE_DEFAULT_FIRST_TO_SECOND_BITS_PARTITION)
                 ? DEFAULT_MOST_SIGN_BITS_NUM : firstLevelBitSize;
 
         this.hashArray =
-            new FirstLevelHashArray<>(msbForFirstLevelHash, secondLevelBitSize,
-                this.size, vMM, kMM, oakComparator,
-                keySerializer, valueSerializer, 1);
-
+            new FirstLevelHashArray<>(config, msbForFirstLevelHash, secondLevelBitSize, 1);
     }
 
     /**

@@ -34,11 +34,13 @@ public class InternalOakHashTest {
         // meaning in the first level hash array there are 2^8=256 chunks
         int firstLevelBitSize = 8;
         // 8 LSBs taken from keyHash for a chunk index, meaning in chunk there are 2^8=256 entries
-        int secondLevelBitSize = BITS_TO_DEFINE_CHUNK_SIZE;
 
-        testMap = new InternalOakHash<Integer, Integer>(OakCommonBuildersFactory.DEFAULT_INT_SERIALIZER,
-                OakCommonBuildersFactory.DEFAULT_INT_SERIALIZER, OakCommonBuildersFactory.DEFAULT_INT_COMPARATOR,
-                memoryManager, memoryManager, new ValueUtils(), firstLevelBitSize, secondLevelBitSize);
+        testMap = new InternalOakHash<>(new OakSharedConfig<>(
+                ma, memoryManager, memoryManager,
+                OakCommonBuildersFactory.DEFAULT_INT_SERIALIZER,
+                OakCommonBuildersFactory.DEFAULT_INT_SERIALIZER,
+                OakCommonBuildersFactory.DEFAULT_INT_COMPARATOR
+        ), firstLevelBitSize, BITS_TO_DEFINE_CHUNK_SIZE);
     }
 
     @After

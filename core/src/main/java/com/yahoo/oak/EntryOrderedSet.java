@@ -64,7 +64,7 @@ class EntryOrderedSet<K, V> extends EntryArray<K, V> {
     private static final int ADDITIONAL_FIELDS = 1;  // # of primitive fields in each item of entries array
 
     // location of the first (head) node
-    private AtomicInteger headEntryIndex = new AtomicInteger(INVALID_ENTRY_INDEX);
+    private final AtomicInteger headEntryIndex = new AtomicInteger(INVALID_ENTRY_INDEX);
 
     // points to next free index of entry array, counted in "entries" and not in integers
     private final AtomicInteger nextFreeIndex;
@@ -73,14 +73,11 @@ class EntryOrderedSet<K, V> extends EntryArray<K, V> {
 
     /**
      * Create a new EntryOrderedSet
-     * @param vMM   for values off-heap allocations and releases
-     * @param kMM off-heap allocations and releases for keys
+     * @param config shared configuration
      * @param entriesCapacity how many entries should this EntryOrderedSet keep at maximum
-     * @param keySerializer   used to serialize the key when written to off-heap
      */
-    EntryOrderedSet(MemoryManager vMM, MemoryManager kMM, int entriesCapacity, OakSerializer<K> keySerializer,
-        OakSerializer<V> valueSerializer) {
-        super(vMM, kMM, ADDITIONAL_FIELDS, entriesCapacity, keySerializer, valueSerializer);
+    EntryOrderedSet(OakSharedConfig<K, V> config, int entriesCapacity) {
+        super(config, ADDITIONAL_FIELDS, entriesCapacity);
         this.nextFreeIndex = new AtomicInteger( 0);
     }
 

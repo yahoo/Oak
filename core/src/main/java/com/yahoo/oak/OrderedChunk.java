@@ -38,27 +38,21 @@ class OrderedChunk<K, V> extends BasicChunk<K, V> {
      * This constructor is only used internally to instantiate a OrderedChunk without a creator and a min-key.
      * The caller should set the creator and min-key before returning the OrderedChunk to the user.
      */
-    private OrderedChunk(int maxItems, AtomicInteger externalSize, MemoryManager vMM, MemoryManager kMM,
-        OakComparator<K> comparator, OakSerializer<K> keySerializer,
-        OakSerializer<V> valueSerializer) {
-        super(maxItems, externalSize, comparator);
-        this.entryOrderedSet =
-            new EntryOrderedSet<>(vMM, kMM, maxItems, keySerializer, valueSerializer);
+    private OrderedChunk(OakSharedConfig<K, V> config, int maxItems) {
+        super(config, maxItems);
+        this.entryOrderedSet = new EntryOrderedSet<>(config, maxItems);
         // sortedCount keeps the number of  subsequent and ordered entries in the entries array,
         // which are subject to binary search
         this.sortedCount = new AtomicInteger(0);
-        this.minKey = new KeyBuffer(kMM.getEmptySlice());
+        this.minKey = new KeyBuffer(config.keysMemoryManager.getEmptySlice());
         this.next = new AtomicMarkableReference<>(null, false);
     }
 
     /**
      * This constructor is only used when creating the first ever chunk (without a creator).
      */
-    OrderedChunk(K minKey, int maxItems, AtomicInteger externalSize, MemoryManager vMM, MemoryManager kMM,
-        OakComparator<K> comparator, OakSerializer<K> keySerializer,
-        OakSerializer<V> valueSerializer) {
-
-        this(maxItems, externalSize, vMM, kMM, comparator, keySerializer, valueSerializer);
+    OrderedChunk(OakSharedConfig<K, V> config, K minKey, int maxItems) {
+        this(config, maxItems);
         entryOrderedSet.writeKey(minKey, this.minKey);
     }
 
@@ -68,10 +62,7 @@ class OrderedChunk<K, V> extends BasicChunk<K, V> {
      * (without duplicating the KeyBuffer data).
      */
     OrderedChunk<K, V> createFirstChild() {
-        OrderedChunk<K, V> child =
-            new OrderedChunk<>(getMaxItems(), externalSize,
-                entryOrderedSet.valuesMemoryManager, entryOrderedSet.keysMemoryManager,
-                comparator, entryOrderedSet.keySerializer, entryOrderedSet.valueSerializer);
+        OrderedChunk<K, V> child = new OrderedChunk<>(config, maxItems);
         updateBasicChild(child);
         child.minKey.copyFrom(this.minKey);
         return child;
@@ -82,9 +73,7 @@ class OrderedChunk<K, V> extends BasicChunk<K, V> {
      * The child OrderedChunk will use a duplicate minKey of the input (allocates a new buffer).
      */
     OrderedChunk<K, V> createNextChild(KeyBuffer minKey) {
-        OrderedChunk<K, V> child = new OrderedChunk<>(getMaxItems(), externalSize,
-            entryOrderedSet.valuesMemoryManager, entryOrderedSet.keysMemoryManager,
-            comparator, entryOrderedSet.keySerializer, entryOrderedSet.valueSerializer);
+        OrderedChunk<K, V> child = new OrderedChunk<>(config, maxItems);
         updateBasicChild(child);
         duplicateKeyBuffer(minKey, child.minKey);
         return child;

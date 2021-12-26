@@ -25,14 +25,11 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
 
     final ConcurrentSkipListMap<Object, OrderedChunk<K, V>> skiplist;    // skiplist of chunks for fast navigation
     private final AtomicReference<OrderedChunk<K, V>> head;
-    private final OakComparator<K> comparator;
-
 
     // The reference count is used to count the upper objects wrapping this internal map:
     // OakMaps (including subMaps and Views) when all of the above are closed,
     // his map can be closed and memory released.
     private final AtomicInteger referenceCount = new AtomicInteger(1);
-    private final ValueUtils valueOperator;
 
     /*-------------- Constructors --------------*/
 
@@ -40,40 +37,32 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
      * init with capacity = 2g
      */
 
-    InternalOakMap(K minKey, OakSerializer<K> keySerializer, OakSerializer<V> valueSerializer,
-        OakComparator<K> oakComparator, MemoryManager vMM, MemoryManager kMM, int chunkMaxItems,
-        ValueUtils valueOperator) {
-
-        super(vMM, kMM, keySerializer, valueSerializer);
-
-        this.comparator = oakComparator;
+    InternalOakMap(OakSharedConfig<K, V> config, K minKey, int chunkMaxItems) {
+        super(config);
 
         // This is a trick for letting us search through the skiplist using both serialized and unserialized keys.
         // Might be nicer to replace it with a proper visitor
         Comparator<Object> mixedKeyComparator = (o1, o2) -> {
             if (o1 instanceof OakScopedReadBuffer) {
                 if (o2 instanceof OakScopedReadBuffer) {
-                    return oakComparator.compareSerializedKeys((OakScopedReadBuffer) o1, (OakScopedReadBuffer) o2);
+                    return comparator.compareSerializedKeys((OakScopedReadBuffer) o1, (OakScopedReadBuffer) o2);
                 } else {
                     // Note the inversion of arguments, hence sign flip
-                    return (-1) * oakComparator.compareKeyAndSerializedKey((K) o2, (OakScopedReadBuffer) o1);
+                    return (-1) * comparator.compareKeyAndSerializedKey((K) o2, (OakScopedReadBuffer) o1);
                 }
             } else {
                 if (o2 instanceof OakScopedReadBuffer) {
-                    return oakComparator.compareKeyAndSerializedKey((K) o1, (OakScopedReadBuffer) o2);
+                    return comparator.compareKeyAndSerializedKey((K) o1, (OakScopedReadBuffer) o2);
                 } else {
-                    return oakComparator.compareKeys((K) o1, (K) o2);
+                    return comparator.compareKeys((K) o1, (K) o2);
                 }
             }
         };
         this.skiplist = new ConcurrentSkipListMap<>(mixedKeyComparator);
 
-        OrderedChunk<K, V>
-            head = new OrderedChunk<>(minKey, chunkMaxItems, this.size, vMM, kMM, this.comparator,
-                keySerializer, valueSerializer);
+        OrderedChunk<K, V> head = new OrderedChunk<>(config, minKey, chunkMaxItems);
         this.skiplist.put(head.minKey, head);    // add first orderedChunk (head) into skiplist
         this.head = new AtomicReference<>(head);
-        this.valueOperator = valueOperator;
     }
 
     /*-------------- Closable --------------*/

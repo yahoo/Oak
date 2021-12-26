@@ -15,22 +15,30 @@ abstract class InternalOakBasics<K, V> {
     /*-------------- Members --------------*/
     protected static final int MAX_RETRIES = 1024;
 
-    private final MemoryManager valuesMemoryManager;
-    private final MemoryManager keysMemoryManager;
+    protected final OakSharedConfig<K, V> config;
 
-    private final OakSerializer<K> keySerializer;
-    private final OakSerializer<V> valueSerializer;
+    protected final MemoryManager keysMemoryManager;
+    protected final MemoryManager valuesMemoryManager;
+
+    protected final OakSerializer<K> keySerializer;
+    protected final OakSerializer<V> valueSerializer;
+
+    protected final OakComparator<K> comparator;
+
+    protected final ValueUtils valueOperator;
 
     protected final AtomicInteger size;
 
     /*-------------- Constructors --------------*/
-    InternalOakBasics(MemoryManager vMM, MemoryManager kMM,
-                      OakSerializer<K> keySerializer, OakSerializer<V> valueSerializer) {
-        this.size = new AtomicInteger(0);
-        this.valuesMemoryManager = vMM;
-        this.keysMemoryManager = kMM;
-        this.keySerializer = keySerializer;
-        this.valueSerializer = valueSerializer;
+    InternalOakBasics(OakSharedConfig<K, V> config) {
+        this.config = config;
+        this.keysMemoryManager = config.keysMemoryManager;
+        this.valuesMemoryManager = config.valuesMemoryManager;
+        this.keySerializer = config.keySerializer;
+        this.valueSerializer = config.valueSerializer;
+        this.comparator = config.comparator;
+        this.valueOperator = config.valueOperator;
+        this.size = config.size;
     }
 
     /*-------------- Closable --------------*/
@@ -84,6 +92,7 @@ abstract class InternalOakBasics<K, V> {
     protected OakSerializer<V> getValueSerializer() {
         return this.valueSerializer;
     }
+
     /*-------------- Context --------------*/
     /**
      * Should only be called from API methods at the beginning of the method and be reused in internal calls.
@@ -149,11 +158,7 @@ abstract class InternalOakBasics<K, V> {
         // But in the meanwhile value was reset to be another, valid value.
         // In Hash case value will be always invalid in the context, but the changes will be caught
         // during next entry allocation
-        if (ctx.isValueValid()) {
-            return true;
-        }
-
-        return false;
+        return ctx.isValueValid();
     }
 
     /**
@@ -182,7 +187,7 @@ abstract class InternalOakBasics<K, V> {
      *
      * @param ctx The context key should be initialized with the key to refresh, and the context value
      *            will be updated with the refreshed value.
-     * @reutrn true if the refresh was successful.
+     * @return true if the refresh was successful.
      */
     abstract boolean refreshValuePosition(ThreadContext ctx);
 
@@ -197,7 +202,7 @@ abstract class InternalOakBasics<K, V> {
 
     /*-------------- Different Oak Buffer creations --------------*/
 
-    protected UnscopedBuffer getKeyUnscopedBuffer(ThreadContext ctx) {
+    protected UnscopedBuffer<KeyBuffer> getKeyUnscopedBuffer(ThreadContext ctx) {
         return new UnscopedBuffer<>(new KeyBuffer(ctx.key));
     }
 

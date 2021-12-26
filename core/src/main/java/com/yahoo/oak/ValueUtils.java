@@ -43,11 +43,11 @@ class ValueUtils {
     }
 
     /**
+     * Does not return the value previously written off-heap
      * @see #exchange(BasicChunk, ThreadContext, Object, OakTransformer, OakSerializer)
      * Does not return the value previously written off-heap
      */
-    <V> ValueResult put(BasicChunk<?, V> chunk, ThreadContext ctx, V newVal,
-        OakSerializer<V> serializer) {
+    <V> ValueResult put(BasicChunk<?, V> chunk, ThreadContext ctx, V newVal, OakSerializer<V> serializer) {
 
         ValueResult result = ctx.value.s.lockWrite();
         if (result != ValueResult.TRUE) {
@@ -62,7 +62,7 @@ class ValueUtils {
     }
 
     private <V> ValueResult innerPut(BasicChunk<?, V> chunk, ThreadContext ctx, V newVal,
-        OakSerializer<V> serializer) {
+                                     OakSerializer<V> serializer) {
 
         int capacity = serializer.calculateSize(newVal);
         if (capacity > ctx.value.getLength()) {
@@ -182,7 +182,7 @@ class ValueUtils {
      * was written before the exchange.
      */
     <V> Result exchange(BasicChunk<?, V> chunk, ThreadContext ctx, V value,
-        OakTransformer<V> valueDeserializeTransformer, OakSerializer<V> serializer) {
+                        OakTransformer<V> valueDeserializeTransformer, OakSerializer<V> serializer) {
 
         ValueResult result = ctx.value.s.lockWrite();
         if (result != ValueResult.TRUE) {
@@ -210,8 +210,8 @@ class ValueUtils {
      * {@code RETRY} for the same reasons as exchange
      * @see #exchange(BasicChunk, ThreadContext, Object, OakTransformer, OakSerializer)
      */
-    <V> ValueResult compareExchange(BasicChunk<?, V> chunk, ThreadContext ctx, V expected,
-        V value, OakTransformer<V> valueDeserializeTransformer, OakSerializer<V> serializer) {
+    <V> ValueResult compareExchange(BasicChunk<?, V> chunk, ThreadContext ctx, V expected, V value,
+                                    OakTransformer<V> valueDeserializeTransformer, OakSerializer<V> serializer) {
 
         ValueResult result = ctx.value.s.lockWrite();
         if (result != ValueResult.TRUE) {
