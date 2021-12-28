@@ -7,6 +7,7 @@
 package com.yahoo.oak;
 
 import com.yahoo.oak.common.OakCommonBuildersFactory;
+import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
@@ -38,6 +39,12 @@ public class InternalOakHashTest {
         testMap = new InternalOakHash<Integer, Integer>(OakCommonBuildersFactory.DEFAULT_INT_SERIALIZER,
                 OakCommonBuildersFactory.DEFAULT_INT_SERIALIZER, OakCommonBuildersFactory.DEFAULT_INT_COMPARATOR,
                 memoryManager, memoryManager, new ValueUtils(), firstLevelBitSize, secondLevelBitSize);
+    }
+
+    @After
+    public void tearDown() {
+        testMap.close();
+        BlocksPool.clear();
     }
 
     private static Integer slowDeserialize(OakScopedReadBuffer bb) {

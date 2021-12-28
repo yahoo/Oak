@@ -32,6 +32,7 @@ public class SingleThreadIteratorTest {
     @After
     public void finish() {
         oak.close();
+        BlocksPool.clear();
     }
 
     @Test
