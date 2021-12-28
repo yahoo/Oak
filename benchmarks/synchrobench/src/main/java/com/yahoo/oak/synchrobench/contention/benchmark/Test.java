@@ -210,10 +210,6 @@ public class Test {
             if (!isWarmup) {
                 stats[iteration] = s;
                 s.printStats();
-
-                if (Parameters.confDetailedStats) {
-                    oakBench.printMemStats();
-                }
             }
         } finally {
             // Release the benchmark resources.

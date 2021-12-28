@@ -107,10 +107,4 @@ public interface CompositionalMap {
     default float nonHeapAllocatedGB() {
         return Float.NaN;
     }
-
-    /**
-     * Prints memory statistics for debugging.
-     */
-    default void printMemStats() {
-    }
 }

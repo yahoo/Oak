@@ -35,11 +35,13 @@ public class NativeMemoryAllocatorTest {
     @Before
     public void setup() {
         executor = new ExecutorUtils<>(NUM_THREADS);
+        BlocksPool.setBlockSize(8 * 1024 * 1024);
     }
 
     @After
     public void finish() {
         executor.shutdownNow();
+        BlocksPool.setBlockSize(BlocksPool.DEFAULT_BLOCK_SIZE_BYTES);
         BlocksPool.clear();
     }
 
@@ -126,22 +128,12 @@ public class NativeMemoryAllocatorTest {
         ma.close();
     }
 
-    @Before
-    public void init() {
-        BlocksPool.setBlockSize(8 * 1024 * 1024);
-    }
-
-    @After
-    public void tearDown() {
-        BlocksPool.setBlockSize(BlocksPool.DEFAULT_BLOCK_SIZE_BYTES);
-    }
-
     @Test
     public void checkOakCapacity() {
         int initBlocks = BlocksPool.getInstance().numOfRemainingBlocks();
         int blockSize = BlocksPool.getInstance().blockSize();
         int capacity = blockSize * 3;
-        NativeMemoryAllocator ma = new NativeMemoryAllocator(capacity);
+
         int maxItemsPerChunk = 1024;
 
         // These will be updated on the fly
@@ -152,9 +144,10 @@ public class NativeMemoryAllocatorTest {
         OakMapBuilder<Integer, Integer> builder = OakCommonBuildersFactory.getDefaultIntBuilder()
                 .setValueSerializer(new OakIntSerializer(VALUE_SIZE_AFTER_SERIALIZATION))
                 .setOrderedChunkMaxItems(maxItemsPerChunk)
-                .setMemoryAllocator(ma);
-
+                .setMemoryCapacity(capacity);
         OakMap<Integer, Integer> oak = builder.buildOrderedMap();
+        NativeMemoryAllocator ma = (NativeMemoryAllocator) oak.getValuesMemoryManager().getBlockMemoryAllocator();
+
         expectedKeyCount += 1; // min key
 
         //check that before any allocation
@@ -333,5 +326,7 @@ public class NativeMemoryAllocatorTest {
         //Assert.assertEquals(sizes.length, stats.reclaimedBuffers);
         // We lost 4 bytes recycling an 8-byte buffer for a 4-byte allocation
         //Assert.assertEquals(bytesAllocated - 4, stats.reclaimedBytes);
+
+        allocator.close();
     }
 }

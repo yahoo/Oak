@@ -15,7 +15,6 @@ import com.yahoo.oak.synchrobench.maps.BenchOakMap;
 import org.openjdk.jmh.infra.Blackhole;
 
 public class OakBenchMap extends BenchOakMap {
-    private NativeMemoryAllocator ma;
     private OakMap<BenchKey, BenchValue> oak;
 
     public OakBenchMap(KeyGenerator keyGen, ValueGenerator valueGen) {
@@ -25,13 +24,9 @@ public class OakBenchMap extends BenchOakMap {
     /** {@inheritDoc} **/
     @Override
     public void init() {
-        ma = new NativeMemoryAllocator(OAK_MAX_OFF_MEMORY);
-        if (Parameters.confDetailedStats) {
-            ma.collectStats();
-        }
         OakMapBuilder<BenchKey, BenchValue> builder = new OakMapBuilder<>(keyGen, keyGen, valueGen, minKey)
             .setOrderedChunkMaxItems(OrderedChunk.ORDERED_CHUNK_MAX_ITEMS_DEFAULT)
-            .setMemoryAllocator(ma);
+            .setMemoryCapacity(OAK_MAX_OFF_MEMORY);
         oak = builder.buildOrderedMap();
     }
 
@@ -39,7 +34,6 @@ public class OakBenchMap extends BenchOakMap {
     @Override
     public void close() {
         super.close();
-        ma = null;
         oak = null;
     }
 
@@ -79,15 +73,5 @@ public class OakBenchMap extends BenchOakMap {
         desc.close();
 
         return result;
-    }
-
-    /** {@inheritDoc} **/
-    @Override
-    public void printMemStats() {
-        NativeMemoryAllocator.Stats stats = ma.getStats();
-        System.out.printf("\tReleased buffers: \t\t%d\n", stats.releasedBuffers);
-        System.out.printf("\tReleased bytes: \t\t%d\n", stats.releasedBytes);
-        System.out.printf("\tReclaimed buffers: \t\t%d\n", stats.reclaimedBuffers);
-        System.out.printf("\tReclaimed bytes: \t\t%d\n", stats.reclaimedBytes);
     }
 }
