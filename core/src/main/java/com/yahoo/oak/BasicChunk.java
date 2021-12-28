@@ -22,6 +22,8 @@ abstract class BasicChunk<K, V> {
 
     /*-------------- Members --------------*/
     protected final OakSharedConfig<K, V> config;
+
+    // to compare serialized and object keys
     protected OakComparator<K> comparator;
 
     // in split/compact process, represents parent of split (can be null!)

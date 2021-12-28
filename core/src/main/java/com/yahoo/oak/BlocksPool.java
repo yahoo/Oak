@@ -98,7 +98,7 @@ final class BlocksPool implements BlocksProvider, Closeable {
     }
 
     static void clear() {
-       synchronized (BlocksPool.class) { // can be easily changed to lock-free
+        synchronized (BlocksPool.class) { // can be easily changed to lock-free
             if (instance == null) {
                 return;
             }

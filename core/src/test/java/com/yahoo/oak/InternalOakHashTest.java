@@ -49,12 +49,6 @@ public class InternalOakHashTest {
         BlocksPool.clear();
     }
 
-    @After
-    public void tearDown() {
-        testMap.close();
-        BlocksPool.clear();
-    }
-
     private static Integer slowDeserialize(OakScopedReadBuffer bb) {
         try {
             Thread.sleep(LONG_TRANSFORMATION_DELAY);
