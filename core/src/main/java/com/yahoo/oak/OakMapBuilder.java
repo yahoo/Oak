@@ -114,7 +114,11 @@ public class OakMapBuilder<K, V> {
         return new NativeMemoryAllocator(memoryCapacity);
     }
 
-    private OakSharedConfig<K, V> buildSharedConfig(
+    /**
+     * Builds a shared config object.
+     * Also used for testing.
+     */
+    OakSharedConfig<K, V> buildSharedConfig(
             BlockMemoryAllocator memoryAllocator,
             MemoryManager keysMemoryManager,
             MemoryManager valuesMemoryManager

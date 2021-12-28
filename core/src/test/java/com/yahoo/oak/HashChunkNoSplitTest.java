@@ -6,35 +6,53 @@
 
 package com.yahoo.oak;
 
-import com.yahoo.oak.common.integer.OakIntComparator;
-import com.yahoo.oak.common.integer.OakIntSerializer;
+import com.yahoo.oak.common.OakCommonBuildersFactory;
+import org.junit.After;
 import org.junit.Assert;
+import org.junit.Before;
 import org.junit.Test;
 
 import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CyclicBarrier;
 
 public class HashChunkNoSplitTest {
+    OakSharedConfig<Integer, Integer> config;
     private static final int MAX_ITEMS_PER_CHUNK = 64;
-    private final ValueUtils valueOperator = new ValueUtils();
-    private final NativeMemoryAllocator allocator = new NativeMemoryAllocator(128);
-    private final SyncRecycleMemoryManager memoryManager = new SyncRecycleMemoryManager(allocator);
-    private final OakIntSerializer serializer = new OakIntSerializer();
 
-    private final UnionCodec hashIndexCodec =
-        new UnionCodec(5, // the size of the first, as these are LSBs
-            UnionCodec.AUTO_CALCULATE_BIT_SIZE, Integer.SIZE); // the second (MSB) will be calculated
+    private final UnionCodec hashIndexCodec = new UnionCodec(
+            5, // the size of the first, as these are LSBs
+            UnionCodec.AUTO_CALCULATE_BIT_SIZE,  // the second (MSB) will be calculated
+            Integer.SIZE
+    );
 
-    private final HashChunk c = new HashChunk(new OakSharedConfig<>(
-            allocator, memoryManager, memoryManager, serializer, serializer, new OakIntComparator()
-    ), MAX_ITEMS_PER_CHUNK, hashIndexCodec);
+    private HashChunk<Integer, Integer> c;
+
+    @Before
+    public void setUp() {
+        NativeMemoryAllocator allocator = new NativeMemoryAllocator(128);
+        SyncRecycleMemoryManager memoryManager = new SyncRecycleMemoryManager(allocator);
+        config = OakCommonBuildersFactory.getDefaultIntBuilder().buildSharedConfig(
+                allocator, memoryManager, memoryManager
+        );
+        c = new HashChunk<>(config, MAX_ITEMS_PER_CHUNK, hashIndexCodec);
+    }
+
+    @After
+    public void tearDown() {
+        config.memoryAllocator.close();
+        BlocksPool.clear();
+    }
+
+    ThreadContext getCtx() {
+        return new ThreadContext(config.keysMemoryManager, config.valuesMemoryManager);
+    }
 
     // the put flow done by InternalOakHashMap
     private void putNotExisting(Integer key, ThreadContext ctx, boolean concurrent) {
 
-        long previouslyAllocatedBytes = memoryManager.allocated();
+        long previouslyAllocatedBytes = config.keysMemoryManager.allocated();
         long oneMappingSizeInBytes =
-            memoryManager.getHeaderSize() * 2 + serializer.calculateSize(key) * 2;
+                config.keysMemoryManager.getHeaderSize() * 2L + config.keySerializer.calculateSize(key) * 2L;
         int numberOfMappingsBefore = c.externalSize.get();
 
         ctx.invalidate();
@@ -46,7 +64,8 @@ public class HashChunkNoSplitTest {
 
         // allocate an entry and write the key there
         // (true should be returned, no rebalance should be requested)
-        assert c.allocateEntryAndWriteKey(ctx, key);
+        Assert.assertTrue(c.allocateEntryAndWriteKey(ctx, key));
+
         if (concurrent) { // for concurrency the entry state can be also deleted
             // (from this or other key being previously inserted and fully deleted)
             Assert.assertTrue(ctx.entryState == EntryArray.EntryState.DELETED
@@ -56,16 +75,16 @@ public class HashChunkNoSplitTest {
         }
         Assert.assertTrue(ctx.isKeyValid());
         Assert.assertFalse(ctx.isValueValid());
-        Assert.assertNotEquals(ctx.key.getSlice().getReference(), memoryManager.getInvalidReference());
+        Assert.assertNotEquals(ctx.key.getSlice().getReference(), config.keysMemoryManager.getInvalidReference());
 
-        if (!concurrent) { // for concurrency we cannot change the thread context values
+        if (!concurrent) { // for concurrency, we cannot change the thread context values
             // look for unfinished insert key once again
             c.lookUp(ctx, key);
             Assert.assertEquals(ctx.entryState, EntryArray.EntryState.INSERT_NOT_FINALIZED);
             Assert.assertTrue(ctx.isKeyValid());
             Assert.assertFalse(ctx.isValueValid());
-            Assert.assertNotEquals(ctx.key.getSlice().getReference(), memoryManager.getInvalidReference());
-            Assert.assertEquals(ctx.value.getSlice().getReference(), memoryManager.getInvalidReference());
+            Assert.assertNotEquals(ctx.key.getSlice().getReference(), config.keysMemoryManager.getInvalidReference());
+            Assert.assertEquals(ctx.value.getSlice().getReference(), config.valuesMemoryManager.getInvalidReference());
         }
 
         // allocate and write the value
@@ -74,27 +93,30 @@ public class HashChunkNoSplitTest {
             || ctx.entryState == EntryArray.EntryState.UNKNOWN
             || ctx.entryState == EntryArray.EntryState.DELETED);
         Assert.assertTrue(ctx.isKeyValid());
-        Assert.assertNotEquals(ctx.key.getSlice().getReference(), memoryManager.getInvalidReference());
-        Assert.assertNotEquals(ctx.newValue.getSlice().getReference(), memoryManager.getInvalidReference());
+        Assert.assertNotEquals(ctx.key.getSlice().getReference(), config.keysMemoryManager.getInvalidReference());
+        Assert.assertNotEquals(ctx.newValue.getSlice().getReference(),
+                config.valuesMemoryManager.getInvalidReference());
         if (!concurrent) {
-            Assert.assertEquals(memoryManager.allocated() - previouslyAllocatedBytes, oneMappingSizeInBytes);
+            Assert.assertEquals(oneMappingSizeInBytes,
+                    config.keysMemoryManager.allocated() - previouslyAllocatedBytes);
         }
         if (!concurrent) {
             Assert.assertEquals(c.externalSize.get(), numberOfMappingsBefore); // no mapping is yet allocated
         }
 
-        // linearization point should be preceded with successfull publishing
-        assert c.publish();
+        // linearization point should be preceded with successful publishing
+        Assert.assertTrue(c.publish());
 
         // link value (connect it with the entry)
         ValueUtils.ValueResult vr = c.linkValue(ctx);
         Assert.assertTrue(ctx.isKeyValid());
         Assert.assertEquals(vr, ValueUtils.ValueResult.TRUE);
-        Assert.assertNotEquals(ctx.key.getSlice().getReference(), memoryManager.getInvalidReference());
+        Assert.assertNotEquals(ctx.key.getSlice().getReference(), config.keysMemoryManager.getInvalidReference());
         if (!concurrent) {
-            Assert.assertEquals(ctx.value.getSlice().getReference(), memoryManager.getInvalidReference());
+            Assert.assertEquals(ctx.value.getSlice().getReference(), config.valuesMemoryManager.getInvalidReference());
         }
-        Assert.assertNotEquals(ctx.newValue.getSlice().getReference(), memoryManager.getInvalidReference());
+        Assert.assertNotEquals(ctx.newValue.getSlice().getReference(),
+                config.valuesMemoryManager.getInvalidReference());
         if (!concurrent) {
             Assert.assertEquals(c.externalSize.get(), numberOfMappingsBefore + 1); // one mapping is allocated
         }
@@ -106,23 +128,21 @@ public class HashChunkNoSplitTest {
         c.lookUp(ctx, key);
         Assert.assertTrue(ctx.isKeyValid());
         Assert.assertTrue(ctx.isValueValid());
-        Assert.assertNotEquals(ctx.key.getSlice().getReference(), memoryManager.getInvalidReference());
-        Assert.assertNotEquals(ctx.value.getSlice().getReference(), memoryManager.getInvalidReference());
-        Assert.assertEquals(ctx.newValue.getSlice().getReference(), memoryManager.getInvalidReference());
+        Assert.assertNotEquals(ctx.key.getSlice().getReference(), config.keysMemoryManager.getInvalidReference());
+        Assert.assertNotEquals(ctx.value.getSlice().getReference(), config.valuesMemoryManager.getInvalidReference());
+        Assert.assertEquals(ctx.newValue.getSlice().getReference(), config.valuesMemoryManager.getInvalidReference());
         if (!concurrent) {
             Assert.assertEquals(c.externalSize.get(), numberOfMappingsBefore + 1); // one mapping is allocated
         }
         if (!concurrent) {
-            Assert.assertEquals(memoryManager.allocated() - previouslyAllocatedBytes,
+            Assert.assertEquals(config.valuesMemoryManager.allocated() - previouslyAllocatedBytes,
                 oneMappingSizeInBytes);
         }
 
         // check the value
-        Result result = valueOperator.transform(new Result(), ctx.value, buf -> serializer.deserialize(buf));
+        Result result = config.valueOperator.transform(new Result(), ctx.value, config.valueSerializer::deserialize);
         Assert.assertEquals(ValueUtils.ValueResult.TRUE, result.operationResult);
         Assert.assertEquals(key + 1, ((Integer) result.value).intValue());
-
-        return;
     }
 
     private void deleteExisting(Integer key, ThreadContext ctx, boolean concurrent) {
@@ -130,28 +150,29 @@ public class HashChunkNoSplitTest {
         c.lookUp(ctx, key);
         Assert.assertNotEquals(ctx.entryIndex, EntryArray.INVALID_ENTRY_INDEX);
         Assert.assertEquals(ctx.entryState, EntryArray.EntryState.VALID);
-        Assert.assertNotEquals(ctx.key.getSlice().getReference(), memoryManager.getInvalidReference());
-        Assert.assertNotEquals(ctx.value.getSlice().getReference(), memoryManager.getInvalidReference());
-        Assert.assertEquals(ctx.newValue.getSlice().getReference(), memoryManager.getInvalidReference());
+        Assert.assertNotEquals(ctx.key.getSlice().getReference(), config.keysMemoryManager.getInvalidReference());
+        Assert.assertNotEquals(ctx.value.getSlice().getReference(), config.valuesMemoryManager.getInvalidReference());
+        Assert.assertEquals(ctx.newValue.getSlice().getReference(), config.valuesMemoryManager.getInvalidReference());
         Assert.assertTrue(ctx.isValueValid());
 
-        Result result = valueOperator.transform(new Result(), ctx.value, buf -> serializer.deserialize(buf));
+        Result result = config.valueOperator.transform(new Result(), ctx.value, config.valueSerializer::deserialize);
         Assert.assertEquals(ValueUtils.ValueResult.TRUE, result.operationResult);
         Assert.assertEquals(key + 1, ((Integer) result.value).intValue());
 
         ValueUtils.ValueResult vr = ctx.value.s.logicalDelete();
-        assert vr == ValueUtils.ValueResult.TRUE;
+        Assert.assertEquals(ValueUtils.ValueResult.TRUE, vr);
         ctx.entryState = EntryArray.EntryState.DELETED_NOT_FINALIZED;
 
         // expect false because no rebalance should be requested. Includes publish/unpublish
-        assert !c.finalizeDeletion(ctx);
+        Assert.assertFalse(c.finalizeDeletion(ctx));
         if (!concurrent) {
             Assert.assertEquals(ctx.entryState, EntryArray.EntryState.DELETED);
             Assert.assertEquals("\nKey reference is " + ctx.key.getSlice().getReference()
                 + " and not invalid reference", ctx.key.getSlice().getReference(),
-                memoryManager.getInvalidReference());
-            Assert.assertEquals(ctx.value.getSlice().getReference(), memoryManager.getInvalidReference());
-            Assert.assertEquals(ctx.newValue.getSlice().getReference(), memoryManager.getInvalidReference());
+                config.valuesMemoryManager.getInvalidReference());
+            Assert.assertEquals(ctx.value.getSlice().getReference(), config.valuesMemoryManager.getInvalidReference());
+            Assert.assertEquals(ctx.newValue.getSlice().getReference(),
+                    config.valuesMemoryManager.getInvalidReference());
             Assert.assertFalse(ctx.isValueValid());
             Assert.assertFalse(ctx.isKeyValid());
         }
@@ -164,15 +185,14 @@ public class HashChunkNoSplitTest {
 
     @Test
     public void testSimpleSingleThread() {
-        ThreadContext ctx = new ThreadContext(memoryManager, memoryManager);
-
-        Integer keySmall = new Integer(5);
-        Integer keyBig = new Integer( 12345678);
-        Integer keyZero = new Integer(0);
-        Integer keyNegative = new Integer(-123);
-        Integer keySmallNegative = new Integer(-5); // same hash as 5
+        Integer keySmall = 5;
+        Integer keyBig = 12345678;
+        Integer keyZero = 0;
+        Integer keyNegative = -123;
+        Integer keySmallNegative = -5; // same hash as 5
 
         // PUT including GET
+        ThreadContext ctx = getCtx();
         putNotExisting(keySmall, ctx, false);
         putNotExisting(keyBig, ctx, false);
         putNotExisting(keyZero, ctx, false);
@@ -190,15 +210,13 @@ public class HashChunkNoSplitTest {
 
     @Test(timeout = 5000)
     public void testSimpleMultiThread() throws InterruptedException {
-
-        ThreadContext ctx = new ThreadContext(memoryManager, memoryManager);
         int numberOfMappingsBefore = c.externalSize.get();
 
-        Integer keyFirst = new Integer(5);
-        Integer keySecond = new Integer(6);
-        Integer keyThird = new Integer(7);
-        Integer keyFirstNegative = new Integer(-5); // same hash as 5
-        Integer keySecondNegative = new Integer(-6); // same hash as 6
+        Integer keyFirst = 5;
+        Integer keySecond = 6;
+        Integer keyThird = 7;
+        Integer keyFirstNegative = -5; // same hash as 5
+        Integer keySecondNegative = -6; // same hash as 6
 
         // Parties: test thread and inserter thread
         CyclicBarrier barrier = new CyclicBarrier(2);
@@ -209,22 +227,22 @@ public class HashChunkNoSplitTest {
             } catch (InterruptedException | BrokenBarrierException e) {
                 e.printStackTrace();
             }
-            ThreadContext ctxInserter = new ThreadContext(memoryManager, memoryManager);
+            ThreadContext ctxInserter = getCtx();
             putNotExisting(keyFirst, ctxInserter, true);
             putNotExisting(keySecond, ctxInserter, true);
             c.lookUp(ctxInserter, keySecond);
             Assert.assertTrue(ctxInserter.isKeyValid());
             Assert.assertTrue(ctxInserter.isValueValid());
-            Result result = valueOperator.transform(
-                new Result(), ctxInserter.value, buf -> serializer.deserialize(buf));
+            Result result = config.valueOperator.transform(
+                new Result(), ctxInserter.value, config.valueSerializer::deserialize);
             Assert.assertEquals(ValueUtils.ValueResult.TRUE, result.operationResult);
             Assert.assertEquals(keySecond + 1, ((Integer) result.value).intValue());
 
             c.lookUp(ctxInserter, keyFirst);
             Assert.assertTrue(ctxInserter.isKeyValid());
             Assert.assertTrue(ctxInserter.isValueValid());
-            result = valueOperator.transform(
-                new Result(), ctxInserter.value, buf -> serializer.deserialize(buf));
+            result = config.valueOperator.transform(
+                new Result(), ctxInserter.value, config.valueSerializer::deserialize);
             Assert.assertEquals(ValueUtils.ValueResult.TRUE, result.operationResult);
             Assert.assertEquals(keyFirst + 1, ((Integer) result.value).intValue());
 
@@ -232,8 +250,8 @@ public class HashChunkNoSplitTest {
             c.lookUp(ctxInserter, keyThird);
             Assert.assertTrue(ctxInserter.isKeyValid());
             Assert.assertTrue(ctxInserter.isValueValid());
-            result = valueOperator.transform(
-                new Result(), ctxInserter.value, buf -> serializer.deserialize(buf));
+            result = config.valueOperator.transform(
+                new Result(), ctxInserter.value, config.valueSerializer::deserialize);
             Assert.assertEquals(ValueUtils.ValueResult.TRUE, result.operationResult);
             Assert.assertEquals(keyThird + 1, ((Integer) result.value).intValue());
 
@@ -250,6 +268,8 @@ public class HashChunkNoSplitTest {
         } catch (InterruptedException | BrokenBarrierException e) {
             e.printStackTrace();
         }
+
+        ThreadContext ctx = getCtx();
         putNotExisting(keyFirstNegative, ctx, true);
         putNotExisting(keySecondNegative, ctx, true);
 
@@ -257,8 +277,8 @@ public class HashChunkNoSplitTest {
         c.lookUp(ctx, keyFirstNegative);
         Assert.assertTrue(ctx.isKeyValid());
         Assert.assertTrue(ctx.isValueValid());
-        Result result = valueOperator.transform(
-            new Result(), ctx.value, buf -> serializer.deserialize(buf));
+        Result result = config.valueOperator.transform(
+            new Result(), ctx.value, config.valueSerializer::deserialize);
         Assert.assertEquals(ValueUtils.ValueResult.TRUE, result.operationResult);
         Assert.assertEquals(keyFirstNegative + 1, ((Integer) result.value).intValue());
 
@@ -266,8 +286,8 @@ public class HashChunkNoSplitTest {
         c.lookUp(ctx, keySecondNegative);
         Assert.assertTrue(ctx.isKeyValid());
         Assert.assertTrue(ctx.isValueValid());
-        result = valueOperator.transform(
-            new Result(), ctx.value, buf -> serializer.deserialize(buf));
+        result = config.valueOperator.transform(
+            new Result(), ctx.value, config.valueSerializer::deserialize);
         Assert.assertEquals(ValueUtils.ValueResult.TRUE, result.operationResult);
         Assert.assertEquals(keySecondNegative + 1, ((Integer) result.value).intValue());
 
@@ -303,8 +323,7 @@ public class HashChunkNoSplitTest {
 
     @Test(timeout = 5000)
     public void testMultiThread() throws InterruptedException {
-
-        ThreadContext ctx = new ThreadContext(memoryManager, memoryManager);
+        ThreadContext ctx = getCtx();
         int numberOfMappingsBefore = c.externalSize.get();
 
         // Parties: test thread and inserter thread
@@ -316,22 +335,22 @@ public class HashChunkNoSplitTest {
             } catch (InterruptedException | BrokenBarrierException e) {
                 e.printStackTrace();
             }
-            ThreadContext ctxInserter = new ThreadContext(memoryManager, memoryManager);
+            ThreadContext ctxInserter = getCtx();
             // do not start from zero, this way two threads will not insert the same key
             // (inserting the same key simultaneously is not supported yet)
             for (int i = 1; i < MAX_ITEMS_PER_CHUNK; i += 5 ) {
-                Integer key = new Integer(i);
+                Integer key = i;
                 putNotExisting(key, ctxInserter, true);
                 c.lookUp(ctxInserter, key);
                 Assert.assertTrue(ctxInserter.isKeyValid());
                 Assert.assertTrue(ctxInserter.isValueValid());
-                Result result = valueOperator.transform(
-                    new Result(), ctxInserter.value, buf -> serializer.deserialize(buf));
+                Result result = config.valueOperator.transform(
+                    new Result(), ctxInserter.value, config.valueSerializer::deserialize);
                 Assert.assertEquals(ValueUtils.ValueResult.TRUE, result.operationResult);
                 Assert.assertEquals(key + 1, ((Integer) result.value).intValue());
             }
             for (int i = 1; i < MAX_ITEMS_PER_CHUNK; i += 5 ) {
-                Integer key = new Integer(i);
+                Integer key = i;
                 deleteExisting(key, ctxInserter, true);
                 c.lookUp(ctxInserter, key);
                 Assert.assertFalse(ctxInserter.isKeyValid());
@@ -349,13 +368,13 @@ public class HashChunkNoSplitTest {
         // do not start from zero, this way two threads will not insert the same key
         // (inserting the same key simultaneously is not supported yet)
         for (int i = 1; i < MAX_ITEMS_PER_CHUNK; i += 5 ) {
-            Integer key = new Integer(-i);
+            Integer key = -i;
             putNotExisting(key, ctx, true);
             c.lookUp(ctx, key);
             Assert.assertTrue(ctx.isKeyValid());
             Assert.assertTrue(ctx.isValueValid());
-            Result result = valueOperator.transform(
-                new Result(), ctx.value, buf -> serializer.deserialize(buf));
+            Result result = config.valueOperator.transform(
+                new Result(), ctx.value, config.valueSerializer::deserialize);
             Assert.assertEquals(ValueUtils.ValueResult.TRUE, result.operationResult);
             Assert.assertEquals(key + 1, ((Integer) result.value).intValue());
         }
@@ -364,7 +383,7 @@ public class HashChunkNoSplitTest {
         Assert.assertTrue(numberOfMappingsBeforeThisThreadDeletes > (MAX_ITEMS_PER_CHUNK / 5));
 
         for (int i = 1; i < MAX_ITEMS_PER_CHUNK; i += 5 ) {
-            Integer key = new Integer(-i);
+            Integer key = -i;
             deleteExisting(key, ctx, true);
             c.lookUp(ctx, key);
             Assert.assertFalse(ctx.isKeyValid());

@@ -8,31 +8,35 @@
 package com.yahoo.oak;
 
 
-import com.yahoo.oak.common.integer.OakIntComparator;
-import com.yahoo.oak.common.integer.OakIntSerializer;
+import com.yahoo.oak.common.OakCommonBuildersFactory;
+import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
 
 public class FirstLevelHashArrayTest {
-
+    OakSharedConfig<Integer, Integer> config;
     FirstLevelHashArray<Integer, Integer> chunks;
     final int msbForFirstLevelHash = 3;
     final int lsbForSecondLevelHash = 9;
+    final int multipleReferenceNum = 2;
+
     @Before
     public void initArray() {
-        final NativeMemoryAllocator allocator = new NativeMemoryAllocator(128);
+        NativeMemoryAllocator allocator = new NativeMemoryAllocator(128);
         SyncRecycleMemoryManager vMM = new SyncRecycleMemoryManager(allocator);
         SyncRecycleMemoryManager kMM = new SyncRecycleMemoryManager(allocator);
+        config = OakCommonBuildersFactory.getDefaultIntBuilder().buildSharedConfig(
+                allocator, kMM, vMM
+        );
+        chunks = new FirstLevelHashArray<>(config, msbForFirstLevelHash, lsbForSecondLevelHash, multipleReferenceNum);
+    }
 
-        OakComparator<Integer> comparator = new OakIntComparator();
-        OakSerializer<Integer> keySerializer = new OakIntSerializer();
-        OakSerializer<Integer> valueSerializer = new OakIntSerializer();
-        int multipleReferenceNum = 2;
-        chunks = new FirstLevelHashArray<>(new OakSharedConfig<>(
-                allocator, kMM, vMM, keySerializer, valueSerializer, new OakIntComparator()
-        ), msbForFirstLevelHash, lsbForSecondLevelHash, multipleReferenceNum);
+    @After
+    public void tearDown() {
+        config.memoryAllocator.close();
+        BlocksPool.clear();
     }
 
     private int setMsb(int numOfBits, int msbValue, int currentValue) {

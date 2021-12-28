@@ -10,7 +10,6 @@ import com.yahoo.oak.synchrobench.contention.abstractions.BenchKey;
 import com.yahoo.oak.synchrobench.contention.abstractions.BenchValue;
 import com.yahoo.oak.synchrobench.contention.abstractions.KeyGenerator;
 import com.yahoo.oak.synchrobench.contention.abstractions.ValueGenerator;
-import com.yahoo.oak.synchrobench.contention.benchmark.Parameters;
 import com.yahoo.oak.synchrobench.maps.BenchOakMap;
 import org.openjdk.jmh.infra.Blackhole;
 
