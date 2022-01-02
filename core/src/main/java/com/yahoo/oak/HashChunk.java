@@ -43,7 +43,7 @@ class HashChunk<K, V> extends BasicChunk<K, V> {
         assert Math.pow( 2, hashIndexCodec.getFirstBitSize() ) <= maxItems;
 
         this.hashIndexCodec = hashIndexCodec;
-        // must be called after setSecondLevelBitsThreshold
+        // must be called after hashIndexCodec assignment
         this.entryHashSet = new EntryHashSet<>(config, maxItems);
     }
 

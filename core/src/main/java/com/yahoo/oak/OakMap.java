@@ -44,6 +44,7 @@ public class OakMap<K, V> extends AbstractMap<K, V>
     private final boolean toInclusive;
     private final boolean isDescending;
 
+    // Main constructor: used by the constructors below.
     private OakMap(InternalOakMap<K, V> internalOakMap,
                    K fromKey, boolean fromInclusive, K toKey,
                    boolean toInclusive, boolean isDescending) {
@@ -65,7 +66,7 @@ public class OakMap<K, V> extends AbstractMap<K, V>
                 valueDeserializeTransformer.apply(entry.getValue()));
     }
 
-    // internal constructor, to create OakMap use OakMapBuilder
+    // Builder constructor: used by OakMapBuilder (package private).
     OakMap(OakSharedConfig<K, V> config, K minKey, int chunkMaxItems) {
         this(
                 new InternalOakMap<>(config, minKey, chunkMaxItems),
@@ -73,7 +74,7 @@ public class OakMap<K, V> extends AbstractMap<K, V>
         );
     }
 
-    // set constructor, mostly used for subMap
+    // Sub map constructor: used for subMap, headMap, tailMap, descendingMap.
     private OakMap(OakMap<K, V> oakMap, K fromKey, boolean fromInclusive, K toKey,
                    boolean toInclusive, boolean isDescending) {
         this(

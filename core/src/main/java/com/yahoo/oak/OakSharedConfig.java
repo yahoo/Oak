@@ -8,6 +8,10 @@ package com.yahoo.oak;
 
 import java.util.concurrent.atomic.AtomicInteger;
 
+/**
+ * A shared configuration instance that can be passed between Oak instances and its internal classes to avoid passing
+ * all these parameters one by one.
+ */
 public class OakSharedConfig<K, V> {
     public final BlockMemoryAllocator memoryAllocator;
 
@@ -22,9 +26,6 @@ public class OakSharedConfig<K, V> {
 
     public final AtomicInteger size;
 
-    /**
-     * A shared configuration for oak maps to pass forward to other internal classes.
-     */
     public OakSharedConfig(
             BlockMemoryAllocator memoryAllocator,
             MemoryManager keysMemoryManager,

@@ -61,7 +61,7 @@ public class EntryArray<K, V> {
     final MemoryManager keysMemoryManager;
     final MemoryManager valuesMemoryManager;
 
-    // for writing the keys into the off-heap
+    // for writing the keys and values into the off-heap
     final OakSerializer<K> keySerializer;
     final OakSerializer<V> valueSerializer;
 
@@ -71,8 +71,8 @@ public class EntryArray<K, V> {
     final int entriesCapacity; // number of entries (not longs) to be maximally held
 
     // Counts number of entries inserted & not deleted. Pay attention that not all entries (counted
-    // in number of entries) are finally considered existing by the OrderedChunk above
-    // and participating in holding the "real" KV-mappings, the "real" are counted in OrderedChunk
+    // in number of entries) are finally considered existing by the Chunk above
+    // and participating in holding the "real" KV-mappings, the "real" are counted in Chunk
     protected final AtomicInteger numOfEntries;
 
     /**
