@@ -28,7 +28,7 @@ public class EntryHashSetTest {
 
         // create EntryHashSet
         ehs = new EntryHashSet<>(config, 100);
-        ctx = new ThreadContext(memoryManager, memoryManager);
+        ctx = new ThreadContext(config);
     }
 
     @After

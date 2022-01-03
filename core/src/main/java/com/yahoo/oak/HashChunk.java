@@ -171,7 +171,7 @@ class HashChunk<K, V> extends BasicChunk<K, V> {
     int compareKeyAndEntryIndex(KeyBuffer tempKeyBuff, K key, int ei) {
         boolean isAllocated = entryHashSet.readKey(tempKeyBuff, ei);
         assert isAllocated;
-        return comparator.compareKeyAndSerializedKey(key, tempKeyBuff);
+        return config.comparator.compareKeyAndSerializedKey(key, tempKeyBuff);
     }
 
     /**
@@ -246,7 +246,7 @@ class HashChunk<K, V> extends BasicChunk<K, V> {
             if (!entryHashSet.deleteValueFinish(ctx)) {
                 return false;
             }
-            externalSize.decrementAndGet();
+            config.size.decrementAndGet();
             statistics.decrementAddedCount();
             return false;
         } finally {
@@ -273,7 +273,7 @@ class HashChunk<K, V> extends BasicChunk<K, V> {
         // If we move a value, the statistics shouldn't change
         if (!ctx.isNewValueForMove) {
             statistics.incrementAddedCount();
-            externalSize.incrementAndGet();
+            config.size.incrementAndGet();
         }
         return ValueUtils.ValueResult.TRUE;
     }

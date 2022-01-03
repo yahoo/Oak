@@ -44,7 +44,7 @@ public class HashChunkNoSplitTest {
     }
 
     ThreadContext getCtx() {
-        return new ThreadContext(config.keysMemoryManager, config.valuesMemoryManager);
+        return new ThreadContext(config);
     }
 
     // the put flow done by InternalOakHashMap
@@ -53,7 +53,7 @@ public class HashChunkNoSplitTest {
         long previouslyAllocatedBytes = config.keysMemoryManager.allocated();
         long oneMappingSizeInBytes =
                 config.keysMemoryManager.getHeaderSize() * 2L + config.keySerializer.calculateSize(key) * 2L;
-        int numberOfMappingsBefore = c.externalSize.get();
+        int numberOfMappingsBefore = c.config.size.get();
 
         ctx.invalidate();
 
@@ -101,7 +101,7 @@ public class HashChunkNoSplitTest {
                     config.keysMemoryManager.allocated() - previouslyAllocatedBytes);
         }
         if (!concurrent) {
-            Assert.assertEquals(c.externalSize.get(), numberOfMappingsBefore); // no mapping is yet allocated
+            Assert.assertEquals(c.config.size.get(), numberOfMappingsBefore); // no mapping is yet allocated
         }
 
         // linearization point should be preceded with successful publishing
@@ -118,7 +118,7 @@ public class HashChunkNoSplitTest {
         Assert.assertNotEquals(ctx.newValue.getSlice().getReference(),
                 config.valuesMemoryManager.getInvalidReference());
         if (!concurrent) {
-            Assert.assertEquals(c.externalSize.get(), numberOfMappingsBefore + 1); // one mapping is allocated
+            Assert.assertEquals(c.config.size.get(), numberOfMappingsBefore + 1); // one mapping is allocated
         }
 
         ctx.invalidate();
@@ -132,7 +132,7 @@ public class HashChunkNoSplitTest {
         Assert.assertNotEquals(ctx.value.getSlice().getReference(), config.valuesMemoryManager.getInvalidReference());
         Assert.assertEquals(ctx.newValue.getSlice().getReference(), config.valuesMemoryManager.getInvalidReference());
         if (!concurrent) {
-            Assert.assertEquals(c.externalSize.get(), numberOfMappingsBefore + 1); // one mapping is allocated
+            Assert.assertEquals(c.config.size.get(), numberOfMappingsBefore + 1); // one mapping is allocated
         }
         if (!concurrent) {
             Assert.assertEquals(config.valuesMemoryManager.allocated() - previouslyAllocatedBytes,
@@ -210,7 +210,7 @@ public class HashChunkNoSplitTest {
 
     @Test(timeout = 5000)
     public void testSimpleMultiThread() throws InterruptedException {
-        int numberOfMappingsBefore = c.externalSize.get();
+        int numberOfMappingsBefore = c.config.size.get();
 
         Integer keyFirst = 5;
         Integer keySecond = 6;
@@ -318,13 +318,13 @@ public class HashChunkNoSplitTest {
         Assert.assertTrue(ctx.isKeyValid());
         Assert.assertTrue(ctx.isValueValid());
 
-        Assert.assertEquals(c.externalSize.get(), numberOfMappingsBefore + 3); // no mapping is yet allocated
+        Assert.assertEquals(c.config.size.get(), numberOfMappingsBefore + 3); // no mapping is yet allocated
     }
 
     @Test(timeout = 5000)
     public void testMultiThread() throws InterruptedException {
         ThreadContext ctx = getCtx();
-        int numberOfMappingsBefore = c.externalSize.get();
+        int numberOfMappingsBefore = c.config.size.get();
 
         // Parties: test thread and inserter thread
         CyclicBarrier barrier = new CyclicBarrier(2);
@@ -378,7 +378,7 @@ public class HashChunkNoSplitTest {
             Assert.assertEquals(ValueUtils.ValueResult.TRUE, result.operationResult);
             Assert.assertEquals(key + 1, ((Integer) result.value).intValue());
         }
-        int numberOfMappingsBeforeThisThreadDeletes = c.externalSize.get();
+        int numberOfMappingsBeforeThisThreadDeletes = c.config.size.get();
         Assert.assertTrue(numberOfMappingsBeforeThisThreadDeletes < MAX_ITEMS_PER_CHUNK);
         Assert.assertTrue(numberOfMappingsBeforeThisThreadDeletes > (MAX_ITEMS_PER_CHUNK / 5));
 
@@ -394,8 +394,8 @@ public class HashChunkNoSplitTest {
 
         Assert.assertEquals("Size before test: " + numberOfMappingsBefore
                 + ", size in the middle: " + numberOfMappingsBeforeThisThreadDeletes + ", size after: "
-                + c.externalSize.get() + ", statistics chunk size: " + c.statistics.getTotalCount(),
-            c.externalSize.get(), numberOfMappingsBefore);
+                + c.config.size.get() + ", statistics chunk size: " + c.statistics.getTotalCount(),
+            c.config.size.get(), numberOfMappingsBefore);
     }
 
 }

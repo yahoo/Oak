@@ -64,17 +64,17 @@ class ThreadContext {
     final KeyBuffer tempKey;
     final ValueBuffer tempValue;
 
-    ThreadContext(MemoryManager kmm, MemoryManager vmm) {
+    ThreadContext(OakSharedConfig<?, ?> config) {
         entryIndex = EntryArray.INVALID_ENTRY_INDEX;
         entryState = EntryArray.EntryState.UNKNOWN;
         isNewValueForMove = false;
 
-        this.key = new KeyBuffer(kmm.getEmptySlice());
-        this.value = new ValueBuffer(vmm.getEmptySlice());
-        this.newValue = new ValueBuffer(vmm.getEmptySlice());
+        this.key = new KeyBuffer(config.keysMemoryManager.getEmptySlice());
+        this.value = new ValueBuffer(config.valuesMemoryManager.getEmptySlice());
+        this.newValue = new ValueBuffer(config.valuesMemoryManager.getEmptySlice());
         this.result = new Result();
-        this.tempKey = new KeyBuffer(kmm.getEmptySlice());
-        this.tempValue = new ValueBuffer(vmm.getEmptySlice());
+        this.tempKey = new KeyBuffer(config.keysMemoryManager.getEmptySlice());
+        this.tempValue = new ValueBuffer(config.valuesMemoryManager.getEmptySlice());
 
         this.keyHashAndUpdateCnt = EntryHashSet.INVALID_KEY_HASH_AND_UPD_CNT;
         this.operationKeyHash = EntryHashSet.INVALID_KEY_HASH;

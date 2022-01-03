@@ -9,7 +9,6 @@ package com.yahoo.oak;
 import java.io.IOException;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
-import java.util.concurrent.atomic.AtomicInteger;
 
 abstract class InternalOakBasics<K, V> {
     /*-------------- Members --------------*/
@@ -17,28 +16,9 @@ abstract class InternalOakBasics<K, V> {
 
     protected final OakSharedConfig<K, V> config;
 
-    protected final MemoryManager keysMemoryManager;
-    protected final MemoryManager valuesMemoryManager;
-
-    protected final OakSerializer<K> keySerializer;
-    protected final OakSerializer<V> valueSerializer;
-
-    protected final OakComparator<K> comparator;
-
-    protected final ValueUtils valueOperator;
-
-    protected final AtomicInteger size;
-
     /*-------------- Constructors --------------*/
     InternalOakBasics(OakSharedConfig<K, V> config) {
         this.config = config;
-        this.keysMemoryManager = config.keysMemoryManager;
-        this.valuesMemoryManager = config.valuesMemoryManager;
-        this.keySerializer = config.keySerializer;
-        this.valueSerializer = config.valueSerializer;
-        this.comparator = config.comparator;
-        this.valueOperator = config.valueOperator;
-        this.size = config.size;
     }
 
     /*-------------- Closable --------------*/
@@ -49,8 +29,8 @@ abstract class InternalOakBasics<K, V> {
         try {
             // closing the same memory manager (or memory allocator) twice,
             // has the same effect as closing once
-            valuesMemoryManager.close();
-            keysMemoryManager.close();
+            config.valuesMemoryManager.close();
+            config.keysMemoryManager.close();
         } catch (IOException e) {
             e.printStackTrace();
         }
@@ -61,36 +41,36 @@ abstract class InternalOakBasics<K, V> {
      * @return current off heap memory usage in bytes
      */
     long memorySize() {
-        if (valuesMemoryManager != keysMemoryManager) {
+        if (config.valuesMemoryManager != config.keysMemoryManager) {
             // Two memory managers are not the same instance, but they
             // may still have the same allocator and allocator defines how many bytes are allocated
-            if (valuesMemoryManager.getBlockMemoryAllocator()
-                != keysMemoryManager.getBlockMemoryAllocator()) {
-                return valuesMemoryManager.allocated() + keysMemoryManager.allocated();
+            if (config.valuesMemoryManager.getBlockMemoryAllocator()
+                != config.keysMemoryManager.getBlockMemoryAllocator()) {
+                return config.valuesMemoryManager.allocated() + config.keysMemoryManager.allocated();
             }
         }
-        return valuesMemoryManager.allocated();
+        return config.valuesMemoryManager.allocated();
     }
 
     int entries() {
-        return size.get();
+        return config.size.get();
     }
 
     /* getter methods */
     public MemoryManager getValuesMemoryManager() {
-        return this.valuesMemoryManager;
+        return config.valuesMemoryManager;
     }
 
     public MemoryManager getKeysMemoryManager() {
-        return keysMemoryManager;
+        return config.keysMemoryManager;
     }
 
     protected OakSerializer<K> getKeySerializer() {
-        return this.keySerializer;
+        return config.keySerializer;
     }
 
     protected OakSerializer<V> getValueSerializer() {
-        return this.valueSerializer;
+        return config.valueSerializer;
     }
 
     /*-------------- Context --------------*/
@@ -100,7 +80,7 @@ abstract class InternalOakBasics<K, V> {
      * @return a context instance.
      */
     ThreadContext getThreadContext() {
-        return new ThreadContext(keysMemoryManager, valuesMemoryManager);
+        return new ThreadContext(config);
     }
 
     /*-------------- REBALANCE --------------*/
@@ -193,7 +173,7 @@ abstract class InternalOakBasics<K, V> {
 
 
     protected <T> T getValueTransformation(OakScopedReadBuffer key, OakTransformer<T> transformer) {
-        K deserializedKey = keySerializer.deserialize(key);
+        K deserializedKey = config.keySerializer.deserialize(key);
         return getValueTransformation(deserializedKey, transformer);
     }
 
@@ -267,7 +247,7 @@ abstract class InternalOakBasics<K, V> {
          * Initializes ascending iterator for entire range.
          */
         BasicIter() {
-            this.ctx = new ThreadContext(keysMemoryManager, valuesMemoryManager);
+            this.ctx = new ThreadContext(config);
         }
 
         public boolean hasNext() {

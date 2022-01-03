@@ -198,7 +198,7 @@ class EntryOrderedSet<K, V> extends EntryArray<K, V> {
      * is responsible to call it inside the publish/unpublish scope.
      */
     boolean deleteValueFinish(ThreadContext ctx) {
-        if (valuesMemoryManager.isReferenceDeleted(ctx.value.getSlice().getReference())) {
+        if (config.valuesMemoryManager.isReferenceDeleted(ctx.value.getSlice().getReference())) {
             return false; // value reference in the slice is marked deleted
         }
 
@@ -206,7 +206,7 @@ class EntryOrderedSet<K, V> extends EntryArray<K, V> {
 
         // Value's reference codec prepares the reference to be used after value is deleted
         long expectedReference = ctx.value.getSlice().getReference();
-        long newReference = valuesMemoryManager.alterReferenceForDelete(expectedReference);
+        long newReference = config.valuesMemoryManager.alterReferenceForDelete(expectedReference);
         // Scenario:
         // 1. The value's slice is marked as deleted off-heap and the thread that started
         //    deleteValueFinish falls asleep.
@@ -217,7 +217,7 @@ class EntryOrderedSet<K, V> extends EntryArray<K, V> {
         // Also value's off-heap slice is released to memory manager only after deleteValueFinish
         // is done.
         if (casEntryFieldLong(ctx.entryIndex, VALUE_REF_OFFSET, expectedReference, newReference)) {
-            assert valuesMemoryManager.isReferenceConsistent(getValueReference(ctx.entryIndex));
+            assert config.valuesMemoryManager.isReferenceConsistent(getValueReference(ctx.entryIndex));
             numOfEntries.getAndDecrement();
             ctx.value.getSlice().release();
             ctx.value.invalidate();
@@ -271,7 +271,7 @@ class EntryOrderedSet<K, V> extends EntryArray<K, V> {
             return true;
         }
 
-        assert valuesMemoryManager.isReferenceConsistent(tempValue.getSlice().getReference());
+        assert config.valuesMemoryManager.isReferenceConsistent(tempValue.getSlice().getReference());
 
         // ARRAY COPY: using next as the base of the entry
         // copy both the key and the value references and integer for future use => 5 integers via array copy
@@ -280,7 +280,7 @@ class EntryOrderedSet<K, V> extends EntryArray<K, V> {
         // add 1 to start the copying from the subsequent field of the entry.
         copyEntriesFrom(srcEntryOrderedSet, srcEntryIdx, destEntryIndex, 2);
 
-        assert valuesMemoryManager.isReferenceConsistent(getValueReference(destEntryIndex));
+        assert config.valuesMemoryManager.isReferenceConsistent(getValueReference(destEntryIndex));
 
         // now it is the time to increase nextFreeIndex
         nextFreeIndex.getAndIncrement();
@@ -295,7 +295,7 @@ class EntryOrderedSet<K, V> extends EntryArray<K, V> {
             if (!isValueRefValidAndNotDeleted(currIndex)) {
                 return false;
             }
-            if (!valuesMemoryManager.isReferenceConsistent(getValueReference(currIndex))) {
+            if (!config.valuesMemoryManager.isReferenceConsistent(getValueReference(currIndex))) {
                 return false;
             }
             if (prevIndex != INVALID_ENTRY_INDEX && currIndex - prevIndex != 1) {

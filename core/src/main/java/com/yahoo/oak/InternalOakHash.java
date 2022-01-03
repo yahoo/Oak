@@ -41,7 +41,7 @@ class InternalOakHash<K, V> extends InternalOakBasics<K, V> {
      */
     void clear() {
         hashArray.clear();
-        size.set(0);
+        config.size.set(0);
         if (getValuesMemoryManager() != getKeysMemoryManager()) {
             // Two memory managers are not the same instance, but they
             // may still have the same allocator
@@ -107,7 +107,7 @@ class InternalOakHash<K, V> extends InternalOakBasics<K, V> {
             // then this put changes the slice pointed by this value reference.
             if (ctx.isValueValid()) {
                 // there is a value and it is not deleted
-                Result res = valueOperator.exchange(c, ctx, value, transformer, getValueSerializer());
+                Result res = config.valueOperator.exchange(c, ctx, value, transformer, getValueSerializer());
                 if (res.operationResult == ValueUtils.ValueResult.TRUE) {
                     return (V) res.value;
                 }
@@ -230,7 +230,7 @@ class InternalOakHash<K, V> extends InternalOakBasics<K, V> {
                 // before we marked the value reference as deleted. We have the previous value saved in v.
                 return transformer == null ? ctx.result.withFlag(ValueUtils.ValueResult.TRUE) : ctx.result.withValue(v);
             } else {
-                Result removeResult = valueOperator.remove(ctx, oldValue, transformer);
+                Result removeResult = config.valueOperator.remove(ctx, oldValue, transformer);
                 if (removeResult.operationResult == ValueUtils.ValueResult.FALSE) {
                     // we didn't succeed to remove the value: it didn't contain oldValue, or was already marked
                     // as deleted by someone else)
@@ -319,7 +319,7 @@ class InternalOakHash<K, V> extends InternalOakBasics<K, V> {
                 return null;
             }
 
-            Result res = valueOperator.transform(ctx.result, ctx.value, transformer);
+            Result res = config.valueOperator.transform(ctx.result, ctx.value, transformer);
             if (res.operationResult == ValueUtils.ValueResult.RETRY) {
                 continue;
             }
@@ -341,7 +341,7 @@ class InternalOakHash<K, V> extends InternalOakBasics<K, V> {
             }
 
             // will return null if the value is deleted
-            Result result = valueOperator.exchange(chunk, ctx, value,
+            Result result = config.valueOperator.exchange(chunk, ctx, value,
                     valueDeserializeTransformer, getValueSerializer());
             if (result.operationResult != ValueUtils.ValueResult.RETRY) {
                 return (V) result.value;
@@ -364,7 +364,7 @@ class InternalOakHash<K, V> extends InternalOakBasics<K, V> {
                 return false;
             }
 
-            ValueUtils.ValueResult res = valueOperator.compareExchange(c, ctx, oldValue, newValue,
+            ValueUtils.ValueResult res = config.valueOperator.compareExchange(c, ctx, oldValue, newValue,
                 valueDeserializeTransformer, getValueSerializer());
             if (res == ValueUtils.ValueResult.RETRY) {
                 // it might be that this chunk is proceeding with rebalance -> help
@@ -397,7 +397,7 @@ class InternalOakHash<K, V> extends InternalOakBasics<K, V> {
                 if (transformer == null) {
                     return ctx.result.withFlag(ValueUtils.ValueResult.FALSE);
                 }
-                Result res = valueOperator.transform(ctx.result, ctx.value, transformer);
+                Result res = config.valueOperator.transform(ctx.result, ctx.value, transformer);
                 if (res.operationResult == ValueUtils.ValueResult.TRUE) {
                     return res;
                 }
@@ -441,7 +441,7 @@ class InternalOakHash<K, V> extends InternalOakBasics<K, V> {
             c.lookUp(ctx, key);
 
             if (ctx.isValueValid()) {
-                ValueUtils.ValueResult res = valueOperator.compute(ctx.value, computer);
+                ValueUtils.ValueResult res = config.valueOperator.compute(ctx.value, computer);
                 if (res == ValueUtils.ValueResult.TRUE) {
                     // compute was successful and the value wasn't found deleted; in case
                     // this value was already marked as deleted, continue to construct another slice
@@ -479,7 +479,7 @@ class InternalOakHash<K, V> extends InternalOakBasics<K, V> {
             // If there is a matching value reference for the given key, and it is not marked as deleted,
             // then apply compute on the existing value
             if (ctx.isValueValid()) {
-                ValueUtils.ValueResult res = valueOperator.compute(ctx.value, computer);
+                ValueUtils.ValueResult res = config.valueOperator.compute(ctx.value, computer);
                 if (res == ValueUtils.ValueResult.TRUE) {
                     // compute was successful and the value wasn't found deleted; in case
                     // this value was already found as deleted, continue to allocate a new value slice
@@ -752,7 +752,7 @@ class InternalOakHash<K, V> extends InternalOakBasics<K, V> {
 
         public T next() {
             advance(true);
-            Result res = valueOperator.transform(ctx.result, ctx.value, transformer);
+            Result res = config.valueOperator.transform(ctx.result, ctx.value, transformer);
             // If this value is deleted, try the next one
             if (res.operationResult == ValueUtils.ValueResult.FALSE) {
                 return next();

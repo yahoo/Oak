@@ -166,7 +166,7 @@ public class InternalOakHashTest {
         threadList.add(thirdThread);
         runThreads(threadList);
 
-        Assert.assertEquals(ONE_THREAD_OPERATIONS_NUM * 3, testMap.size.get());
+        Assert.assertEquals(ONE_THREAD_OPERATIONS_NUM * 3, testMap.config.size.get());
 
         // gets of the first thread insertions are tested concurrently within the thread
         // here test second and third

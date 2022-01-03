@@ -225,7 +225,7 @@ class OrderedChunk<K, V> extends BasicChunk<K, V> {
     int compareKeyAndEntryIndex(KeyBuffer tempKeyBuff, K key, int ei) {
         boolean isAllocated = entryOrderedSet.readKey(tempKeyBuff, ei);
         assert isAllocated;
-        return comparator.compareKeyAndSerializedKey(key, tempKeyBuff);
+        return config.comparator.compareKeyAndSerializedKey(key, tempKeyBuff);
     }
 
     /**
@@ -355,7 +355,7 @@ class OrderedChunk<K, V> extends BasicChunk<K, V> {
             if (!entryOrderedSet.deleteValueFinish(ctx)) {
                 return false;
             }
-            externalSize.decrementAndGet();
+            config.size.decrementAndGet();
             statistics.decrementAddedCount();
             return false;
         } finally {
@@ -465,7 +465,7 @@ class OrderedChunk<K, V> extends BasicChunk<K, V> {
         // If we move a value, the statistics shouldn't change
         if (!ctx.isNewValueForMove) {
             statistics.incrementAddedCount();
-            externalSize.incrementAndGet();
+            config.size.incrementAndGet();
         }
         return ValueUtils.ValueResult.TRUE;
     }
@@ -804,7 +804,7 @@ class OrderedChunk<K, V> extends BasicChunk<K, V> {
                 // we are on the last chunk and 'to' is not null
                 return true;
             }
-            int c = comparator.compareKeyAndSerializedKey(endBound, key);
+            int c = config.comparator.compareKeyAndSerializedKey(endBound, key);
             // return true if endBound<key or endBound==key and the scan was not endBoundInclusive
             return c < 0 || (c == 0 && !endBoundInclusive);
         }
@@ -986,7 +986,7 @@ class OrderedChunk<K, V> extends BasicChunk<K, V> {
             if (endBound == null) {
                 return false;
             }
-            int c = comparator.compareKeyAndSerializedKey(endBound, key);
+            int c = config.comparator.compareKeyAndSerializedKey(endBound, key);
             // return true if endBound>key or if endBound==key and the scan was not endBoundInclusive
             return c > 0 || (c == 0 && !endBoundInclusive);
         }

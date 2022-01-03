@@ -23,9 +23,6 @@ abstract class BasicChunk<K, V> {
     /*-------------- Members --------------*/
     protected final OakSharedConfig<K, V> config;
 
-    // to compare serialized and object keys
-    protected OakComparator<K> comparator;
-
     // in split/compact process, represents parent of split (can be null!)
     private final AtomicReference<BasicChunk<K, V>> creator;
     // chunk can be in the following states: normal, frozen or infant(has a creator)
@@ -33,7 +30,6 @@ abstract class BasicChunk<K, V> {
     private final AtomicReference<Rebalancer<K, V>> rebalancer;
     private final AtomicInteger pendingOps;
     protected final int maxItems;
-    protected AtomicInteger externalSize; // for updating oak's size (reference to one global per Oak size)
     protected final Statistics statistics;
 
     /*-------------- Constructors and creators --------------*/
@@ -47,8 +43,6 @@ abstract class BasicChunk<K, V> {
     protected BasicChunk(OakSharedConfig<K, V> config, int maxItems) {
         this.config = config;
         this.maxItems = maxItems;
-        this.externalSize = config.size;
-        this.comparator = config.comparator;
         this.creator = new AtomicReference<>(null);
         this.state = new AtomicReference<>(State.NORMAL);
         this.pendingOps = new AtomicInteger();
