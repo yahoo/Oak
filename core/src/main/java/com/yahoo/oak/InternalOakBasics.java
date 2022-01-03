@@ -214,6 +214,7 @@ abstract class InternalOakBasics<K, V> {
     abstract OakUnscopedBuffer get(K key);
 
     protected abstract BasicChunk<K, V> findChunk(K key, ThreadContext ctx);
+
     protected boolean finalizeDeletion(BasicChunk<K, V> c, ThreadContext ctx) {
         if (c.finalizeDeletion(ctx)) {
             rebalanceBasic(c);
@@ -467,6 +468,7 @@ abstract class InternalOakBasics<K, V> {
         protected boolean isPrevIterStateValid() {
             return prevIterStateValid;
         }
+
         protected void invalidatePrevState() {
             prevIterStateValid = false;
         }

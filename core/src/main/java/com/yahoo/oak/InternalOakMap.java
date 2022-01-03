@@ -323,7 +323,7 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
         ThreadContext ctx = getThreadContext();
 
         for (int i = 0; i < MAX_RETRIES; i++) {
-            BasicChunk<K, V> c = findChunk(key, ctx); // find orderedChunk matching key
+            OrderedChunk<K, V> c = findChunk(key, ctx); // find orderedChunk matching key
             c.lookUp(ctx, key);
             // If there is a matching value reference for the given key, and it is not marked as deleted,
             // then this put changes the slice pointed by this value reference.
@@ -348,7 +348,7 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
             // (1) Key wasn't found (key and value not valid)
             // (2) Key was found and it's value is deleted/invalid (key valid value invalid)
             if (!ctx.isKeyValid()) {
-                if (!allocateAndLinkEntry((OrderedChunk<K, V>) c, ctx, key, false)) {
+                if (!allocateAndLinkEntry( c, ctx, key, false)) {
                     continue; // allocation wasn't successful and resulted in rebalance - retry
                 }
             }
@@ -357,7 +357,7 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
 
             if (!c.publish()) {
                 c.releaseNewValue(ctx);
-                rebalance((OrderedChunk<K, V>) c);
+                rebalance( c);
                 continue;
             }
 
@@ -383,7 +383,7 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
         ThreadContext ctx = getThreadContext();
 
         for (int i = 0; i < MAX_RETRIES; i++) {
-            BasicChunk<K, V> c = findChunk(key, ctx); // find orderedChunk matching key
+            OrderedChunk<K, V> c = findChunk(key, ctx); // find orderedChunk matching key
             c.lookUp(ctx, key);
             // If exists a matching value reference for the given key, and it isn't marked deleted,
             // organize the return value: false for ZC, and old value deserialization for non-ZC
@@ -406,7 +406,7 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
             // (1) Key wasn't found (key and value not valid)
             // (2) Key was found and it's value is deleted/invalid (key valid value invalid)
             if (!ctx.isKeyValid()) {
-                if (!allocateAndLinkEntry((OrderedChunk<K, V>) c, ctx, key, true)) {
+                if (!allocateAndLinkEntry( c, ctx, key, true)) {
                     // allocation wasn't successful and resulted in rebalance,
                     // or retry is needed for other reason - retry
                     continue;
@@ -417,7 +417,7 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
 
             if (!c.publish()) {
                 c.releaseNewValue(ctx); // @TODO clean key from off-heap as well
-                rebalance((OrderedChunk<K, V>) c);
+                rebalance( c);
                 continue;
             }
 
@@ -445,7 +445,7 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
         ThreadContext ctx = getThreadContext();
 
         for (int i = 0; i < MAX_RETRIES; i++) {
-            BasicChunk<K, V> c = findChunk(key, ctx); // find orderedChunk matching key
+            OrderedChunk<K, V> c = findChunk(key, ctx); // find orderedChunk matching key
             c.lookUp(ctx, key);
             // If there is a matching value reference for the given key, and it is not marked as deleted,
             // then apply compute on the existing value
@@ -468,7 +468,7 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
             // (1) Key wasn't found (key and value not valid)
             // (2) Key was found and it's value is deleted/invalid (key valid value invalid)
             if (!ctx.isKeyValid()) {
-                if (!allocateAndLinkEntry((OrderedChunk<K, V>) c, ctx, key, false)) {
+                if (!allocateAndLinkEntry( c, ctx, key, false)) {
                     continue;
                 }
             }
@@ -477,7 +477,7 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
 
             if (!c.publish()) {
                 c.releaseNewValue(ctx);
-                rebalance((OrderedChunk<K, V>) c);
+                rebalance( c);
                 continue;
             }
 
@@ -502,7 +502,7 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
         }
 
         ThreadContext ctx = getThreadContext();
-        BasicChunk<K, V> c = findChunk(key, ctx); // find orderedChunk matching key
+        OrderedChunk<K, V> c = findChunk(key, ctx); // find orderedChunk matching key
         c.lookUp(ctx, key);
         if (!ctx.isValueValid()) {
             return null;
@@ -521,7 +521,7 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
         ThreadContext ctx = getThreadContext();
 
         for (int i = 0; i < MAX_RETRIES; i++) {
-            BasicChunk<K, V> c = findChunk(key, ctx); // find orderedChunk matching key
+            OrderedChunk<K, V> c = findChunk(key, ctx); // find orderedChunk matching key
             c.lookUp(ctx, key);
             if (ctx.isValueValid()) {
                 ValueUtils.ValueResult res = getValueOperator().compute(ctx.value, computer);
@@ -550,7 +550,7 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
     @Override
     boolean refreshValuePosition(ThreadContext ctx) {
         K deserializedKey = getKeySerializer().deserialize(ctx.key);
-        BasicChunk<K, V> c = findChunk(deserializedKey, ctx); // find orderedChunk matching key
+        OrderedChunk<K, V> c = findChunk(deserializedKey, ctx); // find orderedChunk matching key
         c.lookUp(ctx, deserializedKey);
         return ctx.isValueValid();
     }
@@ -566,7 +566,7 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
         ThreadContext ctx = getThreadContext();
 
         for (int i = 0; i < MAX_RETRIES; i++) {
-            BasicChunk<K, V> c = findChunk(key, ctx); // find orderedChunk matching key
+            OrderedChunk<K, V> c = findChunk(key, ctx); // find orderedChunk matching key
             c.lookUp(ctx, key);
             if (!ctx.isValueValid()) {
                 return null;
@@ -588,7 +588,7 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
         }
 
         ThreadContext ctx = getThreadContext();
-        BasicChunk<K, V> c = findChunk(key, ctx);
+        OrderedChunk<K, V> c = findChunk(key, ctx);
         c.lookUp(ctx, key);
         if (!ctx.isValueValid()) {
             return null;
@@ -649,7 +649,7 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
 
     // encapsulates finding of the orderedChunk in the skip list and later orderedChunk list traversal
     @Override
-    protected BasicChunk<K, V> findChunk(K key, ThreadContext ctx) {
+    protected OrderedChunk<K, V> findChunk(K key, ThreadContext ctx) {
         OrderedChunk<K, V> c = skiplist.floorEntry(key).getValue();
         c = iterateChunks(c, key);
         return c;
@@ -659,7 +659,7 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
         ThreadContext ctx = getThreadContext();
 
         for (int i = 0; i < MAX_RETRIES; i++) {
-            BasicChunk<K, V> c = findChunk(key, ctx); // find orderedChunk matching key
+            OrderedChunk<K, V> c = findChunk(key, ctx); // find orderedChunk matching key
             c.lookUp(ctx, key);
             if (!ctx.isValueValid()) {
                 return null;
@@ -682,7 +682,7 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
         ThreadContext ctx = getThreadContext();
 
         for (int i = 0; i < MAX_RETRIES; i++) {
-            BasicChunk<K, V> c = findChunk(key, ctx); // find orderedChunk matching key
+            OrderedChunk<K, V> c = findChunk(key, ctx); // find orderedChunk matching key
             c.lookUp(ctx, key);
             if (!ctx.isValueValid()) {
                 return false;
@@ -1004,7 +1004,7 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
             if (hi != null) {
                 // need to check upper bound for this ascending scan,
                 // but does the next orderedChunk includes the upper bound?
-                OrderedChunk nextNextOrderedChunk = c.next.getReference();
+                OrderedChunk<K, V> nextNextOrderedChunk = c.next.getReference();
                 // checking the min key of the next to next orderedChunk, in order to avoid search
                 // for the maximal key on next orderedChunk. The minKey of the next
                 // orderedChunk is higher than the max key of the current orderedChunk, therefore it can
@@ -1016,22 +1016,6 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
             return upperBoundKeyForChunk;
         }
 
-        //@Override
-        //public void remove() {
-        //    if (!isPrevIterStateValid()) {
-        //        throw new IllegalStateException("next() was not called in due order");
-        //    }
-        //    BasicChunk prevChunk = getPrevIterState().getChunk();
-        //    int preIdx = getPrevIterState().getIndex();
-        //    boolean validState = prevChunk.readKeyFromEntryIndex(ctx.key, preIdx);
-        //    if (validState) {
-        //        K prevKey = getKeySerializer().deserialize(ctx.key);
-        //        InternalOakMap.this.remove(prevKey, null, null);
-        //    }
-        //
-        //    invalidatePrevState();
-        //}
-
         @Override
         protected boolean advanceState() {
             boolean valueToReturn = super.advanceState();
@@ -1042,7 +1026,7 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
                 int nextIndex = getState().getIndex();
                 // The boundary check is costly and need to be performed only when required,
                 // meaning not on the full scan.
-                if (((OrderedChunk.ChunkIter) chunkIter).isBoundCheckNeeded()) {
+                if (((OrderedChunk<K, V>.ChunkIter) chunkIter).isBoundCheckNeeded()) {
                     chunk.readKeyFromEntryIndex(ctx.tempKey, nextIndex);
                     if (!inBounds(ctx.tempKey)) {
                         setState(null);
