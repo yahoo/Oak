@@ -6,6 +6,7 @@
 
 package com.yahoo.oak;
 
+import com.yahoo.oak.common.OakCommonBuildersFactory;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -26,7 +27,10 @@ public class ValueUtilsTest {
         allocator = new NativeMemoryAllocator(128);
         SyncRecycleMemoryManager valuesMemoryManager = new SyncRecycleMemoryManager(allocator);
         SeqExpandMemoryManager keysMemoryManager = new SeqExpandMemoryManager(allocator);
-        ctx = new ThreadContext(keysMemoryManager, valuesMemoryManager);
+        OakSharedConfig<Integer, Integer> config = OakCommonBuildersFactory.getDefaultIntBuilder().buildSharedConfig(
+            allocator, keysMemoryManager, valuesMemoryManager
+        );
+        ctx = new ThreadContext(config);
         s = ctx.value;
         s.getSlice().allocate(Integer.BYTES * 3, false);
     }

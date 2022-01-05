@@ -28,60 +28,52 @@ public class OakMap<K, V> extends AbstractMap<K, V>
         implements AutoCloseable, ConcurrentNavigableMap<K, V>, ConcurrentZCMap<K, V> {
 
     private final InternalOakMap<K, V> internalOakMap;
-    /*
-     * Memory manager cares for allocation, de-allocation and reuse of the internally pre-allocated
-     * memory. There can be separate memory managing algorithms for keys and values.
-     * */
-    //private final MemoryManager valuesMemoryManager;
-    //private final MemoryManager keysMemoryManager;
-    private final OakTransformer<K> keyDeserializeTransformer;
-    private final OakTransformer<V> valueDeserializeTransformer;
+
+    // Used for iterators
     private final Function<Map.Entry<OakScopedReadBuffer, OakScopedReadBuffer>,
             Map.Entry<K, V>> entryDeserializeTransformer;
-    private final OakComparator<K> comparator;
 
     // SubOakMap fields
     private final K fromKey;
     private final boolean fromInclusive;
     private final K toKey;
-    private boolean toInclusive;
+    private final boolean toInclusive;
     private final boolean isDescending;
 
-    // internal constructor, to create OakMap use OakMapBuilder
-    OakMap(K minKey, OakSerializer<K> keySerializer, OakSerializer<V> valueSerializer, OakComparator<K> oakComparator,
-        int chunkMaxItems, MemoryManager vMM, MemoryManager kMM) {
-
-
-        this.comparator = oakComparator;
-        this.internalOakMap = new InternalOakMap<>(minKey, keySerializer, valueSerializer, oakComparator,
-                vMM, kMM, chunkMaxItems, new ValueUtils());
-
-        this.fromKey = null;
-        this.fromInclusive = false;
-        this.toKey = null;
-        this.isDescending = false;
-
-        this.keyDeserializeTransformer = keySerializer::deserialize;
-        this.valueDeserializeTransformer = valueSerializer::deserialize;
-        this.entryDeserializeTransformer = entry -> new AbstractMap.SimpleEntry<>(
-                keySerializer.deserialize(entry.getKey()),
-                valueSerializer.deserialize(entry.getValue()));
-    }
-
-    // set constructor, mostly used for subMap
-    private OakMap(OakMap<K, V> oakMap, K fromKey, boolean fromInclusive, K toKey,
+    // Main constructor: used by the constructors below.
+    private OakMap(InternalOakMap<K, V> internalOakMap,
+                   K fromKey, boolean fromInclusive, K toKey,
                    boolean toInclusive, boolean isDescending) {
-        this.internalOakMap = oakMap.internalOakMap;
+        final OakSharedConfig<K, V> config = internalOakMap.config;
 
-        this.keyDeserializeTransformer = oakMap.keyDeserializeTransformer;
-        this.valueDeserializeTransformer = oakMap.valueDeserializeTransformer;
-        this.entryDeserializeTransformer = oakMap.entryDeserializeTransformer;
-        this.comparator = oakMap.comparator;
+        this.internalOakMap = internalOakMap;
+
         this.fromKey = fromKey;
         this.fromInclusive = fromInclusive;
         this.toKey = toKey;
         this.toInclusive = toInclusive;
         this.isDescending = isDescending;
+
+        this.entryDeserializeTransformer = entry -> new AbstractMap.SimpleEntry<>(
+            config.keySerializer.deserialize(entry.getKey()),
+            config.valueSerializer.deserialize(entry.getValue()));
+    }
+
+    // Builder constructor: used by OakMapBuilder (package private).
+    OakMap(OakSharedConfig<K, V> config, K minKey, int chunkMaxItems) {
+        this(
+                new InternalOakMap<>(config, minKey, chunkMaxItems),
+                null, false, null, false, false
+        );
+    }
+
+    // Sub map constructor: used for subMap, headMap, tailMap, descendingMap.
+    private OakMap(OakMap<K, V> oakMap, K fromKey, boolean fromInclusive, K toKey,
+                   boolean toInclusive, boolean isDescending) {
+        this(
+                oakMap.internalOakMap,
+                fromKey, fromInclusive, toKey, toInclusive, isDescending
+        );
     }
 
     /* ------ Map API methods ------ */
@@ -116,7 +108,7 @@ public class OakMap<K, V> extends AbstractMap<K, V>
     public V get(Object key) {
         checkKey((K) key);
 
-        return internalOakMap.getValueTransformation((K) key, valueDeserializeTransformer);
+        return internalOakMap.getValueTransformation((K) key, internalOakMap.config.valueSerializer::deserialize);
     }
 
     /**
@@ -137,7 +129,7 @@ public class OakMap<K, V> extends AbstractMap<K, V>
         if (value == null) {
             throw new NullPointerException();
         }
-        return internalOakMap.put(key, value, valueDeserializeTransformer);
+        return internalOakMap.put(key, value, internalOakMap.config.valueSerializer::deserialize);
     }
 
     /**
@@ -152,14 +144,14 @@ public class OakMap<K, V> extends AbstractMap<K, V>
     @Override
     public V remove(Object key) {
         checkKey((K) key);
-        return (V) internalOakMap.remove((K) key, null, valueDeserializeTransformer).value;
+        return (V) internalOakMap.remove((K) key, null, internalOakMap.config.valueSerializer::deserialize).value;
     }
 
     /* ------ SortedMap API methods ------ */
 
     @Override
     public Comparator<? super K> comparator() {
-        return comparator;
+        return internalOakMap.config.comparator;
     }
 
     /**
@@ -177,7 +169,7 @@ public class OakMap<K, V> extends AbstractMap<K, V>
             throw new UnsupportedOperationException();
         }
 
-        return internalOakMap.getMinKeyTransformation(keyDeserializeTransformer);
+        return internalOakMap.getMinKeyTransformation(internalOakMap.config.keySerializer::deserialize);
     }
 
     /**
@@ -195,7 +187,7 @@ public class OakMap<K, V> extends AbstractMap<K, V>
             throw new UnsupportedOperationException();
         }
 
-        return internalOakMap.getMaxKeyTransformation(keyDeserializeTransformer);
+        return internalOakMap.getMaxKeyTransformation(internalOakMap.config.keySerializer::deserialize);
     }
 
     /* ------ ConcurrentMap API methods ------ */
@@ -207,7 +199,7 @@ public class OakMap<K, V> extends AbstractMap<K, V>
     public boolean remove(Object key, Object value) {
         checkKey((K) key);
         return (value != null) && (internalOakMap.remove((K) key, (V) value,
-                valueDeserializeTransformer).operationResult == ValueUtils.ValueResult.TRUE);
+            internalOakMap.config.valueSerializer::deserialize).operationResult == ValueUtils.ValueResult.TRUE);
     }
 
 
@@ -224,7 +216,7 @@ public class OakMap<K, V> extends AbstractMap<K, V>
             throw new NullPointerException();
         }
 
-        return internalOakMap.replace(key, value, valueDeserializeTransformer);
+        return internalOakMap.replace(key, value, internalOakMap.config.valueSerializer::deserialize);
     }
 
 
@@ -241,7 +233,7 @@ public class OakMap<K, V> extends AbstractMap<K, V>
             throw new NullPointerException();
         }
 
-        return internalOakMap.replace(key, oldValue, newValue, valueDeserializeTransformer);
+        return internalOakMap.replace(key, oldValue, newValue, internalOakMap.config.valueSerializer::deserialize);
     }
 
     /**
@@ -260,7 +252,7 @@ public class OakMap<K, V> extends AbstractMap<K, V>
         if (value == null) {
             throw new NullPointerException();
         }
-        return (V) internalOakMap.putIfAbsent(key, value, valueDeserializeTransformer).value;
+        return (V) internalOakMap.putIfAbsent(key, value, internalOakMap.config.valueSerializer::deserialize).value;
     }
 
 
@@ -310,14 +302,14 @@ public class OakMap<K, V> extends AbstractMap<K, V>
     private boolean inBounds(K key) {
         int res;
         if (fromKey != null) {
-            res = comparator.compareKeys(key, fromKey);
+            res = internalOakMap.config.comparator.compareKeys(key, fromKey);
             if (res < 0 || (res == 0 && !fromInclusive)) {
                 return false;
             }
         }
 
         if (toKey != null) {
-            res = comparator.compareKeys(key, toKey);
+            res = internalOakMap.config.comparator.compareKeys(key, toKey);
             return res <= 0 && (res != 0 || toInclusive);
         }
         return true;
@@ -604,7 +596,7 @@ public class OakMap<K, V> extends AbstractMap<K, V>
      */
     private Iterator<V> valuesIterator() {
         return internalOakMap.valuesTransformIterator(fromKey, fromInclusive, toKey, toInclusive, isDescending,
-                valueDeserializeTransformer);
+            internalOakMap.config.valueSerializer::deserialize);
     }
 
     /**
@@ -620,7 +612,7 @@ public class OakMap<K, V> extends AbstractMap<K, V>
      */
     private Iterator<K> keysIterator() {
         return internalOakMap.keysTransformIterator(fromKey, fromInclusive, toKey, toInclusive, isDescending,
-                keyDeserializeTransformer);
+            internalOakMap.config.keySerializer::deserialize);
     }
 
     private Iterator<OakUnscopedBuffer> keysBufferIterator() {

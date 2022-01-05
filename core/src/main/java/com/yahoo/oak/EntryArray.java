@@ -58,40 +58,29 @@ public class EntryArray<K, V> {
     protected static final int VALUE_REF_OFFSET = 1;
     static final int INVALID_ENTRY_INDEX = -1;
 
-    final MemoryManager valuesMemoryManager;
-    final MemoryManager keysMemoryManager;
+    final OakSharedConfig<K, V> config;
+
     private final long[] entries;    // array is initialized to 0 - this is important!
     private final int fields;  // # of primitive fields in each item of entries array
 
     final int entriesCapacity; // number of entries (not longs) to be maximally held
 
     // Counts number of entries inserted & not deleted. Pay attention that not all entries (counted
-    // in number of entries) are finally are finally considered existing by the OrderedChunk above
-    // and participating in holding the "real" KV-mappings, the "real" are counted in OrderedChunk
+    // in number of entries) are finally considered existing by the Chunk above
+    // and participating in holding the "real" KV-mappings, the "real" are counted in Chunk
     protected final AtomicInteger numOfEntries;
 
-    // for writing the keys into the off-heap
-    final OakSerializer<K> keySerializer;
-    final OakSerializer<V> valueSerializer;
-
     /**
-     * Create a new instance
-     * @param vMM   for values off-heap allocations and releases
-     * @param kMM off-heap allocations and releases for keys
+     * @param config shared configuration
+     * @param additionalFieldCount number of additional fields
      * @param entriesCapacity how many entries should this instance keep at maximum
-     * @param keySerializer   used to serialize the key when written to off-heap
      */
-    EntryArray(MemoryManager vMM, MemoryManager kMM, int additionalFieldCount, int entriesCapacity,
-               OakSerializer<K> keySerializer,
-             OakSerializer<V> valueSerializer) {
-        this.valuesMemoryManager = vMM;
-        this.keysMemoryManager = kMM;
+    EntryArray(OakSharedConfig<K, V> config, int additionalFieldCount, int entriesCapacity) {
+        this.config = config;
         this.fields = additionalFieldCount + 2; // +2 for key and value references that always exist
         this.entries = new long[entriesCapacity * this.fields];
         this.numOfEntries = new AtomicInteger(0);
         this.entriesCapacity = entriesCapacity;
-        this.keySerializer = keySerializer;
-        this.valueSerializer = valueSerializer;
     }
 
     /**
@@ -269,7 +258,7 @@ public class EntryArray<K, V> {
      * */
     boolean isValueRefValidAndNotDeleted(int ei) {
         long valRef = getValueReference(ei);
-        return valuesMemoryManager.isReferenceValidAndNotDeleted(valRef);
+        return config.valuesMemoryManager.isReferenceValidAndNotDeleted(valRef);
     }
 
     /**
@@ -381,7 +370,7 @@ public class EntryArray<K, V> {
     void readValue(ThreadContext ctx) {
         readValue(ctx.value, ctx.entryIndex);
         ctx.entryState = getValueState(ctx.value);
-        assert valuesMemoryManager.isReferenceConsistent(ctx.value.getSlice().getReference());
+        assert config.valuesMemoryManager.isReferenceConsistent(ctx.value.getSlice().getReference());
     }
 
     /**
@@ -395,13 +384,13 @@ public class EntryArray<K, V> {
         //   remove: (1)off-heap delete bit, (2)reference deleted
         //   middle state: off-heap header marked deleted, but valid reference
 
-        if (!valuesMemoryManager.isReferenceValid(value.getSlice().getReference())) {
+        if (!config.valuesMemoryManager.isReferenceValid(value.getSlice().getReference())) {
             // if there is no value associated with given key,
             // thebvalue of this entry was never yet allocated
             return EntryState.UNKNOWN;
         }
 
-        if (valuesMemoryManager.isReferenceDeleted(value.getSlice().getReference())) {
+        if (config.valuesMemoryManager.isReferenceDeleted(value.getSlice().getReference())) {
             // if value is valid the reference can still be deleted
             return  EntryState.DELETED;
         }
@@ -421,10 +410,10 @@ public class EntryArray<K, V> {
      * @param keyBuffer the off-heap KeyBuffer to update with the new allocation
      */
     void writeKey(K key, KeyBuffer keyBuffer) {
-        int keySize = keySerializer.calculateSize(key);
+        int keySize = config.keySerializer.calculateSize(key);
         keyBuffer.getSlice().allocate(keySize, false);
         assert keyBuffer.isAssociated();
-        ScopedWriteBuffer.serialize(keyBuffer.getSlice(), key, keySerializer);
+        ScopedWriteBuffer.serialize(keyBuffer.getSlice(), key, config.keySerializer);
     }
 
     /**
@@ -440,14 +429,14 @@ public class EntryArray<K, V> {
     void allocateValue(ThreadContext ctx, V value, boolean writeForMove) {
 
         // the length of the given value plus its header
-        int valueDataSize   = valueSerializer.calculateSize(value);
+        int valueDataSize = config.valueSerializer.calculateSize(value);
 
         // The allocated slice includes all the needed information for further access,
         // the reference is set in the slice as part of the alocation
         ctx.newValue.getSlice().allocate(valueDataSize, writeForMove);
         ctx.isNewValueForMove = writeForMove;
 
-        ScopedWriteBuffer.serialize(ctx.newValue.getSlice(), value, valueSerializer);
+        ScopedWriteBuffer.serialize(ctx.newValue.getSlice(), value, config.valueSerializer);
     }
 
     /**
@@ -466,7 +455,7 @@ public class EntryArray<K, V> {
 
         long oldValueReference = ctx.value.getSlice().getReference();
         long newValueReference = ctx.newValue.getSlice().getReference();
-        assert valuesMemoryManager.isReferenceValid(newValueReference);
+        assert config.valuesMemoryManager.isReferenceValid(newValueReference);
 
         if (!casValueReference(ctx.entryIndex, oldValueReference, newValueReference)) {
             return ValueUtils.ValueResult.FALSE;

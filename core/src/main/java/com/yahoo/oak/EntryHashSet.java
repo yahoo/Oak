@@ -75,8 +75,6 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
     // number of entries candidates to try in case of collision
     private final AtomicInteger collisionChainLength = new AtomicInteger(DEFAULT_COLLISION_CHAIN_LENGTH);
 
-    private final OakComparator<K> comparator;
-
     // use union codec to encode key hash integer (first) with its update counter (second)
     private static final UnionCodec HASH_CODEC = new UnionCodec(
         KEY_HASH_BITS, // bits# to represent key hash as any integer
@@ -86,16 +84,11 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
 
     /*----------------- Constructor -------------------*/
     /**
-     * Create a new EntryHashSet
-     * @param vMM   for values off-heap allocations and releases
-     * @param kMM off-heap allocations and releases for keys
+     * @param config shared configuration
      * @param entriesCapacity how many entries should this EntryOrderedSet keep at maximum
-     * @param keySerializer   used to serialize the key when written to off-heap
      */
-    EntryHashSet(MemoryManager vMM, MemoryManager kMM, int entriesCapacity, OakSerializer<K> keySerializer,
-        OakSerializer<V> valueSerializer, OakComparator<K> comparator) {
-        super(vMM, kMM, ADDITIONAL_FIELDS, entriesCapacity, keySerializer, valueSerializer);
-        this.comparator = comparator;
+    EntryHashSet(OakSharedConfig<K, V> config, int entriesCapacity) {
+        super(config, ADDITIONAL_FIELDS, entriesCapacity);
     }
 
     /*---------- Private methods for managing key hash entry field -------------*/
@@ -198,7 +191,7 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
         }
 
         assert tempKeyBuff.isAssociated();
-        return (0 == comparator.compareKeyAndSerializedKey(key, tempKeyBuff));
+        return (0 == config.comparator.compareKeyAndSerializedKey(key, tempKeyBuff));
     }
 
     /* Check the state of the entry in `idx`
@@ -213,7 +206,7 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
         boolean valueReadResult = false;
 
         // optimization, as invalid key reference should be the most frequent case
-        if (getKeyReference(idx) == keysMemoryManager.getInvalidReference()) {
+        if (getKeyReference(idx) == config.keysMemoryManager.getInvalidReference()) {
             return EntryState.UNKNOWN;
         }
 
@@ -346,7 +339,7 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
             ctx.entryIndex = (idx + i) % entriesCapacity; // check the entry candidate, cyclic increase
             ctx.keyHashAndUpdateCnt = getKeyHashAndUpdateCounter(ctx.entryIndex);
             long keyReference = getKeyReference(ctx.entryIndex);
-            if (keyReference == keysMemoryManager.getInvalidReference()) {
+            if (keyReference == config.keysMemoryManager.getInvalidReference()) {
                 return false; // there is no such a key and there is no need to look forward
             }
 
@@ -608,13 +601,13 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
         // The marking the delete bit happens only when no lock is taken, otherwise busy waits
         // if the version is already different result is RETRY, if already deleted - FALSE
         // we continue anyway, therefore disregard the logicalDelete() output
-        boolean isKeyReferenceDeleted = keysMemoryManager.isReferenceDeleted(expectedKeyReference);
+        boolean isKeyReferenceDeleted = config.keysMemoryManager.isReferenceDeleted(expectedKeyReference);
         if (!isKeyReferenceDeleted) {
             ctx.key.s.logicalDelete();
         }
 
         // Value's reference codec prepares the reference to be used after value is deleted
-        long newValueReference = valuesMemoryManager.alterReferenceForDelete(expectedValueReference);
+        long newValueReference = config.valuesMemoryManager.alterReferenceForDelete(expectedValueReference);
         // Scenario:
         // 1. The value's slice is marked as deleted off-heap and the thread that started
         //    deleteValueFinish falls asleep.
@@ -624,12 +617,12 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
         // This is ABA problem and resolved via always changing deleted variation of the reference
         // Also value's off-heap slice is released to memory manager only after deleteValueFinish
         // is done.
-        if (!valuesMemoryManager.isReferenceDeleted(expectedValueReference)) {
+        if (!config.valuesMemoryManager.isReferenceDeleted(expectedValueReference)) {
             if (casEntryFieldLong(ctx.entryIndex, VALUE_REF_OFFSET, expectedValueReference,
                 newValueReference)) {
                 // the deletion of the value and its release should be successful only once and for one
                 // thread, therefore the reference and slice should be still valid here
-                assert valuesMemoryManager.isReferenceConsistent(getValueReference(ctx.entryIndex));
+                assert config.valuesMemoryManager.isReferenceConsistent(getValueReference(ctx.entryIndex));
                 assert ctx.value.isAssociated();
                 ctx.value.getSlice().release();
                 ctx.value.invalidate();
@@ -637,10 +630,10 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
         }
         // mark key reference as deleted, if needed
         if (!isKeyReferenceDeleted) {
-            long newKeyReference = keysMemoryManager.alterReferenceForDelete(expectedKeyReference);
+            long newKeyReference = config.keysMemoryManager.alterReferenceForDelete(expectedKeyReference);
             if (casEntryFieldLong(ctx.entryIndex, KEY_REF_OFFSET, expectedKeyReference,
                 newKeyReference)) {
-                assert keysMemoryManager.isReferenceConsistent(getKeyReference(ctx.entryIndex));
+                assert config.keysMemoryManager.isReferenceConsistent(getKeyReference(ctx.entryIndex));
                 ctx.key.getSlice().release();
                 ctx.key.invalidate();
             }

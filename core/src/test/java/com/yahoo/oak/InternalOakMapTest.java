@@ -29,9 +29,9 @@ public class InternalOakMapTest {
         SeqExpandMemoryManager seqExpandMemoryManager = new SeqExpandMemoryManager(ma);
         int chunkMaxItems = 100;
 
-        testMap = new InternalOakMap<>(Integer.MIN_VALUE, OakCommonBuildersFactory.DEFAULT_INT_SERIALIZER,
-                OakCommonBuildersFactory.DEFAULT_INT_SERIALIZER, OakCommonBuildersFactory.DEFAULT_INT_COMPARATOR,
-                memoryManager, seqExpandMemoryManager, chunkMaxItems, new ValueUtils());
+        testMap = new InternalOakMap<>(OakCommonBuildersFactory.getDefaultIntBuilder().buildSharedConfig(
+                ma, memoryManager, seqExpandMemoryManager
+        ), Integer.MIN_VALUE, chunkMaxItems);
     }
 
     @After
