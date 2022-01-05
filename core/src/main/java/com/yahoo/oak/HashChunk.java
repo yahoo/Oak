@@ -307,7 +307,7 @@ class HashChunk<K, V> extends BasicChunk<K, V> {
 
     void printSummaryDebug() {
         System.out.print(" Entries: " + statistics.getTotalCount() + ", capacity: "
-            + entryHashSet.entriesCapacity + ", collisions: "
+            + entryHashSet.array.entryCount() + ", collisions: "
             + entryHashSet.getCollisionChainLength() + ", average accesses: ");
     }
 

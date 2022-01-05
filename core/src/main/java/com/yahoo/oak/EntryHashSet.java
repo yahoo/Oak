@@ -8,7 +8,8 @@ package com.yahoo.oak;
 
 import java.util.concurrent.atomic.AtomicInteger;
 
-/* EntryHashSet keeps a set of entries placed according to the key hash number modulo capacity.
+/**
+ * EntryHashSet keeps a set of entries placed according to the key hash number modulo capacity.
  * Entry is reference to key and value, both located off-heap.
  * EntryHashSet provides access, updates and manipulation on each entry, provided its entry index.
  *
@@ -17,36 +18,16 @@ import java.util.concurrent.atomic.AtomicInteger;
  * in a very special way (also explained below). The bits manipulations are ReferenceCodec responsibility.
  * Please update with care.
  *
- * Entries Array:
- * --------------------------------------------------------------------------------------
- * 0 | Key Reference          | Reference encoding all info needed to           |
- *   |                        | access the key off-heap                         | entry with
- * -----------------------------------------------------------------------------| entry index
- * 1 | Value Reference        | Reference encoding all info needed to           | 0
- *   |                        | access the value off-heap. (The encoding        |
- *   |                        | algorithm of key and value can be different)    |
- * -----------------------------------------------------------------------------|
- * 2 | Hash  - key hash, which might be different (bigger) than                 |
- *   |         entry index + update counter (increased every update)            |
- * ---------------------------------------------------------------------------------------
- * 3 | Key Reference          | Reference encoding all access info.             |
- *   |                        | Deleted reference (still) encoding all info     | entry with
- *   |                        | needed to access the key off-heap               | entry index
- * -----------------------------------------------------------------------------| 1
- * 4 | Value Reference        | Reference encoding all access info              |
- *   |                        |                                                 | entry can be
- * -----------------------------------------------------------------------------| deleted
- * 5 | Hash  - key hash, which might be different (bigger) than                 |
- *   |         entry index + update counter (increased every update)            |
- * ---------------------------------------------------------------------------------------
- * 6 | Key Reference          | Invalid key reference                           | empty entry
- * -----------------------------------------------------------------------------|
- * 7 | Value Reference        | Invalid value reference                         |
- * -----------------------------------------------------------------------------|
- * 8 | 000...00                                                                 |
- * ---------------------------------------------------------------------------------------
- * ...
- *
+ * Entry's fields:
+ * ----------------------------------------------------------------------------------------
+ *   0 | Key Reference: Reference encoding all info needed to access the key off-heap     |
+ * ---------------------------------------------------------------------------------------|
+ *   1 | Value Reference: Reference encoding all info needed to  access the key off-heap. |
+ *     |                  The encoding of key and value can be different                  |
+ * ---------------------------------------------------------------------------------------|
+ *   2 | Hash: key hash, which might be different (bigger) than                           |
+ *     |       entry index + update counter (increased every update)                      |
+ * ----------------------------------------------------------------------------------------
  *
  * Internal class, package visibility
  */
@@ -120,7 +101,7 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
      */
     private long getKeyHashAndUpdateCounter(int ei) {
         assert isIndexInBound(ei);
-        return getEntryFieldLong(ei, HASH_FIELD_OFFSET);
+        return array.getEntryFieldLong(ei, HASH_FIELD_OFFSET);
     }
 
     /**
@@ -145,7 +126,7 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
         int updCnt = HASH_CODEC.getSecond(oldKeyHash);
         long newFullHashField = // last one, means setting the valid bit
             HASH_CODEC.encode(newKeyHash, updCnt + 1, 1);
-        return casEntryFieldLong(ei, HASH_FIELD_OFFSET, oldKeyHash, newFullHashField);
+        return array.casEntryFieldLong(ei, HASH_FIELD_OFFSET, oldKeyHash, newFullHashField);
     }
 
     /**
@@ -160,7 +141,7 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
         int keyHash = HASH_CODEC.getFirst(oldKeyHash);
         long newKeyHash = // last zero, means re-setting the valid bit
             HASH_CODEC.encode(keyHash, updCnt + 1, 0);
-        return casEntryFieldLong(ei, HASH_FIELD_OFFSET, oldKeyHash, newKeyHash);
+        return array.casEntryFieldLong(ei, HASH_FIELD_OFFSET, oldKeyHash, newKeyHash);
     }
 
     /*----- Private Helpers -------*/
@@ -285,7 +266,7 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
         // as far as we didn't check more than `collisionChainLength` indexes
         for (int i = 0; i < collisionChainLengthLocal; i++) {
             ctx.invalidate(); // before checking new entry forget what was known about other entry
-            ctx.entryIndex = (idx + i) % entriesCapacity; // check the entry candidate, cyclic increase
+            ctx.entryIndex = (idx + i) % array.entryCount(); // check the entry candidate, cyclic increase
             // entry's key is read into ctx.tempKey as a side effect
             ctx.entryState = getEntryState(ctx, ctx.entryIndex, key, keyHash);
 
@@ -336,7 +317,7 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
         // as far as we didn't check more than `collisionChainLength` indexes
         for (int i = 0; i < collisionChainLengthLocal; i++) {
             // thread context comes invalidated
-            ctx.entryIndex = (idx + i) % entriesCapacity; // check the entry candidate, cyclic increase
+            ctx.entryIndex = (idx + i) % array.entryCount(); // check the entry candidate, cyclic increase
             ctx.keyHashAndUpdateCnt = getKeyHashAndUpdateCounter(ctx.entryIndex);
             long keyReference = getKeyReference(ctx.entryIndex);
             if (keyReference == config.keysMemoryManager.getInvalidReference()) {
@@ -405,7 +386,7 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
         // as far as we didn't check more than `collisionChainLength` indexes
         for (int i = 0; !entryFound && (i < collisionChainLengthLocal); i++) {
             ctx.invalidate();
-            ctx.entryIndex = (idx + i) % entriesCapacity; // check the entry candidate, cyclic increase
+            ctx.entryIndex = (idx + i) % array.entryCount(); // check the entry candidate, cyclic increase
             // entry's key is read into ctx.tempKey as a side effect
             ctx.entryState = getEntryState(ctx, ctx.entryIndex, key, keyHash);
 
@@ -458,7 +439,7 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
                 System.out.println(
                     "WARNING!: Too much collisions for the hash function may cause performance degradation");
             }
-            if (collisionChainLengthLocal > entriesCapacity) {
+            if (collisionChainLengthLocal > array.entryCount()) {
                 System.out.println(
                     "FAILURE!: Too much collisions (" + collisionChainLength.get() +
                         ") to be kept in one chunk. Make sure to enlarge chunk!");
@@ -618,7 +599,7 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
         // Also value's off-heap slice is released to memory manager only after deleteValueFinish
         // is done.
         if (!config.valuesMemoryManager.isReferenceDeleted(expectedValueReference)) {
-            if (casEntryFieldLong(ctx.entryIndex, VALUE_REF_OFFSET, expectedValueReference,
+            if (array.casEntryFieldLong(ctx.entryIndex, VALUE_REF_OFFSET, expectedValueReference,
                 newValueReference)) {
                 // the deletion of the value and its release should be successful only once and for one
                 // thread, therefore the reference and slice should be still valid here
@@ -631,7 +612,7 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
         // mark key reference as deleted, if needed
         if (!isKeyReferenceDeleted) {
             long newKeyReference = config.keysMemoryManager.alterReferenceForDelete(expectedKeyReference);
-            if (casEntryFieldLong(ctx.entryIndex, KEY_REF_OFFSET, expectedKeyReference,
+            if (array.casEntryFieldLong(ctx.entryIndex, KEY_REF_OFFSET, expectedKeyReference,
                 newKeyReference)) {
                 assert config.keysMemoryManager.isReferenceConsistent(getKeyReference(ctx.entryIndex));
                 ctx.key.getSlice().release();
