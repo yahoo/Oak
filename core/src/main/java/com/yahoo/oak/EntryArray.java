@@ -9,7 +9,7 @@ package com.yahoo.oak;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
- * Entry include at key and value references, but might include more.
+ * Entry includes a key and a value references, but might include more.
  *
  * Entry's fields:
  * ----------------------------------------------------------------------------------------
