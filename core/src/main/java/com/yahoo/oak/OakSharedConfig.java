@@ -25,6 +25,8 @@ public class OakSharedConfig<K, V> {
     public final ValueUtils valueOperator;
 
     public final AtomicInteger size;
+    
+    protected boolean prtKeys;
 
     public OakSharedConfig(
             BlockMemoryAllocator memoryAllocator,
@@ -42,5 +44,6 @@ public class OakSharedConfig<K, V> {
         this.comparator = comparator;
         this.valueOperator = new ValueUtils();
         this.size = new AtomicInteger(0);
+        this.prtKeys = false; 
     }
 }

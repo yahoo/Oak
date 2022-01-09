@@ -32,6 +32,7 @@ class OrderedChunk<K, V> extends BasicChunk<K, V> {
 
     // # of sorted items at entry-array's beginning (resulting from split)
     private final AtomicInteger sortedCount;
+    private final boolean releaseKeys;
 
     /*-------------- Constructors --------------*/
     /**
@@ -44,6 +45,7 @@ class OrderedChunk<K, V> extends BasicChunk<K, V> {
         // sortedCount keeps the number of  subsequent and ordered entries in the entries array,
         // which are subject to binary search
         this.sortedCount = new AtomicInteger(0);
+        this.releaseKeys = ! (config.keysMemoryManager instanceof SeqExpandMemoryManager);
         this.minKey = new KeyBuffer(config.keysMemoryManager.getEmptySlice());
         this.next = new AtomicMarkableReference<>(null, false);
     }
@@ -208,6 +210,14 @@ class OrderedChunk<K, V> extends BasicChunk<K, V> {
     private int getLastSortedEntryIndex(int sortedCount) {
         return sortedCount - 1;
     }
+    
+    
+    void release() {
+        config.prtKeys = true;
+        if ( super.state.compareAndSet(State.FROZEN, State.RELEASED) && releaseKeys) {
+            entryOrderedSet.releaseAllDeletedKeys();
+        }
+    }
 
     /********************************************************************************************/
     /*-----------------------  Methods for looking up item in this chunk -----------------------*/
@@ -225,6 +235,9 @@ class OrderedChunk<K, V> extends BasicChunk<K, V> {
     int compareKeyAndEntryIndex(KeyBuffer tempKeyBuff, K key, int ei) {
         boolean isAllocated = entryOrderedSet.readKey(tempKeyBuff, ei);
         assert isAllocated;
+        if (config.prtKeys) {
+            return KeyUtils.compareKeyAndSerializedKey(key, tempKeyBuff, config.comparator);
+        }
         return config.comparator.compareKeyAndSerializedKey(key, tempKeyBuff);
     }
 
