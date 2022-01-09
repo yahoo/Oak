@@ -307,8 +307,8 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
                         //                      and there is no need to continue to check next entries
                         // INSERT_NOT_FINALIZED --> before linearization point, key doesn't exist
                         // when more than unique keys can be concurrently inserted, need to check further!
-                        return ctx.entryState == EntryState.VALID;
-                    }   
+                    return ctx.entryState == EntryState.VALID;
+                }   
             }  catch (DeletedMemoryAccessException e) {
                 //consider the entry deleted, move to next as well.
             }
