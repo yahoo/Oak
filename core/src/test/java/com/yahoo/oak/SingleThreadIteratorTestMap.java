@@ -16,7 +16,7 @@ import java.nio.ByteBuffer;
 import java.util.Iterator;
 import java.util.Map;
 
-public class SingleThreadIteratorTest {
+public class SingleThreadIteratorTestMap {
 
     private OakMap<Integer, Integer> oak;
     private int maxItemsPerChunk = 2048;
@@ -108,6 +108,41 @@ public class SingleThreadIteratorTest {
         Assert.assertTrue(valIter.hasNext());
         Assert.assertEquals(expectedVal, valIter.next());
     }
+
+    @Test
+    public void testStreamIterator() {
+        int numOfItems = 2 * maxItemsPerChunk;
+        populate(numOfItems);
+
+        Iterator<OakUnscopedBuffer> keyStreamIterator = oak.zc().keyStreamSet().iterator();
+        Iterator<OakUnscopedBuffer> valStreamIterator = oak.zc().valuesStream().iterator();
+        Iterator<Map.Entry<OakUnscopedBuffer, OakUnscopedBuffer>> entryStreamIterator
+                = oak.zc().entryStreamSet().iterator();
+
+
+        Integer expectedVal = 0;
+        while (keyStreamIterator.hasNext()) {
+            Integer curKey = keyStreamIterator.next()
+                    .transform(OakCommonBuildersFactory.DEFAULT_INT_SERIALIZER::deserialize);
+            Integer curVal = valStreamIterator.next()
+                    .transform(OakCommonBuildersFactory.DEFAULT_INT_SERIALIZER::deserialize);
+
+            Assert.assertEquals(expectedVal, curVal);
+            Assert.assertEquals(curVal, curKey);
+
+            Map.Entry<OakUnscopedBuffer, OakUnscopedBuffer> e = entryStreamIterator.next();
+            Integer entryKey = e.getKey().transform(OakCommonBuildersFactory.DEFAULT_INT_SERIALIZER::deserialize);
+            Integer entryVal = e.getValue().transform(OakCommonBuildersFactory.DEFAULT_INT_SERIALIZER::deserialize);
+
+            Assert.assertEquals(expectedVal, entryKey);
+            Assert.assertEquals(entryKey, entryVal);
+
+            expectedVal++;
+
+        }
+        Assert.assertEquals(expectedVal.intValue(), numOfItems );
+    }
+
 
     @Test
     public void testGetRange() {
@@ -505,10 +540,10 @@ public class SingleThreadIteratorTest {
             Assert.assertEquals(expectedVal, e.getKey());
             Assert.assertEquals(expectedVal, e.getValue());
 
-            if (expectedVal == valToRemove1) {
+            if (expectedVal.equals(valToRemove1)) {
                 valIter.remove();
             }
-            if (expectedVal == valToRemove2) {
+            if (expectedVal.equals(valToRemove2)) {
                 entryIter.remove();
             }
 
@@ -520,7 +555,7 @@ public class SingleThreadIteratorTest {
         expectedVal = 0;
 
         while (valIter.hasNext()) {
-            if (expectedVal == valToRemove1 || expectedVal == valToRemove2) {
+            if (expectedVal.equals(valToRemove1) || expectedVal.equals(valToRemove2)) {
                 expectedVal++;
                 continue;
             }
@@ -532,5 +567,30 @@ public class SingleThreadIteratorTest {
 
         }
 
+    }
+
+    /**
+     * check how the iterator handles empty and sparse chunks
+     */
+    @Test
+    public void testSparsePopulation() {
+        int numOfItems = 10;
+        populate(numOfItems);
+
+        Iterator<Integer> valIter = oak.values().iterator();
+
+        Integer expectedVal = 0;
+        while (valIter.hasNext()) {
+            Assert.assertEquals(expectedVal, valIter.next());
+            expectedVal++;
+        }
+        Assert.assertEquals(expectedVal.intValue(), numOfItems);
+
+
+    }
+    private void populate(int numOfItems) {
+        for (Integer i = 0; i < numOfItems; i++) {
+            oak.zc().put(i, i);
+        }
     }
 }

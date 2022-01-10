@@ -79,6 +79,7 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
     /**
      * cleans off heap memory
      */
+    @Override
     void close() {
         int res = referenceCount.decrementAndGet();
         // reference counter counts the submaps referencing the same InternalOakMap instance
@@ -315,6 +316,7 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
 
     // put the value assosiated with the key, if key existed old value is overwritten
     // TODO: organize the return values for ZC and non-ZC APIs
+    @Override
     V put(K key, V value, OakTransformer<V> transformer) {
         if (key == null || value == null) {
             throw new NullPointerException();
@@ -375,6 +377,7 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
 
     // put the value associated with the key, only if key didn't exist
     // returned results describes whether the value was inserted or not
+    @Override
     Result putIfAbsent(K key, V value, OakTransformer<V> transformer) {
         if (key == null || value == null) {
             throw new NullPointerException();
@@ -437,6 +440,7 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
     // if key didn't exist, put the value to be associated with the key
     // otherwise perform compute on the existing value
     // return false if compute happened, true if put happened
+    @Override
     boolean putIfAbsentComputeIfPresent(K key, V value, Consumer<OakScopedWriteBuffer> computer) {
         if (key == null || value == null || computer == null) {
             throw new NullPointerException();
@@ -496,6 +500,7 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
 
 
     // the zero-copy version of get
+    @Override
     OakUnscopedBuffer get(K key) {
         if (key == null) {
             throw new NullPointerException();
@@ -509,34 +514,6 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
         }
         return getValueUnscopedBuffer(ctx);
 
-    }
-
-    // if key with a valid value exists in the map, apply compute function on the value
-    // return true if compute did happen
-    boolean computeIfPresent(K key, Consumer<OakScopedWriteBuffer> computer) {
-        if (key == null || computer == null) {
-            throw new NullPointerException();
-        }
-
-        ThreadContext ctx = getThreadContext();
-
-        for (int i = 0; i < MAX_RETRIES; i++) {
-            OrderedChunk<K, V> c = findChunk(key, ctx); // find orderedChunk matching key
-            c.lookUp(ctx, key);
-            if (ctx.isValueValid()) {
-                ValueUtils.ValueResult res = getValueOperator().compute(ctx.value, computer);
-                if (res == ValueUtils.ValueResult.TRUE) {
-                    // compute was successful and the value wasn't found deleted; in case
-                    // this value was already marked as deleted, continue to construct another slice
-                    return true;
-                } else if (res == ValueUtils.ValueResult.RETRY) {
-                    continue;
-                }
-            }
-            return false;
-        }
-
-        throw new RuntimeException("computeIfPresent failed: reached retry limit (1024).");
     }
 
     /**
@@ -558,6 +535,7 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
 
 
     // the non-ZC variation of the get
+    @Override
     <T> T getValueTransformation(K key, OakTransformer<T> transformer) {
         if (key == null || transformer == null) {
             throw new NullPointerException();
@@ -653,52 +631,6 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
         OrderedChunk<K, V> c = skiplist.floorEntry(key).getValue();
         c = iterateChunks(c, key);
         return c;
-    }
-
-    V replace(K key, V value, OakTransformer<V> valueDeserializeTransformer) {
-        ThreadContext ctx = getThreadContext();
-
-        for (int i = 0; i < MAX_RETRIES; i++) {
-            OrderedChunk<K, V> c = findChunk(key, ctx); // find orderedChunk matching key
-            c.lookUp(ctx, key);
-            if (!ctx.isValueValid()) {
-                return null;
-            }
-
-            // will return null if the value is deleted
-            Result result = getValueOperator().exchange(c, ctx, value, valueDeserializeTransformer,
-                    getValueSerializer());
-            if (result.operationResult != ValueUtils.ValueResult.RETRY) {
-                return (V) result.value;
-            }
-            // it might be that this chunk is proceeding with rebalance -> help
-            helpRebalanceIfInProgress(c);
-        }
-
-        throw new RuntimeException("replace failed: reached retry limit (1024).");
-    }
-
-    boolean replace(K key, V oldValue, V newValue, OakTransformer<V> valueDeserializeTransformer) {
-        ThreadContext ctx = getThreadContext();
-
-        for (int i = 0; i < MAX_RETRIES; i++) {
-            OrderedChunk<K, V> c = findChunk(key, ctx); // find orderedChunk matching key
-            c.lookUp(ctx, key);
-            if (!ctx.isValueValid()) {
-                return false;
-            }
-
-            ValueUtils.ValueResult res = getValueOperator().compareExchange(c, ctx, oldValue, newValue,
-                    valueDeserializeTransformer, getValueSerializer());
-            if (res == ValueUtils.ValueResult.RETRY) {
-                // it might be that this chunk is proceeding with rebalance -> help
-                helpRebalanceIfInProgress(c);
-                continue;
-            }
-            return res == ValueUtils.ValueResult.TRUE;
-        }
-
-        throw new RuntimeException("replace failed: reached retry limit (1024).");
     }
 
     Map.Entry<K, V> lowerEntry(K key) {
