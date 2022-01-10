@@ -231,14 +231,18 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
             // Entry is in insertion process. Return insert_not_finished only if this is the
             // same key, but we shouldn't rely on compare with key marked deleted in the off-heap.
             // Otherwise, return entry is valid and it will be skipped for new insertion.
-            if (isKeyAndEntryKeyEqual(ctx.key, key, idx, keyHash)) {
-                // checking the off-heap key header's delete bit
-                if (ctx.key.getSlice().isDeleted() != ValueUtils.ValueResult.FALSE) {
-                    return isKeyHashValid(idx) ? EntryState.DELETED_NOT_FINALIZED : EntryState.DELETED;
-                }
-                return EntryState.INSERT_NOT_FINALIZED;
-            } else {
-                return EntryState.VALID;
+            try {
+                if (isKeyAndEntryKeyEqual(ctx.key, key, idx, keyHash)) {
+                    // checking the off-heap key header's delete bit
+                    if (ctx.key.getSlice().isDeleted() != ValueUtils.ValueResult.FALSE) {
+                        return isKeyHashValid(idx) ? EntryState.DELETED_NOT_FINALIZED : EntryState.DELETED;
+                    }
+                    return EntryState.INSERT_NOT_FINALIZED;
+                } else {
+                    return EntryState.VALID;
+                }   
+            }  catch (DeletedMemoryAccessException e) {
+                return isKeyHashValid(idx) ? EntryState.DELETED_NOT_FINALIZED : EntryState.DELETED;
             }
         } else {
             // Both value and key are deleted. Does HashUpdCntValid have valid bit on?
