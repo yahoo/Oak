@@ -8,6 +8,8 @@ package com.yahoo.oak;
 
 import com.yahoo.oak.common.OakCommonBuildersFactory;
 import com.yahoo.oak.common.integer.OakIntSerializer;
+import org.junit.After;
+import org.junit.Before;
 import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -70,18 +72,18 @@ public class WorkloadMemoryTest {
         });
     }
 
-
-
-
-
-
-
-
-    private void initStuff() {
+    @Before
+    public void initStuff() {
         oak = supplier.get();
         barrier = new CyclicBarrier(NUM_THREADS + 1);
         stop = new AtomicBoolean(false);
         threads = new ArrayList<>(NUM_THREADS);
+    }
+
+    @After
+    public void tearDown() {
+        oak.close();
+        BlocksPool.clear();
     }
 
     static class RunThread extends Thread {
@@ -178,7 +180,6 @@ public class WorkloadMemoryTest {
     @Ignore
     @Test
     public void start() {
-        initStuff();
         onlyPuts();
     }
 }

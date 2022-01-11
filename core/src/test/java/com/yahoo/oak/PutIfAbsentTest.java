@@ -74,6 +74,7 @@ public class PutIfAbsentTest {
     public void finish() {
         executor.shutdownNow();
         oak.close();
+        BlocksPool.clear();
     }
 
 

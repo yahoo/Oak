@@ -87,6 +87,8 @@ public class ConcurrentPutRemoveTest {
     @After
     public void tearDown() {
         executor.shutdownNow();
+        oak.close();
+        BlocksPool.clear();
     }
 
     class RunThread implements Callable<Void> {

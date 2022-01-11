@@ -32,7 +32,6 @@ public class OakMapBuilder<K, V> {
 
     // Off-heap fields
     private long memoryCapacity;
-    private BlockMemoryAllocator memoryAllocator;
     private Integer preferredBlockSizeBytes;
 
     public OakMapBuilder(OakComparator<K> comparator,
@@ -47,7 +46,6 @@ public class OakMapBuilder<K, V> {
         this.hashChunkMaxItems = HashChunk.HASH_CHUNK_MAX_ITEMS_DEFAULT;
         this.preallocHashChunksNum = FirstLevelHashArray.HASH_CHUNK_NUM_DEFAULT;
         this.memoryCapacity = MAX_MEM_CAPACITY;
-        this.memoryAllocator = null;
         this.preferredBlockSizeBytes = null;
     }
 
@@ -91,11 +89,6 @@ public class OakMapBuilder<K, V> {
         return this;
     }
 
-    public OakMapBuilder<K, V> setMemoryAllocator(BlockMemoryAllocator ma) {
-        this.memoryAllocator = ma;
-        return this;
-    }
-
     /**
      * Sets the preferred block size. This only has an effect if OakMap was never instantiated before.
      * @param preferredBlockSizeBytes the preferred block size
@@ -104,7 +97,6 @@ public class OakMapBuilder<K, V> {
         this.preferredBlockSizeBytes = preferredBlockSizeBytes;
         return this;
     }
-
 
     private void checkPreconditions() {
         if (comparator == null) {
@@ -118,45 +110,57 @@ public class OakMapBuilder<K, V> {
         }
     }
 
+    private BlockMemoryAllocator buildMemoryAllocator() {
+        return new NativeMemoryAllocator(memoryCapacity);
+    }
+
+    /**
+     * Builds a shared config object.
+     * Also used for testing.
+     */
+    OakSharedConfig<K, V> buildSharedConfig(
+            BlockMemoryAllocator memoryAllocator,
+            MemoryManager keysMemoryManager,
+            MemoryManager valuesMemoryManager
+    ) {
+        return new OakSharedConfig<>(
+                memoryAllocator, keysMemoryManager, valuesMemoryManager,
+                keySerializer, valueSerializer, comparator
+        );
+    }
 
     public OakMap<K, V> buildOrderedMap() {
         if (preferredBlockSizeBytes != null) {
             BlocksPool.preferBlockSize(preferredBlockSizeBytes);
         }
 
-        if (memoryAllocator == null) {
-            this.memoryAllocator = new NativeMemoryAllocator(memoryCapacity);
-        }
+        BlockMemoryAllocator memoryAllocator = buildMemoryAllocator();
+        OakSharedConfig<K, V> config = buildSharedConfig(
+                memoryAllocator,
+                new SeqExpandMemoryManager(memoryAllocator),
+                new SyncRecycleMemoryManager(memoryAllocator)
+        );
 
-        MemoryManager valuesMemoryManager = new SyncRecycleMemoryManager(memoryAllocator);
-        MemoryManager keysMemoryManager = new SeqExpandMemoryManager(memoryAllocator);
         checkPreconditions();
+
         if (minKey == null) {
             throw new IllegalStateException("Must provide a non-null minimal key object to build the OakMap");
         }
-        return new OakMap<>(
-                minKey,
-                keySerializer,
-                valueSerializer,
-                comparator, orderedChunkMaxItems,
-                valuesMemoryManager, keysMemoryManager);
+        return new OakMap<>(config, minKey, orderedChunkMaxItems);
     }
-
-
-
-
 
     public OakHashMap<K, V> buildHashMap() {
         if (preferredBlockSizeBytes != null) {
             BlocksPool.preferBlockSize(preferredBlockSizeBytes);
         }
 
-        if (memoryAllocator == null) {
-            this.memoryAllocator = new NativeMemoryAllocator(memoryCapacity);
-        }
-        MemoryManager valuesMemoryManager = new SyncRecycleMemoryManager(memoryAllocator);
-        // for hash the keys are indeed deleted, thus SeqExpandMemoryManager isn't acceptable
-        MemoryManager keysMemoryManager = new SyncRecycleMemoryManager(memoryAllocator);
+        BlockMemoryAllocator memoryAllocator = buildMemoryAllocator();
+        OakSharedConfig<K, V> config = buildSharedConfig(
+                memoryAllocator,
+                // for hash the keys are indeed deleted, thus SeqExpandMemoryManager isn't acceptable
+                new SyncRecycleMemoryManager(memoryAllocator),
+                new SyncRecycleMemoryManager(memoryAllocator)
+        );
 
         // Number of bits to define the chunk size is calculated from given number of items
         // to be kept in one hash chunk. The number of chunks pre-allocated in the hash is
@@ -167,9 +171,8 @@ public class OakMapBuilder<K, V> {
         System.gc(); // the below is memory costly, be sure all unreachable memory is cleared
 
         checkPreconditions();
-        return new OakHashMap<>(keySerializer, valueSerializer,
-                comparator,
-                bitsToKeepChunkSize, bitsToKeepChunksNum, valuesMemoryManager, keysMemoryManager);
+
+        return new OakHashMap<>(config, bitsToKeepChunkSize, bitsToKeepChunksNum);
     }
 
 }

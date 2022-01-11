@@ -8,7 +8,7 @@ package com.yahoo.oak;
 
 import java.util.concurrent.atomic.AtomicInteger;
 
-/* EntryHashSet keeps a set of entries placed according to the key hash.
+/* EntryHashSet keeps a set of entries placed according to the key hash number modulo capacity.
  * Entry is reference to key and value, both located off-heap.
  * EntryHashSet provides access, updates and manipulation on each entry, provided its entry index.
  *
@@ -56,6 +56,7 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
 
     static final int DEFAULT_COLLISION_CHAIN_LENGTH = 4;
     // HASH - the key hash of this entry (long includes the update counter)
+    // key hash is first, update counter is second, valid bit is third
     private static final int HASH_FIELD_OFFSET = 2;
     private static final int KEY_HASH_BITS = 32; // Hash needs to be an integer
     private static final int UPDATE_COUNTER_BITS = 31;
@@ -74,8 +75,6 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
     // number of entries candidates to try in case of collision
     private final AtomicInteger collisionChainLength = new AtomicInteger(DEFAULT_COLLISION_CHAIN_LENGTH);
 
-    private final OakComparator<K> comparator;
-
     // use union codec to encode key hash integer (first) with its update counter (second)
     private static final UnionCodec HASH_CODEC = new UnionCodec(
         KEY_HASH_BITS, // bits# to represent key hash as any integer
@@ -85,16 +84,11 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
 
     /*----------------- Constructor -------------------*/
     /**
-     * Create a new EntryHashSet
-     * @param vMM   for values off-heap allocations and releases
-     * @param kMM off-heap allocations and releases for keys
+     * @param config shared configuration
      * @param entriesCapacity how many entries should this EntryOrderedSet keep at maximum
-     * @param keySerializer   used to serialize the key when written to off-heap
      */
-    EntryHashSet(MemoryManager vMM, MemoryManager kMM, int entriesCapacity, OakSerializer<K> keySerializer,
-        OakSerializer<V> valueSerializer, OakComparator<K> comparator) {
-        super(vMM, kMM, ADDITIONAL_FIELDS, entriesCapacity, keySerializer, valueSerializer);
-        this.comparator = comparator;
+    EntryHashSet(OakSharedConfig<K, V> config, int entriesCapacity) {
+        super(config, ADDITIONAL_FIELDS, entriesCapacity);
     }
 
     /*---------- Private methods for managing key hash entry field -------------*/
@@ -104,8 +98,20 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
      */
     private int getKeyHash(int ei) {
         assert isIndexInBound(ei);
-        // extract the hash number (first) from the updates counter (second)
+        // extract the key hash number
+        // (first of the three fields squeezed into KeyHashAndUpdateCounter of an entry)
         return HASH_CODEC.getFirst(getKeyHashAndUpdateCounter(ei));
+    }
+
+    /**
+     * getUpdCntFromHash returns the key hash's update counter of the entry given by entry index "ei"
+     * (without key hash itself!).
+     */
+    private int getUpdCntFromHash(int ei) {
+        assert isIndexInBound(ei);
+        // extract the update counter of the entry
+        // (second of the three fields squeezed into KeyHashAndUpdateCounter of an entry)
+        return HASH_CODEC.getSecond(getKeyHashAndUpdateCounter(ei));
     }
 
     /**
@@ -185,7 +191,7 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
         }
 
         assert tempKeyBuff.isAssociated();
-        return (0 == comparator.compareKeyAndSerializedKey(key, tempKeyBuff));
+        return (0 == config.comparator.compareKeyAndSerializedKey(key, tempKeyBuff));
     }
 
     /* Check the state of the entry in `idx`
@@ -196,55 +202,48 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
     ** --> ctx.key, ctx.value, ctx.keyHash keep the data of the entry's key, value, and key hash
      */
     private EntryState getEntryState(ThreadContext ctx, int idx, K key, int keyHash) {
+        boolean keyReadResult = false;
+        boolean valueReadResult = false;
 
-        ctx.keyHashAndUpdateCnt = getKeyHashAndUpdateCounter(idx);
-        if (getKeyReference(idx) == keysMemoryManager.getInvalidReference()) {
+        // optimization, as invalid key reference should be the most frequent case
+        if (getKeyReference(idx) == config.keysMemoryManager.getInvalidReference()) {
             return EntryState.UNKNOWN;
         }
-        // entry was used already, is value valid or deleted?
-        if (getValueReference(idx) != valuesMemoryManager.getInvalidReference()) {
-            // the linearization point of deletion is marking the value off-heap
-            // isValueDeleted checks the reference first (for being deleted) than the off-heap header
-            // isValueDeleted returns true also for invalid reference therefore the check above
-            if (isValueDeleted(ctx.value, idx)) { // value is read to the ctx.value as a side effect
-                // for later progressing with deleted entry read current key slice
-                // (value is read during deleted key check, unless deleted)
-                if (readKey(ctx.key, idx)) {
-                    // key is not deleted: either this deletion is not yet finished,
-                    // or this is a new assignment on top of deleted entry
-                    // Check the key hash:
-                    // if invalid --> this is INSERT_NOT_FINALIZED if valid --> DELETED_NOT_FINALIZED
-                    if (isKeyHashValid(idx)) {
-                        return EntryState.DELETED_NOT_FINALIZED;
-                    }
-                    // INSERT_NOT_FINALIZED will be returned later if key matches
-                } else {
-                    // key is deleted, check that key hash is invalidated,
-                    // because it is the last stage of deletion
+
+        // try to get consistent read of key, value, hash code, its update counter and valid bit
+        do {
+            ctx.keyHashAndUpdateCnt = getKeyHashAndUpdateCounter(idx);
+            // entry is occupied (anyhow), read the key, remember the result
+            keyReadResult = readKey(ctx.key, idx);
+            // read value, if value is invalid or deleted reference the read will fail
+            valueReadResult = readValue(ctx.value, idx);
+        } while (ctx.keyHashAndUpdateCnt != getKeyHashAndUpdateCounter(idx));
+
+        if (valueReadResult) { // was value read successful?
+            // Entry is Valid, but can be in deletion process
+            // checking the off-heap value header's delete bit
+            return (ctx.value.getSlice().isDeleted() != ValueUtils.ValueResult.FALSE) ?
+                EntryState.DELETED_NOT_FINALIZED : EntryState.VALID;
+        } else if (keyReadResult) {
+            // value invalid or deleted
+            // Entry is either not yet inserted, or in deletion process or already deleted
+            // But key read was successful
+            // Entry is in insertion process. Return insert_not_finished only if this is the
+            // same key, but we shouldn't rely on compare with key marked deleted in the off-heap.
+            // Otherwise, return entry is valid and it will be skipped for new insertion.
+            if (isKeyAndEntryKeyEqual(ctx.key, key, idx, keyHash)) {
+                // checking the off-heap key header's delete bit
+                if (ctx.key.getSlice().isDeleted() != ValueUtils.ValueResult.FALSE) {
                     return isKeyHashValid(idx) ? EntryState.DELETED_NOT_FINALIZED : EntryState.DELETED;
                 }
-                // not finalized insert is progressing out of this if
+                return EntryState.INSERT_NOT_FINALIZED;
+            } else {
+                return EntryState.VALID;
             }
-        }
-
-        // read current key slice (value is read during delete check)
-        if (!readKey(ctx.key, ctx.entryIndex)) {
-            // key is deleted (was already checked for being valid, cannot turn to be invalid again)
-            // check that key hash is invalidated, because it is the last stage of deletion
+        } else {
+            // Both value and key are deleted. Does HashUpdCntValid have valid bit on?
             return isKeyHashValid(idx) ? EntryState.DELETED_NOT_FINALIZED : EntryState.DELETED;
         }
-
-        // value is either invalid or valid (but not deleted), can be in progress of being inserted
-        // if value reference is invalid or deleted, readValue returns false
-        if (readValue(ctx.value, idx)) {
-            return EntryState.VALID;
-        }
-
-        // value is invalid, in case another thread inserts the same key
-        if (isKeyAndEntryKeyEqual(ctx.key, key, idx, keyHash)) {
-            return EntryState.INSERT_NOT_FINALIZED;
-        }
-        return EntryState.VALID;
     }
 
     /**
@@ -338,9 +337,9 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
         for (int i = 0; i < collisionChainLengthLocal; i++) {
             // thread context comes invalidated
             ctx.entryIndex = (idx + i) % entriesCapacity; // check the entry candidate, cyclic increase
-
+            ctx.keyHashAndUpdateCnt = getKeyHashAndUpdateCounter(ctx.entryIndex);
             long keyReference = getKeyReference(ctx.entryIndex);
-            if (keyReference == keysMemoryManager.getInvalidReference()) {
+            if (keyReference == config.keysMemoryManager.getInvalidReference()) {
                 return false; // there is no such a key and there is no need to look forward
             }
 
@@ -362,6 +361,11 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
                     // either INSERT_NOT_FINALIZED or DELETED_NOT_FINALIZED or DELETED
                     // However from lookUp point of view the value (and the entry) is invalid in each of
                     // the cases
+                    return false;
+                }
+                // if we came till here, the entry (key of which we read in at the beginning) wasn't
+                // deleted. Check if it wasn't deleted later
+                if (ctx.keyHashAndUpdateCnt != getKeyHashAndUpdateCounter(ctx.entryIndex)) {
                     return false;
                 }
                 ctx.entryState = EntryState.VALID;
@@ -597,13 +601,13 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
         // The marking the delete bit happens only when no lock is taken, otherwise busy waits
         // if the version is already different result is RETRY, if already deleted - FALSE
         // we continue anyway, therefore disregard the logicalDelete() output
-        boolean isKeyReferenceDeleted = keysMemoryManager.isReferenceDeleted(expectedKeyReference);
+        boolean isKeyReferenceDeleted = config.keysMemoryManager.isReferenceDeleted(expectedKeyReference);
         if (!isKeyReferenceDeleted) {
             ctx.key.s.logicalDelete();
         }
 
         // Value's reference codec prepares the reference to be used after value is deleted
-        long newValueReference = valuesMemoryManager.alterReferenceForDelete(expectedValueReference);
+        long newValueReference = config.valuesMemoryManager.alterReferenceForDelete(expectedValueReference);
         // Scenario:
         // 1. The value's slice is marked as deleted off-heap and the thread that started
         //    deleteValueFinish falls asleep.
@@ -613,12 +617,12 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
         // This is ABA problem and resolved via always changing deleted variation of the reference
         // Also value's off-heap slice is released to memory manager only after deleteValueFinish
         // is done.
-        if (!valuesMemoryManager.isReferenceDeleted(expectedValueReference)) {
+        if (!config.valuesMemoryManager.isReferenceDeleted(expectedValueReference)) {
             if (casEntryFieldLong(ctx.entryIndex, VALUE_REF_OFFSET, expectedValueReference,
                 newValueReference)) {
                 // the deletion of the value and its release should be successful only once and for one
                 // thread, therefore the reference and slice should be still valid here
-                assert valuesMemoryManager.isReferenceConsistent(getValueReference(ctx.entryIndex));
+                assert config.valuesMemoryManager.isReferenceConsistent(getValueReference(ctx.entryIndex));
                 assert ctx.value.isAssociated();
                 ctx.value.getSlice().release();
                 ctx.value.invalidate();
@@ -626,10 +630,10 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
         }
         // mark key reference as deleted, if needed
         if (!isKeyReferenceDeleted) {
-            long newKeyReference = keysMemoryManager.alterReferenceForDelete(expectedKeyReference);
+            long newKeyReference = config.keysMemoryManager.alterReferenceForDelete(expectedKeyReference);
             if (casEntryFieldLong(ctx.entryIndex, KEY_REF_OFFSET, expectedKeyReference,
                 newKeyReference)) {
-                assert keysMemoryManager.isReferenceConsistent(getKeyReference(ctx.entryIndex));
+                assert config.keysMemoryManager.isReferenceConsistent(getKeyReference(ctx.entryIndex));
                 ctx.key.getSlice().release();
                 ctx.key.invalidate();
             }

@@ -34,7 +34,8 @@ class FirstLevelHashArray<K, V> {
      * num of pointers are going to point to another chunk and so on.
      * Other creation patterns (like all the hash array entries referencing the same chunk) are possible.
      * Majority of the parameters are needed for chunk creation.
-     *  @param msbForFirstLevelHash number of most significant bits to be used to calculate the
+     * @param config shared configuration
+     * @param msbForFirstLevelHash number of most significant bits to be used to calculate the
      *                             index in the hash array. It also affects directly the size of the
      *                             array. It is going to be incorporated inside hashIndexCodec and
      *                             transferred to chunks.
@@ -51,9 +52,8 @@ class FirstLevelHashArray<K, V> {
      *              different hashIndexCodecs are created. If FirstLevelHashArray size changes,
      *              hashIndexCodec is changed, but not necessarily hashIndexCodecForChunk, and visa versa
      */
-    FirstLevelHashArray(int msbForFirstLevelHash, int lsbForSecondLevelHash, AtomicInteger externalSize,
-        MemoryManager vMM, MemoryManager kMM, OakComparator<K> comparator,
-        OakSerializer<K> keySerializer, OakSerializer<V> valueSerializer, int multipleReferenceNum) {
+    FirstLevelHashArray(OakSharedConfig<K, V> config,
+                        int msbForFirstLevelHash, int lsbForSecondLevelHash, int multipleReferenceNum) {
 
         // the key hash (int) separation between MSB for first level ans LSB for second level,
         // to be used by hash array and all chunks, until resize
@@ -79,8 +79,7 @@ class FirstLevelHashArray<K, V> {
         // initiate chunks
         for (int i = 0; i < chunks.length(); i++) {
             if (currentSameRefer == multipleReferenceNum) {
-                c = new HashChunk<>(chunkSize, externalSize, vMM, kMM, comparator,
-                    keySerializer, valueSerializer, hashIndexCodecForChunk);
+                c = new HashChunk<>(config, chunkSize, hashIndexCodecForChunk);
             }
             this.chunks.lazySet(i, c);
             currentSameRefer--;

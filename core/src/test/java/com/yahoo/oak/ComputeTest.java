@@ -41,16 +41,16 @@ public class ComputeTest {
 
     ExecutorUtils<Void> executor;
     private CountDownLatch latch;
-    private Supplier<ConcurrentZCMap> builder;
+    private Supplier<ConcurrentZCMap<ByteBuffer, ByteBuffer>> builder;
 
-    public ComputeTest(Supplier<ConcurrentZCMap> supplier) {
+    public ComputeTest(Supplier<ConcurrentZCMap<ByteBuffer, ByteBuffer>> supplier) {
         this.builder = supplier;
     }
 
     @Parameterized.Parameters
     public static Collection parameters() {
 
-        Supplier<ConcurrentZCMap> s1 = () -> {
+        Supplier<ConcurrentZCMap<ByteBuffer, ByteBuffer>> s1 = () -> {
             ByteBuffer minKey = ByteBuffer.allocate(KEY_SIZE * Integer.BYTES);
             minKey.position(0);
             for (int i = 0; i < KEY_SIZE; i++) {
@@ -64,7 +64,7 @@ public class ComputeTest {
             return builder.buildOrderedMap();
         };
 
-        Supplier<ConcurrentZCMap> s2 = () -> {
+        Supplier<ConcurrentZCMap<ByteBuffer, ByteBuffer>> s2 = () -> {
             ByteBuffer minKey = ByteBuffer.allocate(KEY_SIZE * Integer.BYTES);
             minKey.position(0);
             for (int i = 0; i < KEY_SIZE; i++) {
@@ -89,11 +89,14 @@ public class ComputeTest {
     public void setup() {
         executor = new ExecutorUtils<>(NUM_THREADS);
         latch = new CountDownLatch(1);
+        oak = this.builder.get();
     }
 
     @After
     public void tearDown() {
         executor.shutdownNow();
+        oak.close();
+        BlocksPool.clear();
     }
 
     private static  Consumer<OakScopedWriteBuffer> computer = oakWBuffer -> {
@@ -148,8 +151,6 @@ public class ComputeTest {
 
     @Test
     public void testMain() throws ExecutorUtils.ExecutionError {
-
-        oak = this.builder.get();
         numOfEntries = 100;
 
         executor.submitTasks(NUM_THREADS, i -> new RunThreads(latch));
@@ -176,7 +177,5 @@ public class ComputeTest {
             int forty = val.getInt((KEY_SIZE - 1) * Integer.BYTES);
             Assert.assertTrue(forty == i || forty == 0);
         }
-
-        oak.close();
     }
 }

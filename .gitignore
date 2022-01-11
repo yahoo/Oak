@@ -29,6 +29,7 @@ hs_err_pid*
 target/
 *.iml
 benchmarks/synchrobench/dependency-reduced-pom.xml
+benchmarks/synchrobench/output/*csv
 
 **/pom.xml.releaseBackup
 release.properties

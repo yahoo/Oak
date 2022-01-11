@@ -9,21 +9,16 @@ package com.yahoo.oak;
 import java.io.IOException;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
-import java.util.concurrent.atomic.AtomicInteger;
 
 abstract class InternalOakBasics<K, V> {
     /*-------------- Members --------------*/
     protected static final int MAX_RETRIES = 1024;
 
-    protected final MemoryManager valuesMemoryManager;
-    protected final MemoryManager keysMemoryManager;
-    protected final AtomicInteger size;
+    protected final OakSharedConfig<K, V> config;
 
     /*-------------- Constructors --------------*/
-    InternalOakBasics(MemoryManager vMM, MemoryManager kMM) {
-        this.size = new AtomicInteger(0);
-        this.valuesMemoryManager = vMM;
-        this.keysMemoryManager = kMM;
+    InternalOakBasics(OakSharedConfig<K, V> config) {
+        this.config = config;
     }
 
     /*-------------- Closable --------------*/
@@ -34,8 +29,8 @@ abstract class InternalOakBasics<K, V> {
         try {
             // closing the same memory manager (or memory allocator) twice,
             // has the same effect as closing once
-            valuesMemoryManager.close();
-            keysMemoryManager.close();
+            config.valuesMemoryManager.close();
+            config.keysMemoryManager.close();
         } catch (IOException e) {
             e.printStackTrace();
         }
@@ -46,19 +41,36 @@ abstract class InternalOakBasics<K, V> {
      * @return current off heap memory usage in bytes
      */
     long memorySize() {
-        if (valuesMemoryManager != keysMemoryManager) {
+        if (config.valuesMemoryManager != config.keysMemoryManager) {
             // Two memory managers are not the same instance, but they
             // may still have the same allocator and allocator defines how many bytes are allocated
-            if (valuesMemoryManager.getBlockMemoryAllocator()
-                != keysMemoryManager.getBlockMemoryAllocator()) {
-                return valuesMemoryManager.allocated() + keysMemoryManager.allocated();
+            if (config.valuesMemoryManager.getBlockMemoryAllocator()
+                != config.keysMemoryManager.getBlockMemoryAllocator()) {
+                return config.valuesMemoryManager.allocated() + config.keysMemoryManager.allocated();
             }
         }
-        return valuesMemoryManager.allocated();
+        return config.valuesMemoryManager.allocated();
     }
 
     int entries() {
-        return size.get();
+        return config.size.get();
+    }
+
+    /* getter methods */
+    public MemoryManager getValuesMemoryManager() {
+        return config.valuesMemoryManager;
+    }
+
+    public MemoryManager getKeysMemoryManager() {
+        return config.keysMemoryManager;
+    }
+
+    protected OakSerializer<K> getKeySerializer() {
+        return config.keySerializer;
+    }
+
+    protected OakSerializer<V> getValueSerializer() {
+        return config.valueSerializer;
     }
 
     /*-------------- Context --------------*/
@@ -68,7 +80,7 @@ abstract class InternalOakBasics<K, V> {
      * @return a context instance.
      */
     ThreadContext getThreadContext() {
-        return new ThreadContext(keysMemoryManager, valuesMemoryManager);
+        return new ThreadContext(config);
     }
 
     /*-------------- REBALANCE --------------*/
@@ -126,11 +138,7 @@ abstract class InternalOakBasics<K, V> {
         // But in the meanwhile value was reset to be another, valid value.
         // In Hash case value will be always invalid in the context, but the changes will be caught
         // during next entry allocation
-        if (ctx.isValueValid()) {
-            return true;
-        }
-
-        return false;
+        return ctx.isValueValid();
     }
 
     /**
@@ -159,13 +167,22 @@ abstract class InternalOakBasics<K, V> {
      *
      * @param ctx The context key should be initialized with the key to refresh, and the context value
      *            will be updated with the refreshed value.
-     * @reutrn true if the refresh was successful.
+     * @return true if the refresh was successful.
      */
     abstract boolean refreshValuePosition(ThreadContext ctx);
 
+
+    protected <T> T getValueTransformation(OakScopedReadBuffer key, OakTransformer<T> transformer) {
+        K deserializedKey = config.keySerializer.deserialize(key);
+        return getValueTransformation(deserializedKey, transformer);
+    }
+
+    // the non-ZC variation of the get
+    abstract <T> T getValueTransformation(K key, OakTransformer<T> transformer);
+
     /*-------------- Different Oak Buffer creations --------------*/
 
-    protected UnscopedBuffer getKeyUnscopedBuffer(ThreadContext ctx) {
+    protected UnscopedBuffer<KeyBuffer> getKeyUnscopedBuffer(ThreadContext ctx) {
         return new UnscopedBuffer<>(new KeyBuffer(ctx.key));
     }
 
@@ -209,9 +226,10 @@ abstract class InternalOakBasics<K, V> {
     }
 
 
-    /************************/
-    /* Basic Iterator class */
-    /************************/
+
+    /************************
+    * Basic Iterator class
+    *************************/
     abstract class BasicIter<T> implements Iterator<T> {
 
 
@@ -230,7 +248,7 @@ abstract class InternalOakBasics<K, V> {
          * Initializes ascending iterator for entire range.
          */
         BasicIter() {
-            this.ctx = new ThreadContext(keysMemoryManager, valuesMemoryManager);
+            this.ctx = new ThreadContext(config);
         }
 
         public boolean hasNext() {
@@ -260,6 +278,8 @@ abstract class InternalOakBasics<K, V> {
 
                 final BasicChunk<K, V> chunk = state.getChunk();
                 if (chunk.state() == BasicChunk.State.RELEASED) {
+
+                    // @TODO not to access the keys on the RELEASED chunk once the key might be released
                     initAfterRebalance();
                     continue;
                 }
@@ -295,10 +315,11 @@ abstract class InternalOakBasics<K, V> {
 
 
 
-        protected BasicIteratorState getState() {
+
+        protected BasicIteratorState<K, V> getState() {
             return state;
         }
-        protected void setState(BasicIteratorState newState) {
+        protected void setState(BasicIteratorState<K, V> newState) {
             state = newState;
         }
 

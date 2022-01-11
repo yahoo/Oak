@@ -21,8 +21,8 @@ import java.util.Map;
 public class SingleThreadIteratorTestHash {
 
     private OakHashMap<Integer, Integer> oak;
-    private int maxItemsPerChunk = 2048;
-    private int iteratorsRange = 10;
+    private final int maxItemsPerChunk = 2048;
+    private final int iteratorsRange = 10;
 
     @Before
     public void init() {
@@ -34,6 +34,7 @@ public class SingleThreadIteratorTestHash {
     @After
     public void finish() {
         oak.close();
+        BlocksPool.clear();
     }
 
     @Test

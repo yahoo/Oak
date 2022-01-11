@@ -87,6 +87,7 @@ public class MultiThreadComputeTest {
     public void finish() {
         executor.shutdownNow();
         oak.close();
+        BlocksPool.clear();
     }
 
     class RunThreads implements Callable<Void> {
@@ -111,7 +112,8 @@ public class MultiThreadComputeTest {
                 if (i == int2start) {
                     result = oak.zc().putIfAbsent(i, i);
                     if (!result) {
-                        System.out.println("Key " + i + " existed. Weird....");
+                        System.out.println(
+                            "Key " + i + " existed. Thread ID " + threadId + ". Weird....");
                     }
                 } else {
                     oak.zc().putIfAbsent(i, i);

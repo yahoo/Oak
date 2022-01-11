@@ -77,6 +77,7 @@ public class OffHeapOakTest {
     public void finish() {
         executor.shutdownNow();
         oak.close();
+        BlocksPool.clear();
     }
 
 

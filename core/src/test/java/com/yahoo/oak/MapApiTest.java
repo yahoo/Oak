@@ -36,6 +36,7 @@ public class MapApiTest {
     @After
     public void finish() {
         oak.close();
+        BlocksPool.clear();
     }
 
     @Test(expected = UnsupportedOperationException.class)
