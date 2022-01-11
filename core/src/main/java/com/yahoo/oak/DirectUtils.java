@@ -13,7 +13,7 @@ import java.lang.reflect.Field;
 import java.nio.Buffer;
 import java.nio.ByteBuffer;
 
-public final class UnsafeUtils {
+public final class DirectUtils {
 
     static final Unsafe UNSAFE;
     static final long INT_ARRAY_OFFSET;
@@ -30,15 +30,15 @@ public final class UnsafeUtils {
         }
     }
 
-    private UnsafeUtils() {
+    private DirectUtils() {
     }
 
     static long allocateMemory(long capacity) {
-        return UnsafeUtils.UNSAFE.allocateMemory(capacity);
+        return DirectUtils.UNSAFE.allocateMemory(capacity);
     }
 
     static void freeMemory(long address) {
-        UnsafeUtils.UNSAFE.freeMemory(address);
+        DirectUtils.UNSAFE.freeMemory(address);
     }
 
     static void setMemory(long address, long bytes, byte value) {

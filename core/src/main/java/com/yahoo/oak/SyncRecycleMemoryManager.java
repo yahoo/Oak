@@ -207,7 +207,7 @@ class SyncRecycleMemoryManager implements MemoryManager {
         // zero the underlying memory (not the header) before entering the free list
         @Override
         protected void zeroMetadata() {
-            UnsafeUtils.setMemory(getMetadataAddress() + getHeaderSize(), // start after header
+            DirectUtils.setMemory(getMetadataAddress() + getHeaderSize(), // start after header
                 getAllocatedLength() - getHeaderSize(), // only metadata length
                 (byte) 0); // zero block's memory
         }

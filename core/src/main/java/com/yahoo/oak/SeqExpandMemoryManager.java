@@ -287,7 +287,7 @@ class SeqExpandMemoryManager implements MemoryManager  {
             assert associated;
             assert memAddress != UNDEFINED_LENGTH_OR_OFFSET_OR_ADDRESS && memAddress != 0;
             assert length != UNDEFINED_LENGTH_OR_OFFSET_OR_ADDRESS;
-            UnsafeUtils.setMemory(getMetadataAddress(),
+            DirectUtils.setMemory(getMetadataAddress(),
                 getAllocatedLength(), // no metadata for sequentially expendable memory manager
                 (byte) 0); // zero block's memory
         }

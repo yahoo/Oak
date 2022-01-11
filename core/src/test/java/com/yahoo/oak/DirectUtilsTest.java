@@ -9,18 +9,18 @@ package com.yahoo.oak;
 import org.junit.Assert;
 import org.junit.Test;
 
-public class UnsafeUtilsTest {
+public class DirectUtilsTest {
     static final int[] TEST_NUMBERS = new int[]{0, 1, 2, Integer.MAX_VALUE, -1, -2, Integer.MIN_VALUE};
 
     int[] longToInts(long l) {
         return new int[]{
-                (int) (l & UnsafeUtils.LONG_INT_MASK),
-                (int) ((l >>> Integer.SIZE) & UnsafeUtils.LONG_INT_MASK)
+                (int) (l & DirectUtils.LONG_INT_MASK),
+                (int) ((l >>> Integer.SIZE) & DirectUtils.LONG_INT_MASK)
         };
     }
 
     public void singleIntLongTest(int i1, int i2) {
-        long combine = UnsafeUtils.intsToLong(i1, i2);
+        long combine = DirectUtils.intsToLong(i1, i2);
         int[] res = longToInts(combine);
         Assert.assertEquals(i1, res[0]);
         Assert.assertEquals(i2, res[1]);
@@ -41,20 +41,20 @@ public class UnsafeUtilsTest {
         final long allocSize = sz * Integer.BYTES;
         final int[] expected = new int[sz];
 
-        long address = UnsafeUtils.allocateMemory(allocSize);
+        long address = DirectUtils.allocateMemory(allocSize);
 
         try {
             for (int i = 0; i < sz; i++) {
                 expected[i] = i;
-                UnsafeUtils.putInt(address + i * Integer.BYTES, i);
+                DirectUtils.putInt(address + i * Integer.BYTES, i);
             }
 
             final int[] result = new int[sz];
-            long copySize = UnsafeUtils.copyToArray(address, result, sz);
+            long copySize = DirectUtils.copyToArray(address, result, sz);
             Assert.assertEquals(allocSize, copySize);
             Assert.assertArrayEquals(expected, result);
         } finally {
-            UnsafeUtils.freeMemory(address);
+            DirectUtils.freeMemory(address);
         }
     }
 
@@ -68,16 +68,16 @@ public class UnsafeUtilsTest {
             expected[i] = i;
         }
 
-        long address = UnsafeUtils.allocateMemory(sz * Integer.BYTES);
+        long address = DirectUtils.allocateMemory(sz * Integer.BYTES);
         try {
-            long copySize = UnsafeUtils.copyFromArray(expected, address, sz);
+            long copySize = DirectUtils.copyFromArray(expected, address, sz);
             Assert.assertEquals(allocSize, copySize);
 
             for (int i = 0; i < sz; i++) {
-                Assert.assertEquals(expected[i], UnsafeUtils.getInt(address + i * Integer.BYTES));
+                Assert.assertEquals(expected[i], DirectUtils.getInt(address + i * Integer.BYTES));
             }
         } finally {
-            UnsafeUtils.freeMemory(address);
+            DirectUtils.freeMemory(address);
         }
     }
 }
