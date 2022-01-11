@@ -67,6 +67,7 @@ public class ParametrizedMapApiTest {
     @After
     public void finish() {
         oak.close();
+        BlocksPool.clear();
     }
 
     @Test
@@ -198,10 +199,7 @@ public class ParametrizedMapApiTest {
 
     @Test
     public void keySet() {
-        //if (oak instanceof OakHashMap) {
-        //    // TODO: currently iterators are not supported for Hash, remove this later
-        //    return;
-        //}
+
         int numKeys = 10;
         for (int i = 0; i < numKeys; i++) {
             oak.put(i, i);
@@ -217,6 +215,7 @@ public class ParametrizedMapApiTest {
     @Test
     public void iterTest() {
         boolean testingHash = false;
+
         if (oak instanceof OakHashMap) {
             testingHash = true;
         } else {

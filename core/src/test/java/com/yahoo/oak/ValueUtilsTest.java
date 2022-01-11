@@ -6,6 +6,8 @@
 
 package com.yahoo.oak;
 
+import com.yahoo.oak.common.OakCommonBuildersFactory;
+import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
@@ -15,18 +17,28 @@ import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CyclicBarrier;
 
 public class ValueUtilsTest {
+    NativeMemoryAllocator allocator;
     private final ValueUtils valueOperator = new ValueUtils();
     private ThreadContext ctx;
     private ValueBuffer s;
 
     @Before
     public void init() {
-        NativeMemoryAllocator allocator = new NativeMemoryAllocator(128);
+        allocator = new NativeMemoryAllocator(128);
         SyncRecycleMemoryManager valuesMemoryManager = new SyncRecycleMemoryManager(allocator);
         SeqExpandMemoryManager keysMemoryManager = new SeqExpandMemoryManager(allocator);
-        ctx = new ThreadContext(keysMemoryManager, valuesMemoryManager);
+        OakSharedConfig<Integer, Integer> config = OakCommonBuildersFactory.getDefaultIntBuilder().buildSharedConfig(
+            allocator, keysMemoryManager, valuesMemoryManager
+        );
+        ctx = new ThreadContext(config);
         s = ctx.value;
         s.getSlice().allocate(Integer.BYTES * 3, false);
+    }
+
+    @After
+    public void tearDown() {
+        allocator.close();
+        BlocksPool.clear();
     }
 
     private void putInt(int index, int value) {

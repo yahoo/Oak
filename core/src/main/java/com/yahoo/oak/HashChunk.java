@@ -6,8 +6,6 @@
 
 package com.yahoo.oak;
 
-import java.util.concurrent.atomic.AtomicInteger;
-
 class HashChunk<K, V> extends BasicChunk<K, V> {
     // defaults
     public static final int HASH_CHUNK_MAX_ITEMS_DEFAULT = 2048; //2^11
@@ -26,7 +24,7 @@ class HashChunk<K, V> extends BasicChunk<K, V> {
     /**
      * This constructor is only used when creating the first ever chunk/chunks (without a creator).
      * The caller might set the creator before returning the HashChunk to the user.
-     *
+     * @param config shared configuration
      * @param maxItems  is the size of the entries array (not all the entries are going to be in use)
      *                  IMPORTANT!: it is better to be a power of two,
      *                  if not the rest of the entries are going to be waisted
@@ -40,28 +38,20 @@ class HashChunk<K, V> extends BasicChunk<K, V> {
      * @param hashIndexCodec the codec initiated with the right amount of the least significant bits,
      *                       to be used to get index from the key hash
      */
-    HashChunk(int maxItems, AtomicInteger externalSize, MemoryManager vMM, MemoryManager kMM,
-        OakComparator<K> comparator, OakSerializer<K> keySerializer,
-        OakSerializer<V> valueSerializer, UnionCodec hashIndexCodec) {
-
-        super(maxItems, externalSize, comparator);
-        assert Math.pow( 2, hashIndexCodec.getFirstBitSize() ) <= maxItems ;
+    HashChunk(OakSharedConfig<K, V> config, int maxItems, UnionCodec hashIndexCodec) {
+        super(config, maxItems);
+        assert Math.pow( 2, hashIndexCodec.getFirstBitSize() ) <= maxItems;
 
         this.hashIndexCodec = hashIndexCodec;
-        this.entryHashSet = // must be called after setSecondLevelBitsThreshold
-            new EntryHashSet<>(vMM, kMM, getMaxItems(), keySerializer, valueSerializer,
-                comparator);
+        // must be called after hashIndexCodec assignment
+        this.entryHashSet = new EntryHashSet<>(config, maxItems);
     }
 
     /**
      * Create a child HashChunk where this HashChunk object as its creator.
      */
     HashChunk<K, V> createChild(UnionCodec hashIndexCodec) {
-        HashChunk<K, V> child =
-            new HashChunk<>(getMaxItems(), externalSize,
-                entryHashSet.valuesMemoryManager, entryHashSet.keysMemoryManager,
-                comparator, entryHashSet.keySerializer, entryHashSet.valueSerializer,
-                hashIndexCodec);
+        HashChunk<K, V> child = new HashChunk<>(config, maxItems, hashIndexCodec);
         updateBasicChild(child);
         return child;
     }
@@ -181,7 +171,7 @@ class HashChunk<K, V> extends BasicChunk<K, V> {
     int compareKeyAndEntryIndex(KeyBuffer tempKeyBuff, K key, int ei) {
         boolean isAllocated = entryHashSet.readKey(tempKeyBuff, ei);
         assert isAllocated;
-        return comparator.compareKeyAndSerializedKey(key, tempKeyBuff);
+        return config.comparator.compareKeyAndSerializedKey(key, tempKeyBuff);
     }
 
     /**
@@ -256,7 +246,7 @@ class HashChunk<K, V> extends BasicChunk<K, V> {
             if (!entryHashSet.deleteValueFinish(ctx)) {
                 return false;
             }
-            externalSize.decrementAndGet();
+            config.size.decrementAndGet();
             statistics.decrementAddedCount();
             return false;
         } finally {
@@ -283,7 +273,7 @@ class HashChunk<K, V> extends BasicChunk<K, V> {
         // If we move a value, the statistics shouldn't change
         if (!ctx.isNewValueForMove) {
             statistics.incrementAddedCount();
-            externalSize.incrementAndGet();
+            config.size.incrementAndGet();
         }
         return ValueUtils.ValueResult.TRUE;
     }

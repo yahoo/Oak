@@ -25,8 +25,6 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
 
     final ConcurrentSkipListMap<Object, OrderedChunk<K, V>> skiplist;    // skiplist of chunks for fast navigation
     private final AtomicReference<OrderedChunk<K, V>> head;
-    private final OakComparator<K> comparator;
-
 
     // The reference count is used to count the upper objects wrapping this internal map:
     // OakMaps (including subMaps and Views) when all of the above are closed,
@@ -39,37 +37,32 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
      * init with capacity = 2g
      */
 
-    InternalOakMap(K minKey, OakSerializer<K> keySerializer, OakSerializer<V> valueSerializer,
-        OakComparator<K> oakComparator, MemoryManager vMM, MemoryManager kMM, int chunkMaxItems,
-        ValueUtils valueOperator) {
 
-        super(vMM, kMM, keySerializer, valueSerializer, valueOperator);
-
-        this.comparator = oakComparator;
+    InternalOakMap(OakSharedConfig<K, V> config, K minKey, int chunkMaxItems) {
+        super(config);
 
         // This is a trick for letting us search through the skiplist using both serialized and unserialized keys.
         // Might be nicer to replace it with a proper visitor
+        final OakComparator<K> comparator = config.comparator;
         Comparator<Object> mixedKeyComparator = (o1, o2) -> {
             if (o1 instanceof OakScopedReadBuffer) {
                 if (o2 instanceof OakScopedReadBuffer) {
-                    return oakComparator.compareSerializedKeys((OakScopedReadBuffer) o1, (OakScopedReadBuffer) o2);
+                    return comparator.compareSerializedKeys((OakScopedReadBuffer) o1, (OakScopedReadBuffer) o2);
                 } else {
                     // Note the inversion of arguments, hence sign flip
-                    return (-1) * oakComparator.compareKeyAndSerializedKey((K) o2, (OakScopedReadBuffer) o1);
+                    return (-1) * comparator.compareKeyAndSerializedKey((K) o2, (OakScopedReadBuffer) o1);
                 }
             } else {
                 if (o2 instanceof OakScopedReadBuffer) {
-                    return oakComparator.compareKeyAndSerializedKey((K) o1, (OakScopedReadBuffer) o2);
+                    return comparator.compareKeyAndSerializedKey((K) o1, (OakScopedReadBuffer) o2);
                 } else {
-                    return oakComparator.compareKeys((K) o1, (K) o2);
+                    return comparator.compareKeys((K) o1, (K) o2);
                 }
             }
         };
         this.skiplist = new ConcurrentSkipListMap<>(mixedKeyComparator);
 
-        OrderedChunk<K, V>
-            head = new OrderedChunk<>(minKey, chunkMaxItems, this.size, vMM, kMM, this.comparator,
-                keySerializer, valueSerializer);
+        OrderedChunk<K, V> head = new OrderedChunk<>(config, minKey, chunkMaxItems);
         this.skiplist.put(head.minKey, head);    // add first orderedChunk (head) into skiplist
         this.head = new AtomicReference<>(head);
     }
@@ -121,7 +114,7 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
 
         // since skiplist isn't updated atomically in split/compaction, our key might belong in the next orderedChunk
         // we need to iterate the chunks until we find the correct one
-        while ((next != null) && (comparator.compareKeyAndSerializedKey(key, next.minKey) >= 0)) {
+        while ((next != null) && (config.comparator.compareKeyAndSerializedKey(key, next.minKey) >= 0)) {
             curr = next;
             next = curr.next.getReference();
         }
@@ -331,7 +324,8 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
             // then this put changes the slice pointed by this value reference.
             if (ctx.isValueValid()) {
                 // there is a value and it is not deleted
-                Result res = getValueOperator().exchange(c, ctx, value, transformer, getValueSerializer());
+
+                Result res = config.valueOperator.exchange(c, ctx, value, transformer, getValueSerializer());
                 if (res.operationResult == ValueUtils.ValueResult.TRUE) {
                     return (V) res.value;
                 }
@@ -394,7 +388,8 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
                 if (transformer == null) {
                     return ctx.result.withFlag(ValueUtils.ValueResult.FALSE);
                 }
-                Result res = getValueOperator().transform(ctx.result, ctx.value, transformer);
+
+                Result res = config.valueOperator.transform(ctx.result, ctx.value, transformer);
                 if (res.operationResult == ValueUtils.ValueResult.TRUE) {
                     return res;
                 }
@@ -454,7 +449,8 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
             // If there is a matching value reference for the given key, and it is not marked as deleted,
             // then apply compute on the existing value
             if (ctx.isValueValid()) {
-                ValueUtils.ValueResult res = getValueOperator().compute(ctx.value, computer);
+
+                ValueUtils.ValueResult res = config.valueOperator.compute(ctx.value, computer);
                 if (res == ValueUtils.ValueResult.TRUE) {
                     // compute was successful and the value wasn't found deleted; in case
                     // this value was already found as deleted, continue to allocate a new value slice
@@ -497,6 +493,7 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
 
         throw new RuntimeException("putIfAbsentComputeIfPresent failed: reached retry limit (1024).");
     }
+
 
 
     // the zero-copy version of get
@@ -550,7 +547,8 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
                 return null;
             }
 
-            Result res = getValueOperator().transform(ctx.result, ctx.value, transformer);
+
+            Result res = config.valueOperator.transform(ctx.result, ctx.value, transformer);
             if (res.operationResult == ValueUtils.ValueResult.RETRY) {
                 continue;
             }
@@ -633,6 +631,32 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
         return c;
     }
 
+
+
+
+    boolean replace(K key, V oldValue, V newValue, OakTransformer<V> valueDeserializeTransformer) {
+        ThreadContext ctx = getThreadContext();
+
+        for (int i = 0; i < MAX_RETRIES; i++) {
+            OrderedChunk<K, V> c = findChunk(key, ctx); // find orderedChunk matching key
+            c.lookUp(ctx, key);
+            if (!ctx.isValueValid()) {
+                return false;
+            }
+
+            ValueUtils.ValueResult res = config.valueOperator.compareExchange(c, ctx, oldValue, newValue,
+                    valueDeserializeTransformer, getValueSerializer());
+            if (res == ValueUtils.ValueResult.RETRY) {
+                // it might be that this chunk is proceeding with rebalance -> help
+                helpRebalanceIfInProgress(c);
+                continue;
+            }
+            return res == ValueUtils.ValueResult.TRUE;
+        }
+
+        throw new RuntimeException("replace failed: reached retry limit (1024).");
+    }
+
     Map.Entry<K, V> lowerEntry(K key) {
         Map.Entry<Object, OrderedChunk<K, V>> lowerChunkEntry = skiplist.lowerEntry(key);
         if (lowerChunkEntry == null) {
@@ -668,7 +692,8 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
         if (!isAllocated) { // value reference was invalid, try again
             return lowerEntry(key);
         }
-        Result valueDeserialized = getValueOperator().transform(ctx.result, ctx.value,
+
+        Result valueDeserialized = config.valueOperator.transform(ctx.result, ctx.value,
                 getValueSerializer()::deserialize);
         if (valueDeserialized.operationResult != ValueUtils.ValueResult.TRUE) {
             return lowerEntry(key);
@@ -694,7 +719,7 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
     }
 
     void validateBoundariesOrder(K fromKey, K toKey) {
-        if (fromKey != null && toKey != null && this.comparator.compareKeys(fromKey, toKey) > 0) {
+        if (fromKey != null && toKey != null && config.comparator.compareKeys(fromKey, toKey) > 0) {
             throw new IllegalArgumentException("inconsistent range");
         }
     }
@@ -734,7 +759,7 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
             if (lo == null) {
                 return false;
             }
-            int c = comparator.compareKeyAndSerializedKey(lo, key);
+            int c = config.comparator.compareKeyAndSerializedKey(lo, key);
             return c > 0 || (c == 0 && !loInclusive);
         }
 
@@ -742,7 +767,7 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
             if (hi == null) {
                 return false;
             }
-            int c = comparator.compareKeyAndSerializedKey(hi, key);
+            int c = config.comparator.compareKeyAndSerializedKey(hi, key);
             return c < 0 || (c == 0 && !hiInclusive);
         }
 
@@ -759,6 +784,7 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
         protected void initAfterRebalance() {
             //TODO - refactor to use OakReadBuffer without deserializing.
             getState().getChunk().readKeyFromEntryIndex(ctx.tempKey, getState().getIndex());
+
             K nextKey = getKeySerializer().deserialize(ctx.tempKey);
 
             if (isDescending) {
@@ -777,8 +803,7 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
          * Advances next to higher entry.
          * Return previous index
          *
-         * @return The first long is the key's reference, the integer is the value's version and the second long is
-         * the value's reference. If {@code needsValue == false}, then the value of the map entry is {@code null}.
+         *
          */
         @Override
         void advance(boolean needsValue) {
@@ -1016,7 +1041,8 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
 
         public T next() {
             advance(true);
-            Result res = getValueOperator().transform(ctx.result, ctx.value, transformer);
+
+            Result res = config.valueOperator.transform(ctx.result, ctx.value, transformer);
             // If this value is deleted, try the next one
             if (res.operationResult == ValueUtils.ValueResult.FALSE) {
                 return next();
@@ -1035,12 +1061,12 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
 
     class EntryIterator extends OrderedIter<Map.Entry<OakUnscopedBuffer, OakUnscopedBuffer>> {
 
-        private final InternalOakMap<K, V> internalOakMap;
+        //private final InternalOakMap<K, V> internalOakMap;
 
         EntryIterator(K lo, boolean loInclusive, K hi, boolean hiInclusive, boolean isDescending, InternalOakMap<K,
                 V> internalOakMap) {
             super(lo, loInclusive, hi, hiInclusive, isDescending);
-            this.internalOakMap = internalOakMap;
+            //this.internalOakMap = internalOakMap;
         }
 
         public Map.Entry<OakUnscopedBuffer, OakUnscopedBuffer> next() {

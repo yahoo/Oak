@@ -87,6 +87,7 @@ public class MultiThreadComputeTest {
     public void finish() {
         executor.shutdownNow();
         oak.close();
+        BlocksPool.clear();
     }
 
     class RunThreads implements Callable<Void> {

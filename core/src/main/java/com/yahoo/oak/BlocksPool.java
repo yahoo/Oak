@@ -97,6 +97,18 @@ final class BlocksPool implements BlocksProvider, Closeable {
         }
     }
 
+    static void clear() {
+        synchronized (BlocksPool.class) { // can be easily changed to lock-free
+            if (instance == null) {
+                return;
+            }
+
+            while (instance.blocks.size() > 0) {
+                instance.blocks.poll().clean();
+            }
+        }
+    }
+
     /**
      * Sets the preferred block size. This only has an effect if the block pool was never used before.
      * @param preferredBlockSizeBytes the preferred block size

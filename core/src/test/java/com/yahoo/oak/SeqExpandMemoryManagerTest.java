@@ -6,6 +6,7 @@
 
 package com.yahoo.oak;
 
+import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
@@ -20,6 +21,12 @@ public class SeqExpandMemoryManagerTest {
     public void setUp() {
         BlockMemoryAllocator keysMemoryAllocator = new NativeMemoryAllocator(128);
         seqExpandMemoryManager = new SeqExpandMemoryManager(keysMemoryAllocator);
+    }
+
+    @After
+    public void tearDown() {
+        seqExpandMemoryManager.close();
+        BlocksPool.clear();
     }
 
     @Test

@@ -32,14 +32,28 @@ public class NativeMemoryAllocatorTest {
 
     private ExecutorUtils<Slice> executor;
 
+    NativeMemoryAllocator allocator;
+    OakMap<Integer, Integer> oak;
+
     @Before
     public void setup() {
         executor = new ExecutorUtils<>(NUM_THREADS);
+        BlocksPool.setBlockSize(8 * 1024 * 1024);
+        allocator = null;
+        oak = null;
     }
 
     @After
     public void finish() {
         executor.shutdownNow();
+        if (oak != null) {
+            oak.close();
+        }
+        if (allocator != null) {
+            allocator.close();
+        }
+        BlocksPool.setBlockSize(BlocksPool.DEFAULT_BLOCK_SIZE_BYTES);
+        BlocksPool.clear();
     }
 
     static int calcExpectedSize(int keyCount, int valueCount) {
@@ -72,7 +86,7 @@ public class NativeMemoryAllocatorTest {
             blocks.add(newBlock);
             return newBlock;
         });
-        NativeMemoryAllocator allocator = new NativeMemoryAllocator(capacity, mockProvider);
+        allocator = new NativeMemoryAllocator(capacity, mockProvider);
 
         executor.submitTasks(NUM_THREADS, i -> () -> allocate(allocator, allocationSize));
         executor.shutdown(TIME_LIMIT_IN_SECONDS);
@@ -87,52 +101,40 @@ public class NativeMemoryAllocatorTest {
 
         int blockSize = BlocksPool.getInstance().blockSize();
         int capacity = blockSize * 3;
-        NativeMemoryAllocator ma = new NativeMemoryAllocator(capacity);
+        allocator = new NativeMemoryAllocator(capacity);
 
         /* simple allocation */
-        BlockAllocationSlice bb = allocate(ma, 4);
+        BlockAllocationSlice bb = allocate(allocator, 4);
         Assert.assertEquals(4, bb.getAllocatedLength());
-        Assert.assertEquals(4, ma.getCurrentBlock().allocatedWithPossibleDelta());
+        Assert.assertEquals(4, allocator.getCurrentBlock().allocatedWithPossibleDelta());
 
 
-        BlockAllocationSlice bb1 = allocate(ma, 4);
+        BlockAllocationSlice bb1 = allocate(allocator, 4);
         Assert.assertEquals(4, bb1.getAllocatedLength());
-        Assert.assertEquals(8, ma.getCurrentBlock().allocatedWithPossibleDelta());
+        Assert.assertEquals(8, allocator.getCurrentBlock().allocatedWithPossibleDelta());
 
-        BlockAllocationSlice bb2 = allocate(ma, 8);
+        BlockAllocationSlice bb2 = allocate(allocator, 8);
         Assert.assertEquals(8, bb2.getAllocatedLength());
-        Assert.assertEquals(16, ma.getCurrentBlock().allocatedWithPossibleDelta());
+        Assert.assertEquals(16, allocator.getCurrentBlock().allocatedWithPossibleDelta());
 
         /* big allocation */
-        BlockAllocationSlice bb3 = allocate(ma, blockSize - 8);
+        BlockAllocationSlice bb3 = allocate(allocator, blockSize - 8);
         Assert.assertEquals(blockSize - 8,
                 bb3.getAllocatedLength());                                   // check the new ByteBuffer size
         Assert.assertEquals(blockSize - 8,  // check the new block allocation
-                ma.getCurrentBlock().allocatedWithPossibleDelta());
+                allocator.getCurrentBlock().allocatedWithPossibleDelta());
 
         /* complete up to full block allocation */
-        BlockAllocationSlice bb4 = allocate(ma, 8);
+        BlockAllocationSlice bb4 = allocate(allocator, 8);
         Assert.assertEquals(8, bb4.getAllocatedLength());              // check the new ByteBuffer size
         Assert.assertEquals(blockSize,               // check the new block allocation
-                ma.getCurrentBlock().allocatedWithPossibleDelta());
+                allocator.getCurrentBlock().allocatedWithPossibleDelta());
 
         /* next small allocation should move us to the next block */
-        BlockAllocationSlice bb5 = allocate(ma, 8);
+        BlockAllocationSlice bb5 = allocate(allocator, 8);
         Assert.assertEquals(8, bb5.getAllocatedLength());           // check the newest ByteBuffer size
         Assert.assertEquals(8,                             // check the newest block allocation
-                ma.getCurrentBlock().allocatedWithPossibleDelta());
-
-        ma.close();
-    }
-
-    @Before
-    public void init() {
-        BlocksPool.setBlockSize(8 * 1024 * 1024);
-    }
-
-    @After
-    public void tearDown() {
-        BlocksPool.setBlockSize(BlocksPool.DEFAULT_BLOCK_SIZE_BYTES);
+                allocator.getCurrentBlock().allocatedWithPossibleDelta());
     }
 
     @Test
@@ -140,7 +142,7 @@ public class NativeMemoryAllocatorTest {
         int initBlocks = BlocksPool.getInstance().numOfRemainingBlocks();
         int blockSize = BlocksPool.getInstance().blockSize();
         int capacity = blockSize * 3;
-        NativeMemoryAllocator ma = new NativeMemoryAllocator(capacity);
+
         int maxItemsPerChunk = 1024;
 
         // These will be updated on the fly
@@ -151,9 +153,10 @@ public class NativeMemoryAllocatorTest {
         OakMapBuilder<Integer, Integer> builder = OakCommonBuildersFactory.getDefaultIntBuilder()
                 .setValueSerializer(new OakIntSerializer(VALUE_SIZE_AFTER_SERIALIZATION))
                 .setOrderedChunkMaxItems(maxItemsPerChunk)
-                .setMemoryAllocator(ma);
+                .setMemoryCapacity(capacity);
+        oak = builder.buildOrderedMap();
+        allocator = (NativeMemoryAllocator) oak.getValuesMemoryManager().getBlockMemoryAllocator();
 
-        OakMap<Integer, Integer> oak = builder.buildOrderedMap();
         expectedKeyCount += 1; // min key
 
         //check that before any allocation
@@ -161,14 +164,14 @@ public class NativeMemoryAllocatorTest {
         Assert.assertEquals(Math.max(0, initBlocks - 1), BlocksPool.getInstance().numOfRemainingBlocks());
 
         // (2) check the one block in the allocator
-        Assert.assertEquals(ma.numOfAllocatedBlocks(), 1);
+        Assert.assertEquals(allocator.numOfAllocatedBlocks(), 1);
 
         // validate entry count
         Assert.assertEquals(expectedEntryCount, oak.entrySet().size());
 
         // validate allocation size
         // check the newest block allocation
-        Assert.assertEquals(calcExpectedSize(expectedKeyCount, expectedValueCount), ma.allocated());
+        Assert.assertEquals(calcExpectedSize(expectedKeyCount, expectedValueCount), allocator.allocated());
 
         Integer val = 1;
         Integer key = 0;
@@ -186,13 +189,13 @@ public class NativeMemoryAllocatorTest {
         Assert.assertEquals(Math.max(0, initBlocks - 1), BlocksPool.getInstance().numOfRemainingBlocks());
 
         // (2) check the one block in the allocator
-        Assert.assertEquals(ma.numOfAllocatedBlocks(), 1);
+        Assert.assertEquals(allocator.numOfAllocatedBlocks(), 1);
 
         // validate entry count
         Assert.assertEquals(expectedEntryCount, oak.entrySet().size());
 
         // check the newest block allocation
-        Assert.assertEquals(calcExpectedSize(expectedKeyCount, expectedValueCount), ma.allocated());
+        Assert.assertEquals(calcExpectedSize(expectedKeyCount, expectedValueCount), allocator.allocated());
 
         // check that what you read is the same that you wrote
         Integer resultForKey = oak.firstKey();
@@ -211,17 +214,17 @@ public class NativeMemoryAllocatorTest {
         Assert.assertEquals(Math.max(0, initBlocks - 2), BlocksPool.getInstance().numOfRemainingBlocks());
 
         // (2) check the two blocks in the allocator
-        Assert.assertEquals(ma.numOfAllocatedBlocks(), 2);
+        Assert.assertEquals(allocator.numOfAllocatedBlocks(), 2);
 
         // validate entry count
         Assert.assertEquals(expectedEntryCount, oak.entrySet().size());
 
         // mind no addition of the size of integer key, as it was allocated in the previous block
-        Assert.assertEquals(calcExpectedSize(0, 1), ma.getCurrentBlock().allocatedWithPossibleDelta());
+        Assert.assertEquals(calcExpectedSize(0, 1), allocator.getCurrentBlock().allocatedWithPossibleDelta());
 
         // check the newest block allocation
         // check the total allocation
-        Assert.assertEquals(calcExpectedSize(expectedKeyCount, expectedValueCount), ma.allocated());
+        Assert.assertEquals(calcExpectedSize(expectedKeyCount, expectedValueCount), allocator.allocated());
 
         // check that what you read is the same that you wrote
         resultForKey = oak.lastKey();
@@ -240,17 +243,17 @@ public class NativeMemoryAllocatorTest {
         Assert.assertEquals(Math.max(0, initBlocks - 3), BlocksPool.getInstance().numOfRemainingBlocks());
 
         // (2) check the 3 blocks in the allocator
-        Assert.assertEquals(ma.numOfAllocatedBlocks(), 3);
+        Assert.assertEquals(allocator.numOfAllocatedBlocks(), 3);
 
         // validate entry count
         Assert.assertEquals(expectedEntryCount, oak.entrySet().size());
 
         // mind no addition of the size of integer key, as it was allocated in the previous block
-        Assert.assertEquals(calcExpectedSize(0, 1), ma.getCurrentBlock().allocatedWithPossibleDelta());
+        Assert.assertEquals(calcExpectedSize(0, 1), allocator.getCurrentBlock().allocatedWithPossibleDelta());
 
         // check the newest block allocation
         // check the total allocation
-        Assert.assertEquals(calcExpectedSize(expectedKeyCount, expectedValueCount), ma.allocated());
+        Assert.assertEquals(calcExpectedSize(expectedKeyCount, expectedValueCount), allocator.allocated());
 
         // check that what you read is the same that you wrote
         resultForKey = oak.lastKey();
@@ -280,14 +283,12 @@ public class NativeMemoryAllocatorTest {
         Assert.assertNull(value);
 
         oak.zc().remove(1); // this should actually trigger the free of key 0 memory
-
-        oak.close();
     }
 
     @Test
     public void checkFreelistOrdering() {
         long capacity = 100;
-        NativeMemoryAllocator allocator = new NativeMemoryAllocator(capacity);
+        allocator = new NativeMemoryAllocator(capacity);
         allocator.collectStats();
 
         // Order is important here!

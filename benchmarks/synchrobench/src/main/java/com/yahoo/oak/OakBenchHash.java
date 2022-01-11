@@ -16,7 +16,6 @@ import org.openjdk.jmh.infra.Blackhole;
 
 
 public class OakBenchHash extends BenchOakMap {
-    private NativeMemoryAllocator ma;
     private OakHashMap<BenchKey, BenchValue> oakHash;
 
     public OakBenchHash(KeyGenerator keyGen, ValueGenerator valueGen) {
@@ -26,10 +25,6 @@ public class OakBenchHash extends BenchOakMap {
     /** {@inheritDoc} **/
     @Override
     public void init() {
-        ma = new NativeMemoryAllocator(OAK_MAX_OFF_MEMORY);
-        if (Parameters.confDetailedStats) {
-            ma.collectStats();
-        }
         OakMapBuilder<BenchKey, BenchValue> builder = new OakMapBuilder<>(keyGen, keyGen, valueGen, minKey)
             // 2048 * 8 = 16384 (2^14) entries in each chunk, each entry takes 24 bytes, each chunk requires
             // approximately 393216 bytes ~= 393KB ~= 0.4 MB
@@ -40,7 +35,7 @@ public class OakBenchHash extends BenchOakMap {
             // 2^28 * 24 = 6442450944 bytes ~= 6442451 KB ~= 6442 MB ~= 6.5 GB
             .setPreallocHashChunksNum(Parameters.confSmallFootprint ? FirstLevelHashArray.HASH_CHUNK_NUM_DEFAULT
                 : FirstLevelHashArray.HASH_CHUNK_NUM_DEFAULT * 16)
-            .setMemoryAllocator(ma);
+            .setMemoryCapacity(OAK_MAX_OFF_MEMORY);
         // capable to keep 2^28 keys
         oakHash = builder.buildHashMap();
     }
@@ -49,7 +44,6 @@ public class OakBenchHash extends BenchOakMap {
     @Override
     public void close() {
         super.close();
-        ma = null;
         oakHash = null;
     }
 
@@ -75,15 +69,5 @@ public class OakBenchHash extends BenchOakMap {
     @Override
     public boolean descendOak(BenchKey from, int length, Blackhole blackhole) {
         throw new UnsupportedOperationException("ALL ITERATORS ARE NOT YET SUPPORTED FOR HASH");
-    }
-
-    /** {@inheritDoc} **/
-    @Override
-    public void printMemStats() {
-        NativeMemoryAllocator.Stats stats = ma.getStats();
-        System.out.printf("\tReleased buffers: \t\t%d\n", stats.releasedBuffers);
-        System.out.printf("\tReleased bytes: \t\t%d\n", stats.releasedBytes);
-        System.out.printf("\tReclaimed buffers: \t\t%d\n", stats.reclaimedBuffers);
-        System.out.printf("\tReclaimed bytes: \t\t%d\n", stats.reclaimedBytes);
     }
 }

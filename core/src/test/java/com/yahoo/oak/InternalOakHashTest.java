@@ -7,6 +7,7 @@
 package com.yahoo.oak;
 
 import com.yahoo.oak.common.OakCommonBuildersFactory;
+import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
@@ -33,11 +34,15 @@ public class InternalOakHashTest {
         // meaning in the first level hash array there are 2^8=256 chunks
         int firstLevelBitSize = 8;
         // 8 LSBs taken from keyHash for a chunk index, meaning in chunk there are 2^8=256 entries
-        int secondLevelBitSize = BITS_TO_DEFINE_CHUNK_SIZE;
+        testMap = new InternalOakHash<>(OakCommonBuildersFactory.getDefaultIntBuilder().buildSharedConfig(
+                ma, memoryManager, memoryManager
+        ), firstLevelBitSize, BITS_TO_DEFINE_CHUNK_SIZE);
+    }
 
-        testMap = new InternalOakHash<Integer, Integer>(OakCommonBuildersFactory.DEFAULT_INT_SERIALIZER,
-                OakCommonBuildersFactory.DEFAULT_INT_SERIALIZER, OakCommonBuildersFactory.DEFAULT_INT_COMPARATOR,
-                memoryManager, memoryManager, new ValueUtils(), firstLevelBitSize, secondLevelBitSize);
+    @After
+    public void tearDown() {
+        testMap.close();
+        BlocksPool.clear();
     }
 
     private static Integer slowDeserialize(OakScopedReadBuffer bb) {
@@ -161,7 +166,7 @@ public class InternalOakHashTest {
         threadList.add(thirdThread);
         runThreads(threadList);
 
-        Assert.assertEquals(ONE_THREAD_OPERATIONS_NUM * 3, testMap.size.get());
+        Assert.assertEquals(ONE_THREAD_OPERATIONS_NUM * 3, testMap.config.size.get());
 
         // gets of the first thread insertions are tested concurrently within the thread
         // here test second and third
