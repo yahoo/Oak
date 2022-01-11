@@ -68,10 +68,7 @@ public class BuildAllTypesTest {
 
         OakMap<Float, String> oak = builder.buildOrderedMap();
 
-        OakMap<Double, String> oak = new OakMapBuilder<>(doubleComparator, doubleSerializer,
-                stringSerializer, Double.MIN_VALUE).setMemoryCapacity(MEBIBYTE).build();
-
-        double myKey = 2.72d;
+        float myKey = (float) 2.72;
         String myVal = "val";
         oak.put(myKey, myVal);
 
