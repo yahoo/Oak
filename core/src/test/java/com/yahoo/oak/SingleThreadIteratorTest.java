@@ -25,13 +25,14 @@ public class SingleThreadIteratorTest {
     @Before
     public void init() {
         OakMapBuilder<Integer, Integer> builder = OakCommonBuildersFactory.getDefaultIntBuilder()
-                .setChunkMaxItems(maxItemsPerChunk);
-        oak = builder.build();
+                .setOrderedChunkMaxItems(maxItemsPerChunk);
+        oak = builder.buildOrderedMap();
     }
 
     @After
     public void finish() {
         oak.close();
+        BlocksPool.clear();
     }
 
     @Test

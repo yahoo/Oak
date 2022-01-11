@@ -9,8 +9,14 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v2
+    - name: Fetch repository
+      uses: actions/checkout@v2
+      with:
+        fetch-depth: 0
     - run: git fetch origin master
+    - name: Get latest release commit ID
+      id: latest_release
+      run: echo "::set-output name=commit_id::$(git log --pretty=format:"%h%x09%s" -n 1000 | grep "prepare release" | head -1 | cut -f1)"
     - name: Set up JDK 1.8
       uses: actions/setup-java@v1
       with:
@@ -18,24 +24,34 @@ jobs:
     - name: Build with Maven
       run: mvn clean package -DskipTests=true -Dstyle.color=always
     - name: Run tests
-      run: mvn test -Dstyle.color=always
+      run: mvn test -Dstyle.color=always -Dtest=!com.yahoo.oak.RunBenchmarkTest -DfailIfNoTests=false
+    - name: Run synchrobench test
+      run: mvn test -Dstyle.color=always -Dtest=com.yahoo.oak.RunBenchmarkTest -DfailIfNoTests=false
     - name: Run tests with test-coverage analysis (slower)
-      # Skip some tests due to timeouts
+      # Skip some tests due to timeouts/irrelevant
       run: mvn test -pl :oak -Djacoco.skip=false -Dstyle.color=always
-           -Dtest=!com.yahoo.oak.ComputeTest,!com.yahoo.oak.PutIfAbsentTest
+           -Dtest=!com.yahoo.oak.ComputeTest,!com.yahoo.oak.PutIfAbsentTest,!com.yahoo.oak.RunBenchmarkTest,!com.yahoo.oak.RunScriptTest
     - name: Setup diff-test-coverage
       run: npm install @connectis/diff-test-coverage@1.5.3
-    - name: Validate test-coverage
+    - name: Validate test-coverage compared with master
       run: git diff origin/master HEAD | node_modules/.bin/diff-test-coverage
             --coverage "**/target/site/jacoco/jacoco.xml"
             --type jacoco
             --color
-            --line-coverage 50
-            --branch-coverage 50
-            --function-coverage 0
             --log-template "coverage-lines-complete"
             --log-template "coverage-files-complete"
             --log-template "totals-complete"
             --log-template "errors"
             --
-            || { printf "\n\n****FAILED****\nDiff code coverage check failed. To view coverage report, run 'mvn clean test -Djacoco.skip=false' and open 'target/site/jacoco/index.html'\n\n" && false; }
+            || { printf "\n\nTo view full coverage report, run 'mvn clean test -Djacoco.skip=false' and open 'target/site/jacoco/index.html'\n" && true; }
+    - name: Validate test-coverage compared with last release
+      run: git diff ${{steps.latest_release.outputs.commit_id}} HEAD | node_modules/.bin/diff-test-coverage
+            --coverage "**/target/site/jacoco/jacoco.xml"
+            --type jacoco
+            --color
+            --log-template "coverage-lines-complete"
+            --log-template "coverage-files-complete"
+            --log-template "totals-complete"
+            --log-template "errors"
+            --
+            || { printf "\n\nTo view full coverage report, run 'mvn clean test -Djacoco.skip=false' and open 'target/site/jacoco/index.html'\n" && true; }

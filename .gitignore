@@ -21,11 +21,15 @@ oak.iml
 *.tar.gz
 *.rar
 
+# Memory profiler outputs
+*.dat
+
 # virtual machine crash logs, see http://www.java.com/en/download/help/error_hotspot.xml
 hs_err_pid*
 target/
 *.iml
 benchmarks/synchrobench/dependency-reduced-pom.xml
+benchmarks/synchrobench/output/*csv
 
 **/pom.xml.releaseBackup
 release.properties

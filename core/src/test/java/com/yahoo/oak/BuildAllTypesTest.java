@@ -6,8 +6,7 @@
 
 package com.yahoo.oak;
 
-import com.yahoo.oak.common.doublenum.OakDoubleComparator;
-import com.yahoo.oak.common.doublenum.OakDoubleSerializer;
+import com.yahoo.oak.common.OakCommonBuildersFactory;
 import com.yahoo.oak.common.floatnum.OakFloatComparator;
 import com.yahoo.oak.common.floatnum.OakFloatSerializer;
 import com.yahoo.oak.common.integer.OakIntComparator;
@@ -26,14 +25,17 @@ public class BuildAllTypesTest {
         OakIntSerializer intSerializer2 = new OakIntSerializer();
         OakIntComparator intComparator = new OakIntComparator();
 
-        OakMap<Integer, Integer> oak = new OakMapBuilder<>(intComparator, intSerializer,
-                intSerializer2, Integer.MIN_VALUE).setMemoryCapacity(MEBIBYTE).build();
+        OakMapBuilder<Integer, Integer> builder = new OakMapBuilder<>(intComparator, intSerializer,
+                intSerializer2, Integer.MIN_VALUE).setMemoryCapacity(MEBIBYTE); // 1MB in bytes
+
+        OakMap<Integer, Integer> oak = builder.buildOrderedMap();
 
         int myKey = 0;
         int myVal = 1;
         oak.put(myKey, myVal);
 
-        Assert.assertEquals(myVal, (int) oak.get(myKey));
+        Assert.assertEquals((int) oak.get(myKey), myVal);
+
     }
 
     @Test
@@ -42,14 +44,17 @@ public class BuildAllTypesTest {
         OakFloatSerializer floatSerializer = new OakFloatSerializer();
         OakIntComparator intComparator = new OakIntComparator();
 
-        OakMap<Integer, Float> oak = new OakMapBuilder<>(intComparator, intSerializer,
-                floatSerializer, Integer.MIN_VALUE).setMemoryCapacity(MEBIBYTE).build();
+        OakMapBuilder<Integer, Float> builder = new OakMapBuilder<>(intComparator, intSerializer,
+                floatSerializer, Integer.MIN_VALUE).setMemoryCapacity(MEBIBYTE); // 1MB in bytes
+
+        OakMap<Integer, Float> oak = builder.buildOrderedMap();
 
         int myKey = 0;
         float myVal = (float) 3.14;
         oak.put(myKey, myVal);
 
-        Assert.assertEquals(myVal, oak.get(myKey), 0.0);
+        Assert.assertEquals(oak.get(myKey), myVal, 0.0);
+
     }
 
     @Test
@@ -58,22 +63,10 @@ public class BuildAllTypesTest {
         OakStringSerializer stringSerializer = new OakStringSerializer();
         OakFloatComparator floatComparator = new OakFloatComparator();
 
-        OakMap<Float, String> oak = new OakMapBuilder<>(floatComparator, floatSerializer,
-                stringSerializer, Float.MIN_VALUE).setMemoryCapacity(MEBIBYTE).build();
+        OakMapBuilder<Float, String> builder = new OakMapBuilder<>(floatComparator, floatSerializer,
+                stringSerializer, Float.MIN_VALUE).setMemoryCapacity(MEBIBYTE); // 1MB in bytes
 
-        float myKey = 2.72f;
-        String myVal = "val";
-        oak.put(myKey, myVal);
-
-        Assert.assertEquals(myVal, oak.get(myKey));
-
-    }
-
-    @Test
-    public void testBuildDoubleString() {
-        OakDoubleSerializer doubleSerializer = new OakDoubleSerializer();
-        OakDoubleComparator doubleComparator = new OakDoubleComparator();
-        OakStringSerializer stringSerializer = new OakStringSerializer();
+        OakMap<Float, String> oak = builder.buildOrderedMap();
 
         OakMap<Double, String> oak = new OakMapBuilder<>(doubleComparator, doubleSerializer,
                 stringSerializer, Double.MIN_VALUE).setMemoryCapacity(MEBIBYTE).build();
@@ -82,8 +75,18 @@ public class BuildAllTypesTest {
         String myVal = "val";
         oak.put(myKey, myVal);
 
-        Assert.assertEquals(myVal, oak.get(myKey));
+        Assert.assertEquals(oak.get(myKey), myVal);
 
+    }
+
+    @Test
+    public void testBuildByteArray() {
+        OakMap<byte[], byte[]> oak = OakCommonBuildersFactory.getDefaultByteArrayBuilder().buildOrderedMap();
+
+        final byte[] key = new byte[] {1, 2, 3};
+        oak.put(key, key);
+
+        Assert.assertArrayEquals(key, oak.get(key));
     }
 
     // TODO add all type combinations

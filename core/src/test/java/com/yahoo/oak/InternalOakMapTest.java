@@ -7,6 +7,7 @@
 package com.yahoo.oak;
 
 import com.yahoo.oak.common.OakCommonBuildersFactory;
+import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
@@ -28,11 +29,16 @@ public class InternalOakMapTest {
         SeqExpandMemoryManager seqExpandMemoryManager = new SeqExpandMemoryManager(ma);
         int chunkMaxItems = 100;
 
-        testMap = new InternalOakMap<>(Integer.MIN_VALUE, OakCommonBuildersFactory.DEFAULT_INT_SERIALIZER,
-                OakCommonBuildersFactory.DEFAULT_INT_SERIALIZER, OakCommonBuildersFactory.DEFAULT_INT_COMPARATOR,
-                memoryManager, seqExpandMemoryManager, chunkMaxItems, new ValueUtils());
+        testMap = new InternalOakMap<>(OakCommonBuildersFactory.getDefaultIntBuilder().buildSharedConfig(
+                ma, memoryManager, seqExpandMemoryManager
+        ), Integer.MIN_VALUE, chunkMaxItems);
     }
 
+    @After
+    public void tearDown() {
+        testMap.close();
+        BlocksPool.clear();
+    }
 
     private static Integer slowDeserialize(OakScopedReadBuffer bb) {
         try {
@@ -75,6 +81,14 @@ public class InternalOakMapTest {
 
         Assert.assertNull(results[0]);
         Assert.assertNotEquals(results[1], results[2]);
+
+        OakUnscopedBuffer maxK = testMap.getMaxKey();
+        int intMaxK = maxK.transform(OakCommonBuildersFactory.DEFAULT_INT_SERIALIZER::deserialize);
+        Assert.assertEquals(1, intMaxK);
+
+        OakUnscopedBuffer minK = testMap.getMinKey();
+        int intMinK = minK.transform(OakCommonBuildersFactory.DEFAULT_INT_SERIALIZER::deserialize);
+        Assert.assertEquals(1, intMinK);
     }
 
     @Test

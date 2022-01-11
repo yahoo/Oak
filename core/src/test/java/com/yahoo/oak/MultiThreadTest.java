@@ -25,7 +25,7 @@ import java.util.function.Consumer;
 public class MultiThreadTest {
 
     private static final int NUM_THREADS = 31;
-    private static final long TIME_LIMIT_IN_SECONDS = 60;
+    private static final long TIME_LIMIT_IN_SECONDS = 80;
 
     private static final int MAX_ITEMS_PER_CHUNK = 2048;
 
@@ -37,8 +37,8 @@ public class MultiThreadTest {
     @Before
     public void init() {
         OakMapBuilder<Integer, Integer> builder = OakCommonBuildersFactory.getDefaultIntBuilder()
-                .setChunkMaxItems(MAX_ITEMS_PER_CHUNK);
-        oak = builder.build();
+                .setOrderedChunkMaxItems(MAX_ITEMS_PER_CHUNK);
+        oak = builder.buildOrderedMap();
         latch = new CountDownLatch(1);
         executor = new ExecutorUtils<>(NUM_THREADS);
     }
@@ -47,6 +47,7 @@ public class MultiThreadTest {
     public void finish() {
         executor.shutdownNow();
         oak.close();
+        BlocksPool.clear();
     }
 
     class RunThreads implements Callable<Void> {

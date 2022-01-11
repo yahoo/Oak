@@ -17,13 +17,13 @@ public class MemoryReleaseTest {
 //        String val = String.format("-%016000d", 0);
 //
 //        OakMapBuilder<String, String> builder = new OakMapBuilder<String, String>()
-//                .setChunkMaxItems(1024)
+//                .setOrderedChunkMaxItems(1024)
 //                .setChunkBytesPerItem(4096)
 //                .setKeySerializer(new StringSerializer())
 //                .setValueSerializer(new StringSerializer())
 //                .setComparator(new StringComparator())
 //                .setMinKey("");
-//        OakMap<String, String> oak =  builder.build();
+//        OakMap<String, String> oak =  builder.buildOrderedMap();
 //
 //        int firstIteration = 0;
 //        try {
@@ -38,7 +38,7 @@ public class MemoryReleaseTest {
 //        oak.close();
 //
 //        int secondIteration = 0;
-//        oak =  builder.build();
+//        oak =  builder.buildMap();
 //        System.gc();
 //
 //        try {

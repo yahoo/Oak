@@ -24,7 +24,7 @@ class Block {
         // Pay attention in allocateDirect the data is *zero'd out*
         // which has an overhead in clearing and you end up touching every page
         this.blockMemAddress  = UnsafeUtils.allocateMemory(capacity);
-
+        UnsafeUtils.setMemory(this.blockMemAddress, capacity, (byte) 0); // zero block's memory
     }
 
     void setID(int id) {
@@ -33,22 +33,23 @@ class Block {
 
     // Block manages its linear allocation. Thread safe.
     // The returned buffer doesn't have all zero bytes.
-    boolean allocate(Slice s, final int size) {
+    boolean allocate(BlockAllocationSlice s, final int size) {
         assert size > 0;
-        long now = allocated.get();
-        if (now + size <= this.capacity) { // check is only an optimization
-            now = allocated.getAndAdd(size);
+        long offset = allocated.get();
+        if (offset + size <= this.capacity) { // check is only an optimization
+            offset = allocated.getAndAdd(size);
         }
-        if (now + size > this.capacity) {
+        if (offset + size > this.capacity) {
             throw new OakOutOfMemoryException(String.format("Block %d is out of memory", id));
         }
-        s.associateBlockAllocation(id, (int) now, size, blockMemAddress );
+        s.associateBlockAllocation(id, (int) offset, size, blockMemAddress );
         return true;
     }
 
     // use when this Block is no longer in any use, not thread safe
-    // It sets the limit to the capacity and the position to zero, but didn't zeroes the memory
+    // It sets the limit to the capacity and the position to zero, and zeroes the memory
     void reset() {
+        UnsafeUtils.setMemory(this.blockMemAddress, capacity, (byte) 0); // zero block's memory
         allocated.set(0);
     }
 

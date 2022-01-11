@@ -6,6 +6,7 @@
 
 package com.yahoo.oak;
 
+import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
@@ -16,15 +17,22 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class ValueUtilsSimpleTest {
-    private Slice s;
+    SyncRecycleMemoryManager syncRecycleMemoryManager;
+    private BlockAllocationSlice s;
 
     @Before
     public void init() {
-        SyncRecycleMemoryManager syncRecycleMemoryManager =
+        syncRecycleMemoryManager =
             new SyncRecycleMemoryManager(new NativeMemoryAllocator(128));
         s = syncRecycleMemoryManager.getEmptySlice();
-        syncRecycleMemoryManager.allocate(s, 16, false);
+        s.allocate(16, false);
         UnsafeUtils.UNSAFE.putInt(s.getAddress(), 1);
+    }
+
+    @After
+    public void tearDown() {
+        syncRecycleMemoryManager.close();
+        BlocksPool.clear();
     }
 
     @Test

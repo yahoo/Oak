@@ -6,21 +6,23 @@
 
 package com.yahoo.oak;
 
-/* Encapsulates a context, from when an key/value/entry operation has began until the it was completed */
+/**
+ * Encapsulates a context, from when a key/value/entry operation has begun until it was completed
+ */
 class ThreadContext {
 
     /*-----------------------------------------------------------
      * Entry Context
      *-----------------------------------------------------------*/
 
-    /* The index of the key's entry in EntrySet */
+    /* The index of the key's entry in EntryArray */
     int entryIndex;
 
     /* key is used for easier access to the off-heap memory */
     final KeyBuffer key;
 
     /* The state of the value */
-    EntrySet.ValueState valueState;
+    EntryArray.EntryState entryState;
 
     /* value is used for easier access to the off-heap memory */
     final ValueBuffer value;
@@ -32,7 +34,7 @@ class ThreadContext {
     /**
      * This parameter encapsulates the allocation information, from when value write started
      * and until value write was committed. It should not be used for other purposes, just transferred
-     * between writeValueStart (return parameter) to writeValueCommit (input parameter)
+     * between allocateValue (return parameter) to writeValueCommit (input parameter)
      */
     final ValueBuffer newValue;
 
@@ -41,6 +43,13 @@ class ThreadContext {
      * If false, then it is a new allocation and value.isValid() should be false.
      */
     boolean isNewValueForMove;
+
+    /* The key hash and update counter of the found (serialized) entry's key.
+     * Relevant and used only for OakHash */
+    long keyHashAndUpdateCnt;
+
+    /* The key hash of the key being inserted/deleted/looked-for by this thread. Relevant and used only for OakHash */
+    int operationKeyHash;
 
     /*-----------------------------------------------------------
      * Result Context
@@ -55,27 +64,31 @@ class ThreadContext {
     final KeyBuffer tempKey;
     final ValueBuffer tempValue;
 
-    ThreadContext(MemoryManager kmm, MemoryManager vmm) {
-        entryIndex = EntrySet.INVALID_ENTRY_INDEX;
-        valueState = EntrySet.ValueState.UNKNOWN;
+    ThreadContext(OakSharedConfig<?, ?> config) {
+        entryIndex = EntryArray.INVALID_ENTRY_INDEX;
+        entryState = EntryArray.EntryState.UNKNOWN;
         isNewValueForMove = false;
 
-        this.key = new KeyBuffer(kmm.getEmptySlice());
-        this.value = new ValueBuffer(vmm.getEmptySlice());
-        this.newValue = new ValueBuffer(vmm.getEmptySlice());
+        this.key = new KeyBuffer(config.keysMemoryManager.getEmptySlice());
+        this.value = new ValueBuffer(config.valuesMemoryManager.getEmptySlice());
+        this.newValue = new ValueBuffer(config.valuesMemoryManager.getEmptySlice());
         this.result = new Result();
-        this.tempKey = new KeyBuffer(kmm.getEmptySlice());
-        this.tempValue = new ValueBuffer(vmm.getEmptySlice());
+        this.tempKey = new KeyBuffer(config.keysMemoryManager.getEmptySlice());
+        this.tempValue = new ValueBuffer(config.valuesMemoryManager.getEmptySlice());
+
+        this.keyHashAndUpdateCnt = EntryHashSet.INVALID_KEY_HASH_AND_UPD_CNT;
+        this.operationKeyHash = EntryHashSet.INVALID_KEY_HASH;
     }
 
     void invalidate() {
-        entryIndex = EntrySet.INVALID_ENTRY_INDEX;
+        entryIndex = EntryArray.INVALID_ENTRY_INDEX;
         key.invalidate();
         value.invalidate();
         newValue.invalidate();
         result.invalidate();
-        valueState = EntrySet.ValueState.UNKNOWN;
+        entryState = EntryArray.EntryState.UNKNOWN;
         isNewValueForMove = false;
+        this.keyHashAndUpdateCnt = EntryHashSet.INVALID_KEY_HASH_AND_UPD_CNT;
         // No need to invalidate the temporary buffers
     }
 
@@ -96,15 +109,15 @@ class ThreadContext {
      * @return does the entry have a valid key
      */
     boolean isKeyValid() {
-        return key.isInitiated();
+        return key.isAssociated();
     }
 
     /**
-     * See {@code ValueState.isValid()} for more details.
+     * See {@code EntryState.isValid()} for more details.
      *
      * @return does the entry have a valid value
      */
     boolean isValueValid() {
-        return valueState.isValid();
+        return entryState.isValid();
     }
 }

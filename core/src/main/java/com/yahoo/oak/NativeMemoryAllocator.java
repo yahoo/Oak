@@ -23,12 +23,10 @@ class NativeMemoryAllocator implements BlockMemoryAllocator {
     private Block[] blocksArray;
     private final AtomicInteger idGenerator = new AtomicInteger(1);
 
-    /**
-     * free list of Slices which can be reused.
-     * They are sorted by the slice length, then by the block id, then by their offset.
-     * See {@code Slice.compareTo(Slice)} for more information.
-     */
-    private final ConcurrentSkipListSet<Slice> freeList = new ConcurrentSkipListSet<>();
+    // free list of Slices which can be reused.
+    // They are sorted by the slice length, then by the block id, then by their offset.
+    // See {@code Slice.compareTo(Slice)} for more information.
+    private final ConcurrentSkipListSet<BlockAllocationSlice> freeList = new ConcurrentSkipListSet<>();
 
     private final BlocksProvider blocksProvider;
     private Block currentBlock;
@@ -54,28 +52,35 @@ class NativeMemoryAllocator implements BlockMemoryAllocator {
     // A testable constructor
     NativeMemoryAllocator(long capacity, BlocksProvider blocksProvider) {
         this.blocksProvider = blocksProvider;
-        int blockArraySize = ((int) (capacity / blocksProvider.blockSize())) + 1;
-        // first entry of blocksArray is always empty
-        this.blocksArray = new Block[blockArraySize + 1];
+        this.capacity = capacity;
+        this.blocksArray = new Block[calcBlockArraySize()];
         // initially allocate one single block from pool
         // this may lazy initialize the pool and take time if this is the first call for the pool
         allocateNewCurrentBlock();
-        this.capacity = capacity;
+
+    }
+
+    private int calcBlockArraySize() {
+        final int size = (int) Math.ceil((double) capacity / (double) blocksProvider.blockSize());
+        // We add "1" since the first entry of blocksArray is always empty
+        return size + 1;
     }
 
     // Allocates an off-heap cut of the given size, either from freeList or (if it is still possible)
     // within current block bounds.
     // Otherwise, new block is allocated within Oak memory bounds. Thread safe.
     // Given size already includes the size for metadata header if needed.
+    // For our internal implementation what all Slices we work with extend the BlockAllocationSlice!
     @Override
-    public boolean allocate(Slice s, int size) {
+    public boolean allocate(Slice sl, int size) {
+        BlockAllocationSlice s = (BlockAllocationSlice) sl;
         // While the free list is not empty there can be a suitable free slice to reuse.
         // To search a free slice, we use the input slice as a dummy and change its length to the desired length.
         // Then, we use freeList.higher(s) which returns a free slice with greater or equal length to the length of the
         // dummy with time complexity of O(log N), where N is the number of free slices.
         while (!freeList.isEmpty()) {
             s.initializeLookupDummy(size);
-            Slice bestFit = freeList.higher(s);
+            BlockAllocationSlice bestFit = freeList.higher(s);
             if (bestFit == null) {
                 break;
             }
@@ -93,6 +98,7 @@ class NativeMemoryAllocator implements BlockMemoryAllocator {
                     stats.reclaim(size);
                 }
                 s.copyAllocationInfoFrom(bestFit);
+                allocated.addAndGet(size);
                 return true;
             }
         }
@@ -137,17 +143,21 @@ class NativeMemoryAllocator implements BlockMemoryAllocator {
     // IMPORTANT: it is assumed free will get an allocation only initially allocated from this
     // Allocator!
     @Override
-    public void free(Slice s) {
+    public void free(Slice sl) {
+        BlockAllocationSlice s = (BlockAllocationSlice) sl;
         int size = s.getAllocatedLength();
         allocated.addAndGet(-size);
         if (stats != null) {
             stats.release(size);
         }
-        freeList.add(s.getDuplicatedSlice());
+        s.zeroMetadata();
+        freeList.add(s.duplicate());
     }
 
     // Releases all memory allocated for this Oak (should be used as part of the Oak destruction)
     // Not thread safe, should be a single thread call. (?)
+    // TODO: use reference counter in case multiple Oak instances are based on the same allocator
+    // TODO: and only one of the Oak instances is closed
     @Override
     public void close() {
         if (!closed.compareAndSet(false, true)) {
@@ -158,14 +168,17 @@ class NativeMemoryAllocator implements BlockMemoryAllocator {
         Block[] b = blocksArray;
         blocksArray = null;
 
+        // Generally, there is no need to do anything with the free list,
+        // as all free list members were residing on one of the (already released) blocks.
+        // We free the list here to allow earlier collection of the objects.
+        freeList.clear();
+
         // Reset "closed" to apply a memory barrier before actually returning the block.
         closed.set(true);
 
         for (int i = 1; i <= numberOfBlocks(); i++) {
             blocksProvider.returnBlock(b[i]);
         }
-        // no need to do anything with the free list,
-        // as all free list members were residing on one of the (already released) blocks
     }
 
     // Returns the off-heap allocation of this OakMap
@@ -184,9 +197,33 @@ class NativeMemoryAllocator implements BlockMemoryAllocator {
         return closed.get();
     }
 
-    // When some buffer need to be read from a random block
+    // Releases the underlying off-heap memory without releasing the entire structure
+    // To be used when the user structure needs to be cleared, without memory reallocation
+    // NOT THREAD SAFE!!!
     @Override
-    public void readMemoryAddress(Slice s) {
+    public void clear() {
+        // We close the allocator to clear all the resources, then enable it again after resetting the counters.
+        // If there is a concurrent call to close(), the result is unexpected.
+        // Hence, this method is not thread-safe.
+        close();
+
+        freeList.clear();
+        allocated.set(0);
+        idGenerator.set(1);
+        blocksArray = new Block[calcBlockArraySize()];
+
+        // initially allocate one single block from pool
+        allocateNewCurrentBlock();
+
+        // We enable the allocator after resetting all the counters.
+        closed.set(false);
+    }
+
+    // When some buffer need to be read from a random block
+    // The Slices we work with must extend BlockAllocationSlice
+    @Override
+    public void readMemoryAddress(Slice sl) {
+        BlockAllocationSlice s = (BlockAllocationSlice) sl;
         int blockID = s.getAllocatedBlockID();
         // Validates that the input block id is valid.
         // This check should be automatically eliminated by the compiler in production.
@@ -210,9 +247,12 @@ class NativeMemoryAllocator implements BlockMemoryAllocator {
     // This method MUST be called within a thread safe context !!!
     private void allocateNewCurrentBlock() {
         Block b = blocksProvider.getBlock();
-        int blockID = idGenerator.getAndIncrement();
-        this.blocksArray[blockID] = b;
+        // Does not require atomicity because previous update was atomic, and we are in a thread safe context.
+        int blockID = idGenerator.get();
         b.setID(blockID);
+        this.blocksArray[blockID] = b;
+        // Increment atomically to ensure current reads and to force a flash before assigning the current block.
+        idGenerator.incrementAndGet();
         this.currentBlock = b;
     }
 

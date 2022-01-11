@@ -11,7 +11,7 @@ It is faster and scales better with additional CPU cores than the popular Java C
 2. OakMap takes keys and the data off-heap, and thus allows working with a huge heap (RAM) -- even more than 50G -- without JVM GC overheads.
    - To support off-heap, OakMap has embedded, efficient, epoch-based memory management that mostly eliminates JVM GC overheads.
 4. OakMap provides a rich API for **atomic** accesses to data. For example, OakMap supports atomic compute() -- in place computations on existing keys -- whereas the current Java ConcurrentSkipListMap implementation does not guarantee the atomicity of `compute()`. OakMap’s update operations (such as put and compute) take user-provided lambda functions for easy integration in diverse use cases.
-5. Descending Scans: OakMap expedites descending scans without additional complexity. In our experiments, OakMap’s descending scans are 4.8x faster than ConcurrentSkipListMap’s, and perform similarly to their ascending counterparts (see [performance evaluation](https://github.com/yahoo/Oak/wiki/Performance)).
+5. Descending Scans: OakMap expedites descending scans without additional complexity. In our experiments, OakMap’s descending scans are 4.8x faster than ConcurrentSkipListMap’s, and perform similarly to their ascending counterparts (see [performance evaluation](https://github.com/yahoo/Oak/wiki/Performance-Evaluation)).
 
 ## Table of Contents
 

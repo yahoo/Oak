@@ -13,11 +13,17 @@ import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
 
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.Random;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
+import java.util.function.Supplier;
 
+@RunWith(Parameterized.class)
 public class FillTest {
 
     private static final int NUM_THREADS = 1;
@@ -27,21 +33,57 @@ public class FillTest {
     private static final int KEY_SIZE = 10;
     private static final int VALUE_SIZE = Math.round(5 * K);
 
-    private static final int NUM_OF_ENTRIES = 100;
+    private static final int NUM_OF_ENTRIES = 4; // was 100
+    private static final int NUM_OF_ENTRIES_IN_ORDERED_CHUNK = 2048;    // 2^11
+    private static final int NUM_OF_ENTRIES_IN_HASH_CHUNK = 1024;       // 2^10
 
-    static OakMap<Integer, Integer> oak;
+
+    static ConcurrentZCMap<Integer, Integer> oak;
     private  CountDownLatch latch;
     private  ExecutorUtils<Void> executor;
+    private Supplier<ConcurrentZCMap> builder;
+
+
+    public FillTest(Supplier<ConcurrentZCMap> supplier) {
+        this.builder = supplier;
+
+    }
+
+    @Parameterized.Parameters
+    public static Collection parameters() {
+
+        Supplier<ConcurrentZCMap> s1 = () -> {
+            OakMapBuilder<Integer, Integer> builder = OakCommonBuildersFactory.getDefaultIntBuilder()
+                    .setOrderedChunkMaxItems(NUM_OF_ENTRIES_IN_ORDERED_CHUNK)
+                    .setKeySerializer(new OakIntSerializer(KEY_SIZE))
+                    .setValueSerializer(new OakIntSerializer(VALUE_SIZE));
+
+            return builder.buildOrderedMap();
+        };
+        Supplier<ConcurrentZCMap> s2 = () -> {
+            OakMapBuilder<Integer, Integer> builder = OakCommonBuildersFactory.getDefaultIntBuilder()
+                    .setKeySerializer(new OakIntSerializer(KEY_SIZE))
+                    .setValueSerializer(new OakIntSerializer(VALUE_SIZE));
+            return builder.buildHashMap();
+        };
+        return Arrays.asList(new Object[][] {
+                { s1 },
+                { s2 }
+        });
+    }
 
     @Before
     public void setup() {
         latch = new CountDownLatch(1);
         executor = new ExecutorUtils<>(NUM_THREADS);
+        oak = this.builder.get();
     }
 
     @After
     public void tearDown() {
         executor.shutdownNow();
+        oak.close();
+        BlocksPool.clear();
     }
 
     static class RunThreads implements Callable<Void> {
@@ -92,32 +134,26 @@ public class FillTest {
     @Test
     public void testMain() throws ExecutorUtils.ExecutionError {
 
-        OakMapBuilder<Integer, Integer> builder = OakCommonBuildersFactory.getDefaultIntBuilder()
-            .setChunkMaxItems(2048)
-            .setKeySerializer(new OakIntSerializer(KEY_SIZE))
-            .setValueSerializer(new OakIntSerializer(VALUE_SIZE));
+        int id = (int) Thread.currentThread().getId();
+        id = id % ThreadIndexCalculator.MAX_THREADS;
 
-        oak = builder.build();
+        //executor.submitTasks(NUM_THREADS, i -> new RunThreads(latch));
 
-        executor.submitTasks(NUM_THREADS, i -> new RunThreads(latch));
-
-        for (int i = 0; i < (int) Math.round(NUM_OF_ENTRIES * 0.5); i++) {
+        for (Integer i = 1; i < (int) Math.round(NUM_OF_ENTRIES * 0.5); i++) {
             oak.zc().putIfAbsent(i, i);
         }
 
         long startTime = System.currentTimeMillis();
 
-        latch.countDown();
-        executor.shutdown(TIME_LIMIT_IN_SECONDS);
+        //latch.countDown();
+        //executor.shutdown(TIME_LIMIT_IN_SECONDS);
 
         long stopTime = System.currentTimeMillis();
 
-        for (Integer i = 0; i < NUM_OF_ENTRIES / 2; i++) {
+        for (Integer i = 1; i < NUM_OF_ENTRIES * 0.5; i++) {
             Integer val = oak.get(i);
             Assert.assertEquals(i, val);
         }
         long elapsedTime = stopTime - startTime;
-        oak.close();
-
     }
 }

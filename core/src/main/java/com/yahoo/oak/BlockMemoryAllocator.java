@@ -7,11 +7,11 @@
 package com.yahoo.oak;
 
 /**
- * This is an interface to be implemented as an alternative to OakNativeMemoryAllocator.
- * Its purpose is to allocate new buffers (DirectByteBuffer) which will be delivered as a Slice object.
- * The allocator can also recycle the memory returned as a Slice object, given this allocation is no longer in use by
- * any thread.
- * Note that two allocations cannot be merged into a single allocation, and an allocation currently is not split.
+ * This is an interface to be implemented for off-heap memory supply. Its purpose is to
+ * allocate the off-heap memory of a size, which will be delivered as a Slice object. The allocator can
+ * also recycle the memory returned as a Slice object, given this allocation is no longer in use by
+ * any thread. Note that two allocations cannot be merged into a single allocation,
+ * and an allocation currently is not split.
  */
 interface BlockMemoryAllocator {
 
@@ -33,4 +33,9 @@ interface BlockMemoryAllocator {
 
     // Check if this Allocator was already closed
     boolean isClosed();
+
+    // Releases the underlying off-heap memory without releasing the entire structure
+    // To be used when the user structure needs to be cleared, without memory reallocation
+    // NOT THREAD SAFE!!!
+    void clear();
 }

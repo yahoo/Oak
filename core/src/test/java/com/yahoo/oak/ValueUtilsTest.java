@@ -6,6 +6,8 @@
 
 package com.yahoo.oak;
 
+import com.yahoo.oak.common.OakCommonBuildersFactory;
+import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
@@ -15,18 +17,28 @@ import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CyclicBarrier;
 
 public class ValueUtilsTest {
+    NativeMemoryAllocator allocator;
     private final ValueUtils valueOperator = new ValueUtils();
     private ThreadContext ctx;
     private ValueBuffer s;
 
     @Before
     public void init() {
-        NativeMemoryAllocator allocator = new NativeMemoryAllocator(128);
+        allocator = new NativeMemoryAllocator(128);
         SyncRecycleMemoryManager valuesMemoryManager = new SyncRecycleMemoryManager(allocator);
         SeqExpandMemoryManager keysMemoryManager = new SeqExpandMemoryManager(allocator);
-        ctx = new ThreadContext(keysMemoryManager, valuesMemoryManager);
+        OakSharedConfig<Integer, Integer> config = OakCommonBuildersFactory.getDefaultIntBuilder().buildSharedConfig(
+            allocator, keysMemoryManager, valuesMemoryManager
+        );
+        ctx = new ThreadContext(config);
         s = ctx.value;
-        valuesMemoryManager.allocate(s.getSlice(), Integer.BYTES * 3, false);
+        s.getSlice().allocate(Integer.BYTES * 3, false);
+    }
+
+    @After
+    public void tearDown() {
+        allocator.close();
+        BlocksPool.clear();
     }
 
     private void putInt(int index, int value) {
@@ -127,7 +139,7 @@ public class ValueUtilsTest {
 
     @Test
     public void cannotTransformedDifferentVersionTest() {
-        s.getSlice().associateMMAllocation(2, -1);
+        ((BlockAllocationSlice) s.getSlice()).associateMMAllocation(2, -1);
         Result result = valueOperator.transform(new Result(), s, byteBuffer -> byteBuffer.getInt(0));
         Assert.assertEquals(ValueUtils.ValueResult.RETRY, result.operationResult);
     }
@@ -139,24 +151,30 @@ public class ValueUtilsTest {
         for (int i = 0; i < randomValues.length; i++) {
             randomValues[i] = random.nextInt();
         }
-        Assert.assertEquals(ValueUtils.ValueResult.TRUE, valueOperator.put(null, ctx, 10, new OakSerializer<Integer>() {
-            @Override
-            public void serialize(Integer object, OakScopedWriteBuffer targetBuffer) {
-                for (int i = 0; i < randomValues.length; i++) {
-                    targetBuffer.putInt(i * Integer.BYTES, randomValues[i]);
+        Assert.assertEquals(ValueUtils.ValueResult.TRUE,
+            valueOperator.put(null, ctx, 10, new OakSerializer<Integer>() {
+                @Override
+                public void serialize(Integer object, OakScopedWriteBuffer targetBuffer) {
+                    for (int i = 0; i < randomValues.length; i++) {
+                        targetBuffer.putInt(i * Integer.BYTES, randomValues[i]);
+                    }
                 }
-            }
 
-            @Override
-            public Integer deserialize(OakScopedReadBuffer byteBuffer) {
-                return null;
-            }
+                @Override
+                public Integer deserialize(OakScopedReadBuffer byteBuffer) {
+                    return null;
+                }
 
-            @Override
-            public int calculateSize(Integer object) {
-                return 0;
-            }
-        }, null));
+                @Override
+                public int calculateSize(Integer object) {
+                    return 0;
+                }
+
+                @Override
+                public int calculateHash(Integer object) {
+                    return 0;
+                }
+            }));
         Assert.assertEquals(randomValues[0], getInt(0));
         Assert.assertEquals(randomValues[1], getInt(4));
         Assert.assertEquals(randomValues[2], getInt(8));
@@ -179,7 +197,12 @@ public class ValueUtilsTest {
             public int calculateSize(Integer object) {
                 return 0;
             }
-        }, null);
+
+            @Override
+            public int calculateHash(Integer object) {
+                return 0;
+            }
+        });
     }
 
     @Test(expected = IndexOutOfBoundsException.class)
@@ -199,7 +222,12 @@ public class ValueUtilsTest {
             public int calculateSize(Integer object) {
                 return 0;
             }
-        }, null);
+
+            @Override
+            public int calculateHash(Integer object) {
+                return 0;
+            }
+        });
     }
 
     @Test
@@ -233,7 +261,12 @@ public class ValueUtilsTest {
                 public int calculateSize(Integer object) {
                     return 0;
                 }
-            }, null);
+
+                @Override
+                public int calculateHash(Integer object) {
+                    return 0;
+                }
+            });
         });
         s.getSlice().lockRead();
         putter.start();
@@ -287,7 +320,12 @@ public class ValueUtilsTest {
                 public int calculateSize(Integer object) {
                     return 0;
                 }
-            }, null);
+
+                @Override
+                public int calculateHash(Integer object) {
+                    return 0;
+                }
+            });
         });
         s.getSlice().lockWrite();
         putter.start();
@@ -307,15 +345,13 @@ public class ValueUtilsTest {
     @Test
     public void cannotPutInDeletedValueTest() {
         s.getSlice().logicalDelete();
-        Assert.assertEquals(ValueUtils.ValueResult.FALSE, valueOperator.put(null, ctx, null, null,
-            null));
+        Assert.assertEquals(ValueUtils.ValueResult.FALSE, valueOperator.put(null, ctx, null, null));
     }
 
     @Test
     public void cannotPutToValueOfDifferentVersionTest() {
-        s.getSlice().associateMMAllocation(2, -1);
-        Assert.assertEquals(ValueUtils.ValueResult.RETRY, valueOperator.put(null, ctx, null, null,
-            null));
+        ((BlockAllocationSlice) s.getSlice()).associateMMAllocation(2, -1);
+        Assert.assertEquals(ValueUtils.ValueResult.RETRY, valueOperator.put(null, ctx, null, null));
     }
 
     @Test
@@ -432,7 +468,7 @@ public class ValueUtilsTest {
 
     @Test
     public void cannotComputeValueOfDifferentVersionTest() {
-        s.getSlice().associateMMAllocation(2, -1);
+        ((BlockAllocationSlice) s.getSlice()).associateMMAllocation(2, -1);
         Assert.assertEquals(ValueUtils.ValueResult.RETRY, valueOperator.compute(s, oakWBuffer -> {
         }));
     }

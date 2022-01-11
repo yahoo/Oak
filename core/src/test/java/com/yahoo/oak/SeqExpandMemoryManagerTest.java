@@ -6,6 +6,7 @@
 
 package com.yahoo.oak;
 
+import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
@@ -22,16 +23,22 @@ public class SeqExpandMemoryManagerTest {
         seqExpandMemoryManager = new SeqExpandMemoryManager(keysMemoryAllocator);
     }
 
+    @After
+    public void tearDown() {
+        seqExpandMemoryManager.close();
+        BlocksPool.clear();
+    }
+
     @Test
     public void allocate() {
-        Slice s = new SliceSeqExpand();
+        SeqExpandMemoryManager.SliceSeqExpand s = seqExpandMemoryManager.getEmptySlice();
         ByteBuffer bb;
 
-        seqExpandMemoryManager.allocate(s, 4, false);
+        s.allocate(4, false);
         Assert.assertEquals(4, s.getAllocatedLength());
         Assert.assertEquals(4, seqExpandMemoryManager.allocated());
 
-        seqExpandMemoryManager.allocate(s, 4, false);
+        s.allocate(4, false);
         Assert.assertEquals(4, s.getAllocatedLength());
         Assert.assertEquals(8, seqExpandMemoryManager.allocated());
     }
