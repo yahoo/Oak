@@ -24,7 +24,7 @@ public class OakBenchMap extends BenchOakMap {
     @Override
     public void init() {
         OakMapBuilder<BenchKey, BenchValue> builder = new OakMapBuilder<>(keyGen, keyGen, valueGen, minKey)
-            .setOrderedChunkMaxItems(OrderedChunk.ORDERED_CHUNK_MAX_ITEMS_DEFAULT)
+            .setChunkMaxItems(OrderedChunk.ORDERED_CHUNK_MAX_ITEMS_DEFAULT)
             .setMemoryCapacity(OAK_MAX_OFF_MEMORY);
         oak = builder.buildOrderedMap();
     }

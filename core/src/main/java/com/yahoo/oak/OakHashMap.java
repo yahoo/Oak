@@ -6,6 +6,8 @@
 
 package com.yahoo.oak;
 
+import com.google.common.annotations.Beta;
+
 import java.util.AbstractCollection;
 import java.util.AbstractMap;
 import java.util.AbstractSet;
@@ -21,6 +23,7 @@ import java.util.function.Function;
 /**
  * A concurrent map implementation which supports off-heap memory.
  */
+@Beta
 public class OakHashMap<K, V> extends AbstractMap<K, V> implements AutoCloseable, ConcurrentZCMap<K , V> {
 
     // Used for iterators
