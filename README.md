@@ -393,15 +393,13 @@ while (iter.hasNext()) {
 ```
 
 ##### Unsafe direct buffer access (address)
+Oak support accessing its keys/values using direct memory address.
+`DirectUtils` can be used to access the memory address data.
 
 ```java
-Constructor<Unsafe> unsafeConstructor = Unsafe.class.getDeclaredConstructor();
-unsafeConstructor.setAccessible(true);
-Unsafe unsafe = unsafeConstructor.newInstance();
-
 Function<OakScopedReadBuffer, String> intToStringsDirect = b -> {
   OakUnsafeDirectBuffer ub = (OakUnsafeDirectBuffer) b;
-  return unsafe.getInt(ub.getAddress());
+  return DirectUtils.getInt(ub.getAddress());
 };
 
 Iterator<String> iter = oak.zc().values().stream().map(v -> v.transform(intToStringsDirect)).iterator();
@@ -412,7 +410,7 @@ while (iter.hasNext()) {
 
 Note: in the above example, the following will not throw any exception even if the buffer mode is read-only:
 ```java
-unsafe.putInt(ub.getAddress(), someInteger);
+DirectUtils.putInt(ub.getAddress(), someInteger);
 ```
 
 ## Contribute
