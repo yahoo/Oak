@@ -44,7 +44,7 @@ public class HeapUsageTest {
         Supplier<ConcurrentZCMap<Integer , Integer>> s1 = () -> {
             int maxItemsPerChunk = 2048;
             OakMapBuilder<Integer, Integer> builder = OakCommonBuildersFactory.getDefaultIntBuilder()
-                .setOrderedChunkMaxItems(maxItemsPerChunk)
+                .setChunkMaxItems(maxItemsPerChunk)
                 .setKeySerializer(new OakIntSerializer(keySize))
                 .setValueSerializer(new OakIntSerializer(valSize));
 
@@ -53,7 +53,7 @@ public class HeapUsageTest {
         Supplier<ConcurrentZCMap<Integer , Integer>> s2 = () -> {
             int maxItemsPerChunk = 512;
             OakMapBuilder<Integer, Integer> builder = OakCommonBuildersFactory.getDefaultIntBuilder()
-                .setHashChunkMaxItems(maxItemsPerChunk)
+                .setChunkMaxItems(maxItemsPerChunk)
                 .setKeySerializer(new OakIntSerializer(keySize))
                 .setValueSerializer(new OakIntSerializer(valSize));
             return builder.buildHashMap();
@@ -161,7 +161,7 @@ public class HeapUsageTest {
         System.out.println("key size: " + keySize + "B" + ", value size: " + ((double) valSize) / K + "KB");
         for (long numOfEntries : configurations) {
             OakMapBuilder<Integer, Integer> builder = OakCommonBuildersFactory.getDefaultIntBuilder()
-                    .setOrderedChunkMaxItems(2048)
+                    .setChunkMaxItems(2048)
                     .setKeySerializer(new OakIntSerializer(keySize))
                     .setValueSerializer(new OakIntSerializer(valSize));
             try (OakMap<Integer, Integer> oak = builder.buildOrderedMap()) {
