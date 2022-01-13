@@ -317,7 +317,7 @@ abstract class InternalOakBasics<K, V> {
     protected boolean isAfterRebalanceOrValueUpdate(BasicChunk<K, V> c, ThreadContext ctx) {
         // If orderedChunk is frozen or infant, can't proceed with put, need to help rebalancer first,
         // rebalance is done as part of inTheMiddleOfRebalance.
-        // Also if value is off-heap deleted, we need to finalizeDeletion on-heap, which can
+        // Also, if value is off-heap deleted, we need to finalizeDeletion on-heap, which can
         // cause rebalance as well. If rebalance happened finalizeDeletion returns true.
         // After rebalance we need to restart.
         if (inTheMiddleOfRebalance(c) || finalizeDeletion(c, ctx)) {
@@ -352,7 +352,7 @@ abstract class InternalOakBasics<K, V> {
     }
 
     /**
-     * Used when value of a key was possibly moved and we try to search for the given key
+     * Used when value of a key was possibly moved, and we try to search for the given key
      * through the OakMap again.
      *
      * @param ctx The context key should be initialized with the key to refresh, and the context value

@@ -29,7 +29,6 @@ public class OakMap<K, V> extends AbstractMap<K, V>
 
     private final InternalOakMap<K, V> internalOakMap;
 
-
     // Used for iterators
     private final Function<Map.Entry<OakScopedReadBuffer, OakScopedReadBuffer>,
             Map.Entry<K, V>> entryDeserializeTransformer;

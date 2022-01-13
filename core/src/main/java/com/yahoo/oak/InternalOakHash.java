@@ -21,8 +21,6 @@ class InternalOakHash<K, V> extends InternalOakBasics<K, V> {
     static final int USE_DEFAULT_FIRST_TO_SECOND_BITS_PARTITION = -1;
 
     /*-------------- Constructors --------------*/
-
-
     InternalOakHash(OakSharedConfig<K, V> config, int firstLevelBitSize, int secondLevelBitSize) {
         super(config);
 
@@ -631,7 +629,6 @@ class InternalOakHash<K, V> extends InternalOakBasics<K, V> {
 
         public T next() {
             advance(true);
-
 
             Result res = config.valueOperator.transform(ctx.result, ctx.value, transformer);
             // If this value is deleted, try the next one

@@ -22,7 +22,6 @@ public class SingleThreadIteratorTestHash {
 
     private OakHashMap<Integer, Integer> oak;
     private final int maxItemsPerChunk = 2048;
-    private final int iteratorsRange = 10;
 
     @Before
     public void init() {
@@ -63,7 +62,7 @@ public class SingleThreadIteratorTestHash {
 
         Iterator<Integer> valIter = oak.values().iterator();
         Iterator<Map.Entry<Integer, Integer>> entryIter = oak.entrySet().iterator();
-        boolean valuesPresent[] = new boolean[numOfItems];
+        boolean[] valuesPresent = new boolean[numOfItems];
         while (valIter.hasNext()) {
             Integer expectedVal = valIter.next();
             Assert.assertFalse(valuesPresent[expectedVal]);
@@ -78,10 +77,10 @@ public class SingleThreadIteratorTestHash {
         }
 
 
-        for (Integer i = 0; i < numOfItems / 2; i++) {
+        for (int i = 0; i < numOfItems / 2; i++) {
             oak.zc().remove(i);
         }
-        for (Integer i = 0; i < numOfItems / 2; i++) {
+        for (int i = 0; i < numOfItems / 2; i++) {
             value = oak.get(i);
             Assert.assertNull(value);
         }
@@ -111,10 +110,10 @@ public class SingleThreadIteratorTestHash {
                 Assert.assertTrue(valuesPresent[index]);
             }
         }
-        for (Integer i = numOfItems / 2; i < numOfItems; i++) {
+        for (int i = numOfItems / 2; i < numOfItems; i++) {
             oak.zc().remove(i);
         }
-        for (Integer i = numOfItems / 2; i < numOfItems; i++) {
+        for (int i = numOfItems / 2; i < numOfItems; i++) {
             value = oak.get(i);
             Assert.assertNull(value);
         }
@@ -123,7 +122,7 @@ public class SingleThreadIteratorTestHash {
         }
 
 
-        for (Integer i = 1; i < (numOfItems - 1); i++) {
+        for (int i = 1; i < (numOfItems - 1); i++) {
             oak.zc().remove(i);
         }
 
@@ -143,7 +142,7 @@ public class SingleThreadIteratorTestHash {
     }
 
     /**
-     * Test for stream iterators. The test goes over the hash with three stream iterators in parralel
+     * Test for stream iterators. The test goes over the hash with three stream iterators in parallel
      * and verifies all is correct
      */
     @Test
@@ -156,7 +155,7 @@ public class SingleThreadIteratorTestHash {
         Iterator<Map.Entry<OakUnscopedBuffer, OakUnscopedBuffer>> entryStreamIterator
                 = oak.zc().entryStreamSet().iterator();
 
-        boolean valuesPresent[] = new boolean[numOfItems];
+        boolean[] valuesPresent = new boolean[numOfItems];
 
         while (keyStreamIterator.hasNext()) {
             Integer expectedKey = keyStreamIterator.next()
@@ -186,14 +185,14 @@ public class SingleThreadIteratorTestHash {
     public void testIteratorRemove() {
         int numOfItems = 2 * maxItemsPerChunk;
 
-        Integer valToRemove1 = 10;
-        Integer valToRemove2 = 20;
+        int valToRemove1 = 10;
+        int valToRemove2 = 20;
 
         populate(numOfItems);
 
         Iterator<Integer> valIter = oak.values().iterator();
         Iterator<Map.Entry<Integer, Integer>> entryIter = oak.entrySet().iterator();
-        boolean valuesPresent[] = new boolean[numOfItems];
+        boolean[] valuesPresent = new boolean[numOfItems];
         while (valIter.hasNext()) {
             Integer expectedVal = valIter.next();
             Assert.assertFalse(valuesPresent[expectedVal]);
@@ -244,8 +243,8 @@ public class SingleThreadIteratorTestHash {
     public void testStreamIteratorsRemove() {
         int numOfItems = 2 * maxItemsPerChunk;
 
-        Integer valToRemove1 = numOfItems / 4;
-        Integer valToRemove2 = numOfItems / 2;
+        int valToRemove1 = numOfItems / 4;
+        int valToRemove2 = numOfItems / 2;
 
 
         populate(numOfItems);
@@ -268,7 +267,7 @@ public class SingleThreadIteratorTestHash {
         Iterator<Map.Entry<OakUnscopedBuffer, OakUnscopedBuffer>> entryStreamIterator
                 = oak.zc().entryStreamSet().iterator();
 
-        boolean valuesPresent[] = new boolean[numOfItems];
+        boolean[] valuesPresent = new boolean[numOfItems];
 
         while (entryStreamIterator.hasNext()) {
 
@@ -309,7 +308,7 @@ public class SingleThreadIteratorTestHash {
         }
 
         valIter = oak.values().iterator();
-        boolean valuesMet[] = new boolean[numOfItems];
+        boolean[] valuesMet = new boolean[numOfItems];
         while (valIter.hasNext()) {
             valuesMet[valIter.next()] = true;
         }
@@ -355,7 +354,7 @@ public class SingleThreadIteratorTestHash {
 
         Iterator<Integer> valIter = oak.values().iterator();
 
-        boolean valuesPresent[] = new boolean[numOfItems];
+        boolean[] valuesPresent = new boolean[numOfItems];
         while (valIter.hasNext()) {
             Integer expectedVal = valIter.next();
             Assert.assertFalse(valuesPresent[expectedVal]);
@@ -365,9 +364,5 @@ public class SingleThreadIteratorTestHash {
         for (boolean flag:valuesPresent) {
             Assert.assertTrue(flag);
         }
-
-        // test remove
-        Iterator<Integer>  valIter1 = oak.values().iterator();
-
     }
 }

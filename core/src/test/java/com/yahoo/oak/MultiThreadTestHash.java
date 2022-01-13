@@ -226,7 +226,7 @@ public class MultiThreadTestHash {
                 i++;
             }
             int expectedNumberOfEntries = halfRangeWidth * NUM_THREADS;
-            Assert.assertTrue(i.intValue() >= expectedNumberOfEntries);
+            Assert.assertTrue(i >= expectedNumberOfEntries);
 
             Consumer<OakScopedWriteBuffer> computer = oakWBuffer -> {
                 if (oakWBuffer.getInt(0) % 4 ==  0) {

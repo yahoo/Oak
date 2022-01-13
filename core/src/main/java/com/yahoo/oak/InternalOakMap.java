@@ -973,6 +973,11 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
             return upperBoundKeyForChunk;
         }
 
+        /**
+         * in addition to the advanceState functionality, OakMap should perform boundary check.
+         * Hence, the class overrides the parent method, in addition performing the boundary check when needed
+         * @return success indication
+         */
         @Override
         protected boolean advanceState() {
             boolean valueToReturn = super.advanceState();
@@ -997,8 +1002,6 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
     }
 
     class ValueIterator extends OrderedIter<OakUnscopedBuffer> {
-
-
 
         ValueIterator(K lo, boolean loInclusive, K hi, boolean hiInclusive, boolean isDescending, InternalOakMap<K,
                 V> internalOakMap) {
@@ -1061,12 +1064,9 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
 
     class EntryIterator extends OrderedIter<Map.Entry<OakUnscopedBuffer, OakUnscopedBuffer>> {
 
-        //private final InternalOakMap<K, V> internalOakMap;
-
         EntryIterator(K lo, boolean loInclusive, K hi, boolean hiInclusive, boolean isDescending, InternalOakMap<K,
                 V> internalOakMap) {
             super(lo, loInclusive, hi, hiInclusive, isDescending);
-            //this.internalOakMap = internalOakMap;
         }
 
         public Map.Entry<OakUnscopedBuffer, OakUnscopedBuffer> next() {
