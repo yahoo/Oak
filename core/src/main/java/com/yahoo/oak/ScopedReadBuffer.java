@@ -54,37 +54,37 @@ class ScopedReadBuffer implements OakScopedReadBuffer, OakUnsafeDirectBuffer {
 
     @Override
     public byte get(int index) {
-        return UnsafeUtils.get(getDataAddress(index));
+        return DirectUtils.get(getDataAddress(index));
     }
 
     @Override
     public char getChar(int index) {
-        return UnsafeUtils.getChar(getDataAddress(index));
+        return DirectUtils.getChar(getDataAddress(index));
     }
 
     @Override
     public short getShort(int index) {
-        return UnsafeUtils.getShort(getDataAddress(index));
+        return DirectUtils.getShort(getDataAddress(index));
     }
 
     @Override
     public int getInt(int index) {
-        return UnsafeUtils.getInt(getDataAddress(index));
+        return DirectUtils.getInt(getDataAddress(index));
     }
 
     @Override
     public long getLong(int index) {
-        return UnsafeUtils.getLong(getDataAddress(index));
+        return DirectUtils.getLong(getDataAddress(index));
     }
 
     @Override
     public float getFloat(int index) {
-        return UnsafeUtils.getFloat(getDataAddress(index));
+        return DirectUtils.getFloat(getDataAddress(index));
     }
 
     @Override
     public double getDouble(int index) {
-        return UnsafeUtils.getDouble(getDataAddress(index));
+        return DirectUtils.getDouble(getDataAddress(index));
     }
 
     /** ------------------------------ OakUnsafeDirectBuffer ------------------------------ **/
@@ -102,7 +102,7 @@ class ScopedReadBuffer implements OakScopedReadBuffer, OakUnsafeDirectBuffer {
      * @return the underlying ByteBuffer.
      */
     @Override public ByteBuffer getByteBuffer() { 
-        return UnsafeUtils.wrapAddress(s.getAddress(), capacity());
+        return DirectUtils.wrapAddress(s.getAddress(), capacity());
     }
 
     /**

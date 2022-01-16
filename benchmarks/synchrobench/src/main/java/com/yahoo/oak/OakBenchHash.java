@@ -28,7 +28,7 @@ public class OakBenchHash extends BenchOakMap {
         OakMapBuilder<BenchKey, BenchValue> builder = new OakMapBuilder<>(keyGen, keyGen, valueGen, minKey)
             // 2048 * 8 = 16384 (2^14) entries in each chunk, each entry takes 24 bytes, each chunk requires
             // approximately 393216 bytes ~= 393KB ~= 0.4 MB
-            .setHashChunkMaxItems(Parameters.confSmallFootprint ? HashChunk.HASH_CHUNK_MAX_ITEMS_DEFAULT
+            .setChunkMaxItems(Parameters.confSmallFootprint ? HashChunk.HASH_CHUNK_MAX_ITEMS_DEFAULT
                 : HashChunk.HASH_CHUNK_MAX_ITEMS_DEFAULT * 8)
             // 1024 * 16 = 16384 (2^14) preallocated chunks of the above size,
             // total on-heap memory requirement:

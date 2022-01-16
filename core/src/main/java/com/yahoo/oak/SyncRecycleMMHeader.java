@@ -40,11 +40,11 @@ class SyncRecycleMMHeader {
     private static final int LENGTH_OFFSET = VERSION_SIZE + LOCK_SIZE;
 
     private static int getInt(long headerAddress, int intOffsetInBytes) {
-        return UnsafeUtils.UNSAFE.getInt(headerAddress + intOffsetInBytes);
+        return DirectUtils.getInt(headerAddress + intOffsetInBytes);
     }
 
     private static void putInt(long headerAddress, int intOffsetInBytes, int value) {
-        UnsafeUtils.UNSAFE.putInt(headerAddress + intOffsetInBytes, value);
+        DirectUtils.putInt(headerAddress + intOffsetInBytes, value);
     }
 
     private void setOffHeapVersion(long headerAddress, int offHeapVersion) {
@@ -90,9 +90,9 @@ class SyncRecycleMMHeader {
     private static boolean cas(long headerAddress, int expectedLock, int newLock, int version) {
         // Since the writing is done directly to the memory, the endianness of the memory is important here.
         // Therefore, we make sure that the values are read and written correctly.
-        long expected = UnsafeUtils.intsToLong(version, expectedLock);
-        long value = UnsafeUtils.intsToLong(version, newLock);
-        return UnsafeUtils.UNSAFE.compareAndSwapLong(null, headerAddress, expected, value);
+        long expected = DirectUtils.intsToLong(version, expectedLock);
+        long value = DirectUtils.intsToLong(version, newLock);
+        return DirectUtils.UNSAFE.compareAndSwapLong(null, headerAddress, expected, value);
     }
 
     ValueUtils.ValueResult lockRead(final int onHeapVersion, long headerAddress) {

@@ -25,7 +25,7 @@ public class SingleThreadIteratorTestMap {
     @Before
     public void init() {
         OakMapBuilder<Integer, Integer> builder = OakCommonBuildersFactory.getDefaultIntBuilder()
-                .setOrderedChunkMaxItems(maxItemsPerChunk);
+                .setChunkMaxItems(maxItemsPerChunk);
         oak = builder.buildOrderedMap();
     }
 

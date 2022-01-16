@@ -50,12 +50,12 @@ public class MultiThreadComputeTest {
 
         Supplier<ConcurrentZCMap> s1 = () -> {
             OakMapBuilder<Integer, Integer> builder = OakCommonBuildersFactory.getDefaultIntBuilder()
-                    .setOrderedChunkMaxItems(MAX_ITEMS_PER_CHUNK);
+                    .setChunkMaxItems(MAX_ITEMS_PER_CHUNK);
             return builder.buildOrderedMap();
         };
         Supplier<ConcurrentZCMap> s2 = () -> {
             OakMapBuilder<Integer, Integer> builder = OakCommonBuildersFactory.getDefaultIntBuilder()
-                .setHashChunkMaxItems(MAX_ITEMS_PER_CHUNK);
+                .setChunkMaxItems(MAX_ITEMS_PER_CHUNK);
             return builder.buildHashMap();
         };
         return Arrays.asList(new Object[][] {
