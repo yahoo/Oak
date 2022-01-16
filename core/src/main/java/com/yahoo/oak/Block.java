@@ -23,8 +23,8 @@ class Block {
         this.id = NativeMemoryAllocator.INVALID_BLOCK_ID;
         // Pay attention in allocateDirect the data is *zero'd out*
         // which has an overhead in clearing and you end up touching every page
-        this.blockMemAddress  = UnsafeUtils.allocateMemory(capacity);
-        UnsafeUtils.setMemory(this.blockMemAddress, capacity, (byte) 0); // zero block's memory
+        this.blockMemAddress  = DirectUtils.allocateMemory(capacity);
+        DirectUtils.setMemory(this.blockMemAddress, capacity, (byte) 0); // zero block's memory
     }
 
     void setID(int id) {
@@ -49,7 +49,7 @@ class Block {
     // use when this Block is no longer in any use, not thread safe
     // It sets the limit to the capacity and the position to zero, and zeroes the memory
     void reset() {
-        UnsafeUtils.setMemory(this.blockMemAddress, capacity, (byte) 0); // zero block's memory
+        DirectUtils.setMemory(this.blockMemAddress, capacity, (byte) 0); // zero block's memory
         allocated.set(0);
     }
 
@@ -62,7 +62,7 @@ class Block {
 
     // releasing the memory back to the OS, freeing the block, an opposite of allocation, not thread safe
     void clean() {
-        UnsafeUtils.UNSAFE.freeMemory(blockMemAddress);
+        DirectUtils.freeMemory(blockMemAddress);
     }
 
     long getStartMemAddress() {

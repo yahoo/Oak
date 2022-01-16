@@ -42,11 +42,11 @@ public class ValueUtilsTest {
     }
 
     private void putInt(int index, int value) {
-        UnsafeUtils.UNSAFE.putInt(s.getAddress() + index, value);
+        DirectUtils.putInt(s.getAddress() + index, value);
     }
 
     private int getInt(int index) {
-        return UnsafeUtils.UNSAFE.getInt(s.getAddress() + index);
+        return DirectUtils.getInt(s.getAddress() + index);
     }
 
     @Test

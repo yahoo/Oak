@@ -25,11 +25,11 @@ public class OrderedChunkSplitTest {
     @Before
     public void setUp() {
         OakMapBuilder<String, String> builderInt = OakCommonBuildersFactory.getDefaultStringBuilder()
-                .setOrderedChunkMaxItems(MAX_ITEMS_PER_CHUNK);
+                .setChunkMaxItems(MAX_ITEMS_PER_CHUNK);
         oakStr = builderInt.buildOrderedMap();
 
         OakMapBuilder<Integer, Integer> builderStr = OakCommonBuildersFactory.getDefaultIntBuilder()
-                .setOrderedChunkMaxItems(MAX_ITEMS_PER_CHUNK);
+                .setChunkMaxItems(MAX_ITEMS_PER_CHUNK);
         oakInt = builderStr.buildOrderedMap();
     }
 

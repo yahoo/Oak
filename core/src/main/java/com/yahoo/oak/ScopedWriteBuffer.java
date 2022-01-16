@@ -68,49 +68,49 @@ final class ScopedWriteBuffer extends ScopedReadBuffer implements OakScopedWrite
     @Override
     public OakScopedWriteBuffer put(int index, byte value) {
         validateAccess();
-        UnsafeUtils.put(getDataAddress(index), value);
+        DirectUtils.put(getDataAddress(index), value);
         return this;
     }
 
     @Override
     public OakScopedWriteBuffer putChar(int index, char value) {
         validateAccess();
-        UnsafeUtils.putChar(getDataAddress(index), value);
+        DirectUtils.putChar(getDataAddress(index), value);
         return this;
     }
 
     @Override
     public OakScopedWriteBuffer putShort(int index, short value) {
         validateAccess();
-        UnsafeUtils.putShort(getDataAddress(index), value);
+        DirectUtils.putShort(getDataAddress(index), value);
         return this;
     }
 
     @Override
     public OakScopedWriteBuffer putInt(int index, int value) {
         validateAccess();
-        UnsafeUtils.putInt(getDataAddress(index), value);
+        DirectUtils.putInt(getDataAddress(index), value);
         return this;
     }
 
     @Override
     public OakScopedWriteBuffer putLong(int index, long value) {
         validateAccess();
-        UnsafeUtils.putLong(getDataAddress(index), value);
+        DirectUtils.putLong(getDataAddress(index), value);
         return this;
     }
 
     @Override
     public OakScopedWriteBuffer putFloat(int index, float value) {
         validateAccess();
-        UnsafeUtils.putFloat(getDataAddress(index), value);
+        DirectUtils.putFloat(getDataAddress(index), value);
         return this;
     }
 
     @Override
     public OakScopedWriteBuffer putDouble(int index, double value) {
         validateAccess();
-        UnsafeUtils.UNSAFE.putDouble(getDataAddress(index), value);
+        DirectUtils.putDouble(getDataAddress(index), value);
         return this;
     }
 }

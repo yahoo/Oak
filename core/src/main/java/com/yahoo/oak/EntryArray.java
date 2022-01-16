@@ -189,7 +189,7 @@ public class EntryArray<K, V> {
                                       long newLongValue) {
         int index = Unsafe.ARRAY_LONG_BASE_OFFSET +
                 (entryIdx2LongIdx(entryIndex) + entryOffset) * Unsafe.ARRAY_LONG_INDEX_SCALE;
-        return UnsafeUtils.UNSAFE.compareAndSwapLong(entries, index, expectedLongValue, newLongValue);
+        return DirectUtils.UNSAFE.compareAndSwapLong(entries, index, expectedLongValue, newLongValue);
     }
 
 
