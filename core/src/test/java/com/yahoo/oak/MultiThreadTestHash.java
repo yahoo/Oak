@@ -42,7 +42,7 @@ public class MultiThreadTestHash {
     @Before
     public void init() {
         OakMapBuilder<Integer, Integer> builder = OakCommonBuildersFactory.getDefaultIntBuilder()
-                .setOrderedChunkMaxItems(MAX_ITEMS_PER_CHUNK);
+                .setChunkMaxItems(MAX_ITEMS_PER_CHUNK);
         oak = builder.buildHashMap();
 
         latch = new CountDownLatch(1);
