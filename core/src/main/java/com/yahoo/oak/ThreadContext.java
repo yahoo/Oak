@@ -6,9 +6,6 @@
 
 package com.yahoo.oak;
 
-/**
- * Encapsulates a context, from when a key/value/entry operation has begun until it was completed
- */
 class ThreadContext {
 
     /*-----------------------------------------------------------

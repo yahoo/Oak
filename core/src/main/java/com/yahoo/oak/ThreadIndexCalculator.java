@@ -33,7 +33,8 @@ final class ThreadIndexCalculator {
             }
             currentIndex = (currentIndex + 1) % MAX_THREADS;
             iterationCnt++;
-            assert iterationCnt < MAX_THREADS;
+            assert (iterationCnt < MAX_THREADS) : (String.format("threadID: %s, currentIndex: %s, iterationCnt: %s",
+                    threadID, currentIndex, iterationCnt));
         }
         return currentIndex;
     }

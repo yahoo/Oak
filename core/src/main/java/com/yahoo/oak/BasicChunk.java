@@ -66,6 +66,8 @@ abstract class BasicChunk<K, V> {
 
     abstract boolean readValueFromEntryIndex(ValueBuffer value, int ei);
 
+    abstract void lookUp(ThreadContext ctx, K key);
+
     /*-------------- Publishing related methods and getters ---------------*/
     /**
      * publish operation so rebalance will wait for it
@@ -171,12 +173,12 @@ abstract class BasicChunk<K, V> {
 
     /*----------------------- Abstract Mappings-related Methods  --------------------------*/
     /**
-     * See concrete implementation for more information
+     * See specific implementation for more information
      */
     abstract void releaseKey(ThreadContext ctx);
 
     /**
-     * See concrete implementation for more information
+     * See specific implementation for more information
      */
     abstract void releaseNewValue(ThreadContext ctx);
 

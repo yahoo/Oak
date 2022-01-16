@@ -199,6 +199,7 @@ public class ParametrizedMapApiTest {
 
     @Test
     public void keySet() {
+
         int numKeys = 10;
         for (int i = 0; i < numKeys; i++) {
             oak.put(i, i);
@@ -213,7 +214,8 @@ public class ParametrizedMapApiTest {
 
     @Test
     public void iterTest() {
-        boolean testingHash;
+        boolean testingHash = false;
+
         if (oak instanceof OakHashMap) {
             testingHash = true;
         } else {
@@ -242,6 +244,8 @@ public class ParametrizedMapApiTest {
                 expected++;
             }
         }
+
+
     }
 
     @Test
