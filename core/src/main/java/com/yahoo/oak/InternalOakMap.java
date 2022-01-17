@@ -114,7 +114,7 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
 
         // since skiplist isn't updated atomically in split/compaction, our key might belong in the next orderedChunk
         // we need to iterate the chunks until we find the correct one
-        while ((next != null) && (config.comparator.compareKeyAndSerializedKey(key, next.minKey) >= 0)) {
+        while ((next != null) && (KeyUtils.compareKeyAndSerializedKey(key, next.minKey, config.comparator) >= 0)) {
             curr = next;
             next = curr.next.getReference();
         }
