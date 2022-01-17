@@ -545,7 +545,8 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
                     // This is the case where we logically deleted this entry (marked the value off-heap as deleted),
                     // but someone helped and (marked the value reference as deleted) and reused the entry
                     // before we marked the value reference as deleted. We have the previous value saved in v.
-                    return transformer == null ? ctx.result.withFlag(ValueUtils.ValueResult.TRUE) : ctx.result.withValue(v);
+                    return transformer == null ? ctx.result.withFlag(ValueUtils.ValueResult.TRUE) 
+                            : ctx.result.withValue(v);
                 } else {
                     Result removeResult = config.valueOperator.remove(ctx, oldValue, transformer);
                     if (removeResult.operationResult == ValueUtils.ValueResult.FALSE) {
@@ -579,7 +580,7 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
                         ctx.result.withFlag(ValueUtils.ValueResult.TRUE) : ctx.result.withValue(v);
             } catch (DeletedMemoryAccessException e) {
                 continue;
-                }
+            }
         }
 
         throw new RuntimeException("remove failed: reached retry limit (1024).");
