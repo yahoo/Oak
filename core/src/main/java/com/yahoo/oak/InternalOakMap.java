@@ -114,7 +114,7 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
 
         // since skiplist isn't updated atomically in split/compaction, our key might belong in the next orderedChunk
         // we need to iterate the chunks until we find the correct one
-        while ((next != null) && (KeyUtils.compareKeyAndSerializedKey(key, next.minKey, config.comparator) >= 0)) {
+        while ((next != null) && (config.comparator.compareKeyAndSerializedKey(key, next.minKey) >= 0)) {
             curr = next;
             next = curr.next.getReference();
         }
@@ -316,7 +316,6 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
         }
 
         ThreadContext ctx = getThreadContext();
-        
         for (int i = 0; i < MAX_RETRIES; i++) {
             try {
                 OrderedChunk<K, V> c = findChunk(key, ctx); // find orderedChunk matching key
@@ -760,10 +759,10 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
 
     boolean replace(K key, V oldValue, V newValue, OakTransformer<V> valueDeserializeTransformer) {
         ThreadContext ctx = getThreadContext();
-
+        OrderedChunk<K, V> c = null;
         for (int i = 0; i < MAX_RETRIES; i++) {
             try {
-                OrderedChunk<K, V> c = findChunk(key, ctx); // find orderedChunk matching key
+                c = findChunk(key, ctx); // find orderedChunk matching key
                 c.lookUp(ctx, key);
                 if (!ctx.isValueValid()) {
                     return false;
@@ -778,6 +777,7 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
                 }
                 return res == ValueUtils.ValueResult.TRUE;
             } catch (DeletedMemoryAccessException e) {
+                inTheMiddleOfRebalance(c);
                 continue;
             }
         }
@@ -887,7 +887,7 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
             if (lo == null) {
                 return false;
             }
-            int c = config.comparator.compareKeyAndSerializedKey(lo, key);
+            int c = KeyUtils.compareKeyAndSerializedKey(lo, (KeyBuffer) key, config.comparator);
             return c > 0 || (c == 0 && !loInclusive);
         }
 
@@ -895,7 +895,7 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
             if (hi == null) {
                 return false;
             }
-            int c = config.comparator.compareKeyAndSerializedKey(hi, key);
+            int c = KeyUtils.compareKeyAndSerializedKey(hi, (KeyBuffer) key, config.comparator);
             return c < 0 || (c == 0 && !hiInclusive);
         }
 
