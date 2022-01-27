@@ -5,7 +5,7 @@
     <parent>
         <artifactId>root</artifactId>
         <groupId>com.yahoo.oak</groupId>
-        <version>0.2.4-SNAPSHOT</version>
+        <version>0.2.4</version>
     </parent>
 
     <artifactId>oak</artifactId>
@@ -17,7 +17,7 @@
         <jacoco.version>0.8.6</jacoco.version>
         <jacoco.skip>true</jacoco.skip>
         <!-- Set default jacoco argument -->
-        <jacoco.argLine/>
+        <jacoco.argLine />
     </properties>
 
     <build>

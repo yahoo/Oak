@@ -5,7 +5,7 @@
     <parent>
         <artifactId>root</artifactId>
         <groupId>com.yahoo.oak</groupId>
-        <version>0.2.4-SNAPSHOT</version>
+        <version>0.2.4</version>
         <relativePath>../../pom.xml</relativePath>
     </parent>
 
@@ -24,7 +24,7 @@
         <skipStaging>true</skipStaging>
 
         <!-- Set default jacoco argument -->
-        <jacoco.argLine/>
+        <jacoco.argLine />
     </properties>
 
 
