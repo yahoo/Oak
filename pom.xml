@@ -10,6 +10,13 @@
         <module>core</module>
         <module>benchmarks/jmh</module>
         <module>benchmarks/synchrobench</module>
+
+        <!--
+        This module is a workaround to a bug with a nexus issue:
+        https://issues.sonatype.org/browse/NEXUS-19853
+        Namely, the last module must be deployed, otherwise nothing is deployed.
+        -->
+        <module>benchmarks/nexus-deploy-stub</module>
     </modules>
 
     <!--<name>Oak: Off-heap Allocated Keys</name>-->
