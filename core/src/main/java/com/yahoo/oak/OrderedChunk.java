@@ -163,6 +163,14 @@ class OrderedChunk<K, V> extends BasicChunk<K, V> {
     void releaseNewValue(ThreadContext ctx) {
         entryOrderedSet.releaseNewValue(ctx);
     }
+    
+    @Override
+    void release() {
+        boolean released = state.compareAndSet(State.FROZEN, State.RELEASED);
+        if ( !(config.keysMemoryManager instanceof SeqExpandMemoryManager) && released ) {
+            entryOrderedSet.releaseAllDeletedKeys();
+        }
+    }
 
     /**
      * @param key a key buffer to be updated with the minimal key

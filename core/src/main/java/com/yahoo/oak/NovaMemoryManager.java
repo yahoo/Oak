@@ -14,7 +14,7 @@ import java.util.concurrent.atomic.AtomicLongArray;
 
 
 class NovaMemoryManager implements MemoryManager {
-    static final int RELEASE_LIST_LIMIT = 124;
+    static final int RELEASE_LIST_LIMIT = 1024;
     static final int CACHE_PADDING = 8;
     static final int IDENTRY = 0;
     static final int REFENTRY = 1;
