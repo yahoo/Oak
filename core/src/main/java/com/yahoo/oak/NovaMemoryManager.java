@@ -70,8 +70,18 @@ class NovaMemoryManager implements MemoryManager {
 
     // used only for testing
     @VisibleForTesting
-    int getCurrentVersion() {
+    public int getCurrentVersion() {
         return globalVersionNumber.get();
+    }
+    
+    @VisibleForTesting
+    public int getFreeListSize() {
+        return ((NativeMemoryAllocator) allocator).getFreeListLength();
+    }
+    
+    @VisibleForTesting
+    public int getReleaseLimit() {
+        return RELEASE_LIST_LIMIT;
     }
 
     /**

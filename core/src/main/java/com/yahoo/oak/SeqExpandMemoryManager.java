@@ -78,6 +78,22 @@ class SeqExpandMemoryManager implements MemoryManager  {
     public boolean isClosed() {
         return allocator.isClosed();
     }
+    
+    // used only for testing
+    @VisibleForTesting
+    public int getCurrentVersion() {
+        return 0;
+    }
+    
+    @VisibleForTesting
+    public int getFreeListSize() {
+        return ((NativeMemoryAllocator) allocator).getFreeListLength();
+    }
+    
+    @VisibleForTesting
+    public int getReleaseLimit() {
+        return 0;
+    }
 
     /**
      * Present the reference as it needs to be when the target is deleted.
