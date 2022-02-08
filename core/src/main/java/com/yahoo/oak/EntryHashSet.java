@@ -693,4 +693,9 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
 
         return true;
     }
+
+
+    int readHashFromIndex(int index) {
+        return getKeyHash(index);
+    }
 }

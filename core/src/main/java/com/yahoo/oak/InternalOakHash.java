@@ -406,10 +406,10 @@ class InternalOakHash<K, V> extends InternalOakBasics<K, V> {
 
     private static final class IteratorState<K, V> extends BasicIteratorState<K, V> {
 
-        // lastKeyAccessed is used to find the index of the last chunk accessed
-        // but calculating the key hash and extracting the MSBs.
-        //keyBufferValid is used to check the validity of lastKeyAccessed field
-        private KeyBuffer lastKeyAccessed = null;
+        // lastKeyHash is used to find the index of the last chunk accessed by extracting the MSBs.
+        //keyBufferValid is used to check the validity of lastKeyHash field
+        //private KeyBuffer lastKeyAccessed = null;
+        private int lastKeyHash;
         private boolean keyBufferValid = false;
 
         private IteratorState(HashChunk<K, V> nextHashChunk, HashChunk<K, V>.HashChunkIter nextChunkIter,
@@ -417,26 +417,37 @@ class InternalOakHash<K, V> extends InternalOakBasics<K, V> {
             super(nextHashChunk, nextChunkIter, nextIndex);
         }
 
-        private KeyBuffer getKeyBuffer() {
-            if (keyBufferValid) {
-                return lastKeyAccessed;
-            } else {
-                return null;
-            }
+        //private KeyBuffer getKeyBuffer() {
+        //    if (keyBufferValid) {
+        //        return lastKeyAccessed;
+        //    } else {
+        //        return null;
+        //    }
+        //}
+
+        //private void setKeyBuffer(KeyBuffer newBuffer) {
+        //    lastKeyAccessed = newBuffer;
+        //}
+        private void setLastKeyHash(int keyHash) {
+            lastKeyHash = keyHash;
         }
 
-        private void setKeyBuffer(KeyBuffer newBuffer) {
-            lastKeyAccessed = newBuffer;
+        int getLastKeyHash() {
+            return lastKeyHash;
         }
 
         private void setKeyValid(boolean keyBufferValid) {
             this.keyBufferValid = keyBufferValid;
         }
 
+        private boolean getKeyValid() {
+            return this.keyBufferValid;
+        }
         @Override
         public void copyState(BasicIteratorState<K, V> other) {
             super.copyState(other);
-            lastKeyAccessed = ((IteratorState<K, V>) other).lastKeyAccessed;
+            //lastKeyAccessed = ((IteratorState<K, V>) other).lastKeyAccessed;
+            lastKeyHash = ((IteratorState<K, V>) other).lastKeyHash;
             keyBufferValid = ((IteratorState<K, V>) other).keyBufferValid;
 
         }
@@ -497,7 +508,8 @@ class InternalOakHash<K, V> extends InternalOakBasics<K, V> {
 
                 chunk.readKey(ctx);
 
-                ((IteratorState<K, V>) getState()).setKeyBuffer(ctx.key);
+                int keyHash = ((HashChunk<K, V>) chunk).readHashFromIndex(curIndex);
+                ((IteratorState<K, V>) getState()).setLastKeyHash(keyHash);
                 ((IteratorState<K, V>) getState()).setKeyValid(ctx.isKeyValid());
                 validState = ctx.isKeyValid();
 
@@ -528,8 +540,8 @@ class InternalOakHash<K, V> extends InternalOakBasics<K, V> {
                     throw new NoSuchElementException();
                 }
 
-                final BasicChunk<K, V> c = getState().getChunk();
-                if (c.state() == BasicChunk.State.RELEASED) {
+                final BasicChunk<K, V> chunk = getState().getChunk();
+                if (chunk.state() == BasicChunk.State.RELEASED) {
                     initAfterRebalance();
                     continue;
                 }
@@ -537,16 +549,16 @@ class InternalOakHash<K, V> extends InternalOakBasics<K, V> {
                 final int curIndex = getState().getIndex();
 
                 if (key != null) {
-                    validState = c.readKeyFromEntryIndex(key.getInternalScopedReadBuffer(), curIndex);
-                    ((IteratorState<K, V>) getState()).setKeyBuffer(key.getInternalScopedReadBuffer());
+                    validState = chunk.readKeyFromEntryIndex(key.getInternalScopedReadBuffer(), curIndex);
+                    int keyHash = ((HashChunk<K, V>) chunk).readHashFromIndex(curIndex);
+                    ((IteratorState<K, V>) getState()).setLastKeyHash(keyHash);
                     ((IteratorState<K, V>) getState()).setKeyValid(validState);
-
                     assert validState;
                 }
 
                 if (value != null) {
                     // If the current value is deleted, then advance and try again
-                    validState = c.readValueFromEntryIndex(value.getInternalScopedReadBuffer(), curIndex);
+                    validState = chunk .readValueFromEntryIndex(value.getInternalScopedReadBuffer(), curIndex);
                 }
 
                 advanceState();
@@ -577,18 +589,15 @@ class InternalOakHash<K, V> extends InternalOakBasics<K, V> {
 
         @Override
         protected BasicChunk<K, V> getNextChunk(BasicChunk<K, V> current) {
-            KeyBuffer keyBuffer = ((IteratorState<K, V>) getState()).getKeyBuffer();
+
             int lastKeyHash = 0;
 
             boolean hashValid;
-            if (keyBuffer == null) {
-                hashValid = false;
-            } else {
-                K deserializedKey = getKeySerializer().deserialize(keyBuffer);
-
-
-                lastKeyHash = calculateKeyHash(deserializedKey, ctx);
+            if (((IteratorState<K, V>) getState()).getKeyValid()) {
                 hashValid = true;
+                lastKeyHash = ((IteratorState<K, V>) getState()).getLastKeyHash();
+            } else {
+                hashValid = false;
             }
             return hashArray.getNextChunk(current, lastKeyHash, hashValid);
         }
