@@ -407,8 +407,7 @@ class InternalOakHash<K, V> extends InternalOakBasics<K, V> {
     private static final class IteratorState<K, V> extends BasicIteratorState<K, V> {
 
         // lastKeyHash is used to find the index of the last chunk accessed by extracting the MSBs.
-        //keyBufferValid is used to check the validity of lastKeyHash field
-        //private KeyBuffer lastKeyAccessed = null;
+        // keyBufferValid is used to check the validity of lastKeyHash field
         private int lastKeyHash;
         private boolean keyBufferValid = false;
 
@@ -417,17 +416,6 @@ class InternalOakHash<K, V> extends InternalOakBasics<K, V> {
             super(nextHashChunk, nextChunkIter, nextIndex);
         }
 
-        //private KeyBuffer getKeyBuffer() {
-        //    if (keyBufferValid) {
-        //        return lastKeyAccessed;
-        //    } else {
-        //        return null;
-        //    }
-        //}
-
-        //private void setKeyBuffer(KeyBuffer newBuffer) {
-        //    lastKeyAccessed = newBuffer;
-        //}
         private void setLastKeyHash(int keyHash) {
             lastKeyHash = keyHash;
         }
@@ -446,7 +434,6 @@ class InternalOakHash<K, V> extends InternalOakBasics<K, V> {
         @Override
         public void copyState(BasicIteratorState<K, V> other) {
             super.copyState(other);
-            //lastKeyAccessed = ((IteratorState<K, V>) other).lastKeyAccessed;
             lastKeyHash = ((IteratorState<K, V>) other).lastKeyHash;
             keyBufferValid = ((IteratorState<K, V>) other).keyBufferValid;
 
