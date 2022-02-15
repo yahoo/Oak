@@ -71,6 +71,6 @@ public class OakBenchHash extends BenchOakMap {
     /** {@inheritDoc} **/
     @Override
     public boolean descendOak(BenchKey from, int length, Blackhole blackhole) {
-        throw new UnsupportedOperationException("Descending iterator are not defined for Hash");
+        return ascendOak(from, length, blackhole);
     }
 }
