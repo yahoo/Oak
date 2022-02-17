@@ -693,4 +693,13 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
 
         return true;
     }
+
+    /**
+     * function returns hash code from the given index
+     * @param index index of the entry
+     * @return hash code, residing in the entry, without the update counter
+     */
+    int readHashFromIndex(int index) {
+        return getKeyHash(index);
+    }
 }

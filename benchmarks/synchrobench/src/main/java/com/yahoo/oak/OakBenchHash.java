@@ -62,12 +62,15 @@ public class OakBenchHash extends BenchOakMap {
     /** {@inheritDoc} **/
     @Override
     public boolean ascendOak(BenchKey from, int length, Blackhole blackhole) {
-        throw new UnsupportedOperationException("ALL ITERATORS ARE NOT YET SUPPORTED FOR HASH");
+
+        boolean result = createAndScanView(oakHash, length, blackhole);
+
+        return result;
     }
 
     /** {@inheritDoc} **/
     @Override
     public boolean descendOak(BenchKey from, int length, Blackhole blackhole) {
-        throw new UnsupportedOperationException("ALL ITERATORS ARE NOT YET SUPPORTED FOR HASH");
+        return ascendOak(from, length, blackhole);
     }
 }
