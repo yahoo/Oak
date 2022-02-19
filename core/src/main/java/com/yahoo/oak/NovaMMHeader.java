@@ -14,7 +14,7 @@ import java.util.concurrent.atomic.AtomicLongArray;
 class NovaMMHeader {
 
     /*
-    * Long NovaMMHeader: int version + int lock
+    * Long NovaMMHeader: int version + long length
     * 0...  ...21 | 32...                  ...63
     *  version    |  length
     *
@@ -22,31 +22,20 @@ class NovaMMHeader {
     * offset are 42 bits at most the length can be 42 bits which we allow here!)
     * The length is set once upon header allocation and later can only be read. */
 
-    private static final int VERSION_SIZE = 22;  //block offset get 42 bits on heap-(including one bit for deleted)
-   
-    private static final int OFFHEAP_VERSION_MASK = 0x3F_FF_FF;
-
-
-    int getOffHeapVersion(long headerAddress) {
-        return (int) (DirectUtils.UNSAFE.getLong(headerAddress) & OFFHEAP_VERSION_MASK);
-    }
-
-    int getDataLength(long headerAddress) {
-        return (int) (DirectUtils.UNSAFE.getLong(headerAddress) >>> VERSION_SIZE); //TODO length can be long??
-    }
+    private static final ReferenceCodecNovaHeader RC = new ReferenceCodecNovaHeader();
     
-    long getOffHeapMetaData(long headerAddress) {
+    long getOffHeapHeader(long headerAddress) {
         return DirectUtils.UNSAFE.getLong(headerAddress);
     }
 
-    private void setDataLength(long headerAddress, int length) {
-        throw new IllegalAccessError();
+    public int getDataLength(long headerAddress) {
+        long offHeapHeader = getOffHeapHeader(headerAddress);
+        return RC.getSecond(offHeapHeader); //assuming length is int
     }
 
-    void initHeader(long headerAddress, int dataLength, int version) {
-        long sliceHeader    = (long) (dataLength) << VERSION_SIZE;
-        int  newVer         = version & 0x3FFFFF; //VERSION_SIZE;
-        long header         = sliceHeader | newVer ;
+    public void initHeader(long headerAddress, int dataLength, int version) {
+        //TODO add assert for length < 2^32?
+        long header = RC.encode(version, dataLength);
         DirectUtils.UNSAFE.putLong(headerAddress, header);
     }
 
@@ -62,49 +51,43 @@ class NovaMMHeader {
     }
 
 
-    /*---------------- Locking Implementation ----------------*/
-
-    private static boolean cas(long headerAddress, int expectedLock, int newLock, int version) {
-        // Since the writing is done directly to the memory, the endianness of the memory is important here.
-        // Therefore, we make sure that the values are read and written correctly.
-        long expected = DirectUtils.intsToLong(version, expectedLock);
-        long value = DirectUtils.intsToLong(version, newLock);
-        return DirectUtils.UNSAFE.compareAndSwapLong(null, headerAddress, expected, value);
-    }
-
     
     private static boolean cas(long headerAddress, long offHeapMeta) {
         // Since the writing is done directly to the memory, the endianness of the memory is important here.
         // Therefore, we make sure that the values are read and written correctly.
+        // this CAS replaces the old offheap version with new one that has 1 as the first bit to indicate deletion
         return DirectUtils.UNSAFE.compareAndSwapLong(null, headerAddress, offHeapMeta, offHeapMeta | 1);
     }
     
     
-    ValueUtils.ValueResult lockRead(final int onHeapVersion, long headerAddress) {
-        if (onHeapVersion % 2 == 1) {
+    ValueUtils.ValueResult preRead(final int onHeapVersion, long headerAddress) {
+        long offHeapHeader = getOffHeapHeader(headerAddress);
+        if (RC.isReferenceDeleted(offHeapHeader)) {
             throw new DeletedMemoryAccessException();
         }
         return ValueUtils.ValueResult.TRUE;
     }
 
-    ValueUtils.ValueResult unlockRead(final int onHeapVersion, long headerAddress) {
+    ValueUtils.ValueResult postRead(final int onHeapVersion, long headerAddress) {
         DirectUtils.UNSAFE.loadFence();
-        if (! (onHeapVersion == (int) (DirectUtils.UNSAFE.getLong(headerAddress) & 0x1FFFFF))) {
+        long offHeapHeader = getOffHeapHeader(headerAddress);
+        int offHeapVersion = RC.getFirst(offHeapHeader);
+        if (onHeapVersion != offHeapVersion) {
             throw new DeletedMemoryAccessException();
         }
         return ValueUtils.ValueResult.TRUE;
     }
 
-    ValueUtils.ValueResult lockWrite(final int onHeapVersion, final int blockID, final int offset,
+    ValueUtils.ValueResult lockWrite(final int onHeapVersion, final long tapEntry,
                long headerAddress, AtomicLongArray tap) {
-        if (onHeapVersion % 2 == 1) {
+        long offHeapHeader = getOffHeapHeader(headerAddress);
+        if (RC.isReferenceDeleted(offHeapHeader)) {
             return ValueUtils.ValueResult.RETRY;
         }
-        long ref = blockID << 20 | offset;
-        setTap(tap, ref, (int) Thread.currentThread().getId() % ThreadIndexCalculator.MAX_THREADS);
+        setTap(tap, tapEntry, (int) Thread.currentThread().getId() % ThreadIndexCalculator.MAX_THREADS);
         DirectUtils.UNSAFE.fullFence();
-        
-        if (! (onHeapVersion == (int) (DirectUtils.UNSAFE.getLong(headerAddress) & 0x1FFFFF))) {
+        int offHeapVersion = RC.getFirst(offHeapHeader);
+        if (onHeapVersion != offHeapVersion) {
             unsetTap(tap, (int) Thread.currentThread().getId() % ThreadIndexCalculator.MAX_THREADS);
             return ValueResult.FALSE;
         }
@@ -117,27 +100,28 @@ class NovaMMHeader {
         unsetTap(tap, (int) Thread.currentThread().getId() % ThreadIndexCalculator.MAX_THREADS);
         return ValueUtils.ValueResult.TRUE;
         //can be replaced with always true without unsetting the tap
-    }
+    } //TODO fully delete? or can be used to do the move method?
 
     ValueUtils.ValueResult logicalDelete(final int onHeapVersion , long headerAddress) {
         assert onHeapVersion > ReferenceCodecSyncRecycle.INVALID_VERSION;
-        long lengthVer = -1;
+        long offHeapHeader = -1;
         do {
-            lengthVer = getOffHeapMetaData(headerAddress);
-            int oldVersion = (int) lengthVer & 0x1F_FF_FF;
-            if (oldVersion >> 1 != onHeapVersion >> 1) {
-                return ValueUtils.ValueResult.RETRY;
+            offHeapHeader = getOffHeapHeader(headerAddress);
+            int oldVersion = RC.getFirst(offHeapHeader);
+            if (oldVersion  != onHeapVersion ) {
+                return ValueUtils.ValueResult.RETRY; //TODO retry?
             }
-            if (oldVersion % 2 == 1) {
+            if (RC.isReferenceDeleted(offHeapHeader)) {
                 return ValueUtils.ValueResult.FALSE;
             }
-        } while (!cas(headerAddress,  lengthVer));
+        } while (!cas(headerAddress,  offHeapHeader));
         return ValueUtils.ValueResult.TRUE;
     }
 
     ValueUtils.ValueResult isLogicallyDeleted(final int onHeapVersion, long headerAddress) {
-        int oldVersion = getOffHeapVersion(headerAddress) & 0x1F_FF_FF;
-        if (oldVersion % 2 == 1) {
+        long offHeapHeader = getOffHeapHeader(headerAddress);
+        int oldVersion = RC.getFirst(offHeapHeader);
+        if (RC.isReferenceDeleted(offHeapHeader)) {
             return ValueUtils.ValueResult.TRUE;
         }
         if (oldVersion != onHeapVersion) {

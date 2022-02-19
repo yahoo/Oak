@@ -17,10 +17,10 @@ class SyncRecycleMemoryManager implements MemoryManager {
         new SyncRecycleMMHeader(); // for off-heap header operations
     private static final int VERS_INIT_VALUE = 1;
     private static final int OFF_HEAP_HEADER_SIZE = 12; /* Bytes */
-    private final ThreadIndexCalculator threadIndexCalculator;
+    protected final ThreadIndexCalculator threadIndexCalculator;
     private final List<List<SliceSyncRecycle>> releaseLists;
-    private final AtomicInteger globalVersionNumber;
-    private final BlockMemoryAllocator allocator;
+    protected final AtomicInteger globalVersionNumber;
+    protected final BlockMemoryAllocator allocator;
 
     /*
      * The VALUE_RC reference codec encodes the reference (with memory manager abilities) of the values
@@ -144,7 +144,7 @@ class SyncRecycleMemoryManager implements MemoryManager {
     // In order not to increase and overwrite allowed number of bits, increase is done via
     // atomic CAS.
     //
-    private void increaseGlobalVersion() {
+    protected void increaseGlobalVersion() {
         // the version takes specific number of bits (including delete bit)
         // version increasing needs to restart once the maximal number of bits is reached
         int curVer = globalVersionNumber.get();
@@ -171,7 +171,7 @@ class SyncRecycleMemoryManager implements MemoryManager {
      */
     class SliceSyncRecycle extends BlockAllocationSlice {
 
-        private int version;    // Allocation time version
+        protected int version;    // Allocation time version
 
         /* ------------------------------------------------------------------------------------
          * Constructors
@@ -289,7 +289,7 @@ class SyncRecycleMemoryManager implements MemoryManager {
          *
          * @return the encoded reference
          */
-        private long encodeReference() {
+        protected long encodeReference() {
             return rc.encode(getAllocatedBlockID(), getAllocatedOffset(), getVersion());
         }
 

@@ -602,7 +602,6 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
                 }
                 return getValueUnscopedBuffer(ctx);
             } catch (DeletedMemoryAccessException e) {
-                inTheMiddleOfRebalance(c);
                 continue;
             }
         }
@@ -887,7 +886,7 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
             if (lo == null) {
                 return false;
             }
-            int c = KeyUtils.compareKeyAndSerializedKey(lo, (KeyBuffer) key, config.comparator);
+            int c = KeyUtils.compareEntryKeyAndSerializedKey(lo, (KeyBuffer) key, config.comparator);
             return c > 0 || (c == 0 && !loInclusive);
         }
 
@@ -895,7 +894,7 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
             if (hi == null) {
                 return false;
             }
-            int c = KeyUtils.compareKeyAndSerializedKey(hi, (KeyBuffer) key, config.comparator);
+            int c = KeyUtils.compareEntryKeyAndSerializedKey(hi, (KeyBuffer) key, config.comparator);
             return c < 0 || (c == 0 && !hiInclusive);
         }
 

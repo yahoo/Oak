@@ -10,11 +10,17 @@ import com.yahoo.oak.ValueUtils.ValueResult;
 
 class KeyUtils {
 
-
-    /* ==================== Methods for operating on existing off-heap keys ==================== */
     
-    
-    public static <K> int compareKeyAndSerializedKey(K key, KeyBuffer serializedKey, OakComparator<K> cmp) 
+    /**
+     * Compare a key with a serialized key that is pointed by a specific entry index, this function is used
+     * when trying to compare any other key that is not minKey which is never deleted.
+     *
+     * @param key                    the key to compare.
+     * @param serializedKey          the entry index to compare with.
+     * @param cmp                    the compare function provided by the end user.
+     * @return the comparison result
+     */
+    public static <K> int compareEntryKeyAndSerializedKey(K key, KeyBuffer serializedKey, OakComparator<K> cmp) 
             throws DeletedMemoryAccessException {
         if (serializedKey.s.lockRead() != ValueResult.TRUE) {
             throw new DeletedMemoryAccessException();
@@ -26,17 +32,4 @@ class KeyUtils {
         }
     }
     
-    public static <K> int compareSerializedKeys(KeyBuffer serializedKey1,
-            KeyBuffer serializedKey2, OakComparator<K> cmp) throws DeletedMemoryAccessException {
-        if (    serializedKey1.s.lockRead() != ValueResult.TRUE ||
-                serializedKey2.s.lockRead() != ValueResult.TRUE) {
-            throw new DeletedMemoryAccessException();
-        }
-        try {
-            return cmp.compareSerializedKeys(serializedKey1, serializedKey2);
-        } finally {
-            serializedKey1.s.unlockRead();
-            serializedKey2.s.unlockRead();
-        }
-    }
 }

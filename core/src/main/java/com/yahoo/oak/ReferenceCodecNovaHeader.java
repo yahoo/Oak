@@ -10,28 +10,21 @@ package com.yahoo.oak;
  * A reference that is involved in synchronized and recycling memory management is composed of
  * 3 parameters:block ID, offset and version.
  *
- * 0...            ...42 | 43... ...62 | 63
- * block ID   |  offset  | version     | deleted 
- * first         second      third
+ * 0...            ...21 | 22... ...63
+ *          version      | length
+ *          first           second
  *
  * All these parameters may be squashed together into one long for easy representation.
  * Using different number of bits for each parameter may incur different limitations on their sizes.
  */
-class ReferenceCodecNova extends ReferenceCodec {
+class ReferenceCodecNovaHeader extends ReferenceCodec {
 
     static final int    INVALID_VERSION = 0;
+    static final int    DELETED_REFERENCE = 1;
+    static final int    VERSION_SIZE = 22;
+    private long versionDeleteBitMASK    = 1; //first bit is the deleted bit
+    private long referenceDeleteBitMASK  = 1;
 
-    // All Oak instances on one machine are expected to reference to no more than 4TB of RAM.
-    // 4TB = 2^42 bytes
-    // blockIDBitSize + offsetBitSize = BITS_FOR_MAXIMUM_RAM
-    // The number of bits required to represent such memory:
-    private static final int BITS_FOR_MAXIMUM_RAM = 42;
-    private static final long VERSION_DELETE_BIT_MASK = (1 << (Long.SIZE - Long.SIZE));
-    private static final long REFERENCE_DELETE_BIT_MASK
-            = (INVALID_REFERENCE | (VERSION_DELETE_BIT_MASK << BITS_FOR_MAXIMUM_RAM));
-
-    // number of allowed bits for version (-1 for delete bit) set to one
-    static final int LAST_VALID_VERSION = (int) mask(Long.SIZE - BITS_FOR_MAXIMUM_RAM - 1);
 
     /**
      * Initialize the codec with offset in the size of block.
@@ -41,27 +34,16 @@ class ReferenceCodecNova extends ReferenceCodec {
      * @param allocator
      *
      */
-    ReferenceCodecNova(long blockSize, BlockMemoryAllocator allocator) {
-        super(BITS_FOR_MAXIMUM_RAM - ReferenceCodec.requiredBits(blockSize),
-                ReferenceCodec.requiredBits(blockSize), AUTO_CALCULATE_BIT_SIZE);
+    ReferenceCodecNovaHeader() {
+        super(VERSION_SIZE, Long.SIZE - VERSION_SIZE, AUTO_CALCULATE_BIT_SIZE);
         // and the rest goes for version (currently 22 bits)
-    }
-
-    @Override
-    protected long getFirstForDelete(long reference) {
-        return INVALID_REFERENCE;
-    }
-
-    @Override
-    protected long getSecondForDelete(long reference) {
-        return INVALID_REFERENCE;
     }
 
     @Override
     protected long getThirdForDelete(long reference) {
         long v = getThird(reference);
         // The set the MSB (the left-most bit out of 22 is delete bit)
-        v |= VERSION_DELETE_BIT_MASK;
+        v |= versionDeleteBitMASK;
         return (INVALID_REFERENCE | v);
     }
 
@@ -79,11 +61,11 @@ class ReferenceCodecNova extends ReferenceCodec {
 
     @Override
     boolean isReferenceDeleted(long reference) {
-        return ((reference & REFERENCE_DELETE_BIT_MASK) != INVALID_REFERENCE);
+        return ((reference & referenceDeleteBitMASK) == DELETED_REFERENCE);
     }
 
     boolean isReferenceValidAndNotDeleted(long reference) {
         return (reference != INVALID_REFERENCE &&
-            (reference & REFERENCE_DELETE_BIT_MASK) == INVALID_REFERENCE);
+            (reference & referenceDeleteBitMASK) == INVALID_REFERENCE);
     }
 }

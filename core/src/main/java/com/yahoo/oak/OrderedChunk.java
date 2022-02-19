@@ -233,7 +233,7 @@ class OrderedChunk<K, V> extends BasicChunk<K, V> {
     int compareKeyAndEntryIndex(KeyBuffer tempKeyBuff, K key, int ei) {
         boolean isAllocated = entryOrderedSet.readKey(tempKeyBuff, ei);
         assert isAllocated;
-        return KeyUtils.compareKeyAndSerializedKey(key, tempKeyBuff, config.comparator);
+        return KeyUtils.compareEntryKeyAndSerializedKey(key, tempKeyBuff, config.comparator);
     }
 
     /**
@@ -812,7 +812,7 @@ class OrderedChunk<K, V> extends BasicChunk<K, V> {
                 // we are on the last chunk and 'to' is not null
                 return true;
             }
-            int c = config.comparator.compareKeyAndSerializedKey(endBound, key);
+            int c = KeyUtils.compareEntryKeyAndSerializedKey(endBound, (KeyBuffer) key, config.comparator);
             // return true if endBound<key or endBound==key and the scan was not endBoundInclusive
             return c < 0 || (c == 0 && !endBoundInclusive);
         }
@@ -994,7 +994,7 @@ class OrderedChunk<K, V> extends BasicChunk<K, V> {
             if (endBound == null) {
                 return false;
             }
-            int c = config.comparator.compareKeyAndSerializedKey(endBound, key);
+            int c = KeyUtils.compareEntryKeyAndSerializedKey(endBound, (KeyBuffer) key, config.comparator);
             // return true if endBound>key or if endBound==key and the scan was not endBoundInclusive
             return c > 0 || (c == 0 && !endBoundInclusive);
         }
