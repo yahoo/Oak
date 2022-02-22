@@ -27,7 +27,7 @@ import java.util.function.Supplier;
 public class MultiThreadComputeTest {
     private static final int NUM_THREADS = 31;
     // prolong due to parameterization, and depending on the hash function
-    private static final long TIME_LIMIT_IN_SECONDS = 120;
+    private static final long TIME_LIMIT_IN_SECONDS = 1200;
     private static final int MAX_ITEMS_PER_CHUNK = 256; // was 1024
 
     private ConcurrentZCMap<Integer, Integer> oak;
@@ -36,7 +36,7 @@ public class MultiThreadComputeTest {
     private CountDownLatch latch;
     private Consumer<OakScopedWriteBuffer> computer;
     private Consumer<OakScopedWriteBuffer> emptyComputer;
-    
+    private ThreadIndexCalculator indexCalc = ThreadIndexCalculator.newInstance();
 
     private Supplier<ConcurrentZCMap> builder;
 
@@ -60,8 +60,8 @@ public class MultiThreadComputeTest {
             return builder.buildHashMap();
         };
         return Arrays.asList(new Object[][] {
-                { s1 }
-                //{ s2 } 
+                { s1 },
+                { s2 } 
                 //TODO have problem in hash with asserts, do we want to remove asserts?
         });
     }
@@ -105,7 +105,8 @@ public class MultiThreadComputeTest {
             // make each thread to start from different start points so there is no simultaneous
             // insertion of the same keys, as this is currently not supported for OakHash
             // TODO: change the contention back
-            int threadId = ThreadIndexCalculator.newInstance().getIndex();
+            int threadId = indexCalc.getMonotonicIndex();
+            //to prevent rare cases where indexcalc returns two numbers  x % NUM_THREADS == y % NUM_THREADS
             int int2start = (threadId % NUM_THREADS) * (MAX_ITEMS_PER_CHUNK * 20);
             
             int startRegion1 = int2start;
@@ -123,42 +124,31 @@ public class MultiThreadComputeTest {
             int startRegion5 = int2start + ( 4 * MAX_ITEMS_PER_CHUNK);            
             int endRegion6   = int2start + (6 * MAX_ITEMS_PER_CHUNK);
             
-                        
+            //System.out.println( "Start Region: " +startRegion1+ " End: " + endRegion6 +" threadId: " +threadId );
+
             latch.await();
 
-            boolean result = false;
-
             for (Integer i = startRegion1; i < endRegion4; i++) {                
-                if (i == int2start) {
-                    result = oak.zc().putIfAbsent(i, i);
-                    if (!result) {
-                        System.out.println(
-                                "Key " + i + " existed. Thread ID " + threadId + ". Weird....");
-                    }
+                if (i == 0 || i == 1) {
+                    oak.zc().putIfAbsent(i, i); //do not assert , since line 170-171
                 } else {
-                    oak.zc().putIfAbsent(i, i);
+                        assert oak.zc().putIfAbsent(i, i);
                 }
             }
-              //in map all of this if ( i == int2start) can be removed, 
-              //and replaced with just oak.zc().putifAbsent(i,i). 
-              //There was a rare case where thread with startRegion1 =0,
-              //tries to insert 0, but already exist since line 168.
-              //In hash there is cases where start_region != 0 and we see existed value)
+
 
             Integer value = oak.get(startRegion1);
             if (value == null) {
-                oak.get(startRegion1);
                 System.out.println("Got a null from " + int2start + "!");
             }
             Assert.assertNotNull(value);
 
             for (Integer i = startRegion1; i < endRegion4; i++) {
-                assert !oak.zc().putIfAbsentComputeIfPresent(i, i, emptyComputer);
+                 assert !oak.zc().putIfAbsentComputeIfPresent(i, i, emptyComputer);
             }
 
             value = oak.get(startRegion1);
             if (value == null) {
-                value = oak.get(startRegion1);
                 System.out.println("Got a null from " + int2start + "!");
             }
             Assert.assertNotNull(value);
@@ -170,7 +160,6 @@ public class MultiThreadComputeTest {
 
             value = oak.get(startRegion1);
             if (value == null) {
-                value = oak.get(startRegion1);
                 System.out.println("Got a null!");
             }
             Assert.assertNotNull(value);
@@ -189,7 +178,6 @@ public class MultiThreadComputeTest {
 
             value = oak.get(startRegion1);
             if (value == null) {
-                value = oak.get(startRegion1);
                 System.out.println("Got a null from " + int2start + "!");
             }
             Assert.assertNotNull(value);
