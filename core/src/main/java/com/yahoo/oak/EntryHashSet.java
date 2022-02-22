@@ -83,7 +83,7 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
         UnionCodec.AUTO_CALCULATE_BIT_SIZE, // valid bit
         Long.SIZE);
 
-    // bit map indicating entries the are still zero, used by the scan for faster retrieve of the next non-empty entry
+    // bit map indicating entries that are still zero, used by the scan for faster retrieve of the next non-empty entry
     private final BitSet mapOfCleanEntries;
     /*----------------- Constructor -------------------*/
     /**
@@ -535,8 +535,10 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
         // that was set in this context ({@code ctx}).
         writeKey(key, ctx.key);
 
-        // set the appropriate position in the bit map, indicating the entry is not zero
-        mapOfCleanEntries.set(ctx.entryIndex);
+        synchronized (mapOfCleanEntries) {
+            // set the appropriate position in the bit map, indicating the entry is not zero
+            mapOfCleanEntries.set(ctx.entryIndex);
+        }
 
         // Try to assign our key
         if (casKeyReference(ctx.entryIndex, ctx.tempKey.getSlice().getReference(), /* old reference */
