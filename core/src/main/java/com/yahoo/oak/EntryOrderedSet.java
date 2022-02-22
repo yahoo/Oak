@@ -284,6 +284,7 @@ class EntryOrderedSet<K, V> extends EntryArray<K, V> {
         copyEntriesFrom(srcEntryOrderedSet, srcEntryIdx, destEntryIndex, 2);
 
         assert config.valuesMemoryManager.isReferenceConsistent(getValueReference(destEntryIndex));
+        assert config.keysMemoryManager.isReferenceConsistent(getKeyReference(destEntryIndex));
 
         // now it is the time to increase nextFreeIndex
         nextFreeIndex.getAndIncrement();
@@ -294,8 +295,11 @@ class EntryOrderedSet<K, V> extends EntryArray<K, V> {
     boolean isEntrySetValidAfterRebalance() {
         int currIndex = getHeadNextEntryIndex();
         int prevIndex = INVALID_ENTRY_INDEX;
-        while (currIndex > getLastEntryIndex()) {
+        while (currIndex < getLastEntryIndex() && currIndex >= 0) {
             if (!isValueRefValidAndNotDeleted(currIndex)) {
+                return false;
+            }
+            if (isKeyDeleted(new KeyBuffer(config.keysMemoryManager.getEmptySlice()), currIndex)) {
                 return false;
             }
             if (!config.valuesMemoryManager.isReferenceConsistent(getValueReference(currIndex))) {

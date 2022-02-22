@@ -28,7 +28,7 @@ class SyncRecycleMemoryManager implements MemoryManager {
      * For encoding details please take a look on ReferenceCodecSyncRecycle
      *
      */
-    private final ReferenceCodecSyncRecycle rc;
+    protected ReferenceCodecSyncRecycle rc;
 
     SyncRecycleMemoryManager(BlockMemoryAllocator allocator) {
         this.threadIndexCalculator = ThreadIndexCalculator.newInstance();

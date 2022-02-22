@@ -25,14 +25,6 @@ class NovaMemoryManager extends SyncRecycleMemoryManager {
     private final List<List<SliceNova>> releaseLists;   
     private final AtomicLongArray tap;
 
-    /*
-     * The VALUE_RC reference codec encodes the reference (with memory manager abilities) of the values
-     * into a single long primitive (64 bit).
-     * For encoding details please take a look on ReferenceCodecSyncRecycle
-     *
-     */
-    private final ReferenceCodecSyncRecycle rc;
-
     NovaMemoryManager(BlockMemoryAllocator allocator) {
         super(allocator);
         this.tap = new AtomicLongArray(ThreadIndexCalculator.MAX_THREADS * CACHE_PADDING * 2);
@@ -150,6 +142,12 @@ class NovaMemoryManager extends SyncRecycleMemoryManager {
             //and was not exposed to all other threads for immediate release.
             prefetchDataLength(); // this will set the length from off-heap header, if needed
             allocator.free(this);
+        }
+        
+        @Override
+        public void copyFrom(Slice other) {
+            copyAllocationInfoFrom((SliceNova) other);
+            this.version = ((SliceNova) other).version;
         }
         
         @Override

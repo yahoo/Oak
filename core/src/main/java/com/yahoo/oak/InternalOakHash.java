@@ -395,8 +395,37 @@ class InternalOakHash<K, V> extends InternalOakBasics<K, V> {
 
         throw new RuntimeException("putIfAbsentComputeIfPresent failed: reached retry limit (1024).");
     }
-
     
+    @Override
+    boolean computeIfPresent(K key, Consumer<OakScopedWriteBuffer> computer) {
+        if (key == null || computer == null) {
+            throw new NullPointerException();
+        }
+
+        ThreadContext ctx = getThreadContext();
+
+        for (int i = 0; i < MAX_RETRIES; i++) {
+            // find chunk matching key, puts this key hash into ctx.operationKeyHash
+            BasicChunk<K, V> c = findChunk(key, ctx);
+            c.lookUp(ctx, key);
+
+            if (ctx.isValueValid()) {
+                ValueUtils.ValueResult res = config.valueOperator.compute(ctx.value, computer);
+                if (res == ValueUtils.ValueResult.TRUE) {
+                    // compute was successful and the value wasn't found deleted; in case
+                    // this value was already marked as deleted, continue to construct another slice
+                    return true;
+                } else if (res == ValueUtils.ValueResult.RETRY) {
+                    continue;
+                }
+            }
+            return false;
+        }
+
+        throw new RuntimeException("computeIfPresent failed: reached retry limit (1024).");
+    }
+
+    @Override
     Result remove(K key, V oldValue, OakTransformer<V> transformer) {
         if (key == null) {
             throw new NullPointerException();
