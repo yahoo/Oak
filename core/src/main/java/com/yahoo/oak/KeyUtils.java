@@ -37,10 +37,10 @@ class KeyUtils {
      * when trying to deserializes key on released chunk!
      *
      * @param serializedKey          the entry index to deserialize with.
-     * @param deSerial 				 the serializer that is used.
+     * @param deSerial               the serializer that is used.
      * @return the result
      */
-    public static <K> K DeSerializedKey(KeyBuffer serializedKey, OakSerializer<K> deSerial) 
+    public static <K> K deSerializedKey(KeyBuffer serializedKey, OakSerializer<K> deSerial) 
             throws DeletedMemoryAccessException {
         if (serializedKey.s.lockRead() != ValueResult.TRUE) {
             throw new DeletedMemoryAccessException();

@@ -943,13 +943,13 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
         protected void initAfterRebalance() {
             //TODO - refactor to use OakReadBuffer without deserializing.
             if (!getState().getChunk().readKeyFromEntryIndex(ctx.tempKey, getState().getIndex())) {
-            	return;
+                return;
             }
             K nextKey = null;
             try {
-            	nextKey = getKeySerializer().deserialize(ctx.tempKey);
-            } catch( DeletedMemoryAccessException e ) {
-            	return;
+                nextKey = getKeySerializer().deserialize(ctx.tempKey);
+            } catch ( DeletedMemoryAccessException e ) {
+                return;
             }
 
             if (isDescending) {
@@ -998,7 +998,7 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
                 }
                 validState = ctx.isKeyValid();
                 if (!validState) {
-                	continue;
+                    continue;
                 }
 
                 if (needsValue) {
@@ -1146,29 +1146,28 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
          */
         @Override
         protected boolean advanceState() {
-        	while (true) {
-	            boolean valueToReturn = super.advanceState();
-	
-	            if (valueToReturn) {
-	                BasicChunk<K, V> chunk = getState().getChunk();
-	                BasicChunk.BasicChunkIter chunkIter = getState().getChunkIter();
-	                int nextIndex = getState().getIndex();
-	                // The boundary check is costly and need to be performed only when required,
-	                // meaning not on the full scan.
-	                if (((OrderedChunk<K, V>.ChunkIter) chunkIter).isBoundCheckNeeded()) {
-	                    if(!chunk.readKeyFromEntryIndex(ctx.tempKey, nextIndex)) {
-	                    	continue;
-	                    }
-	                    if (!inBounds(ctx.tempKey)) {
-	                        setState(null);
-	                        valueToReturn = false;
-	                    }
-	                }
-	            }
-	            return valueToReturn;
-	        }
+            while (true) {
+                boolean valueToReturn = super.advanceState();
+                
+                if (valueToReturn) {
+                    BasicChunk<K, V> chunk = getState().getChunk();
+                    BasicChunk.BasicChunkIter chunkIter = getState().getChunkIter();
+                    int nextIndex = getState().getIndex();
+                    // The boundary check is costly and need to be performed only when required,
+                    // meaning not on the full scan.
+                    if (((OrderedChunk<K, V>.ChunkIter) chunkIter).isBoundCheckNeeded()) {
+                        if (!chunk.readKeyFromEntryIndex(ctx.tempKey, nextIndex)) {
+                            continue;
+                        }
+                        if (!inBounds(ctx.tempKey)) {
+                            setState(null);
+                            valueToReturn = false;
+                        }
+                    }
+                }
+                return valueToReturn;
+            }
         }
-
     }
 
     class ValueIterator extends OrderedIter<OakUnscopedBuffer> {
