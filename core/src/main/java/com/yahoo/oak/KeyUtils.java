@@ -32,4 +32,24 @@ class KeyUtils {
         }
     }
     
+    /**
+     * Deserializes the key that is pointed by a specific entry index, this function is used
+     * when trying to deserializes key on released chunk!
+     *
+     * @param serializedKey          the entry index to deserialize with.
+     * @param deSerial 				 the serializer that is used.
+     * @return the result
+     */
+    public static <K> K DeSerializedKey(KeyBuffer serializedKey, OakSerializer<K> deSerial) 
+            throws DeletedMemoryAccessException {
+        if (serializedKey.s.lockRead() != ValueResult.TRUE) {
+            throw new DeletedMemoryAccessException();
+        }
+        try {
+            return deSerial.deserialize(serializedKey);
+        } finally {
+            serializedKey.s.unlockRead();
+        }
+    }
+    
 }
