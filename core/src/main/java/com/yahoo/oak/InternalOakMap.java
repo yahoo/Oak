@@ -942,15 +942,23 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
         @Override
         protected void initAfterRebalance() {
             //TODO - refactor to use OakReadBuffer without deserializing.
-            if (!getState().getChunk().readKeyFromEntryIndex(ctx.tempKey, getState().getIndex())) {
-                return;
+            
+            while (!getState().getChunk().readKeyFromEntryIndex(ctx.tempKey, getState().getIndex())) {
+                super.advanceState();
+                if (getState() == null) {
+                    throw new NoSuchElementException();
+                }
+                continue;
             }
             K nextKey = null;
+
             try {
-                nextKey = getKeySerializer().deserialize(ctx.tempKey);
+                nextKey = KeyUtils.deSerializedKey(ctx.tempKey, getKeySerializer());
             } catch ( DeletedMemoryAccessException e ) {
+                initAfterRebalance();
                 return;
             }
+
 
             if (isDescending) {
                 hiInclusive = true;

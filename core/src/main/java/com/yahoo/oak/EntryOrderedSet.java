@@ -319,9 +319,12 @@ class EntryOrderedSet<K, V> extends EntryArray<K, V> {
         KeyBuffer key = new KeyBuffer(config.keysMemoryManager.getEmptySlice());
         for (int i = 0; i < entriesCapacity ; i++) {
             if (config.valuesMemoryManager.isReferenceDeleted(getValueReference(i))) {
-                if (key.s.decodeReference(getKeyReference(i))) {
+                long keyRef = getKeyReference(i);
+                if (key.s.decodeReference(keyRef)) {
                     if (key.s.logicalDelete() == ValueResult.TRUE) {
-                        key.s.markAsDeleted();
+                        //key.s.markAsDeleted();
+                        setKeyReference(i,
+                                config.keysMemoryManager.alterReferenceForDelete(keyRef));
                         key.s.release();
                     }
                 }
