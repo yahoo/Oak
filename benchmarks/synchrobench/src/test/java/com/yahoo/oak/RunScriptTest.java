@@ -83,6 +83,7 @@ public class RunScriptTest {
 
     private List<String> nextNumbers(Random r, int sz) {
         return r.ints(0, 1_000)
+            .distinct()
             .limit(sz)
             .mapToObj(Integer::toString)
             .collect(Collectors.toList());
