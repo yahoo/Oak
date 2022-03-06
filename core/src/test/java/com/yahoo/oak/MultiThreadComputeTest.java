@@ -91,9 +91,11 @@ public class MultiThreadComputeTest {
     }
 
     class RunThreads implements Callable<Void> {
-        CountDownLatch latch;
+        final int threadIdx;
+        final CountDownLatch latch;
 
-        RunThreads(CountDownLatch latch) {
+        RunThreads(int threadIdx, CountDownLatch latch) {
+            this.threadIdx = threadIdx;
             this.latch = latch;
         }
 
@@ -104,37 +106,28 @@ public class MultiThreadComputeTest {
             // make each thread to start from different start points so there is no simultaneous
             // insertion of the same keys, as this is currently not supported for OakHash
             // TODO: change the contention back
-            int threadId = (int) (Thread.currentThread().getId());
-            int int2start = (threadId % 32) * (MAX_ITEMS_PER_CHUNK * 20);
+            int int2start = threadIdx * (MAX_ITEMS_PER_CHUNK * 20);
             boolean result = false;
 
             for (Integer i = int2start; i < int2start + 4 * MAX_ITEMS_PER_CHUNK; i++) {
                 if (i == int2start) {
                     result = oak.zc().putIfAbsent(i, i);
-                    if (!result) {
-                        System.out.println(
-                            "Key " + i + " existed. Thread ID " + threadId + ". Weird....");
-                    }
+                    Assert.assertTrue("Key " + i + " existed. Thread index: " + threadIdx + ". Weird....",
+                        result);
                 } else {
                     oak.zc().putIfAbsent(i, i);
                 }
             }
 
             Integer value = oak.get(int2start);
-            if (value == null) {
-                System.out.println("Got a null!" + result);
-            }
-            Assert.assertNotNull(value);
+            Assert.assertNotNull("Got a null!" + result, value);
 
             for (Integer i = int2start; i < int2start + 4 * MAX_ITEMS_PER_CHUNK; i++) {
                 oak.zc().putIfAbsentComputeIfPresent(i, i, emptyComputer);
             }
 
             value = oak.get(int2start);
-            if (value == null) {
-                System.out.println("Got a null from " + int2start + "!");
-            }
-            Assert.assertNotNull(value);
+            Assert.assertNotNull("Got a null from " + int2start + "!", value);
 
             for (int i = int2start + (3 * MAX_ITEMS_PER_CHUNK);
                  i < int2start + (4 * MAX_ITEMS_PER_CHUNK); i++) {
@@ -142,10 +135,7 @@ public class MultiThreadComputeTest {
             }
 
             value = oak.get(int2start);
-            if (value == null) {
-                System.out.println("Got a null!");
-            }
-            Assert.assertNotNull(value);
+            Assert.assertNotNull("Got a null!", value);
 
             oak.zc().put(1, 2);
             oak.zc().put(0, 1);
@@ -155,20 +145,14 @@ public class MultiThreadComputeTest {
             }
 
             value = oak.get(int2start);
-            if (value == null) {
-                System.out.println("Got a null from " + int2start + "!");
-            }
-            Assert.assertNotNull(value);
+            Assert.assertNotNull("Got a null from " + int2start + "!", value);
 
             for (int i = int2start; i < int2start + (MAX_ITEMS_PER_CHUNK); i++) {
                 oak.zc().putIfAbsentComputeIfPresent(i, i, computer);
             }
 
             value = oak.get(int2start);
-            if (value == null) {
-                System.out.println("Got a null!");
-            }
-            Assert.assertNotNull(value);
+            Assert.assertNotNull("Got a null!", value);
             if (int2start == 0) {
                 Assert.assertEquals((Integer) 1, value);
             } else if (int2start == 1) {
@@ -233,18 +217,14 @@ public class MultiThreadComputeTest {
 
     @Test
     public void testThreadsCompute() throws ExecutorUtils.ExecutionError {
-        executor.submitTasks(NUM_THREADS, i -> new MultiThreadComputeTest.RunThreads(latch));
+        executor.submitTasks(NUM_THREADS, i -> new MultiThreadComputeTest.RunThreads(i, latch));
         latch.countDown();
         executor.shutdown(TIME_LIMIT_IN_SECONDS);
 
         for (Integer i = 0; i < MAX_ITEMS_PER_CHUNK; i++) {
             Integer value = oak.get(i);
 
-            if (value == null) {
-                System.out.println("Got a null!");
-            }
-
-            Assert.assertNotNull(value);
+            Assert.assertNotNull("Got a null!", value);
             if (i == 0) {
                 Assert.assertEquals((Integer) 1, value);
                 continue;

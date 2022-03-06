@@ -277,7 +277,7 @@ for scenario in ${test_scenarios[*]}; do for bench in ${test_benchmarks[*]}; do
 
         # Add a timestamp prefix to the log file.
         # This allows repeating the benchmark with the same parameters in the future without removing the old log.
-        timestamp=$(date '+%d-%m-%Y--%H-%M-%S')
+        timestamp=$(date '+%Y-%m-%d--%H-%M-%S-%N')
         log_filename=${timestamp}-${scenario}-${bench}-xmx${heap_size}-direct${direct_size}-t${threads}-m${java_mode}-gc${gc_alg}.log
         out=${output}/${log_filename}
 

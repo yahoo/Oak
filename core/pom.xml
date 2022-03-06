@@ -5,7 +5,7 @@
     <parent>
         <artifactId>root</artifactId>
         <groupId>com.yahoo.oak</groupId>
-        <version>0.2.5-SNAPSHOT</version>
+        <version>0.2.6-SNAPSHOT</version>
     </parent>
 
     <artifactId>oak</artifactId>
