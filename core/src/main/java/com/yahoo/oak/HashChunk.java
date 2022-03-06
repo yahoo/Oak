@@ -343,12 +343,11 @@ class HashChunk<K, V> extends BasicChunk<K, V> {
 
         int getNextValidEntryIndex(ThreadContext ctx, int curIndex) {
             assert curIndex != INVALID_ENTRY_INDEX;
-            int nextIndex = curIndex + 1;
-            while (entryHashSet.isIndexInBound(nextIndex) && !entryHashSet.isEntryIndexValidForScan(ctx, nextIndex)) {
-                nextIndex++;
-            }
-            if (!entryHashSet.isIndexInBound(nextIndex)) {
-                nextIndex = INVALID_ENTRY_INDEX;
+
+            int nextIndex = entryHashSet.getNextNonZeroIndex(curIndex);
+            while (nextIndex != -1 && !entryHashSet.isEntryIndexValidForScan(ctx, nextIndex)) {
+                nextIndex = entryHashSet.getNextNonZeroIndex(nextIndex);
+
             }
             return nextIndex;
         }
