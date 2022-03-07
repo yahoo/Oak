@@ -764,7 +764,7 @@ class OrderedChunk<K, V> extends BasicChunk<K, V> {
             // or if the caller will check the end-boundary (IterEndBoundCheck.ALWAYS_END_BOUNDARY_CHECK),
             // then advance next without additional checks
             if (isEndBoundCheckNeeded != IterEndBoundCheck.MID_END_BOUNDARY_CHECK) {
-                advanceNextIndexNoBound(next, ctx);
+                next = advanceNextIndexNoBound(next, ctx);
             } else {
                 next = advanceNextIndex(next, ctx);
             }

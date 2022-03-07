@@ -89,6 +89,9 @@ class HashChunk<K, V> extends BasicChunk<K, V> {
         entryHashSet.readValue(ctx);
     }
 
+    int readHashFromIndex(int index) {
+        return entryHashSet.readHashFromIndex(index);
+    }
     /**
      * See {@code EntryHashSet.readKey(KeyBuffer)} for more information
      */
