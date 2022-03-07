@@ -944,7 +944,7 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
             //TODO - refactor to use OakReadBuffer without deserializing.
             
             while (!getState().getChunk().readKeyFromEntryIndex(ctx.tempKey, getState().getIndex())) {
-                super.advanceState();
+                advanceState();
                 if (getState() == null) {
                     throw new NoSuchElementException();
                 }

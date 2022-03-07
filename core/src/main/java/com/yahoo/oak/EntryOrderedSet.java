@@ -317,12 +317,11 @@ class EntryOrderedSet<K, V> extends EntryArray<K, V> {
     
     void releaseAllDeletedKeys() {
         KeyBuffer key = new KeyBuffer(config.keysMemoryManager.getEmptySlice());
-        for (int i = 0; i < entriesCapacity ; i++) {
+        for (int i = 0; i < numOfEntries.get() ; i++) {
             if (config.valuesMemoryManager.isReferenceDeleted(getValueReference(i))) {
                 long keyRef = getKeyReference(i);
                 if (key.s.decodeReference(keyRef)) {
                     if (key.s.logicalDelete() == ValueResult.TRUE) {
-                        //key.s.markAsDeleted();
                         setKeyReference(i,
                                 config.keysMemoryManager.alterReferenceForDelete(keyRef));
                         key.s.release();
