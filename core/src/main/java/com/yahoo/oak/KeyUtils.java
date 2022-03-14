@@ -22,13 +22,13 @@ class KeyUtils {
      */
     public static <K> int compareEntryKeyAndSerializedKey(K key, KeyBuffer serializedKey, OakComparator<K> cmp) 
             throws DeletedMemoryAccessException {
-        if (serializedKey.s.lockRead() != ValueResult.TRUE) {
+        if (serializedKey.s.preRead() != ValueResult.TRUE) {
             throw new DeletedMemoryAccessException();
         }
         try {
             return cmp.compareKeyAndSerializedKey(key, serializedKey);
         } finally {
-            serializedKey.s.unlockRead();
+            serializedKey.s.postRead();
         }
     }
     
@@ -42,13 +42,13 @@ class KeyUtils {
      */
     public static <K> K deSerializedKey(KeyBuffer serializedKey, OakSerializer<K> deSerial) 
             throws DeletedMemoryAccessException {
-        if (serializedKey.s.lockRead() != ValueResult.TRUE) {
+        if (serializedKey.s.preRead() != ValueResult.TRUE) {
             throw new DeletedMemoryAccessException();
         }
         try {
             return deSerial.deserialize(serializedKey);
         } finally {
-            serializedKey.s.unlockRead();
+            serializedKey.s.postRead();
         }
     }
     

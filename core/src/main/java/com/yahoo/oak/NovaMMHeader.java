@@ -39,22 +39,9 @@ class NovaMMHeader {
         DirectUtils.UNSAFE.putLong(headerAddress, header);
     }
 
-    public  void setTap(AtomicLongArray tap, long ref, int idx) {
-        int i = idx % ThreadIndexCalculator.MAX_THREADS;
-        tap.set(NovaMemoryManager.CACHE_PADDING * (i + 1) + NovaMemoryManager.IDENTRY, idx);
-        tap.set(NovaMemoryManager.CACHE_PADDING * (i + 1) + NovaMemoryManager.REFENTRY, ref);
-    }
-        
-    public  void unsetTap(AtomicLongArray tap, int idx) {
-        int i = idx % ThreadIndexCalculator.MAX_THREADS;
-        tap.set(NovaMemoryManager.CACHE_PADDING * (i + 1) + NovaMemoryManager.IDENTRY, -1);
-    }
-
 
     
-    private static boolean cas(long headerAddress, long offHeapMeta) {
-        // Since the writing is done directly to the memory, the endianness of the memory is important here.
-        // Therefore, we make sure that the values are read and written correctly.
+    private static boolean atomicallySetDeleted(long headerAddress, long offHeapMeta) {
         // this CAS replaces the old offheap version with new one that has 1 as the first bit to indicate deletion
         return DirectUtils.UNSAFE.compareAndSwapLong(null, headerAddress, offHeapMeta, offHeapMeta | 1);
     }
@@ -78,29 +65,32 @@ class NovaMMHeader {
         return ValueUtils.ValueResult.TRUE;
     }
 
-    ValueUtils.ValueResult lockWrite(final int onHeapVersion, final long tapEntry,
+    ValueUtils.ValueResult preWrite(final int onHeapVersion, final long tapEntry,
                long headerAddress, AtomicLongArray tap) {
         long offHeapHeader = getOffHeapHeader(headerAddress);
         if (RC.isReferenceDeleted(offHeapHeader)) {
             return ValueUtils.ValueResult.RETRY;
         }
-        setTap(tap, tapEntry, (int) Thread.currentThread().getId() % ThreadIndexCalculator.MAX_THREADS);
+        NovaMemoryManager.setTap(tap, tapEntry,
+                (int) Thread.currentThread().getId() % ThreadIndexCalculator.MAX_THREADS);
         DirectUtils.UNSAFE.fullFence();
         int offHeapVersion = RC.getFirst(offHeapHeader);
         if (onHeapVersion != offHeapVersion) {
-            unsetTap(tap, (int) Thread.currentThread().getId() % ThreadIndexCalculator.MAX_THREADS);
+            NovaMemoryManager.resetTap(tap, 
+                    (int) Thread.currentThread().getId() % ThreadIndexCalculator.MAX_THREADS);
             return ValueResult.FALSE;
         }
         
         return ValueUtils.ValueResult.TRUE;
     }
 
-    ValueUtils.ValueResult unlockWrite(final int onHeapVersion, long headerAddress, AtomicLongArray tap) {
+    ValueUtils.ValueResult postWrite(final int onHeapVersion, long headerAddress, AtomicLongArray tap) {
         DirectUtils.UNSAFE.storeFence();
-        unsetTap(tap, (int) Thread.currentThread().getId() % ThreadIndexCalculator.MAX_THREADS);
+        NovaMemoryManager.resetTap(tap, 
+                (int) Thread.currentThread().getId() % ThreadIndexCalculator.MAX_THREADS);
         return ValueUtils.ValueResult.TRUE;
         //can be replaced with always true without unsetting the tap
-    } //TODO fully delete? or can be used to do the move method?
+    }
 
     ValueUtils.ValueResult logicalDelete(final int onHeapVersion , long headerAddress) {
         assert onHeapVersion > ReferenceCodecSyncRecycle.INVALID_VERSION;
@@ -114,7 +104,7 @@ class NovaMMHeader {
             if (RC.isReferenceDeleted(offHeapHeader)) {
                 return ValueUtils.ValueResult.FALSE;
             }
-        } while (!cas(headerAddress,  offHeapHeader));
+        } while (!atomicallySetDeleted(headerAddress,  offHeapHeader));
         return ValueUtils.ValueResult.TRUE;
     }
 

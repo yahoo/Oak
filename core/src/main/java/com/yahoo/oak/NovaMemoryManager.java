@@ -14,7 +14,7 @@ import java.util.concurrent.atomic.AtomicLongArray;
 
 class NovaMemoryManager extends SyncRecycleMemoryManager {
     static final int CACHE_PADDING = 8;
-    static final int IDENTRY = 0;
+    static final int INVALID_ENTRY = 0;
     static final int REFENTRY = 1;
     
     private static final NovaMMHeader HEADER =
@@ -33,7 +33,7 @@ class NovaMemoryManager extends SyncRecycleMemoryManager {
             this.releaseLists.add(new ArrayList<>(RELEASE_LIST_LIMIT));
         }
         for (int i = CACHE_PADDING; i < ThreadIndexCalculator.MAX_THREADS * CACHE_PADDING * 2; i += CACHE_PADDING) {
-            this.tap.set(i + IDENTRY, -1); 
+            this.tap.set(i + REFENTRY, INVALID_ENTRY); 
         }  
         rc = new ReferenceCodecSyncRecycle(BlocksPool.getInstance().blockSize(), allocator, DELETED_BIT_INDEX);
         
@@ -50,15 +50,19 @@ class NovaMemoryManager extends SyncRecycleMemoryManager {
         return OFF_HEAP_HEADER_SIZE;
     }
     
-    public  void setTap(long ref, int idx) {
+    @VisibleForTesting
+    int getCurrentVersion() {
+        return globalVersionNumber.get();
+    }
+    
+    public static void setTap(AtomicLongArray tap, long ref, int idx) {
         int i = idx % ThreadIndexCalculator.MAX_THREADS;
-        tap.set(CACHE_PADDING * (i + 1) + IDENTRY, idx);
         tap.set(CACHE_PADDING * (i + 1) + REFENTRY, ref);
     }
         
-    public  void unsetTap(int idx) {
+    public static void resetTap(AtomicLongArray tap, int idx) {
         int i = idx % ThreadIndexCalculator.MAX_THREADS;
-        tap.set(CACHE_PADDING * (i + 1) + IDENTRY, -1);
+        tap.set(CACHE_PADDING * (i + 1) + REFENTRY, INVALID_ENTRY);
     }
 
     /*=====================================================================*/
@@ -115,7 +119,7 @@ class NovaMemoryManager extends SyncRecycleMemoryManager {
                 ArrayList<Long> hostageSlices = new ArrayList<>();
                 for (int i = CACHE_PADDING; 
                     i < 2 * CACHE_PADDING * ThreadIndexCalculator.MAX_THREADS; i = i + CACHE_PADDING ) {
-                    if (tap.get(i + IDENTRY) != -1) {
+                    if (tap.get(i + REFENTRY) != INVALID_ENTRY) {
                         hostageSlices.add(tap.get(i + REFENTRY));
                     }
                 } //TODO remove this to discuss
@@ -188,7 +192,7 @@ class NovaMemoryManager extends SyncRecycleMemoryManager {
          * {@code RETRY} if the header/off-heap-cut was moved, or the version of the off-heap header
          * does not match {@code version}.
          */
-        public ValueUtils.ValueResult lockRead() {
+        public ValueUtils.ValueResult preRead() {
             assert version != ReferenceCodecSyncRecycle.INVALID_VERSION;
             return HEADER.preRead(version, getMetadataAddress());
         }
@@ -200,7 +204,7 @@ class NovaMemoryManager extends SyncRecycleMemoryManager {
          * {@code FALSE} if the value is marked as deleted
          * {@code RETRY} if the value was moved, or the version of the off-heap value does not match {@code version}.
          */
-        public ValueUtils.ValueResult unlockRead() {
+        public ValueUtils.ValueResult postRead() {
             assert version != ReferenceCodecSyncRecycle.INVALID_VERSION;
             return HEADER.postRead(version, getMetadataAddress());
         }
@@ -212,9 +216,9 @@ class NovaMemoryManager extends SyncRecycleMemoryManager {
          * {@code FALSE} if the value is marked as deleted
          * {@code RETRY} if the value was moved, or the version of the off-heap value does not match {@code version}.
          */
-        public ValueUtils.ValueResult lockWrite() {
+        public ValueUtils.ValueResult preWrite() {
             assert version != ReferenceCodecSyncRecycle.INVALID_VERSION;
-            return HEADER.lockWrite(version, rc.encode(blockID, offset), getMetadataAddress(), tap);
+            return HEADER.preWrite(version, rc.encode(blockID, offset), getMetadataAddress(), tap);
         }
 
         /**
@@ -224,9 +228,9 @@ class NovaMemoryManager extends SyncRecycleMemoryManager {
          * {@code FALSE} if the value is marked as deleted
          * {@code RETRY} if the value was moved, or the version of the off-heap value does not match {@code version}.
          */
-        public ValueUtils.ValueResult unlockWrite() {
+        public ValueUtils.ValueResult postWrite() {
             assert version != ReferenceCodecSyncRecycle.INVALID_VERSION;
-            return HEADER.unlockWrite(version, getMetadataAddress(),  tap);
+            return HEADER.postWrite(version, getMetadataAddress(),  tap);
         }
 
         /**

@@ -800,7 +800,7 @@ class InternalOakHash<K, V> extends InternalOakBasics<K, V> {
 
         public T next() {
             advance(true);
-            ValueUtils.ValueResult res = ctx.value.s.lockRead();
+            ValueUtils.ValueResult res = ctx.value.s.preRead();
             if (res == ValueUtils.ValueResult.FALSE) {
                 return next();
             } else if (res == ValueUtils.ValueResult.RETRY) {
@@ -809,7 +809,7 @@ class InternalOakHash<K, V> extends InternalOakBasics<K, V> {
                     if (!isSuccessful) {
                         return next();
                     }
-                    res = ctx.value.s.lockRead();
+                    res = ctx.value.s.preRead();
                 } while (res != ValueUtils.ValueResult.TRUE);
             }
 
@@ -817,7 +817,7 @@ class InternalOakHash<K, V> extends InternalOakBasics<K, V> {
                     new AbstractMap.SimpleEntry<>(ctx.key, ctx.value);
 
             T transformation = transformer.apply(entry);
-            ctx.value.s.unlockRead();
+            ctx.value.s.postRead();
             return transformation;
         }
     }

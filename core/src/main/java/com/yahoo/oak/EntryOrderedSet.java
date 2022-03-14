@@ -295,11 +295,12 @@ class EntryOrderedSet<K, V> extends EntryArray<K, V> {
     boolean isEntrySetValidAfterRebalance() {
         int currIndex = getHeadNextEntryIndex();
         int prevIndex = INVALID_ENTRY_INDEX;
+        KeyBuffer kBuff = new KeyBuffer(config.keysMemoryManager.getEmptySlice());
         while (currIndex < getLastEntryIndex() && currIndex >= 0) {
             if (!isValueRefValidAndNotDeleted(currIndex)) {
                 return false;
             }
-            if (isKeyDeleted(new KeyBuffer(config.keysMemoryManager.getEmptySlice()), currIndex)) {
+            if (isKeyDeleted(kBuff, currIndex)) {
                 return false;
             }
             if (!config.valuesMemoryManager.isReferenceConsistent(getValueReference(currIndex))) {
@@ -318,16 +319,17 @@ class EntryOrderedSet<K, V> extends EntryArray<K, V> {
     void releaseAllDeletedKeys() {
         KeyBuffer key = new KeyBuffer(config.keysMemoryManager.getEmptySlice());
         for (int i = 0; i < numOfEntries.get() ; i++) {
-            if (config.valuesMemoryManager.isReferenceDeleted(getValueReference(i))) {
-                long keyRef = getKeyReference(i);
-                if (key.s.decodeReference(keyRef)) {
-                    if (key.s.logicalDelete() == ValueResult.TRUE) {
-                        setKeyReference(i,
-                                config.keysMemoryManager.alterReferenceForDelete(keyRef));
-                        key.s.release();
-                    }
-                }
+            if (!config.valuesMemoryManager.isReferenceDeleted(getValueReference(i))) {
+                continue;
             }
+            
+            long keyRef = getKeyReference(i);
+            if (!key.s.decodeReference(keyRef) || key.s.logicalDelete() != ValueResult.TRUE) {
+                continue;
+            }
+            
+            setKeyReference(i, config.keysMemoryManager.alterReferenceForDelete(keyRef));
+            key.s.release();
         }
     }
 }

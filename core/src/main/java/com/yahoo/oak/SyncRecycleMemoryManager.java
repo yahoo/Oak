@@ -53,7 +53,7 @@ class SyncRecycleMemoryManager implements MemoryManager {
 
     // used only for testing
     @VisibleForTesting
-    public int getCurrentVersion() {
+    int getCurrentVersion() {
         return globalVersionNumber.get();
     }
     
@@ -392,7 +392,7 @@ class SyncRecycleMemoryManager implements MemoryManager {
          * {@code RETRY} if the header/off-heap-cut was moved, or the version of the off-heap header
          * does not match {@code version}.
          */
-        public ValueUtils.ValueResult lockRead() {
+        public ValueUtils.ValueResult preRead() {
             assert version != ReferenceCodecSyncRecycle.INVALID_VERSION;
             return HEADER.lockRead(version, getMetadataAddress());
         }
@@ -404,7 +404,7 @@ class SyncRecycleMemoryManager implements MemoryManager {
          * {@code FALSE} if the value is marked as deleted
          * {@code RETRY} if the value was moved, or the version of the off-heap value does not match {@code version}.
          */
-        public ValueUtils.ValueResult unlockRead() {
+        public ValueUtils.ValueResult postRead() {
             assert version != ReferenceCodecSyncRecycle.INVALID_VERSION;
             return HEADER.unlockRead(version, getMetadataAddress());
         }
@@ -416,7 +416,7 @@ class SyncRecycleMemoryManager implements MemoryManager {
          * {@code FALSE} if the value is marked as deleted
          * {@code RETRY} if the value was moved, or the version of the off-heap value does not match {@code version}.
          */
-        public ValueUtils.ValueResult lockWrite() {
+        public ValueUtils.ValueResult preWrite() {
             if (version == ReferenceCodecSyncRecycle.INVALID_VERSION) {
                 System.out.println("Version in the slice is invalid!");
             }
@@ -431,7 +431,7 @@ class SyncRecycleMemoryManager implements MemoryManager {
          * {@code FALSE} if the value is marked as deleted
          * {@code RETRY} if the value was moved, or the version of the off-heap value does not match {@code version}.
          */
-        public ValueUtils.ValueResult unlockWrite() {
+        public ValueUtils.ValueResult postWrite() {
             assert version != ReferenceCodecSyncRecycle.INVALID_VERSION;
             return HEADER.unlockWrite(version, getMetadataAddress());
         }

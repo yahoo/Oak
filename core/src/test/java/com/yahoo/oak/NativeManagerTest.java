@@ -61,7 +61,12 @@ public class NativeManagerTest {
 
     @Test
     public void reuseTest() {
-        long oldVersion = memoryManager.getCurrentVersion();
+        long oldVersion = 0;
+        if (memoryManager instanceof NovaMemoryManager) {
+            oldVersion = ((NovaMemoryManager) memoryManager).getCurrentVersion();
+        } else {
+            oldVersion = ((SyncRecycleMemoryManager) memoryManager).getCurrentVersion();
+        }
         BlockAllocationSlice[] allocatedSlices = new BlockAllocationSlice[memoryManager.getReleaseLimit()];
         for (int i = 0; i < memoryManager.getReleaseLimit(); i++) {
             allocatedSlices[i] = (BlockAllocationSlice) memoryManager.getEmptySlice();
@@ -72,7 +77,12 @@ public class NativeManagerTest {
             allocatedSlices[i].release();
         }
         Assert.assertEquals(memoryManager.getReleaseLimit(), memoryManager.getFreeListSize());
-        long newVersion = memoryManager.getCurrentVersion();
+        long newVersion = 0;
+        if (memoryManager instanceof NovaMemoryManager) {
+            newVersion = ((NovaMemoryManager) memoryManager).getCurrentVersion();
+        } else {
+            newVersion = ((SyncRecycleMemoryManager) memoryManager).getCurrentVersion();
+        }
         Assert.assertEquals(oldVersion + 1, newVersion);
         for (int i = memoryManager.getReleaseLimit() - 1; i > -1; i--) {
             BlockAllocationSlice s = (BlockAllocationSlice) memoryManager.getEmptySlice();

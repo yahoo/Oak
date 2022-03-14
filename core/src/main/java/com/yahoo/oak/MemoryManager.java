@@ -63,9 +63,6 @@ interface MemoryManager extends Closeable {
     int getHeaderSize();
     
     @VisibleForTesting
-    int getCurrentVersion();
-    
-    @VisibleForTesting
     int getFreeListSize();
     
     @VisibleForTesting

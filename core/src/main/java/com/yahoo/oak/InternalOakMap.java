@@ -660,7 +660,6 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
                 c.lookUp(ctx, deserializedKey);
                 return ctx.isValueValid();
             } catch (DeletedMemoryAccessException e) {
-                inTheMiddleOfRebalance(c);
                 continue;
             }
         }
@@ -918,6 +917,7 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
             if (lo == null) {
                 return false;
             }
+            //comparing the serialized keys using special method, refer to com.yahoo.oak.KeyUtils.
             int c = KeyUtils.compareEntryKeyAndSerializedKey(lo, (KeyBuffer) key, config.comparator);
             return c > 0 || (c == 0 && !loInclusive);
         }
@@ -942,21 +942,21 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
         @Override
         protected void initAfterRebalance() {
             //TODO - refactor to use OakReadBuffer without deserializing.
-            
-            while (!getState().getChunk().readKeyFromEntryIndex(ctx.tempKey, getState().getIndex())) {
-                advanceState();
-                if (getState() == null) {
-                    throw new NoSuchElementException();
-                }
-                continue;
-            }
             K nextKey = null;
-
-            try {
-                nextKey = KeyUtils.deSerializedKey(ctx.tempKey, getKeySerializer());
-            } catch ( DeletedMemoryAccessException e ) {
-                initAfterRebalance();
-                return;
+            while (true) {
+                while (!getState().getChunk().readKeyFromEntryIndex(ctx.tempKey, getState().getIndex())) {
+                    advanceState();
+                    if (getState() == null) {
+                        throw new NoSuchElementException();
+                    }
+                }
+                nextKey = null;
+                try {
+                    nextKey = KeyUtils.deSerializedKey(ctx.tempKey, getKeySerializer());
+                } catch ( DeletedMemoryAccessException e ) {
+                    continue;
+                }
+                break;
             }
 
 
@@ -1298,7 +1298,7 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
 
         public T next() {
             advance(true);
-            ValueUtils.ValueResult res = ctx.value.s.lockRead();
+            ValueUtils.ValueResult res = ctx.value.s.preRead();
             if (res == ValueUtils.ValueResult.FALSE) {
                 return next();
             } else if (res == ValueUtils.ValueResult.RETRY) {
@@ -1307,7 +1307,7 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
                     if (!isSuccessful) {
                         return next();
                     }
-                    res = ctx.value.s.lockRead();
+                    res = ctx.value.s.preRead();
                 } while (res != ValueUtils.ValueResult.TRUE);
             }
 
@@ -1315,7 +1315,7 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
                     new AbstractMap.SimpleEntry<>(ctx.key, ctx.value);
 
             T transformation = transformer.apply(entry);
-            ctx.value.s.unlockRead();
+            ctx.value.s.postRead();
             return transformation;
         }
     }
