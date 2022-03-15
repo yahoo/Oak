@@ -86,11 +86,13 @@ class OrderedChunk<K, V> extends BasicChunk<K, V> {
      * @param dst the off-heap KeyBuffer to update with the new allocation
      */
     private void duplicateKeyBuffer(KeyBuffer src, KeyBuffer dst) {
+        src.s.preWrite();
         final int keySize = src.capacity();
         dst.getSlice().allocate(keySize, false);
 
         // We duplicate the buffer without instantiating a write buffer because the user is not involved.
         DirectUtils.UNSAFE.copyMemory(src.getAddress(), dst.getAddress(), keySize);
+        src.s.postWrite();
     }
 
     /********************************************************************************************/

@@ -103,66 +103,70 @@ class Rebalancer<K, V> {
      * if we did then the put was inserted
      */
     boolean createNewChunks(ThreadContext ctx) {
-
-        if (this.newChunks.get() != null) {
-            return false; // this was done by another thread already
-        }
-
-        List<OrderedChunk<K, V>> frozenOrderedChunks = engagedChunks.get();
-
-        ListIterator<OrderedChunk<K, V>> iterFrozen = frozenOrderedChunks.listIterator();
-
-        OrderedChunk<K, V> firstFrozen = iterFrozen.next();
-        OrderedChunk<K, V> currFrozen = firstFrozen;
-        OrderedChunk<K, V> currNewOrderedChunk = firstFrozen.createFirstChild();
-
-        int ei = firstFrozen.getFirstItemEntryIndex();
-        List<OrderedChunk<K, V>> newOrderedChunks = new LinkedList<>();
-
-        KeyBuffer keyBuff = ctx.tempKey;
-        ValueBuffer valueBuff = ctx.tempValue;
-
-        while (true) {
-            ei = currNewOrderedChunk
-                .copyPartOfEntries(valueBuff, currFrozen, ei, entriesLowThreshold);
-            // if completed reading curr frozen chunk
-            if (ei == OrderedChunk.NONE_NEXT) {
-                if (!iterFrozen.hasNext()) {
-                    break;
-                }
-
-                currFrozen = iterFrozen.next();
-                ei = currFrozen.getFirstItemEntryIndex();
-
-            } else { // filled new chunk up to entriesLowThreshold
-
-                List<OrderedChunk<K, V>> frozenSuffix = frozenOrderedChunks
-                    .subList(iterFrozen.previousIndex(), frozenOrderedChunks.size());
-                // try to look ahead and add frozen suffix
-                if (canAppendSuffix(frozenSuffix, maxRangeToAppend)) {
-                    // maybe there is just a little bit copying left
-                    // and we don't want to open a whole new chunk just for it
-                    completeCopy(valueBuff, currNewOrderedChunk, ei, frozenSuffix);
-                    break;
-                } else {
-                    // we have to open an new chunk
-                    // here we create a new minimal key buffer for the second new chunk,
-                    // created by the split. The new min key is a copy of the older one
-
-                    currFrozen.readKeyFromEntryIndex(keyBuff, ei);
-                    OrderedChunk<K, V> c = firstFrozen.createNextChild(keyBuff);
-                    currNewOrderedChunk.next.set(c, false);
-                    newOrderedChunks.add(currNewOrderedChunk);
-                    currNewOrderedChunk = c;
-                }
+        
+        retry : while (true) {
+            if (this.newChunks.get() != null) {
+                return false; // this was done by another thread already
             }
-
+    
+            List<OrderedChunk<K, V>> frozenOrderedChunks = engagedChunks.get();
+    
+            ListIterator<OrderedChunk<K, V>> iterFrozen = frozenOrderedChunks.listIterator();
+    
+            OrderedChunk<K, V> firstFrozen = iterFrozen.next();
+            OrderedChunk<K, V> currFrozen = firstFrozen;
+            OrderedChunk<K, V> currNewOrderedChunk = firstFrozen.createFirstChild();
+    
+            int ei = firstFrozen.getFirstItemEntryIndex();
+            List<OrderedChunk<K, V>> newOrderedChunks = new LinkedList<>();
+    
+            KeyBuffer keyBuff = ctx.tempKey;
+            ValueBuffer valueBuff = ctx.tempValue;
+    
+            while (true) {
+                ei = currNewOrderedChunk
+                    .copyPartOfEntries(valueBuff, currFrozen, ei, entriesLowThreshold);
+                // if completed reading curr frozen chunk
+                if (ei == OrderedChunk.NONE_NEXT) {
+                    if (!iterFrozen.hasNext()) {
+                        break;
+                    }
+    
+                    currFrozen = iterFrozen.next();
+                    ei = currFrozen.getFirstItemEntryIndex();
+    
+                } else { // filled new chunk up to entriesLowThreshold
+    
+                    List<OrderedChunk<K, V>> frozenSuffix = frozenOrderedChunks
+                        .subList(iterFrozen.previousIndex(), frozenOrderedChunks.size());
+                    // try to look ahead and add frozen suffix
+                    if (canAppendSuffix(frozenSuffix, maxRangeToAppend)) {
+                        // maybe there is just a little bit copying left
+                        // and we don't want to open a whole new chunk just for it
+                        completeCopy(valueBuff, currNewOrderedChunk, ei, frozenSuffix);
+                        break;
+                    } else {
+                        // we have to open an new chunk
+                        // here we create a new minimal key buffer for the second new chunk,
+                        // created by the split. The new min key is a copy of the older one
+    
+                        if (!currFrozen.readKeyFromEntryIndex(keyBuff, ei)) {
+                            continue retry;
+                        }
+                        OrderedChunk<K, V> c = firstFrozen.createNextChild(keyBuff);
+                        currNewOrderedChunk.next.set(c, false);
+                        newOrderedChunks.add(currNewOrderedChunk);
+                        currNewOrderedChunk = c;
+                    }
+                }
+    
+            }
+    
+            newOrderedChunks.add(currNewOrderedChunk);
+    
+            // if fail here, another thread succeeded, and op is effectively gone
+            return this.newChunks.compareAndSet(null, newOrderedChunks);
         }
-
-        newOrderedChunks.add(currNewOrderedChunk);
-
-        // if fail here, another thread succeeded, and op is effectively gone
-        return this.newChunks.compareAndSet(null, newOrderedChunks);
     }
 
     private boolean canAppendSuffix(List<OrderedChunk<K, V>> frozenSuffix, int maxCount) {
