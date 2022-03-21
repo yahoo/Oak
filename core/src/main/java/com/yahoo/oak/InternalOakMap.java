@@ -316,54 +316,57 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
         }
 
         ThreadContext ctx = getThreadContext();
-
         for (int i = 0; i < MAX_RETRIES; i++) {
-            OrderedChunk<K, V> c = findChunk(key, ctx); // find orderedChunk matching key
-            c.lookUp(ctx, key);
-            // If there is a matching value reference for the given key, and it is not marked as deleted,
-            // then this put changes the slice pointed by this value reference.
-            if (ctx.isValueValid()) {
-                // there is a value and it is not deleted
-
-                Result res = config.valueOperator.exchange(c, ctx, value, transformer, getValueSerializer());
-                if (res.operationResult == ValueUtils.ValueResult.TRUE) {
-                    return (V) res.value;
+            try {
+                OrderedChunk<K, V> c = findChunk(key, ctx); // find orderedChunk matching key
+                c.lookUp(ctx, key);
+                // If there is a matching value reference for the given key, and it is not marked as deleted,
+                // then this put changes the slice pointed by this value reference.
+                if (ctx.isValueValid()) {
+                    // there is a value and it is not deleted
+    
+                    Result res = config.valueOperator.exchange(c, ctx, value, transformer, getValueSerializer());
+                    if (res.operationResult == ValueUtils.ValueResult.TRUE) {
+                        return (V) res.value;
+                    }
+                    // it might be that this chunk is proceeding with rebalance -> help
+                    helpRebalanceIfInProgress(c);
+                    // Exchange failed because the value was deleted/moved between lookup and exchange. Continue with
+                    // insertion.
+                    continue;
                 }
-                // it might be that this chunk is proceeding with rebalance -> help
-                helpRebalanceIfInProgress(c);
-                // Exchange failed because the value was deleted/moved between lookup and exchange. Continue with
-                // insertion.
-                continue;
-            }
-
-            if (isAfterRebalanceOrValueUpdate(c, ctx)) {
-                continue;
-            }
-
-            // AT THIS POINT EITHER (in all cases context is updated):
-            // (1) Key wasn't found (key and value not valid)
-            // (2) Key was found and it's value is deleted/invalid (key valid value invalid)
-            if (!ctx.isKeyValid()) {
-                if (!allocateAndLinkEntry( c, ctx, key, false)) {
-                    continue; // allocation wasn't successful and resulted in rebalance - retry
+    
+                if (isAfterRebalanceOrValueUpdate(c, ctx)) {
+                    continue;
                 }
-            }
-
-            c.allocateValue(ctx, value, false); // write value in place
-
-            if (!c.publish()) {
-                c.releaseNewValue(ctx);
-                rebalance( c);
+    
+                // AT THIS POINT EITHER (in all cases context is updated):
+                // (1) Key wasn't found (key and value not valid)
+                // (2) Key was found and it's value is deleted/invalid (key valid value invalid)
+                if (!ctx.isKeyValid()) {
+                    if (!allocateAndLinkEntry( c, ctx, key, false)) {
+                        continue; // allocation wasn't successful and resulted in rebalance - retry
+                    }
+                }
+    
+                c.allocateValue(ctx, value, false); // write value in place
+    
+                if (!c.publish()) {
+                    c.releaseNewValue(ctx);
+                    rebalance( c);
+                    continue;
+                }
+    
+                if (c.linkValue(ctx) != ValueUtils.ValueResult.TRUE) {
+                    c.releaseNewValue(ctx);
+                    c.unpublish();
+                } else {
+                    c.unpublish();
+                    checkRebalance(c);
+                    return null; // null can be returned only in zero-copy case
+                }
+            } catch (DeletedMemoryAccessException e) {
                 continue;
-            }
-
-            if (c.linkValue(ctx) != ValueUtils.ValueResult.TRUE) {
-                c.releaseNewValue(ctx);
-                c.unpublish();
-            } else {
-                c.unpublish();
-                checkRebalance(c);
-                return null; // null can be returned only in zero-copy case
             }
         }
         throw new RuntimeException("put failed: reached retry limit (1024).");
@@ -380,52 +383,56 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
         ThreadContext ctx = getThreadContext();
 
         for (int i = 0; i < MAX_RETRIES; i++) {
-            OrderedChunk<K, V> c = findChunk(key, ctx); // find orderedChunk matching key
-            c.lookUp(ctx, key);
-            // If exists a matching value reference for the given key, and it isn't marked deleted,
-            // organize the return value: false for ZC, and old value deserialization for non-ZC
-            if (ctx.isValueValid()) {
-                if (transformer == null) {
-                    return ctx.result.withFlag(ValueUtils.ValueResult.FALSE);
-                }
-
-                Result res = config.valueOperator.transform(ctx.result, ctx.value, transformer);
-                if (res.operationResult == ValueUtils.ValueResult.TRUE) {
-                    return res;
-                }
-                continue;
-            }
-
-            if (isAfterRebalanceOrValueUpdate(c, ctx)) {
-                continue;
-            }
-
-            // AT THIS POINT EITHER (in all cases context is updated):
-            // (1) Key wasn't found (key and value not valid)
-            // (2) Key was found and it's value is deleted/invalid (key valid value invalid)
-            if (!ctx.isKeyValid()) {
-                if (!allocateAndLinkEntry( c, ctx, key, true)) {
-                    // allocation wasn't successful and resulted in rebalance,
-                    // or retry is needed for other reason - retry
+            try {
+                OrderedChunk<K, V> c = findChunk(key, ctx); // find orderedChunk matching key
+                c.lookUp(ctx, key);
+                // If exists a matching value reference for the given key, and it isn't marked deleted,
+                // organize the return value: false for ZC, and old value deserialization for non-ZC
+                if (ctx.isValueValid()) {
+                    if (transformer == null) {
+                        return ctx.result.withFlag(ValueUtils.ValueResult.FALSE);
+                    }
+    
+                    Result res = config.valueOperator.transform(ctx.result, ctx.value, transformer);
+                    if (res.operationResult == ValueUtils.ValueResult.TRUE) {
+                        return res;
+                    }
                     continue;
                 }
-            }
-
-            c.allocateValue(ctx, value, false); // write value in place
-
-            if (!c.publish()) {
-                c.releaseNewValue(ctx); // @TODO clean key from off-heap as well
-                rebalance( c);
+    
+                if (isAfterRebalanceOrValueUpdate(c, ctx)) {
+                    continue;
+                }
+    
+                // AT THIS POINT EITHER (in all cases context is updated):
+                // (1) Key wasn't found (key and value not valid)
+                // (2) Key was found and it's value is deleted/invalid (key valid value invalid)
+                if (!ctx.isKeyValid()) {
+                    if (!allocateAndLinkEntry( c, ctx, key, true)) {
+                        // allocation wasn't successful and resulted in rebalance,
+                        // or retry is needed for other reason - retry
+                        continue;
+                    }
+                }
+    
+                c.allocateValue(ctx, value, false); // write value in place
+    
+                if (!c.publish()) {
+                    c.releaseNewValue(ctx); // @TODO clean key from off-heap as well
+                    rebalance( c);
+                    continue;
+                }
+    
+                if (c.linkValue(ctx) != ValueUtils.ValueResult.TRUE) {
+                    c.releaseNewValue(ctx);
+                    c.unpublish();
+                } else {
+                    c.unpublish();
+                    checkRebalance(c);
+                    return ctx.result.withFlag(ValueUtils.ValueResult.TRUE);
+                }
+            } catch (DeletedMemoryAccessException e) {
                 continue;
-            }
-
-            if (c.linkValue(ctx) != ValueUtils.ValueResult.TRUE) {
-                c.releaseNewValue(ctx);
-                c.unpublish();
-            } else {
-                c.unpublish();
-                checkRebalance(c);
-                return ctx.result.withFlag(ValueUtils.ValueResult.TRUE);
             }
         }
 
@@ -444,57 +451,171 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
         ThreadContext ctx = getThreadContext();
 
         for (int i = 0; i < MAX_RETRIES; i++) {
-            OrderedChunk<K, V> c = findChunk(key, ctx); // find orderedChunk matching key
-            c.lookUp(ctx, key);
-            // If there is a matching value reference for the given key, and it is not marked as deleted,
-            // then apply compute on the existing value
-            if (ctx.isValueValid()) {
-
-                ValueUtils.ValueResult res = config.valueOperator.compute(ctx.value, computer);
-                if (res == ValueUtils.ValueResult.TRUE) {
-                    // compute was successful and the value wasn't found deleted; in case
-                    // this value was already found as deleted, continue to allocate a new value slice
-                    return false;
-                } else if (res == ValueUtils.ValueResult.RETRY) {
+            try {
+                OrderedChunk<K, V> c = findChunk(key, ctx); // find orderedChunk matching key
+                c.lookUp(ctx, key);
+                // If there is a matching value reference for the given key, and it is not marked as deleted,
+                // then apply compute on the existing value
+                if (ctx.isValueValid()) {
+    
+                    ValueUtils.ValueResult res = config.valueOperator.compute(ctx.value, computer);
+                    if (res == ValueUtils.ValueResult.TRUE) {
+                        // compute was successful and the value wasn't found deleted; in case
+                        // this value was already found as deleted, continue to allocate a new value slice
+                        return false;
+                    } else if (res == ValueUtils.ValueResult.RETRY) {
+                        continue;
+                    }
+                }
+    
+                if (isAfterRebalanceOrValueUpdate(c, ctx)) {
                     continue;
                 }
-            }
-
-            if (isAfterRebalanceOrValueUpdate(c, ctx)) {
-                continue;
-            }
-
-            // AT THIS POINT EITHER (in all cases context is updated):
-            // (1) Key wasn't found (key and value not valid)
-            // (2) Key was found and it's value is deleted/invalid (key valid value invalid)
-            if (!ctx.isKeyValid()) {
-                if (!allocateAndLinkEntry( c, ctx, key, false)) {
+    
+                // AT THIS POINT EITHER (in all cases context is updated):
+                // (1) Key wasn't found (key and value not valid)
+                // (2) Key was found and it's value is deleted/invalid (key valid value invalid)
+                if (!ctx.isKeyValid()) {
+                    if (!allocateAndLinkEntry( c, ctx, key, false)) {
+                        continue;
+                    }
+                }
+    
+                c.allocateValue(ctx, value, false); // write value in place
+    
+                if (!c.publish()) {
+                    c.releaseNewValue(ctx);
+                    rebalance( c);
                     continue;
                 }
-            }
-
-            c.allocateValue(ctx, value, false); // write value in place
-
-            if (!c.publish()) {
-                c.releaseNewValue(ctx);
-                rebalance( c);
+    
+                if (c.linkValue(ctx) != ValueUtils.ValueResult.TRUE) {
+                    c.releaseNewValue(ctx);
+                    c.unpublish();
+                } else {
+                    c.unpublish();
+                    checkRebalance(c);
+                    return true;
+                }
+            } catch (DeletedMemoryAccessException e) {
                 continue;
-            }
-
-            if (c.linkValue(ctx) != ValueUtils.ValueResult.TRUE) {
-                c.releaseNewValue(ctx);
-                c.unpublish();
-            } else {
-                c.unpublish();
-                checkRebalance(c);
-                return true;
             }
         }
 
         throw new RuntimeException("putIfAbsentComputeIfPresent failed: reached retry limit (1024).");
     }
+    
+    @Override
+    boolean computeIfPresent(K key, Consumer<OakScopedWriteBuffer> computer) {
+        if (key == null || computer == null) {
+            throw new NullPointerException();
+        }
 
+        ThreadContext ctx = getThreadContext();
 
+        for (int i = 0; i < MAX_RETRIES; i++) {
+            try {
+                // find chunk matching key, puts this key hash into ctx.operationKeyHash
+                BasicChunk<K, V> c = findChunk(key, ctx);
+                c.lookUp(ctx, key);    
+                if (ctx.isValueValid()) {
+                    ValueUtils.ValueResult res = config.valueOperator.compute(ctx.value, computer);
+                    if (res == ValueUtils.ValueResult.TRUE) {
+                        // compute was successful and the value wasn't found deleted; in case
+                        // this value was already marked as deleted, continue to construct another slice
+                        return true;
+                    } else if (res == ValueUtils.ValueResult.RETRY) {
+                        continue;
+                    }
+                }
+                return false;
+            } catch (DeletedMemoryAccessException e) {
+                continue;
+            }
+        }
+
+        throw new RuntimeException("computeIfPresent failed: reached retry limit (1024).");
+    }
+
+    @Override
+    Result remove(K key, V oldValue, OakTransformer<V> transformer) {
+        if (key == null) {
+            throw new NullPointerException();
+        }
+
+        // when logicallyDeleted is true, it means we have marked the value as deleted.
+        // Note that the entry will remain linked until rebalance happens.
+        boolean logicallyDeleted = false;
+        V v = null;
+
+        ThreadContext ctx = getThreadContext();
+
+        for (int i = 0; i < MAX_RETRIES; i++) {
+            try {
+                // find chunk matching key, puts this key hash into ctx.operationKeyHash
+                BasicChunk<K, V> c = findChunk(key, ctx);
+                c.lookUp(ctx, key);
+    
+                if (!ctx.isKeyValid()) {
+                    // There is no such key. If we did logical deletion and someone else did the physical deletion,
+                    // then the old value is saved in v. Otherwise v is (correctly) null
+                    return transformer == null ? ctx.result.withFlag(logicallyDeleted) : ctx.result.withValue(v);
+                } else if (!ctx.isValueValid()) {
+                    // There is such a key, but the value is invalid,
+                    // either deleted (maybe only off-heap) or not yet allocated
+                    if (!finalizeDeletion(c, ctx)) {
+                        // finalize deletion returns false, meaning no rebalance was requested
+                        // and there was an attempt to finalize deletion
+                        return transformer == null ? ctx.result.withFlag(logicallyDeleted) : ctx.result.withValue(v);
+                    }
+                    continue;
+                }
+    
+                // AT THIS POINT Key was found (key and value not valid) and context is updated
+                if (logicallyDeleted) {
+                    // This is the case where we logically deleted this entry (marked the value off-heap as deleted),
+                    // but someone helped and (marked the value reference as deleted) and reused the entry
+                    // before we marked the value reference as deleted. We have the previous value saved in v.
+                    return transformer == null ? ctx.result.withFlag(ValueUtils.ValueResult.TRUE) 
+                            : ctx.result.withValue(v);
+                } else {
+                    Result removeResult = config.valueOperator.remove(ctx, oldValue, transformer);
+                    if (removeResult.operationResult == ValueUtils.ValueResult.FALSE) {
+                        // we didn't succeed to remove the value: it didn't contain oldValue, or was already marked
+                        // as deleted by someone else)
+                        return ctx.result.withFlag(ValueUtils.ValueResult.FALSE);
+                    } else if (removeResult.operationResult == ValueUtils.ValueResult.RETRY) {
+                        continue;
+                    }
+                    // we have marked this value as deleted (successful remove)
+                    logicallyDeleted = true;
+                    v = (V) removeResult.value;
+                }
+    
+                // AT THIS POINT value was marked deleted off-heap by this thread,
+                // continue to set the entry's value reference as deleted
+                assert ctx.entryIndex != EntryArray.INVALID_ENTRY_INDEX;
+                assert ctx.isValueValid();
+                ctx.entryState = EntryArray.EntryState.DELETED_NOT_FINALIZED;
+    
+                if (inTheMiddleOfRebalance(c)) {
+                    continue;
+                }
+    
+                // If finalize deletion returns true, meaning rebalance was done and there was NO
+                // attempt to finalize deletion. There is going the help anyway, by next rebalance
+                // or updater. Thus it is OK not to restart, the linearization point of logical deletion
+                // is owned by this thread anyway and old value is kept in v.
+                finalizeDeletion(c, ctx); // includes publish/unpublish
+                return transformer == null ?
+                        ctx.result.withFlag(ValueUtils.ValueResult.TRUE) : ctx.result.withValue(v);
+            } catch (DeletedMemoryAccessException e) {
+                continue;
+            }
+        }
+
+        throw new RuntimeException("remove failed: reached retry limit (1024).");
+    }
 
     // the zero-copy version of get
     @Override
@@ -502,14 +623,22 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
         if (key == null) {
             throw new NullPointerException();
         }
-
-        ThreadContext ctx = getThreadContext();
-        OrderedChunk<K, V> c = findChunk(key, ctx); // find orderedChunk matching key
-        c.lookUp(ctx, key);
-        if (!ctx.isValueValid()) {
-            return null;
+        OrderedChunk<K, V> c = null;
+        for (int i = 0; i < MAX_RETRIES; i++) {
+            try {
+                ThreadContext ctx = getThreadContext();
+                c = findChunk(key, ctx); // find orderedChunk matching key
+                c.lookUp(ctx, key);
+                if (!ctx.isValueValid()) {
+                    return null;
+                }
+                return getValueUnscopedBuffer(ctx);
+            } catch (DeletedMemoryAccessException e) {
+                continue;
+            }
         }
-        return getValueUnscopedBuffer(ctx);
+        
+        throw new RuntimeException("get failed: reached retry limit (1024).");
 
     }
 
@@ -524,10 +653,21 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
     @Override
     boolean refreshValuePosition(ThreadContext ctx) {
         K deserializedKey = getKeySerializer().deserialize(ctx.key);
-        OrderedChunk<K, V> c = findChunk(deserializedKey, ctx); // find orderedChunk matching key
-        c.lookUp(ctx, deserializedKey);
-        return ctx.isValueValid();
+        OrderedChunk<K, V> c = null;
+        for (int i = 0; i < MAX_RETRIES; i++) {
+            try {
+                c = findChunk(deserializedKey, ctx); // find orderedChunk matching key
+                c.lookUp(ctx, deserializedKey);
+                return ctx.isValueValid();
+            } catch (DeletedMemoryAccessException e) {
+                continue;
+            }
+        }
+
+        throw new RuntimeException("refreshValuePosition failed: reached retry limit (1024).");
+    
     }
+
 
 
 
@@ -541,18 +681,21 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
         ThreadContext ctx = getThreadContext();
 
         for (int i = 0; i < MAX_RETRIES; i++) {
-            OrderedChunk<K, V> c = findChunk(key, ctx); // find orderedChunk matching key
-            c.lookUp(ctx, key);
-            if (!ctx.isValueValid()) {
-                return null;
-            }
-
-
-            Result res = config.valueOperator.transform(ctx.result, ctx.value, transformer);
-            if (res.operationResult == ValueUtils.ValueResult.RETRY) {
+            try {
+                OrderedChunk<K, V> c = findChunk(key, ctx); // find orderedChunk matching key
+                c.lookUp(ctx, key);
+                if (!ctx.isValueValid()) {
+                    return null;
+                }
+    
+                Result res = config.valueOperator.transform(ctx.result, ctx.value, transformer);
+                if (res.operationResult == ValueUtils.ValueResult.RETRY) {
+                    continue;
+                }
+                return (T) res.value;
+            } catch (DeletedMemoryAccessException e) {
                 continue;
             }
-            return (T) res.value;
         }
 
         throw new RuntimeException("getValueTransformation failed: reached retry limit (1024).");
@@ -562,14 +705,24 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
         if (key == null) {
             throw new NullPointerException();
         }
-
-        ThreadContext ctx = getThreadContext();
-        OrderedChunk<K, V> c = findChunk(key, ctx);
-        c.lookUp(ctx, key);
-        if (!ctx.isValueValid()) {
-            return null;
+        OrderedChunk<K, V> c = null;
+        for (int i = 0; i < MAX_RETRIES; i++) {
+            try {
+                ThreadContext ctx = getThreadContext();
+                c = findChunk(key, ctx);
+                c.lookUp(ctx, key);
+                if (!ctx.isValueValid()) {
+                    return null;
+                }
+                return transformer.apply(ctx.key);
+            } catch (DeletedMemoryAccessException e) {
+                inTheMiddleOfRebalance(c);
+                continue;
+            }
         }
-        return transformer.apply(ctx.key);
+        
+        throw new RuntimeException("getKeyTransformation failed: reached retry limit (1024).");
+
     }
 
     OakUnscopedBuffer getMinKey() {
@@ -636,22 +789,27 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
 
     boolean replace(K key, V oldValue, V newValue, OakTransformer<V> valueDeserializeTransformer) {
         ThreadContext ctx = getThreadContext();
-
+        OrderedChunk<K, V> c = null;
         for (int i = 0; i < MAX_RETRIES; i++) {
-            OrderedChunk<K, V> c = findChunk(key, ctx); // find orderedChunk matching key
-            c.lookUp(ctx, key);
-            if (!ctx.isValueValid()) {
-                return false;
-            }
-
-            ValueUtils.ValueResult res = config.valueOperator.compareExchange(c, ctx, oldValue, newValue,
-                    valueDeserializeTransformer, getValueSerializer());
-            if (res == ValueUtils.ValueResult.RETRY) {
-                // it might be that this chunk is proceeding with rebalance -> help
-                helpRebalanceIfInProgress(c);
+            try {
+                c = findChunk(key, ctx); // find orderedChunk matching key
+                c.lookUp(ctx, key);
+                if (!ctx.isValueValid()) {
+                    return false;
+                }
+    
+                ValueUtils.ValueResult res = config.valueOperator.compareExchange(c, ctx, oldValue, newValue,
+                        valueDeserializeTransformer, getValueSerializer());
+                if (res == ValueUtils.ValueResult.RETRY) {
+                    // it might be that this chunk is proceeding with rebalance -> help
+                    helpRebalanceIfInProgress(c);
+                    continue;
+                }
+                return res == ValueUtils.ValueResult.TRUE;
+            } catch (DeletedMemoryAccessException e) {
+                inTheMiddleOfRebalance(c);
                 continue;
             }
-            return res == ValueUtils.ValueResult.TRUE;
         }
 
         throw new RuntimeException("replace failed: reached retry limit (1024).");
@@ -759,7 +917,8 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
             if (lo == null) {
                 return false;
             }
-            int c = config.comparator.compareKeyAndSerializedKey(lo, key);
+            //comparing the serialized keys using special method, refer to com.yahoo.oak.KeyUtils.
+            int c = KeyUtils.compareEntryKeyAndSerializedKey(lo, (KeyBuffer) key, config.comparator);
             return c > 0 || (c == 0 && !loInclusive);
         }
 
@@ -767,7 +926,7 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
             if (hi == null) {
                 return false;
             }
-            int c = config.comparator.compareKeyAndSerializedKey(hi, key);
+            int c = KeyUtils.compareEntryKeyAndSerializedKey(hi, (KeyBuffer) key, config.comparator);
             return c < 0 || (c == 0 && !hiInclusive);
         }
 
@@ -783,9 +942,23 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
         @Override
         protected void initAfterRebalance() {
             //TODO - refactor to use OakReadBuffer without deserializing.
-            getState().getChunk().readKeyFromEntryIndex(ctx.tempKey, getState().getIndex());
+            K nextKey = null;
+            while (true) {
+                while (!getState().getChunk().readKeyFromEntryIndex(ctx.tempKey, getState().getIndex())) {
+                    advanceState();
+                    if (getState() == null) {
+                        throw new NoSuchElementException();
+                    }
+                }
+                nextKey = null;
+                try {
+                    nextKey = KeyUtils.deSerializedKey(ctx.tempKey, getKeySerializer());
+                } catch ( DeletedMemoryAccessException e ) {
+                    continue;
+                }
+                break;
+            }
 
-            K nextKey = getKeySerializer().deserialize(ctx.tempKey);
 
             if (isDescending) {
                 hiInclusive = true;
@@ -832,7 +1005,9 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
                     ctx.key.copyFrom(ctx.tempKey);
                 }
                 validState = ctx.isKeyValid();
-                assert validState;
+                if (!validState) {
+                    continue;
+                }
 
                 if (needsValue) {
                     // Set value references and checks for value validity.
@@ -840,7 +1015,6 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
                     c.readValue(ctx);
                     validState = ctx.isValueValid();
                 }
-
                 advanceState();
             }
         }
@@ -980,25 +1154,28 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
          */
         @Override
         protected boolean advanceState() {
-            boolean valueToReturn = super.advanceState();
-
-            if (valueToReturn) {
-                BasicChunk<K, V> chunk = getState().getChunk();
-                BasicChunk.BasicChunkIter chunkIter = getState().getChunkIter();
-                int nextIndex = getState().getIndex();
-                // The boundary check is costly and need to be performed only when required,
-                // meaning not on the full scan.
-                if (((OrderedChunk<K, V>.ChunkIter) chunkIter).isBoundCheckNeeded()) {
-                    chunk.readKeyFromEntryIndex(ctx.tempKey, nextIndex);
-                    if (!inBounds(ctx.tempKey)) {
-                        setState(null);
-                        valueToReturn = false;
+            while (true) {
+                boolean valueToReturn = super.advanceState();
+                
+                if (valueToReturn) {
+                    BasicChunk<K, V> chunk = getState().getChunk();
+                    BasicChunk.BasicChunkIter chunkIter = getState().getChunkIter();
+                    int nextIndex = getState().getIndex();
+                    // The boundary check is costly and need to be performed only when required,
+                    // meaning not on the full scan.
+                    if (((OrderedChunk<K, V>.ChunkIter) chunkIter).isBoundCheckNeeded()) {
+                        if (!chunk.readKeyFromEntryIndex(ctx.tempKey, nextIndex)) {
+                            continue;
+                        }
+                        if (!inBounds(ctx.tempKey)) {
+                            setState(null);
+                            valueToReturn = false;
+                        }
                     }
                 }
+                return valueToReturn;
             }
-            return valueToReturn;
         }
-
     }
 
     class ValueIterator extends OrderedIter<OakUnscopedBuffer> {
@@ -1121,7 +1298,7 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
 
         public T next() {
             advance(true);
-            ValueUtils.ValueResult res = ctx.value.s.lockRead();
+            ValueUtils.ValueResult res = ctx.value.s.preRead();
             if (res == ValueUtils.ValueResult.FALSE) {
                 return next();
             } else if (res == ValueUtils.ValueResult.RETRY) {
@@ -1130,7 +1307,7 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
                     if (!isSuccessful) {
                         return next();
                     }
-                    res = ctx.value.s.lockRead();
+                    res = ctx.value.s.preRead();
                 } while (res != ValueUtils.ValueResult.TRUE);
             }
 
@@ -1138,7 +1315,7 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
                     new AbstractMap.SimpleEntry<>(ctx.key, ctx.value);
 
             T transformation = transformer.apply(entry);
-            ctx.value.s.unlockRead();
+            ctx.value.s.postRead();
             return transformation;
         }
     }

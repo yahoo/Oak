@@ -38,25 +38,25 @@ public class ValueUtilsSimpleTest {
     @Test
     public void testCannotReadLockDeleted() {
         Assert.assertEquals(ValueUtils.ValueResult.TRUE, s.logicalDelete());
-        Assert.assertEquals(ValueUtils.ValueResult.FALSE, s.lockRead());
+        Assert.assertEquals(ValueUtils.ValueResult.FALSE, s.preRead());
     }
 
     @Test
     public void testCannotWriteLockDeleted() {
         Assert.assertEquals(ValueUtils.ValueResult.TRUE, s.logicalDelete());
-        Assert.assertEquals(ValueUtils.ValueResult.FALSE, s.lockWrite());
+        Assert.assertEquals(ValueUtils.ValueResult.FALSE, s.preWrite());
     }
 
     @Test
     public void testCannotDeletedMultipleTimes() {
         Assert.assertEquals(ValueUtils.ValueResult.TRUE, s.logicalDelete());
-        Assert.assertEquals(ValueUtils.ValueResult.FALSE, s.lockWrite());
+        Assert.assertEquals(ValueUtils.ValueResult.FALSE, s.preWrite());
     }
 
     @Test
     public void testCanReadLockMultipleTimes() {
         for (int i = 0; i < 10000; i++) {
-            Assert.assertEquals(ValueUtils.ValueResult.TRUE, s.lockRead());
+            Assert.assertEquals(ValueUtils.ValueResult.TRUE, s.preRead());
         }
     }
 
@@ -70,7 +70,7 @@ public class ValueUtilsSimpleTest {
             } catch (InterruptedException | BrokenBarrierException e) {
                 e.printStackTrace();
             }
-            Assert.assertEquals(ValueUtils.ValueResult.TRUE, s.lockWrite());
+            Assert.assertEquals(ValueUtils.ValueResult.TRUE, s.preWrite());
             Assert.assertEquals(2, flag.get());
         });
         Thread reader = new Thread(() -> {
@@ -79,11 +79,11 @@ public class ValueUtilsSimpleTest {
             } catch (InterruptedException | BrokenBarrierException e) {
                 e.printStackTrace();
             }
-            Assert.assertEquals(ValueUtils.ValueResult.TRUE, s.lockRead());
+            Assert.assertEquals(ValueUtils.ValueResult.TRUE, s.preRead());
             flag.incrementAndGet();
-            s.unlockRead();
+            s.postRead();
         });
-        Assert.assertEquals(ValueUtils.ValueResult.TRUE, s.lockRead());
+        Assert.assertEquals(ValueUtils.ValueResult.TRUE, s.preRead());
         writer.start();
         reader.start();
         try {
@@ -93,7 +93,7 @@ public class ValueUtilsSimpleTest {
         }
         Thread.sleep(2000);
         flag.incrementAndGet();
-        s.unlockRead();
+        s.postRead();
         reader.join();
         writer.join();
     }
@@ -117,11 +117,11 @@ public class ValueUtilsSimpleTest {
             } catch (InterruptedException | BrokenBarrierException e) {
                 e.printStackTrace();
             }
-            Assert.assertEquals(ValueUtils.ValueResult.TRUE, s.lockRead());
+            Assert.assertEquals(ValueUtils.ValueResult.TRUE, s.preRead());
             flag.incrementAndGet();
-            s.unlockRead();
+            s.postRead();
         });
-        Assert.assertEquals(ValueUtils.ValueResult.TRUE, s.lockRead());
+        Assert.assertEquals(ValueUtils.ValueResult.TRUE, s.preRead());
         deleter.start();
         reader.start();
         try {
@@ -131,7 +131,7 @@ public class ValueUtilsSimpleTest {
         }
         Thread.sleep(2000);
         flag.incrementAndGet();
-        s.unlockRead();
+        s.postRead();
         reader.join();
         deleter.join();
     }
@@ -146,10 +146,10 @@ public class ValueUtilsSimpleTest {
             } catch (InterruptedException | BrokenBarrierException e) {
                 e.printStackTrace();
             }
-            Assert.assertEquals(ValueUtils.ValueResult.TRUE, s.lockRead());
+            Assert.assertEquals(ValueUtils.ValueResult.TRUE, s.preRead());
             Assert.assertTrue(flag.get());
         });
-        Assert.assertEquals(ValueUtils.ValueResult.TRUE, s.lockWrite());
+        Assert.assertEquals(ValueUtils.ValueResult.TRUE, s.preWrite());
         reader.start();
         try {
             barrier.await();
@@ -158,7 +158,7 @@ public class ValueUtilsSimpleTest {
         }
         Thread.sleep(2000);
         flag.set(true);
-        s.unlockWrite();
+        s.postWrite();
         reader.join();
     }
 
@@ -172,10 +172,10 @@ public class ValueUtilsSimpleTest {
             } catch (InterruptedException | BrokenBarrierException e) {
                 e.printStackTrace();
             }
-            Assert.assertEquals(ValueUtils.ValueResult.TRUE, s.lockWrite());
+            Assert.assertEquals(ValueUtils.ValueResult.TRUE, s.preWrite());
             Assert.assertTrue(flag.get());
         });
-        Assert.assertEquals(ValueUtils.ValueResult.TRUE, s.lockWrite());
+        Assert.assertEquals(ValueUtils.ValueResult.TRUE, s.preWrite());
         writer.start();
         try {
             barrier.await();
@@ -184,7 +184,7 @@ public class ValueUtilsSimpleTest {
         }
         Thread.sleep(2000);
         flag.set(true);
-        s.unlockWrite();
+        s.postWrite();
         writer.join();
     }
 
@@ -201,7 +201,7 @@ public class ValueUtilsSimpleTest {
             Assert.assertEquals(ValueUtils.ValueResult.TRUE, s.logicalDelete());
             Assert.assertTrue(flag.get());
         });
-        Assert.assertEquals(ValueUtils.ValueResult.TRUE, s.lockWrite());
+        Assert.assertEquals(ValueUtils.ValueResult.TRUE, s.preWrite());
         deleter.start();
         try {
             barrier.await();
@@ -210,20 +210,20 @@ public class ValueUtilsSimpleTest {
         }
         Thread.sleep(2000);
         flag.set(true);
-        s.unlockWrite();
+        s.postWrite();
         deleter.join();
     }
 
     @Test
     public void testCannotReadLockDifferentVersion() {
         s.associateMMAllocation(2, -1);
-        Assert.assertEquals(ValueUtils.ValueResult.RETRY, s.lockRead());
+        Assert.assertEquals(ValueUtils.ValueResult.RETRY, s.preRead());
     }
 
     @Test
     public void testCannotWriteLockDifferentVersion() {
         s.associateMMAllocation(2, -1);
-        Assert.assertEquals(ValueUtils.ValueResult.RETRY, s.lockWrite());
+        Assert.assertEquals(ValueUtils.ValueResult.RETRY, s.preWrite());
     }
 
     @Test

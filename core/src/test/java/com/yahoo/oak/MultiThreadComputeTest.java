@@ -101,114 +101,122 @@ public class MultiThreadComputeTest {
 
         @Override
         public Void call() throws InterruptedException {
+            
+            int int2start = (threadIdx % NUM_THREADS) * (MAX_ITEMS_PER_CHUNK * 20);
+            
+            int startRegion1 = int2start;
+            int endRegion1   = int2start + MAX_ITEMS_PER_CHUNK;
+
+            int startRegion2 = int2start + MAX_ITEMS_PER_CHUNK;
+            int endRegion2   = int2start + (2 * MAX_ITEMS_PER_CHUNK);
+
+            int startRegion3 = int2start + ( 2 * MAX_ITEMS_PER_CHUNK);
+            int endRegion3   = int2start + (3 * MAX_ITEMS_PER_CHUNK);
+            
+            int startRegion4 = int2start + ( 3 * MAX_ITEMS_PER_CHUNK);
+            int endRegion4   = int2start + (4 * MAX_ITEMS_PER_CHUNK);
+
+            int startRegion5 = int2start + ( 4 * MAX_ITEMS_PER_CHUNK);            
+            int endRegion6   = int2start + (6 * MAX_ITEMS_PER_CHUNK);
+            
             latch.await();
 
             // make each thread to start from different start points so there is no simultaneous
             // insertion of the same keys, as this is currently not supported for OakHash
             // TODO: change the contention back
-            int int2start = threadIdx * (MAX_ITEMS_PER_CHUNK * 20);
             boolean result = false;
 
-            for (Integer i = int2start; i < int2start + 4 * MAX_ITEMS_PER_CHUNK; i++) {
-                if (i == int2start) {
-                    result = oak.zc().putIfAbsent(i, i);
-                    Assert.assertTrue("Key " + i + " existed. Thread index: " + threadIdx + ". Weird....",
-                        result);
+            for (Integer i = int2start; i < endRegion4 ; i++) {
+                if (i == 0 || i == 1) {
+                    oak.zc().putIfAbsent(i, i); //do not assert , since line 170-171
                 } else {
-                    oak.zc().putIfAbsent(i, i);
+                        assert oak.zc().putIfAbsent(i, i);
                 }
             }
 
-            Integer value = oak.get(int2start);
+            Integer value = oak.get(startRegion1);
             Assert.assertNotNull("Got a null!" + result, value);
 
-            for (Integer i = int2start; i < int2start + 4 * MAX_ITEMS_PER_CHUNK; i++) {
-                oak.zc().putIfAbsentComputeIfPresent(i, i, emptyComputer);
+            for (Integer i = startRegion1; i < endRegion4; i++) {
+                assert !oak.zc().putIfAbsentComputeIfPresent(i, i, emptyComputer);
             }
 
-            value = oak.get(int2start);
+            value = oak.get(startRegion1);
             Assert.assertNotNull("Got a null from " + int2start + "!", value);
 
-            for (int i = int2start + (3 * MAX_ITEMS_PER_CHUNK);
-                 i < int2start + (4 * MAX_ITEMS_PER_CHUNK); i++) {
+            for (int i = startRegion4 ; i < endRegion4; i++) {
                 oak.zc().remove(i);
             }
 
-            value = oak.get(int2start);
+            value = oak.get(startRegion1);
             Assert.assertNotNull("Got a null!", value);
 
             oak.zc().put(1, 2);
             oak.zc().put(0, 1);
 
-            for (int i = int2start; i < int2start + (4 * MAX_ITEMS_PER_CHUNK); i++) {
-                oak.zc().computeIfPresent(i, computer);
+            for (int i = startRegion1; i < endRegion3; i++) {
+                assert oak.zc().computeIfPresent(i, computer);
+            }
+            
+            for (int i = startRegion4; i < endRegion4; i++) {
+                assert !oak.zc().computeIfPresent(i, computer);
             }
 
-            value = oak.get(int2start);
-            Assert.assertNotNull("Got a null from " + int2start + "!", value);
+            value = oak.get(startRegion1);
+            Assert.assertNotNull("Got a null from " + startRegion1 + "!", value);
 
-            for (int i = int2start; i < int2start + (MAX_ITEMS_PER_CHUNK); i++) {
+            for (int i = startRegion1; i < endRegion1; i++) {
                 oak.zc().putIfAbsentComputeIfPresent(i, i, computer);
             }
 
-            value = oak.get(int2start);
+            value = oak.get(startRegion1);
             Assert.assertNotNull("Got a null!", value);
             if (int2start == 0) {
                 Assert.assertEquals((Integer) 1, value);
             } else if (int2start == 1) {
                 Assert.assertEquals((Integer) 2, value);
             } else {
-                Assert.assertEquals((Integer) int2start, value);
+                Assert.assertEquals((Integer) startRegion1, value);
             }
 
-            for (int i = int2start + MAX_ITEMS_PER_CHUNK;
-                 i < int2start + (2 * MAX_ITEMS_PER_CHUNK); i++) {
-                oak.zc().remove(i);
+            for (int i = startRegion2; i < endRegion2; i++) {
+                assert oak.zc().remove(i);
             }
 
-            for (int i = int2start + 5 * MAX_ITEMS_PER_CHUNK;
-                 i < int2start + 6 * MAX_ITEMS_PER_CHUNK; i++) {
-                oak.zc().putIfAbsent(i, i);
+            for (int i = startRegion5; i < endRegion6; i++) {
+                assert oak.zc().putIfAbsent(i, i);
             }
 
-            for (int i = int2start + 5 * MAX_ITEMS_PER_CHUNK;
-                 i < int2start + 6 * MAX_ITEMS_PER_CHUNK; i++) {
-                oak.zc().remove(i);
+            for (int i = startRegion5; i < endRegion6; i++) {
+                assert oak.zc().remove(i);
             }
 
-            for (int i = int2start + 3 * MAX_ITEMS_PER_CHUNK;
-                 i < int2start + 4 * MAX_ITEMS_PER_CHUNK; i++) {
-                oak.zc().putIfAbsent(i, i);
+            for (int i = startRegion4; i < endRegion4; i++) {
+                assert oak.zc().putIfAbsent(i, i);
             }
 
-            for (int i = int2start + 3 * MAX_ITEMS_PER_CHUNK;
-                 i < int2start + 4 * MAX_ITEMS_PER_CHUNK; i++) {
-                oak.zc().putIfAbsentComputeIfPresent(i, i, emptyComputer);
+            for (int i = startRegion4; i < endRegion4; i++) {
+                assert !oak.zc().putIfAbsentComputeIfPresent(i, i, emptyComputer);
             }
 
-            for (int i = int2start + 3 * MAX_ITEMS_PER_CHUNK;
-                 i < int2start + 4 * MAX_ITEMS_PER_CHUNK; i++) {
-                oak.zc().remove(i);
+            for (int i = startRegion4; i < endRegion4; i++) {
+                assert oak.zc().remove(i);
             }
 
-            for (int i = int2start + 2 * MAX_ITEMS_PER_CHUNK;
-                 i < int2start + 3 * MAX_ITEMS_PER_CHUNK; i++) {
+            for (int i = startRegion3; i < endRegion3; i++) {
                 oak.zc().put(i, i);
             }
 
-            for (int i = int2start + 3 * MAX_ITEMS_PER_CHUNK;
-                 i < int2start + 4 * MAX_ITEMS_PER_CHUNK; i++) {
-                oak.zc().remove(i);
+            for (int i = startRegion4; i < endRegion4; i++) {
+                assert !oak.zc().remove(i);
             }
 
-            for (int i = int2start + MAX_ITEMS_PER_CHUNK;
-                 i < int2start + 2 * MAX_ITEMS_PER_CHUNK; i++) {
-                oak.zc().remove(i);
+            for (int i = startRegion2; i < endRegion2; i++) {
+                assert !oak.zc().remove(i);
             }
 
-            for (int i = int2start + 4 * MAX_ITEMS_PER_CHUNK;
-                 int2start + i < 6 * MAX_ITEMS_PER_CHUNK; i++) {
-                oak.zc().putIfAbsent(i, i);
+            for (int i = startRegion5; i < endRegion6; i++) {
+                assert oak.zc().putIfAbsent(i, i);
             }
 
             return null;
@@ -216,15 +224,36 @@ public class MultiThreadComputeTest {
     }
 
     @Test
-    public void testThreadsCompute() throws ExecutorUtils.ExecutionError {
+    public void testThreadsCompute() throws ExecutorUtils.ExecutionError, InterruptedException {
         executor.submitTasks(NUM_THREADS, i -> new MultiThreadComputeTest.RunThreads(i, latch));
+        Thread.sleep(1000); //allow things to cookup!
         latch.countDown();
         executor.shutdown(TIME_LIMIT_IN_SECONDS);
+        
+        
+        //we always will have int2start 0
+        int startRegion1 = 0;
+        int endRegion1   = startRegion1 + MAX_ITEMS_PER_CHUNK;
+        
+        int startRegion2 = endRegion1;
+        int endRegion2   = startRegion2 + MAX_ITEMS_PER_CHUNK;
 
-        for (Integer i = 0; i < MAX_ITEMS_PER_CHUNK; i++) {
+        int startRegion3 = endRegion2;
+        int endRegion3   = startRegion3 + MAX_ITEMS_PER_CHUNK;
+        
+        int startRegion4 = endRegion3;
+        int endRegion4   = startRegion4 + MAX_ITEMS_PER_CHUNK;
+        
+        int startRegion5 = endRegion4;
+        int endRegion6   = startRegion5 + (2 * MAX_ITEMS_PER_CHUNK);
+        
+        for (Integer i = startRegion1; i < endRegion1; i++) { 
             Integer value = oak.get(i);
 
-            Assert.assertNotNull("Got a null!", value);
+            if (value == null) {
+                System.out.println("Got a null!");
+            }
+            Assert.assertNotNull(value);
             if (i == 0) {
                 Assert.assertEquals((Integer) 1, value);
                 continue;
@@ -235,20 +264,21 @@ public class MultiThreadComputeTest {
             }
             Assert.assertEquals(i, value);
         }
-        for (int i = MAX_ITEMS_PER_CHUNK; i < 2 * MAX_ITEMS_PER_CHUNK; i++) {
+        
+        for (int    i = startRegion2; i < endRegion2; i++) {
             Integer value = oak.get(i);
             Assert.assertNull(value);
         }
-        for (Integer i = 2 * MAX_ITEMS_PER_CHUNK; i < 3 * MAX_ITEMS_PER_CHUNK; i++) {
+        for (Integer i = startRegion3; i < endRegion3; i++) {
             Integer value = oak.get(i);
             Assert.assertEquals(i, value);
         }
-        for (int i = 3 * MAX_ITEMS_PER_CHUNK; i < 4 * MAX_ITEMS_PER_CHUNK; i++) {
+        for (int    i = startRegion4; i < endRegion4; i++) {
             Integer value = oak.get(i);
             Assert.assertNull(value);
         }
 
-        for (Integer i = 4 * MAX_ITEMS_PER_CHUNK; i < 6 * MAX_ITEMS_PER_CHUNK; i++) {
+        for (Integer i = startRegion5; i < endRegion6; i++) {
             Integer value = oak.get(i);
             Assert.assertEquals(i, value);
         }

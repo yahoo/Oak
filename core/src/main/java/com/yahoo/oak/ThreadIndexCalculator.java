@@ -9,6 +9,7 @@ package com.yahoo.oak;
 import sun.misc.Unsafe;
 
 import java.util.NoSuchElementException;
+import java.util.concurrent.atomic.AtomicInteger;
 
 final class ThreadIndexCalculator {
 
@@ -16,6 +17,7 @@ final class ThreadIndexCalculator {
     private static final int INVALID_THREAD_ID = -1;
     // Long for correctness and anti false-sharing
     private final long[] indices = new long[MAX_THREADS];
+    private final AtomicInteger index = new AtomicInteger(0);
 
     private ThreadIndexCalculator() {
         for (int i = 0; i < MAX_THREADS; ++i) {
@@ -58,6 +60,10 @@ final class ThreadIndexCalculator {
             i = (i + 1) % MAX_THREADS;
         }
         return i;
+    }
+    
+    public int getMonotonicIndex() {
+        return index.getAndAdd(1);
     }
 
     public void releaseIndex() {
