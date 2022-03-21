@@ -63,7 +63,7 @@ class UnscopedValueBufferSynced extends UnscopedBuffer<ValueBuffer> {
     private void start() {
         // Use a "for" loop to ensure maximal retries.
         for (int i = 0; i < MAX_RETRIES; i++) {
-            ValueUtils.ValueResult res = internalScopedReadBuffer.s.lockRead();
+            ValueUtils.ValueResult res = internalScopedReadBuffer.s.preRead();
             switch (res) {
                 case TRUE:
                     return;
@@ -79,7 +79,7 @@ class UnscopedValueBufferSynced extends UnscopedBuffer<ValueBuffer> {
     }
 
     private void end() {
-        internalScopedReadBuffer.s.unlockRead();
+        internalScopedReadBuffer.s.postRead();
     }
 
     /**

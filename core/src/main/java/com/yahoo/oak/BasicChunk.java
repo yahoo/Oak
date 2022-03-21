@@ -26,7 +26,7 @@ abstract class BasicChunk<K, V> {
     // in split/compact process, represents parent of split (can be null!)
     private final AtomicReference<BasicChunk<K, V>> creator;
     // chunk can be in the following states: normal, frozen or infant(has a creator)
-    private final AtomicReference<State> state;
+    protected final AtomicReference<State> state;
     private final AtomicReference<Rebalancer<K, V>> rebalancer;
     private final AtomicInteger pendingOps;
     protected final int maxItems;

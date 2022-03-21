@@ -136,7 +136,7 @@ public class OakMapBuilder<K, V> {
         BlockMemoryAllocator memoryAllocator = buildMemoryAllocator();
         OakSharedConfig<K, V> config = buildSharedConfig(
                 memoryAllocator,
-                new SeqExpandMemoryManager(memoryAllocator),
+                new NovaMemoryManager(memoryAllocator),
                 new SyncRecycleMemoryManager(memoryAllocator)
         );
 

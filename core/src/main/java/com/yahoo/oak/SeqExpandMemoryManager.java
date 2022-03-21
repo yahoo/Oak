@@ -78,6 +78,22 @@ class SeqExpandMemoryManager implements MemoryManager  {
     public boolean isClosed() {
         return allocator.isClosed();
     }
+    
+    // used only for testing
+    @VisibleForTesting
+    public int getCurrentVersion() {
+        return 0;
+    }
+    
+    @VisibleForTesting
+    public int getFreeListSize() {
+        return ((NativeMemoryAllocator) allocator).getFreeListLength();
+    }
+    
+    @VisibleForTesting
+    public int getReleaseLimit() {
+        return 0;
+    }
 
     /**
      * Present the reference as it needs to be when the target is deleted.
@@ -341,7 +357,7 @@ class SeqExpandMemoryManager implements MemoryManager  {
          * {@code RETRY} if the header/off-heap-cut was moved, or the version of the off-heap header
          * does not match {@code version}.
          */
-        public ValueUtils.ValueResult lockRead() {
+        public ValueUtils.ValueResult preRead() {
             return ValueUtils.ValueResult.TRUE;
         }
 
@@ -353,7 +369,7 @@ class SeqExpandMemoryManager implements MemoryManager  {
          * {@code FALSE} if the value is marked as deleted
          * {@code RETRY} if the value was moved, or the version of the off-heap value does not match {@code version}.
          */
-        public ValueUtils.ValueResult unlockRead() {
+        public ValueUtils.ValueResult postRead() {
             return ValueUtils.ValueResult.TRUE;
         }
 
@@ -365,7 +381,7 @@ class SeqExpandMemoryManager implements MemoryManager  {
          * {@code FALSE} if the value is marked as deleted
          * {@code RETRY} if the value was moved, or the version of the off-heap value does not match {@code version}.
          */
-        public ValueUtils.ValueResult lockWrite() {
+        public ValueUtils.ValueResult preWrite() {
             return ValueUtils.ValueResult.TRUE;
         }
 
@@ -377,7 +393,7 @@ class SeqExpandMemoryManager implements MemoryManager  {
          * {@code FALSE} if the value is marked as deleted
          * {@code RETRY} if the value was moved, or the version of the off-heap value does not match {@code version}.
          */
-        public ValueUtils.ValueResult unlockWrite() {
+        public ValueUtils.ValueResult postWrite() {
             return ValueUtils.ValueResult.TRUE;
         }
 
