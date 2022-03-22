@@ -249,6 +249,11 @@ public class EntryArray<K, V> {
                 entryIdx2LongIdx(destEntryIndex), fieldCount);
     }
 
+    /**
+     * find the index of the next occupied entry in the entries array
+     * @param currentIndex index of the current entry
+     * @return index of the next occupied entry, or INVALID_ENTRY_INDEX if no such index exists
+     */
     int getNextNonZeroIndex(int currentIndex) {
         boolean isNotZero = false;
         int nextIndex = currentIndex;

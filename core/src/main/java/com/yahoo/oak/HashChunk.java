@@ -332,6 +332,11 @@ class HashChunk<K, V> extends BasicChunk<K, V> {
         }
 
 
+        /**
+         * find the index of the next occupied entry in the entryies array
+         * @param ctx
+         * @return index of the next occupied entry, or INVALID_ENTRY_INDEX if no such index exists
+         */
         int getFirstValidEntryIndex(ThreadContext ctx) {
             int firstValidIndex = 0;
             if (entryHashSet.isEntryIndexValidForScan(ctx, firstValidIndex)) {
@@ -341,6 +346,12 @@ class HashChunk<K, V> extends BasicChunk<K, V> {
             }
         }
 
+        /**
+         * find the index of the next occupied entry in the entryies array
+         * @param ctx
+         * @param curIndex index of the current entry
+         * @return index of the next occupied entry, or INVALID_ENTRY_INDEX if no such index exists
+         */
         int getNextValidEntryIndex(ThreadContext ctx, int curIndex) {
             assert curIndex != INVALID_ENTRY_INDEX;
 
