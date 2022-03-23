@@ -234,7 +234,9 @@ class OrderedChunk<K, V> extends BasicChunk<K, V> {
      */
     int compareKeyAndEntryIndex(KeyBuffer tempKeyBuff, K key, int ei) {
         boolean isAllocated = entryOrderedSet.readKey(tempKeyBuff, ei);
-        assert isAllocated;
+        if (!isAllocated) {
+            throw new DeletedMemoryAccessException();
+        }
         return KeyUtils.compareEntryKeyAndSerializedKey(key, tempKeyBuff, config.comparator);
     }
 
