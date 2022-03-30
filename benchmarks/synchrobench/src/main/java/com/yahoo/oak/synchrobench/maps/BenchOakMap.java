@@ -8,7 +8,6 @@ package com.yahoo.oak.synchrobench.maps;
 
 import com.yahoo.oak.ConcurrentZCMap;
 import com.yahoo.oak.OakBuffer;
-import com.yahoo.oak.OakMap;
 import com.yahoo.oak.OakUnscopedBuffer;
 import com.yahoo.oak.ZeroCopyMap;
 import com.yahoo.oak.synchrobench.contention.abstractions.BenchKey;
@@ -119,23 +118,23 @@ public abstract class BenchOakMap extends BenchMap {
 
     /**
      * Iterate over a map and consume the keys/values.
-     * @param subMap subset of the map
+     * @param map map, or its subset
      * @param length the number of items to iterate over
      * @param blackhole used to consume the keys/values (if null, should not consume)
      * @return true if iterated successfully on "length" items.
      */
-    protected boolean createAndScanView(OakMap<BenchKey, BenchValue> subMap, int length, Blackhole blackhole) {
+    protected boolean createAndScanView(ConcurrentZCMap<BenchKey, BenchValue> map, int length, Blackhole blackhole) {
         if (Parameters.confZeroCopy) {
             Iterator<Map.Entry<OakUnscopedBuffer, OakUnscopedBuffer>> iter;
             if (Parameters.confStreamIteration) {
-                iter = subMap.zc().entryStreamSet().iterator();
+                iter = map.zc().entryStreamSet().iterator();
             } else {
-                iter = subMap.zc().entrySet().iterator();
+                iter = map.zc().entrySet().iterator();
             }
 
             return iterateBuffer(iter, length, blackhole);
         } else {
-            Iterator<Map.Entry<BenchKey, BenchValue>> iter = subMap.entrySet().iterator();
+            Iterator<Map.Entry<BenchKey, BenchValue>> iter = map.entrySet().iterator();
             return iterate(iter, length, blackhole);
         }
     }

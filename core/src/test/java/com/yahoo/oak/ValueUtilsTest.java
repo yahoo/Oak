@@ -42,11 +42,11 @@ public class ValueUtilsTest {
     }
 
     private void putInt(int index, int value) {
-        UnsafeUtils.UNSAFE.putInt(s.getAddress() + index, value);
+        DirectUtils.putInt(s.getAddress() + index, value);
     }
 
     private int getInt(int index) {
-        return UnsafeUtils.UNSAFE.getInt(s.getAddress() + index);
+        return DirectUtils.getInt(s.getAddress() + index);
     }
 
     @Test
@@ -86,7 +86,7 @@ public class ValueUtilsTest {
             Assert.assertEquals(ValueUtils.ValueResult.TRUE, result.operationResult);
             Assert.assertEquals(randomValue, ((Integer) result.value).intValue());
         });
-        Assert.assertEquals(ValueUtils.ValueResult.TRUE, s.getSlice().lockWrite());
+        Assert.assertEquals(ValueUtils.ValueResult.TRUE, s.getSlice().preWrite());
         transformer.start();
         try {
             barrier.await();
@@ -95,7 +95,7 @@ public class ValueUtilsTest {
         }
         Thread.sleep(2000);
         putInt(4, randomValue);
-        s.getSlice().unlockWrite();
+        s.getSlice().postWrite();
         transformer.join();
     }
 
@@ -268,7 +268,7 @@ public class ValueUtilsTest {
                 }
             });
         });
-        s.getSlice().lockRead();
+        s.getSlice().preRead();
         putter.start();
         try {
             barrier.await();
@@ -279,7 +279,7 @@ public class ValueUtilsTest {
         int a = getInt(0);
         int b = getInt(4);
         int c = getInt(8);
-        s.getSlice().unlockRead();
+        s.getSlice().postRead();
         putter.join();
         Assert.assertNotEquals(randomValues[0], a);
         Assert.assertNotEquals(randomValues[1], b);
@@ -327,7 +327,7 @@ public class ValueUtilsTest {
                 }
             });
         });
-        s.getSlice().lockWrite();
+        s.getSlice().preWrite();
         putter.start();
         try {
             barrier.await();
@@ -338,7 +338,7 @@ public class ValueUtilsTest {
         putInt(0, randomValues[0]);
         putInt(4, randomValues[1]);
         putInt(8, randomValues[2]);
-        s.getSlice().unlockWrite();
+        s.getSlice().postWrite();
         putter.join();
     }
 
@@ -401,7 +401,7 @@ public class ValueUtilsTest {
                 }
             });
         });
-        s.getSlice().lockRead();
+        s.getSlice().preRead();
         computer.start();
         try {
             barrier.await();
@@ -413,7 +413,7 @@ public class ValueUtilsTest {
         for (int i = 0; i < 3; i++) {
             results[i] = getInt(i * 4);
         }
-        s.getSlice().unlockRead();
+        s.getSlice().postRead();
         computer.join();
         Assert.assertArrayEquals(randomValues, results);
     }
@@ -441,7 +441,7 @@ public class ValueUtilsTest {
                 }
             });
         });
-        s.getSlice().lockWrite();
+        s.getSlice().preWrite();
         computer.start();
         try {
             barrier.await();
@@ -452,7 +452,7 @@ public class ValueUtilsTest {
         for (int i = 0; i < 12; i += 4) {
             putInt(i, getInt(i) + 1);
         }
-        s.getSlice().unlockWrite();
+        s.getSlice().postWrite();
         computer.join();
         Assert.assertNotEquals(randomValues[0], getInt(0));
         Assert.assertNotEquals(randomValues[1], getInt(4));

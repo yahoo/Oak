@@ -70,25 +70,25 @@ public class EntryArrayDirect implements EntryArrayInternal {
     /** {@inheritDoc} */
     @Override
     public void clear() {
-        UnsafeUtils.UNSAFE.setMemory(null, entriesAddress, buffer.capacity(), (byte) 0);
+        DirectUtils.UNSAFE.setMemory(null, entriesAddress, buffer.capacity(), (byte) 0);
     }
 
     /** {@inheritDoc} */
     @Override
     public long getEntryFieldLong(int entryIndex, int fieldIndex) {
-        return UnsafeUtils.getLong(entryMemoryAddress(entryIndex, fieldIndex));
+        return DirectUtils.getLong(entryMemoryAddress(entryIndex, fieldIndex));
     }
 
     /** {@inheritDoc} */
     @Override
     public void setEntryFieldLong(int entryIndex, int fieldIndex, long value) {
-        UnsafeUtils.putLong(entryMemoryAddress(entryIndex, fieldIndex), value);
+        DirectUtils.putLong(entryMemoryAddress(entryIndex, fieldIndex), value);
     }
 
     /** {@inheritDoc} */
     @Override
     public boolean casEntryFieldLong(int entryIndex, int fieldIndex, long expectedValue, long newValue) {
-        return UnsafeUtils.UNSAFE.compareAndSwapLong(null,
+        return DirectUtils.UNSAFE.compareAndSwapLong(null,
                 entryMemoryAddress(entryIndex, fieldIndex),
                 expectedValue, newValue);
     }
@@ -98,7 +98,7 @@ public class EntryArrayDirect implements EntryArrayInternal {
     public void copyEntryFrom(EntryArrayInternal other, int srcEntryIndex, int destEntryIndex, int fieldCount) {
         assert fieldCount <= this.fieldCount;
         EntryArrayDirect o = (EntryArrayDirect) other;
-        UnsafeUtils.UNSAFE.copyMemory(
+        DirectUtils.UNSAFE.copyMemory(
                 o.entryMemoryAddress(srcEntryIndex, 0),
                 this.entryMemoryAddress(destEntryIndex, 0),
                 (long) fieldCount * Long.BYTES

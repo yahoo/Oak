@@ -26,7 +26,7 @@ abstract class BasicChunk<K, V> {
     // in split/compact process, represents parent of split (can be null!)
     private final AtomicReference<BasicChunk<K, V>> creator;
     // chunk can be in the following states: normal, frozen or infant(has a creator)
-    private final AtomicReference<State> state;
+    protected final AtomicReference<State> state;
     private final AtomicReference<Rebalancer<K, V>> rebalancer;
     private final AtomicInteger pendingOps;
     protected final int maxItems;
@@ -65,6 +65,8 @@ abstract class BasicChunk<K, V> {
     abstract boolean readKeyFromEntryIndex(KeyBuffer key, int ei);
 
     abstract boolean readValueFromEntryIndex(ValueBuffer value, int ei);
+
+    abstract void lookUp(ThreadContext ctx, K key);
 
     /*-------------- Publishing related methods and getters ---------------*/
     /**
@@ -130,7 +132,7 @@ abstract class BasicChunk<K, V> {
         state.compareAndSet(State.INFANT, State.NORMAL);
         creator.set(null);
         // using fence so other puts can continue working immediately on this chunk
-        UnsafeUtils.UNSAFE.storeFence();
+        DirectUtils.UNSAFE.storeFence();
     }
 
     State state() {
@@ -171,12 +173,12 @@ abstract class BasicChunk<K, V> {
 
     /*----------------------- Abstract Mappings-related Methods  --------------------------*/
     /**
-     * See concrete implementation for more information
+     * See specific implementation for more information
      */
     abstract void releaseKey(ThreadContext ctx);
 
     /**
-     * See concrete implementation for more information
+     * See specific implementation for more information
      */
     abstract void releaseNewValue(ThreadContext ctx);
 

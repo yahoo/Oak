@@ -47,7 +47,6 @@ public class OakMap<K, V> extends AbstractMap<K, V>
         final OakSharedConfig<K, V> config = internalOakMap.config;
 
         this.internalOakMap = internalOakMap;
-
         this.fromKey = fromKey;
         this.fromInclusive = fromInclusive;
         this.toKey = toKey;

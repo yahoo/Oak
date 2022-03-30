@@ -109,7 +109,7 @@ interface Slice {
      * {@code RETRY} if the header/off-heap-cut was moved, or the version of the off-heap header
      * does not match {@code version}.
      */
-    ValueUtils.ValueResult lockRead();
+    ValueUtils.ValueResult preRead();
 
     /**
      * Releases a read lock
@@ -118,7 +118,7 @@ interface Slice {
      * {@code FALSE} if the value is marked as deleted
      * {@code RETRY} if the value was moved, or the version of the off-heap value does not match {@code version}.
      */
-    ValueUtils.ValueResult unlockRead();
+    ValueUtils.ValueResult postRead();
 
     /**
      * Acquires a write lock
@@ -127,7 +127,7 @@ interface Slice {
      * {@code FALSE} if the value is marked as deleted
      * {@code RETRY} if the value was moved, or the version of the off-heap value does not match {@code version}.
      */
-    ValueUtils.ValueResult lockWrite();
+    ValueUtils.ValueResult preWrite();
 
     /**
      * Releases a write lock
@@ -136,7 +136,7 @@ interface Slice {
      * {@code FALSE} if the value is marked as deleted
      * {@code RETRY} if the value was moved, or the version of the off-heap value does not match {@code version}.
      */
-    ValueUtils.ValueResult unlockWrite();
+    ValueUtils.ValueResult postWrite();
 
     /**
      * Marks the associated off-heap cut as deleted only if the version of that value matches {@code version}.

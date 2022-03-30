@@ -57,11 +57,13 @@ public class NativeMemoryAllocatorTest {
     }
 
     static int calcExpectedSize(int keyCount, int valueCount) {
-        return (keyCount * KEYS_SIZE_AFTER_SERIALIZATION) +
+        return (keyCount * (KEYS_SIZE_AFTER_SERIALIZATION +     KEY_MEMORY_MANAGER.getHeaderSize())) +
                 (valueCount * (VALUE_SIZE_AFTER_SERIALIZATION + VALUE_MEMORY_MANAGER.getHeaderSize()));
     }
 
     private static final MemoryManager VALUE_MEMORY_MANAGER = new SyncRecycleMemoryManager(null);
+    private static final MemoryManager KEY_MEMORY_MANAGER = new NovaMemoryManager(null); //TODO maybe change later
+
 
     BlockAllocationSlice allocate(NativeMemoryAllocator allocator, int size) {
         BlockAllocationSlice s = (BlockAllocationSlice) VALUE_MEMORY_MANAGER.getEmptySlice();
@@ -152,7 +154,7 @@ public class NativeMemoryAllocatorTest {
 
         OakMapBuilder<Integer, Integer> builder = OakCommonBuildersFactory.getDefaultIntBuilder()
                 .setValueSerializer(new OakIntSerializer(VALUE_SIZE_AFTER_SERIALIZATION))
-                .setOrderedChunkMaxItems(maxItemsPerChunk)
+                .setChunkMaxItems(maxItemsPerChunk)
                 .setMemoryCapacity(capacity);
         oak = builder.buildOrderedMap();
         allocator = (NativeMemoryAllocator) oak.getValuesMemoryManager().getBlockMemoryAllocator();

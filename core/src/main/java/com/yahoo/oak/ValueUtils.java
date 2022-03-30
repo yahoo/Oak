@@ -29,7 +29,7 @@ class ValueUtils {
      * In case of {@code TRUE}, the read value is stored in the returned Result, otherwise, the value is {@code null}.
      */
     <T> Result transform(Result result, ValueBuffer value, OakTransformer<T> transformer) {
-        ValueResult ret = value.s.lockRead();
+        ValueResult ret = value.s.preRead();
         if (ret != ValueResult.TRUE) {
             return result.withFlag(ret);
         }
@@ -38,7 +38,7 @@ class ValueUtils {
             T transformation = transformer.apply(value);
             return result.withValue(transformation);
         } finally {
-            value.s.unlockRead();
+            value.s.postRead();
         }
     }
 
@@ -49,7 +49,7 @@ class ValueUtils {
      */
     <V> ValueResult put(BasicChunk<?, V> chunk, ThreadContext ctx, V newVal, OakSerializer<V> serializer) {
 
-        ValueResult result = ctx.value.s.lockWrite();
+        ValueResult result = ctx.value.s.preWrite();
         if (result != ValueResult.TRUE) {
             return result;
         }
@@ -57,7 +57,7 @@ class ValueUtils {
         // in case move happened: ctx.valueSlice might be set to a new slice.
         // Alternatively, if returned result is RETRY, a rebalance might be needed
         // or the entry might be updated by someone else, need to retry
-        ctx.value.s.unlockWrite();
+        ctx.value.s.postWrite();
         return result;
     }
 
@@ -99,7 +99,7 @@ class ValueUtils {
      * {@code RETRY} if the value was moved.
      */
     ValueResult compute(ValueBuffer value, Consumer<OakScopedWriteBuffer> computer) {
-        ValueResult result = value.s.lockWrite();
+        ValueResult result = value.s.preWrite();
         if (result != ValueResult.TRUE) {
             return result;
         }
@@ -107,7 +107,7 @@ class ValueUtils {
         try {
             ScopedWriteBuffer.compute(value.s, computer);
         } finally {
-            value.s.unlockWrite();
+            value.s.postWrite();
         }
 
         return ValueResult.TRUE;
@@ -144,14 +144,14 @@ class ValueUtils {
             // This is a conditional remove, so we first have to check whether the current value matches the expected
             // one.
             // We start by acquiring a write lock for reading since we do not want concurrent reads.
-            ValueResult result = ctx.value.s.lockWrite();
+            ValueResult result = ctx.value.s.preWrite();
             if (result != ValueResult.TRUE) {
                 return ctx.result.withFlag(result);
             }
             V v = transformer.apply(ctx.value);
             // This is where we check the equality between the expected value and the actual value
             if (!oldValue.equals(v)) {
-                ctx.value.s.unlockWrite();
+                ctx.value.s.postWrite();
                 return ctx.result.withFlag(ValueResult.FALSE);
             }
             // both values match so the value is marked as deleted.
@@ -184,7 +184,7 @@ class ValueUtils {
     <V> Result exchange(BasicChunk<?, V> chunk, ThreadContext ctx, V value,
                         OakTransformer<V> valueDeserializeTransformer, OakSerializer<V> serializer) {
 
-        ValueResult result = ctx.value.s.lockWrite();
+        ValueResult result = ctx.value.s.preWrite();
         if (result != ValueResult.TRUE) {
             return ctx.result.withFlag(result);
         }
@@ -196,7 +196,7 @@ class ValueUtils {
         // in case move happened: ctx.value might be set to a new slice.
         // Alternatively, if returned result is RETRY, a rebalance might be needed
         // or the entry might be updated by someone else, need to retry
-        ctx.value.s.unlockWrite();
+        ctx.value.s.postWrite();
         return result == ValueResult.TRUE ? ctx.result.withValue(oldValue) : ctx.result.withFlag(ValueResult.RETRY);
     }
 
@@ -213,20 +213,20 @@ class ValueUtils {
     <V> ValueResult compareExchange(BasicChunk<?, V> chunk, ThreadContext ctx, V expected, V value,
                                     OakTransformer<V> valueDeserializeTransformer, OakSerializer<V> serializer) {
 
-        ValueResult result = ctx.value.s.lockWrite();
+        ValueResult result = ctx.value.s.preWrite();
         if (result != ValueResult.TRUE) {
             return result;
         }
         V oldValue = valueDeserializeTransformer.apply(ctx.value);
         if (!oldValue.equals(expected)) {
-            ctx.value.s.unlockWrite();
+            ctx.value.s.postWrite();
             return ValueResult.FALSE;
         }
         result = innerPut(chunk, ctx, value, serializer);
         // in case move happened: ctx.value might be set to a new allocation.
         // Alternatively, if returned result is RETRY, a rebalance might be needed
         // or the entry might be updated by someone else, need to retry
-        ctx.value.s.unlockWrite();
+        ctx.value.s.postWrite();
         return result;
     }
 }

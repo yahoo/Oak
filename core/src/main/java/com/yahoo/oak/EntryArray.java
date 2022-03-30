@@ -54,7 +54,7 @@ public class EntryArray<K, V> {
     EntryArray(OakSharedConfig<K, V> config, int additionalFieldCount, int entriesCapacity) {
         this.config = config;
         // +2 for key and value references that always exist
-        this.array = new EntryArrayDirect(entriesCapacity, additionalFieldCount + 2);
+        this.array = new EntryArrayHeap(entriesCapacity, additionalFieldCount + 2);
         this.numOfEntries = new AtomicInteger(0);
     }
 

@@ -61,6 +61,12 @@ interface MemoryManager extends Closeable {
     // returns the size of the header used in off-heap to keep Memory Manager's metadata
     @VisibleForTesting
     int getHeaderSize();
+    
+    @VisibleForTesting
+    int getFreeListSize();
+    
+    @VisibleForTesting
+    int getReleaseLimit();
 
     // Releases the underlying off-heap memory without releasing the entire structure
     // To be used when the user structure needs to be cleared, without memory reallocation

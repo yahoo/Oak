@@ -22,10 +22,10 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.function.Consumer;
 
-public class MultiThreadTest {
+public class MultiThreadTestMap {
 
     private static final int NUM_THREADS = 31;
-    private static final long TIME_LIMIT_IN_SECONDS = 80;
+    private static final long TIME_LIMIT_IN_SECONDS = 100;
 
     private static final int MAX_ITEMS_PER_CHUNK = 2048;
 
@@ -37,7 +37,7 @@ public class MultiThreadTest {
     @Before
     public void init() {
         OakMapBuilder<Integer, Integer> builder = OakCommonBuildersFactory.getDefaultIntBuilder()
-                .setOrderedChunkMaxItems(MAX_ITEMS_PER_CHUNK);
+                .setChunkMaxItems(MAX_ITEMS_PER_CHUNK);
         oak = builder.buildOrderedMap();
         latch = new CountDownLatch(1);
         executor = new ExecutorUtils<>(NUM_THREADS);
@@ -156,7 +156,7 @@ public class MultiThreadTest {
 
     @Test
     public void testThreads() throws ExecutorUtils.ExecutionError {
-        executor.submitTasks(NUM_THREADS, i -> new MultiThreadTest.RunThreads(latch));
+        executor.submitTasks(NUM_THREADS, i -> new MultiThreadTestMap.RunThreads(latch));
         latch.countDown();
         executor.shutdown(TIME_LIMIT_IN_SECONDS);
 
@@ -278,7 +278,7 @@ public class MultiThreadTest {
     public void testThreadsDescend() throws ExecutorUtils.ExecutionError {
         CyclicBarrier barrier = new CyclicBarrier(NUM_THREADS);
 
-        executor.submitTasks(NUM_THREADS, i -> new MultiThreadTest.RunThreadsDescend(latch, barrier));
+        executor.submitTasks(NUM_THREADS, i -> new MultiThreadTestMap.RunThreadsDescend(latch, barrier));
         latch.countDown();
         executor.shutdown(TIME_LIMIT_IN_SECONDS);
 

@@ -6,7 +6,10 @@
 
 package com.yahoo.oak;
 
+import com.yahoo.oak.ValueUtils.ValueResult;
+
 import java.util.concurrent.atomic.AtomicInteger;
+
 
 /**
  * EntryOrderedSet keeps a set of entries linked to a link list. Entry is reference to key and value, both located
@@ -262,6 +265,7 @@ class EntryOrderedSet<K, V> extends EntryArray<K, V> {
         array.copyEntryFrom(srcEntryOrderedSet.array, srcEntryIdx, destEntryIndex, 2);
 
         assert config.valuesMemoryManager.isReferenceConsistent(getValueReference(destEntryIndex));
+        assert config.keysMemoryManager.isReferenceConsistent(getKeyReference(destEntryIndex));
 
         // now it is the time to increase nextFreeIndex
         nextFreeIndex.getAndIncrement();
@@ -272,8 +276,12 @@ class EntryOrderedSet<K, V> extends EntryArray<K, V> {
     boolean isEntrySetValidAfterRebalance() {
         int currIndex = getHeadNextEntryIndex();
         int prevIndex = INVALID_ENTRY_INDEX;
-        while (currIndex > getLastEntryIndex()) {
+        KeyBuffer kBuff = new KeyBuffer(config.keysMemoryManager.getEmptySlice());
+        while (currIndex < getLastEntryIndex() && currIndex >= 0) {
             if (!isValueRefValidAndNotDeleted(currIndex)) {
+                return false;
+            }
+            if (isKeyDeleted(kBuff, currIndex)) {
                 return false;
             }
             if (!config.valuesMemoryManager.isReferenceConsistent(getValueReference(currIndex))) {
@@ -287,5 +295,22 @@ class EntryOrderedSet<K, V> extends EntryArray<K, V> {
         }
 
         return true;
+    }
+
+    void releaseAllDeletedKeys() {
+        KeyBuffer key = new KeyBuffer(config.keysMemoryManager.getEmptySlice());
+        for (int i = 0; i < numOfEntries.get() ; i++) {
+            if (!config.valuesMemoryManager.isReferenceDeleted(getValueReference(i))) {
+                continue;
+            }
+
+            long keyRef = getKeyReference(i);
+            if (!key.s.decodeReference(keyRef) || key.s.logicalDelete() != ValueResult.TRUE) {
+                continue;
+            }
+
+            setKeyReference(i, config.keysMemoryManager.alterReferenceForDelete(keyRef));
+            key.s.release();
+        }
     }
 }

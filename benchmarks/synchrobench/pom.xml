@@ -1,36 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
     <parent>
         <artifactId>root</artifactId>
         <groupId>com.yahoo.oak</groupId>
-        <version>0.2.4-SNAPSHOT</version>
+        <version>0.2.6-SNAPSHOT</version>
         <relativePath>../../pom.xml</relativePath>
     </parent>
 
     <artifactId>oak-benchmarks-synchrobench</artifactId>
+    <packaging>jar</packaging>
 
     <properties>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <jmh.version>1.19</jmh.version>
         <!--
-			this property prevents the Nexus Staging Maven Plugin to
+			these properties prevents the Nexus Staging Maven Plugin to
 			deploy this module's artifacts to Maven Central' staging repo
 		 -->
         <skipNexusStagingDeployMojo>true</skipNexusStagingDeployMojo>
-        <!--
-            this property prevents the Nexus Staging Maven Plugin to
-            deploy this module's artifacts to Maven Central' staging repo
-         -->
         <skipStaging>true</skipStaging>
+
         <!-- Set default jacoco argument -->
-        <jacoco.argLine/>
+        <jacoco.argLine />
     </properties>
+
+
     <dependencies>
         <dependency>
             <groupId>com.yahoo.oak</groupId>
             <artifactId>oak</artifactId>
             <scope>compile</scope>
         </dependency>
+
         <dependency>
             <groupId>org.openjdk.jmh</groupId>
             <artifactId>jmh-core</artifactId>
@@ -69,9 +72,11 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
+                <version>${maven-compiler-plugin.version}</version>
                 <configuration>
-                    <source>8</source>
-                    <target>8</target>
+                    <compilerVersion>${java.version}</compilerVersion>
+                    <source>${java.version}</source>
+                    <target>${java.version}</target>
                 </configuration>
             </plugin>
             <plugin>

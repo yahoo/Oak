@@ -6,13 +6,17 @@
 
 package com.yahoo.oak;
 
+
 import java.io.IOException;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
+import java.util.function.Consumer;
+
 
 abstract class InternalOakBasics<K, V> {
     /*-------------- Members --------------*/
     protected static final int MAX_RETRIES = 1024;
+
 
     protected final OakSharedConfig<K, V> config;
 
@@ -73,6 +77,10 @@ abstract class InternalOakBasics<K, V> {
         return config.valueSerializer;
     }
 
+    protected ValueUtils getValueOperator() {
+        return config.valueOperator;
+    }
+
     /*-------------- Context --------------*/
     /**
      * Should only be called from API methods at the beginning of the method and be reused in internal calls.
@@ -115,7 +123,93 @@ abstract class InternalOakBasics<K, V> {
         return false;
     }
 
+    /*-------------- API methods --------------*/
+    abstract V put(K key, V value, OakTransformer<V> transformer);
+
+    /**
+     * put the value associated with the key, only if key didn't exist
+     * returned results describes whether the value was inserted or not
+     * @param key key to check
+     * @param value value to put if the key not present
+     * @param transformer transformer to apply
+     * @return returned results describes whether the value was inserted or not
+     */
+    abstract Result putIfAbsent(K key, V value, OakTransformer<V> transformer);
+
+    /**
+     * if key with a valid value exists in the map, apply compute function on the value
+     * return true if compute did happen
+     * @param key key for the operation
+     * @param computer the operation to be performed
+     * @return true, if the operation was performed
+     */
+    // moved internally to be able to catch DeletedMemAccess
+    abstract boolean computeIfPresent(K key, Consumer<OakScopedWriteBuffer> computer);
+
+    // moved internally to be able to catch DeletedMemAccess
+    abstract Result remove(K key, V oldValue, OakTransformer<V> transformer); 
+
+    // the zero-copy version of get
+    abstract OakUnscopedBuffer get(K key);
+
     /*-------------- Common actions --------------*/
+    /**
+     * The method returns reference to the chunk the given key belongs to
+     * @param key the key to look for in the chunks
+     * @param ctx auxiliary parameter, used in some look up function
+     * @return reference to the chunk the supplied key belongs to
+     */
+    protected abstract BasicChunk<K, V> findChunk(K key, ThreadContext ctx);
+
+    V replace(K key, V value, OakTransformer<V> valueDeserializeTransformer) {
+        ThreadContext ctx = getThreadContext();
+
+        for (int i = 0; i < MAX_RETRIES; i++) {
+            BasicChunk<K, V> chunk = findChunk(key, ctx); // find orderedChunk matching key
+            chunk.lookUp(ctx, key);
+            if (!ctx.isValueValid()) {
+                return null;
+            }
+
+            // will return null if the value is deleted
+            Result result = config.valueOperator.exchange(chunk, ctx, value,
+                    valueDeserializeTransformer, getValueSerializer());
+            if (result.operationResult != ValueUtils.ValueResult.RETRY) {
+                return (V) result.value;
+            }
+            // it might be that this chunk is proceeding with rebalance -> help
+            helpRebalanceIfInProgress(chunk);
+        }
+
+        throw new RuntimeException("replace failed: reached retry limit (1024).");
+    }
+
+    boolean replace(K key, V oldValue, V newValue, OakTransformer<V> valueDeserializeTransformer) {
+        ThreadContext ctx = getThreadContext();
+
+        for (int i = 0; i < MAX_RETRIES; i++) {
+            // find chunk matching key, puts this key hash into ctx.operationKeyHash
+            BasicChunk<K, V> c = findChunk(key, ctx); // find orderedChunk matching key
+            c.lookUp(ctx, key);
+            if (!ctx.isValueValid()) {
+                return false;
+            }
+
+            ValueUtils.ValueResult res = getValueOperator().compareExchange(c, ctx, oldValue, newValue,
+                    valueDeserializeTransformer, getValueSerializer());
+            if (res == ValueUtils.ValueResult.RETRY) {
+                // it might be that this chunk is proceeding with rebalance -> help
+                helpRebalanceIfInProgress(c);
+                continue;
+            }
+            return res == ValueUtils.ValueResult.TRUE;
+        }
+
+        throw new RuntimeException("replace failed: reached retry limit (1024).");
+    }
+
+    abstract boolean putIfAbsentComputeIfPresent(K key, V value, Consumer<OakScopedWriteBuffer> computer);
+
     protected boolean finalizeDeletion(BasicChunk<K, V> c, ThreadContext ctx) {
         if (c.finalizeDeletion(ctx)) {
             rebalanceBasic(c);
@@ -127,7 +221,7 @@ abstract class InternalOakBasics<K, V> {
     protected boolean isAfterRebalanceOrValueUpdate(BasicChunk<K, V> c, ThreadContext ctx) {
         // If orderedChunk is frozen or infant, can't proceed with put, need to help rebalancer first,
         // rebalance is done as part of inTheMiddleOfRebalance.
-        // Also if value is off-heap deleted, we need to finalizeDeletion on-heap, which can
+        // Also, if value is off-heap deleted, we need to finalizeDeletion on-heap, which can
         // cause rebalance as well. If rebalance happened finalizeDeletion returns true.
         // After rebalance we need to restart.
         if (inTheMiddleOfRebalance(c) || finalizeDeletion(c, ctx)) {
@@ -162,7 +256,7 @@ abstract class InternalOakBasics<K, V> {
     }
 
     /**
-     * Used when value of a key was possibly moved and we try to search for the given key
+     * Used when value of a key was possibly moved, and we try to search for the given key
      * through the OakMap again.
      *
      * @param ctx The context key should be initialized with the key to refresh, and the context value
@@ -223,6 +317,12 @@ abstract class InternalOakBasics<K, V> {
             return index;
         }
 
+        public void copyState(BasicIteratorState<K, V> other) {
+            assert other != null;
+            this.chunk = other.chunk;
+            this.chunkIter = other.chunkIter;
+            this.index = other.index;
+        }
     }
 
 
@@ -236,7 +336,8 @@ abstract class InternalOakBasics<K, V> {
          * the next node to return from next();
          */
         private BasicIteratorState<K, V> state;
-
+        private BasicIteratorState<K, V> prevIterState;
+        private boolean prevIterStateValid = false;
         /**
          * An iterator cannot be accesses concurrently by multiple threads.
          * Thus, it is safe to have its own thread context.
@@ -256,10 +357,32 @@ abstract class InternalOakBasics<K, V> {
 
         protected abstract void initAfterRebalance();
 
-
         // the actual next()
         public abstract T next();
 
+        /**
+         * The function removes the element returned by the last call to next() function
+         * If the next() was not called, exception is thrown
+         * If the entry was changed, between the call of the next() and remove(), it is deleted regardless
+         */
+        @Override
+        public void remove() {
+            //@TODO under the current implementation, if the chunk was released between the call to the nex()
+            // @TODO and the call to remove, the function behaviour is unpredictable
+
+            if (!isPrevIterStateValid()) {
+                throw new IllegalStateException("next() was not called in due order");
+            }
+            BasicChunk<K, V> prevChunk = getPrevIterState().getChunk();
+            int preIdx = getPrevIterState().getIndex();
+            boolean validState = prevChunk.readKeyFromEntryIndex(ctx.key, preIdx);
+            if (validState) {
+                K prevKey = getKeySerializer().deserialize(ctx.key);
+                InternalOakBasics.this.remove(prevKey, null, null);
+            }
+
+            invalidatePrevState();
+        }
         /**
          * Advances next to higher entry.
          *  previous index
@@ -277,6 +400,7 @@ abstract class InternalOakBasics<K, V> {
 
                 final BasicChunk<K, V> chunk = state.getChunk();
                 if (chunk.state() == BasicChunk.State.RELEASED) {
+
                     // @TODO not to access the keys on the RELEASED chunk once the key might be released
                     initAfterRebalance();
                     continue;
@@ -310,18 +434,71 @@ abstract class InternalOakBasics<K, V> {
         abstract void advanceStream(UnscopedBuffer<KeyBuffer> key, UnscopedBuffer<ValueBuffer> value);
 
 
-
-
-
         protected BasicIteratorState<K, V> getState() {
             return state;
         }
+
         protected void setState(BasicIteratorState<K, V> newState) {
             state = newState;
         }
 
+        protected void setPrevState(BasicIteratorState<K, V> newState) {
+            prevIterState = newState;
+        }
+
+        protected BasicIteratorState<K, V> getPrevIterState() {
+            return prevIterState;
+        }
+        /**
+         * function copies the fields of the current iterator state to the fields of the pre.IterState
+         * This is used by the remove function of the iterator
+         */
+        protected void updatePreviousState() {
+            prevIterState.copyState(state);
+            prevIterStateValid = true;
+        }
+
+        protected boolean isPrevIterStateValid() {
+            return prevIterStateValid;
+        }
+
+        /**
+         * previous state should be invalidated to prevent invoking remove on the same entry twice
+         */
+        protected void invalidatePrevState() {
+            prevIterStateValid = false;
+        }
+
         protected abstract BasicChunk<K, V> getNextChunk(BasicChunk<K, V> current);
-        protected abstract void advanceState();
+
+        protected abstract BasicChunk.BasicChunkIter getChunkIter(BasicChunk<K, V> current);
+
+        /**
+         * advance state to the new position
+         * @return if new position found, return true, else, set State to null and return false
+         */
+        protected boolean advanceState() {
+
+            BasicChunk<K, V> chunk = getState().getChunk();
+            BasicChunk.BasicChunkIter chunkIter = getState().getChunkIter();
+
+            updatePreviousState();
+
+            while (!chunkIter.hasNext()) { // skip empty chunks
+                chunk = getNextChunk(chunk);
+                if (chunk == null) {
+                    //End of iteration
+                    setState(null);
+                    return false;
+                }
+                chunkIter = getChunkIter(chunk);
+            }
+
+            int nextIndex = chunkIter.next(ctx);
+            getState().set(chunk, chunkIter, nextIndex);
+
+            return true;
+        }
 
     }
 }

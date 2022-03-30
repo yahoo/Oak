@@ -80,7 +80,7 @@ public class EntryArrayHeap implements EntryArrayInternal {
     public boolean casEntryFieldLong(int entryIndex, int fieldIndex, long expectedValue, long newValue) {
         int offset = Unsafe.ARRAY_LONG_BASE_OFFSET +
                 entryOffset(entryIndex, fieldIndex) * Unsafe.ARRAY_LONG_INDEX_SCALE;
-        return UnsafeUtils.UNSAFE.compareAndSwapLong(entries, offset, expectedValue, newValue);
+        return DirectUtils.UNSAFE.compareAndSwapLong(entries, offset, expectedValue, newValue);
     }
 
     /**

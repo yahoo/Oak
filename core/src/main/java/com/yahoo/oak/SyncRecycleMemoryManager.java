@@ -17,10 +17,10 @@ class SyncRecycleMemoryManager implements MemoryManager {
         new SyncRecycleMMHeader(); // for off-heap header operations
     private static final int VERS_INIT_VALUE = 1;
     private static final int OFF_HEAP_HEADER_SIZE = 12; /* Bytes */
-    private final ThreadIndexCalculator threadIndexCalculator;
+    protected final ThreadIndexCalculator threadIndexCalculator;
     private final List<List<SliceSyncRecycle>> releaseLists;
-    private final AtomicInteger globalVersionNumber;
-    private final BlockMemoryAllocator allocator;
+    protected final AtomicInteger globalVersionNumber;
+    protected final BlockMemoryAllocator allocator;
 
     /*
      * The VALUE_RC reference codec encodes the reference (with memory manager abilities) of the values
@@ -28,7 +28,7 @@ class SyncRecycleMemoryManager implements MemoryManager {
      * For encoding details please take a look on ReferenceCodecSyncRecycle
      *
      */
-    private final ReferenceCodecSyncRecycle rc;
+    protected ReferenceCodecSyncRecycle rc;
 
     SyncRecycleMemoryManager(BlockMemoryAllocator allocator) {
         this.threadIndexCalculator = ThreadIndexCalculator.newInstance();
@@ -55,6 +55,16 @@ class SyncRecycleMemoryManager implements MemoryManager {
     @VisibleForTesting
     int getCurrentVersion() {
         return globalVersionNumber.get();
+    }
+    
+    @VisibleForTesting
+    public int getFreeListSize() {
+        return ((NativeMemoryAllocator) allocator).getFreeListLength();
+    }
+    
+    @VisibleForTesting
+    public int getReleaseLimit() {
+        return RELEASE_LIST_LIMIT;
     }
 
     /**
@@ -134,7 +144,7 @@ class SyncRecycleMemoryManager implements MemoryManager {
     // In order not to increase and overwrite allowed number of bits, increase is done via
     // atomic CAS.
     //
-    private void increaseGlobalVersion() {
+    protected void increaseGlobalVersion() {
         // the version takes specific number of bits (including delete bit)
         // version increasing needs to restart once the maximal number of bits is reached
         int curVer = globalVersionNumber.get();
@@ -161,7 +171,7 @@ class SyncRecycleMemoryManager implements MemoryManager {
      */
     class SliceSyncRecycle extends BlockAllocationSlice {
 
-        private int version;    // Allocation time version
+        protected int version;    // Allocation time version
 
         /* ------------------------------------------------------------------------------------
          * Constructors
@@ -207,7 +217,7 @@ class SyncRecycleMemoryManager implements MemoryManager {
         // zero the underlying memory (not the header) before entering the free list
         @Override
         protected void zeroMetadata() {
-            UnsafeUtils.setMemory(getMetadataAddress() + getHeaderSize(), // start after header
+            DirectUtils.setMemory(getMetadataAddress() + getHeaderSize(), // start after header
                 getAllocatedLength() - getHeaderSize(), // only metadata length
                 (byte) 0); // zero block's memory
         }
@@ -279,7 +289,7 @@ class SyncRecycleMemoryManager implements MemoryManager {
          *
          * @return the encoded reference
          */
-        private long encodeReference() {
+        protected long encodeReference() {
             return rc.encode(getAllocatedBlockID(), getAllocatedOffset(), getVersion());
         }
 
@@ -382,7 +392,7 @@ class SyncRecycleMemoryManager implements MemoryManager {
          * {@code RETRY} if the header/off-heap-cut was moved, or the version of the off-heap header
          * does not match {@code version}.
          */
-        public ValueUtils.ValueResult lockRead() {
+        public ValueUtils.ValueResult preRead() {
             assert version != ReferenceCodecSyncRecycle.INVALID_VERSION;
             return HEADER.lockRead(version, getMetadataAddress());
         }
@@ -394,7 +404,7 @@ class SyncRecycleMemoryManager implements MemoryManager {
          * {@code FALSE} if the value is marked as deleted
          * {@code RETRY} if the value was moved, or the version of the off-heap value does not match {@code version}.
          */
-        public ValueUtils.ValueResult unlockRead() {
+        public ValueUtils.ValueResult postRead() {
             assert version != ReferenceCodecSyncRecycle.INVALID_VERSION;
             return HEADER.unlockRead(version, getMetadataAddress());
         }
@@ -406,7 +416,7 @@ class SyncRecycleMemoryManager implements MemoryManager {
          * {@code FALSE} if the value is marked as deleted
          * {@code RETRY} if the value was moved, or the version of the off-heap value does not match {@code version}.
          */
-        public ValueUtils.ValueResult lockWrite() {
+        public ValueUtils.ValueResult preWrite() {
             if (version == ReferenceCodecSyncRecycle.INVALID_VERSION) {
                 System.out.println("Version in the slice is invalid!");
             }
@@ -421,7 +431,7 @@ class SyncRecycleMemoryManager implements MemoryManager {
          * {@code FALSE} if the value is marked as deleted
          * {@code RETRY} if the value was moved, or the version of the off-heap value does not match {@code version}.
          */
-        public ValueUtils.ValueResult unlockWrite() {
+        public ValueUtils.ValueResult postWrite() {
             assert version != ReferenceCodecSyncRecycle.INVALID_VERSION;
             return HEADER.unlockWrite(version, getMetadataAddress());
         }

@@ -7,7 +7,6 @@
 
 package com.yahoo.oak;
 
-
 import com.yahoo.oak.common.OakCommonBuildersFactory;
 import org.junit.After;
 import org.junit.Assert;

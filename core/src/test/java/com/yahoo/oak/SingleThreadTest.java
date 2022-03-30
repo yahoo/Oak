@@ -37,7 +37,7 @@ public class SingleThreadTest {
 
         Supplier<ConcurrentZCMap<Integer, Integer>> s1 = () -> {
             OakMapBuilder<Integer, Integer> builder = OakCommonBuildersFactory.getDefaultIntBuilder()
-                    .setOrderedChunkMaxItems(MAX_ITEMS_PER_ORDERED_CHUNK);
+                    .setChunkMaxItems(MAX_ITEMS_PER_ORDERED_CHUNK);
             return builder.buildOrderedMap();
         };
         Supplier<ConcurrentZCMap<Integer, Integer>> s2 = () -> {
