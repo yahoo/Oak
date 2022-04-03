@@ -6,6 +6,7 @@
 
 package com.yahoo.oak;
 
+import java.util.BitSet;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /* EntryHashSet keeps a set of entries placed according to the key hash number modulo capacity.
@@ -57,7 +58,7 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
     static final int DEFAULT_COLLISION_CHAIN_LENGTH = 4;
     // HASH - the key hash of this entry (long includes the update counter)
     // key hash is first, update counter is second, valid bit is third
-    private static final int HASH_FIELD_OFFSET = 2;
+    private static final int HASH_FIELD_OFFSET = OPT_FIELD_OFFSET;
     private static final int KEY_HASH_BITS = 32; // Hash needs to be an integer
     private static final int UPDATE_COUNTER_BITS = 31;
 
@@ -82,6 +83,8 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
         UnionCodec.AUTO_CALCULATE_BIT_SIZE, // valid bit
         Long.SIZE);
 
+    // bit map indicating entries that are still zero, used by the scan for faster retrieve of the next non-empty entry
+    private final BitSet mapOfCleanEntries;
     /*----------------- Constructor -------------------*/
     /**
      * @param config shared configuration
@@ -89,6 +92,8 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
      */
     EntryHashSet(OakSharedConfig<K, V> config, int entriesCapacity) {
         super(config, ADDITIONAL_FIELDS, entriesCapacity);
+
+        mapOfCleanEntries = new BitSet(entriesCapacity);
     }
 
     /*---------- Private methods for managing key hash entry field -------------*/
@@ -530,6 +535,11 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
         // that was set in this context ({@code ctx}).
         writeKey(key, ctx.key);
 
+        synchronized (mapOfCleanEntries) {
+            // set the appropriate position in the bit map, indicating the entry is not zero
+            mapOfCleanEntries.set(ctx.entryIndex);
+        }
+
         // Try to assign our key
         if (casKeyReference(ctx.entryIndex, ctx.tempKey.getSlice().getReference(), /* old reference */
             ctx.key.getSlice().getReference() /* new reference */ )) {
@@ -665,7 +675,19 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
         return tempValue.getSlice().isDeleted() != ValueUtils.ValueResult.FALSE;
     }
 
-
+    /**
+     * identify the next non zero entry
+     * @param currentIndex index of the current entry
+     * @return
+     */
+    @Override
+    int getNextNonZeroIndex(int currentIndex) {
+        int nxtIdx = mapOfCleanEntries.nextSetBit(currentIndex + 1);
+        if (nxtIdx == -1) {
+            nxtIdx = INVALID_ENTRY_INDEX;
+        }
+        return nxtIdx;
+    }
     //************************* REBALANCE *****************************************/
     /**/
 

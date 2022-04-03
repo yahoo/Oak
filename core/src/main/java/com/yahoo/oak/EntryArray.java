@@ -56,6 +56,7 @@ public class EntryArray<K, V> {
      */
     protected static final int KEY_REF_OFFSET = 0;
     protected static final int VALUE_REF_OFFSET = 1;
+    protected static final int OPT_FIELD_OFFSET = 2;
     static final int INVALID_ENTRY_INDEX = -1;
 
     final OakSharedConfig<K, V> config;
@@ -246,6 +247,27 @@ public class EntryArray<K, V> {
                 entryIdx2LongIdx(srcEntryIdx),
                 entries,                        // this entries array
                 entryIdx2LongIdx(destEntryIndex), fieldCount);
+    }
+
+    /**
+     * find the index of the next occupied entry in the entries array
+     * @param currentIndex index of the current entry
+     * @return index of the next occupied entry, or INVALID_ENTRY_INDEX if no such index exists
+     */
+    int getNextNonZeroIndex(int currentIndex) {
+        boolean isNotZero = false;
+        int nextIndex = currentIndex;
+        while (!isNotZero && isIndexInBound(++nextIndex)) {
+
+            isNotZero = getEntryFieldLong(nextIndex, KEY_REF_OFFSET) != 0 ||
+                        getEntryFieldLong(nextIndex, VALUE_REF_OFFSET) != 0 ||
+                        getEntryFieldLong(nextIndex, OPT_FIELD_OFFSET) != 0;
+        }
+        if (isIndexInBound(nextIndex)) {
+            return nextIndex;
+        } else {
+            return INVALID_ENTRY_INDEX;
+        }
     }
 
     /*
