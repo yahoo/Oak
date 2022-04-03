@@ -675,6 +675,11 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
         return tempValue.getSlice().isDeleted() != ValueUtils.ValueResult.FALSE;
     }
 
+    /**
+     * identify the next non zero entry
+     * @param currentIndex index of the current entry
+     * @return
+     */
     @Override
     int getNextNonZeroIndex(int currentIndex) {
         int nxtIdx = mapOfCleanEntries.nextSetBit(currentIndex + 1);
