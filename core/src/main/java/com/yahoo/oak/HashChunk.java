@@ -333,7 +333,7 @@ class HashChunk<K, V> extends BasicChunk<K, V> {
 
 
         /**
-         * find the index of the next occupied entry in the entryies array
+         * find the index of the first occupied entry in the entries array
          * @param ctx
          * @return index of the next occupied entry, or INVALID_ENTRY_INDEX if no such index exists
          */

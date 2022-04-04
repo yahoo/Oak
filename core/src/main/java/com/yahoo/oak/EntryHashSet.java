@@ -537,6 +537,7 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
 
         synchronized (mapOfCleanEntries) {
             // set the appropriate position in the bit map, indicating the entry is not zero
+
             mapOfCleanEntries.set(ctx.entryIndex);
         }
 
@@ -682,7 +683,10 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
      */
     @Override
     int getNextNonZeroIndex(int currentIndex) {
-        int nxtIdx = mapOfCleanEntries.nextSetBit(currentIndex + 1);
+        int nxtIdx = INVALID_ENTRY_INDEX;
+        synchronized (mapOfCleanEntries) {
+            nxtIdx = mapOfCleanEntries.nextSetBit(currentIndex + 1);
+        }
         if (nxtIdx == -1) {
             nxtIdx = INVALID_ENTRY_INDEX;
         }
