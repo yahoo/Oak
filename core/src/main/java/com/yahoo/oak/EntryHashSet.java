@@ -207,8 +207,8 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
     ** --> ctx.key, ctx.value, ctx.keyHash keep the data of the entry's key, value, and key hash
      */
     private EntryState getEntryState(ThreadContext ctx, int idx, K key, int keyHash) {
-        boolean keyReadResult = false;
-        boolean valueReadResult = false;
+        boolean keyReadResult;
+        boolean valueReadResult;
 
         // optimization, as invalid key reference should be the most frequent case
         if (getKeyReference(idx) == config.keysMemoryManager.getInvalidReference()) {
@@ -537,7 +537,6 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
 
         synchronized (mapOfCleanEntries) {
             // set the appropriate position in the bit map, indicating the entry is not zero
-
             mapOfCleanEntries.set(ctx.entryIndex);
         }
 
@@ -676,14 +675,9 @@ class EntryHashSet<K, V> extends EntryArray<K, V> {
         return tempValue.getSlice().isDeleted() != ValueUtils.ValueResult.FALSE;
     }
 
-    /**
-     * identify the next non zero entry
-     * @param currentIndex index of the current entry
-     * @return
-     */
     @Override
     int getNextNonZeroIndex(int currentIndex) {
-        int nxtIdx = INVALID_ENTRY_INDEX;
+        int nxtIdx;
         synchronized (mapOfCleanEntries) {
             nxtIdx = mapOfCleanEntries.nextSetBit(currentIndex + 1);
         }
