@@ -45,7 +45,7 @@ class ScopedReadBuffer implements OakScopedReadBuffer, OakUnsafeDirectBuffer {
         return s;
     }
 
-    /** ------------------------------ OakScopedReadBuffer ------------------------------ **/
+    // ------------------------------ OakScopedReadBuffer ------------------------------
     
     @Override
     public int capacity() {
@@ -87,40 +87,21 @@ class ScopedReadBuffer implements OakScopedReadBuffer, OakUnsafeDirectBuffer {
         return DirectUtils.getDouble(getDataAddress(index));
     }
 
-    /** ------------------------------ OakUnsafeDirectBuffer ------------------------------ **/
-    
-    /**
-     * Allows access to the underlying ByteBuffer of Oak.
-     * This buffer might contain data that is unrelated to the context in which this object was introduced.
-     * For example, it might contain internal Oak data and other user data.
-     * Thus, the developer should use getOffset() and getLength() to validate the data boundaries.
-     * Note 1: depending on the context (casting from OakScopedReadBuffer or OakScopedWriteBuffer), the buffer mode
-     * might be ready only.
-     * Note 2: the buffer internal state (e.g., byte order, position, limit and so on) should not be modified as this
-     * object might be shared and used elsewhere.
-     *
-     * @return the underlying ByteBuffer.
-     */
-    @Override public ByteBuffer getByteBuffer() { 
+    // ------------------------------ OakUnsafeDirectBuffer ------------------------------
+
+    @Override
+    public ByteBuffer getByteBuffer() {
         return DirectUtils.wrapAddress(s.getAddress(), capacity());
     }
 
-    /**
-     * @return the data length.
-     */
-    @Override public int getLength() {
+    @Override
+    public int getLength() {
         assert s.isAssociated();
         return s.getLength();
     }
 
-    /**
-     * Allows access to the memory address of the OakUnsafeDirectBuffer of Oak.
-     * The address will point to the beginning of the user data, but avoiding overflow is the developer responsibility.
-     * Thus, the developer should use getLength() and access data only in this boundary.
-     *
-     * @return the exact memory address of the Buffer in the position of the data.
-     */
-    @Override public long getAddress() {
+    @Override
+    public long getAddress() {
         return s.getAddress();
     }
 }
