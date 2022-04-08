@@ -91,7 +91,7 @@ class ScopedReadBuffer implements OakScopedReadBuffer, OakUnsafeDirectBuffer {
 
     @Override
     public ByteBuffer getByteBuffer() {
-        return DirectUtils.wrapAddress(s.getAddress(), capacity());
+        return DirectUtils.wrapAddress(s.getAddress(), capacity()).asReadOnlyBuffer();
     }
 
     @Override
