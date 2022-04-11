@@ -116,7 +116,7 @@ class UnscopedBuffer<B extends ScopedReadBuffer> implements OakUnscopedBuffer, O
 
     @Override
     public ByteBuffer getByteBuffer() {
-        return DirectUtils.wrapAddress(internalScopedReadBuffer.getAddress(), internalScopedReadBuffer.capacity());
+        return internalScopedReadBuffer.getByteBuffer();
     }
 
     @Override

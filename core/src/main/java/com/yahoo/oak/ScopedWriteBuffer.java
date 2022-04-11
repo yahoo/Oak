@@ -6,6 +6,7 @@
 
 package com.yahoo.oak;
 
+import java.nio.ByteBuffer;
 import java.util.function.Consumer;
 
 /**
@@ -112,5 +113,10 @@ final class ScopedWriteBuffer extends ScopedReadBuffer implements OakScopedWrite
         validateAccess();
         DirectUtils.putDouble(getDataAddress(index), value);
         return this;
+    }
+
+    @Override
+    public ByteBuffer getByteBuffer() {
+        return DirectUtils.wrapAddress(getAddress(), capacity());
     }
 }
