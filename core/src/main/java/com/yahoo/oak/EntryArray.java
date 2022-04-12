@@ -6,45 +6,25 @@
 
 package com.yahoo.oak;
 
-import sun.misc.Unsafe;
-
-import java.util.Arrays;
 import java.util.concurrent.atomic.AtomicInteger;
 
-/*
-* EntryArray is array of entries based on primitive array of longs.
-* Entry must include at least Key Reference and Value Reference fields, but might include more.
-*
-* Entries Array:
- * --------------------------------------------------------------------------------------
- * 0 | Key Reference          | Reference encoding all info needed to           |
- *   |                        | access the key off-heap                         | entry with
- * -----------------------------------------------------------------------------| entry index
- * 1 | Value Reference        | Reference encoding all info needed to           | 0
- *   |                        | access the key off-heap.                        |
- *   |                        | The encoding of key and value can be different  | entry that
- * -----------------------------------------------------------------------------| was allocated
- * 2 |  Optional additional entry's 0 field, set by derived class               | first
- * ---------------------------------------------------------------------------------------
- * 3 | Key Reference          | Reference encoding all info needed to           |
- *   |                        | access the key off-heap                         |
- * -----------------------------------------------------------------------------| entry with
- * 4 | Value Reference        | Reference encoding all info needed to           | entry index
- *   |                        | access the key off-heap.                        | 1
- * -----------------------------------------------------------------------------|
- * 5 | Optional additional entry's 1 field, set by derived class                |
- * ---------------------------------------------------------------------------------------
- * 6 | Key Reference          | Reference encoding all info needed to           |
- *   |                        | access the key off-heap                         |
- * -----------------------------------------------------------------------------| entry with
- * 7 | Value Reference        | Reference encoding all info needed to           | entry index
- *   |                        | access the key off-heap.                        | 2
- * -----------------------------------------------------------------------------|
- * 8 | Optional additional entry's 2 field, set by derived class                |
- * ---------------------------------------------------------------------------------------
- * ...
+/**
+ * Entry includes a key and a value references, but might include more.
  *
-* */
+ * Entry's fields:
+ * ----------------------------------------------------------------------------------------
+ *   0 | Key Reference: Reference encoding all info needed to access the key off-heap     |
+ * ---------------------------------------------------------------------------------------|
+ *   1 | Value Reference: Reference encoding all info needed to  access the key off-heap. |
+ *     |                  The encoding of key and value can be different                  |
+ * ---------------------------------------------------------------------------------------|
+ *   2 |  Optional additional entry, set by derived class                                 |
+ * ---------------------------------------------------------------------------------------|
+ *   3 |  Optional additional entry, set by derived class                                 |
+ * ---------------------------------------------------------------------------------------|
+ * ... |  Optional additional entry, set by derived class                                 |
+ * ----------------------------------------------------------------------------------------
+ */
 public class EntryArray<K, V> {
     /***
      * KEY_REF_OFFSET - offset in primitive fields of one entry, to a reference as coded by
@@ -59,12 +39,8 @@ public class EntryArray<K, V> {
     protected static final int OPT_FIELD_OFFSET = 2;
     static final int INVALID_ENTRY_INDEX = -1;
 
-    final OakSharedConfig<K, V> config;
-
-    private final long[] entries;    // array is initialized to 0 - this is important!
-    private final int fields;  // # of primitive fields in each item of entries array
-
-    final int entriesCapacity; // number of entries (not longs) to be maximally held
+    protected final OakSharedConfig<K, V> config;
+    protected final EntryArrayInternal array;
 
     // Counts number of entries inserted & not deleted. Pay attention that not all entries (counted
     // in number of entries) are finally considered existing by the Chunk above
@@ -78,10 +54,9 @@ public class EntryArray<K, V> {
      */
     EntryArray(OakSharedConfig<K, V> config, int additionalFieldCount, int entriesCapacity) {
         this.config = config;
-        this.fields = additionalFieldCount + 2; // +2 for key and value references that always exist
-        this.entries = new long[entriesCapacity * this.fields];
+        // +2 for key and value references that always exist
+        this.array = new EntryArrayHeap(entriesCapacity, additionalFieldCount + 2);
         this.numOfEntries = new AtomicInteger(0);
-        this.entriesCapacity = entriesCapacity;
     }
 
     /**
@@ -92,7 +67,7 @@ public class EntryArray<K, V> {
      * NOT THREAD SAFE !!!
      */
     protected void clear() {
-        Arrays.fill(entries, 0);
+        array.clear();
         numOfEntries.set(0);
     }
 
@@ -146,21 +121,6 @@ public class EntryArray<K, V> {
     /*---------------- Methods for setting and getting specific entry's field ------------------*/
 
     /**
-     * Converts external entry-index to internal array index.
-     * <p>
-     * We use the following terminology:
-     *  - longIdx for the long's index inside the entries array (referred as a set of longs)
-     *  - entryIdx for the index of entry array (referred as a set of entries)
-     *
-     * @param entryIdx external entry-index
-     * @return the internal array index
-     */
-    private int entryIdx2LongIdx(int entryIdx) {
-        return entryIdx * fields;
-    }
-
-
-    /**
      * Returns the number of entries allocated and not deleted for this EntryArray instance.
      * Although, in case instance is used as an linked list, nextFreeIndex is can be used to calculate
      * number of entries, additional variable is used to support OakHash
@@ -169,31 +129,6 @@ public class EntryArray<K, V> {
         return numOfEntries.get();
     }
 
-    /**
-     * Atomically reads long field of the entries array.
-     */
-    protected long getEntryFieldLong(int entryIndex, int entryOffset) {
-        return entries[entryIdx2LongIdx(entryIndex) + entryOffset];
-    }
-
-    protected void setEntryFieldLong(int entryIndex, int entryOffset, long value) {
-        entries[entryIdx2LongIdx(entryIndex) + entryOffset] = value;
-    }
-
-    /**
-     * Performs CAS of given long field of the entries longs array,
-     * that should be associated with some entry.
-     * CAS from 'expectedLongValue' to 'newLongValue' for field at specified offset
-     *
-     */
-    protected boolean casEntryFieldLong(int entryIndex, int entryOffset, long expectedLongValue,
-                                      long newLongValue) {
-        int index = Unsafe.ARRAY_LONG_BASE_OFFSET +
-                (entryIdx2LongIdx(entryIndex) + entryOffset) * Unsafe.ARRAY_LONG_INDEX_SCALE;
-        return DirectUtils.UNSAFE.compareAndSwapLong(entries, index, expectedLongValue, newLongValue);
-    }
-
-
     /********************************************************************************************/
     /*--------------- Methods for setting and getting specific key and/or value ----------------*/
 
@@ -201,14 +136,14 @@ public class EntryArray<K, V> {
      * Atomically reads the key reference from the entry (given by entry index "ei")
      */
     protected long getKeyReference(int ei) {
-        return getEntryFieldLong(ei, KEY_REF_OFFSET);
+        return array.getEntryFieldLong(ei, KEY_REF_OFFSET);
     }
 
     /**
      * Atomically writes the key reference to the entry (given by entry index "ei")
      */
     protected void setKeyReference(int ei, long value) {
-        setEntryFieldLong(ei, KEY_REF_OFFSET, value);
+        array.setEntryFieldLong(ei, KEY_REF_OFFSET, value);
     }
 
     /**
@@ -216,7 +151,7 @@ public class EntryArray<K, V> {
      * "keyRefNew" only if it was "keyRefOld". The method serves external EntryArray users.
      */
     protected boolean casKeyReference(int ei, long keyRefOld, long keyRefNew) {
-        return casEntryFieldLong(ei, KEY_REF_OFFSET, keyRefOld, keyRefNew);
+        return array.casEntryFieldLong(ei, KEY_REF_OFFSET, keyRefOld, keyRefNew);
     }
 
     /**
@@ -225,7 +160,7 @@ public class EntryArray<K, V> {
      * For long arrays, it is also promised in the 32-bit JVM.
      */
     protected long getValueReference(int ei) {
-        return getEntryFieldLong(ei, VALUE_REF_OFFSET);
+        return array.getEntryFieldLong(ei, VALUE_REF_OFFSET);
     }
 
     /**
@@ -234,19 +169,7 @@ public class EntryArray<K, V> {
      * The method serves external EntryArray users.
      */
     protected boolean casValueReference(int ei, long valueRefOld, long valueRefNew) {
-        return casEntryFieldLong(ei, VALUE_REF_OFFSET, valueRefOld, valueRefNew);
-    }
-
-    protected void copyEntriesFrom(EntryArray<K, V> other, int srcEntryIdx, int destEntryIndex, int fieldCount) {
-        // ARRAY COPY: using next as the base of the entry
-        // copy both the key and the value references and integer for future use => 5 integers via array copy
-        // the first field in an entry is next, and it is not copied since it should be assigned elsewhere
-        // therefore, to copy the rest of the entry we use the offset of next (which we assume is 0) and
-        // add 1 to start the copying from the subsequent field of the entry.
-        System.arraycopy(other.entries,  // source entries array
-                entryIdx2LongIdx(srcEntryIdx),
-                entries,                        // this entries array
-                entryIdx2LongIdx(destEntryIndex), fieldCount);
+        return array.casEntryFieldLong(ei, VALUE_REF_OFFSET, valueRefOld, valueRefNew);
     }
 
     /**
@@ -366,7 +289,7 @@ public class EntryArray<K, V> {
 
     protected boolean isIndexInBound(int ei) {
         // The actual capacity is (entriesCapacity-1) because the first entry is a dummy.
-        return (ei != INVALID_ENTRY_INDEX && ei < entriesCapacity);
+        return (ei != INVALID_ENTRY_INDEX && ei < array.entryCount());
     }
 
     /********************************************************************************************/

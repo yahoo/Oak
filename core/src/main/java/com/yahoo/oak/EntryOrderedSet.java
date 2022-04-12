@@ -11,7 +11,8 @@ import com.yahoo.oak.ValueUtils.ValueResult;
 import java.util.concurrent.atomic.AtomicInteger;
 
 
-/* EntryOrderedSet keeps a set of entries linked to a link list. Entry is reference to key and value, both located
+/**
+ * EntryOrderedSet keeps a set of entries linked to a link list. Entry is reference to key and value, both located
  * off-heap. EntryOrderedSet provides access, updates and manipulation on each entry, provided its index.
  *
  * Entry is a set of at least 2 fields (consecutive longs), part of "entries" int array. The definition
@@ -19,35 +20,15 @@ import java.util.concurrent.atomic.AtomicInteger;
  * way (also explained below). The bits manipulations are ReferenceCodec responsibility.
  * Please update with care.
  *
- * Entries Array:
- * --------------------------------------------------------------------------------------
- * 0 | Key Reference          | Reference encoding all info needed to           |
- *   |                        | access the key off-heap                         | entry with
- * -----------------------------------------------------------------------------| entry index
- * 1 | Value Reference        | Reference encoding all info needed to           | 0
- *   |                        | access the key off-heap.                        |
- *   |                        | The encoding of key and value can be different  | entry that
- * -----------------------------------------------------------------------------| was allocated
- * 2 | NEXT  - entry index of the entry following the entry with entry index 0  | first
- * ---------------------------------------------------------------------------------------
- * 3 | Key Reference          | Reference encoding all info needed to           |
- *   |                        | access the key off-heap                         |
- * -----------------------------------------------------------------------------| entry with
- * 4 | Value Reference        | Reference encoding all info needed to           | entry index
- *   |                        | access the key off-heap.                        | 1
- * -----------------------------------------------------------------------------|
- * 5 | NEXT  - entry index of the entry following the entry with entry index 1  |
- * ---------------------------------------------------------------------------------------
- * 6 | Key Reference          | Reference encoding all info needed to           |
- *   |                        | access the key off-heap                         |
- * -----------------------------------------------------------------------------| entry with
- * 7 | Value Reference        | Reference encoding all info needed to           | entry index
- *   |                        | access the key off-heap.                        | 2
- * -----------------------------------------------------------------------------|
- * 8 | NEXT  - entry index of the entry following the entry with entry index 2  |
- * ---------------------------------------------------------------------------------------
- * ...
- *
+ * Entry's fields:
+ * ----------------------------------------------------------------------------------------
+ *   0 | Key Reference: Reference encoding all info needed to access the key off-heap     |
+ * ---------------------------------------------------------------------------------------|
+ *   1 | Value Reference: Reference encoding all info needed to  access the key off-heap. |
+ *     |                  The encoding of key and value can be different                  |
+ * ---------------------------------------------------------------------------------------|
+ *   2 | Next: entry index of the entry following this entry                              |
+ * ----------------------------------------------------------------------------------------
  *
  * Internal class, package visibility
  */
@@ -99,7 +80,7 @@ class EntryOrderedSet<K, V> extends EntryArray<K, V> {
         if (!isIndexInBound(ei)) {
             return INVALID_ENTRY_INDEX;
         }
-        return (int) getEntryFieldLong(ei, NEXT_FIELD_OFFSET);
+        return (int) array.getEntryFieldLong(ei, NEXT_FIELD_OFFSET);
     }
 
     /**
@@ -109,7 +90,7 @@ class EntryOrderedSet<K, V> extends EntryArray<K, V> {
      */
     void setNextEntryIndex(int ei, int next) {
         assert ei <= nextFreeIndex.get() && next <= nextFreeIndex.get();
-        setEntryFieldLong(ei, NEXT_FIELD_OFFSET, next);
+        array.setEntryFieldLong(ei, NEXT_FIELD_OFFSET, next);
     }
 
     /**
@@ -127,7 +108,7 @@ class EntryOrderedSet<K, V> extends EntryArray<K, V> {
      * The method serves external EntryOrderedSet users.
      */
     boolean casNextEntryIndex(int ei, int nextOld, int nextNew) {
-        return casEntryFieldLong(ei, NEXT_FIELD_OFFSET, nextOld, nextNew);
+        return array.casEntryFieldLong(ei, NEXT_FIELD_OFFSET, nextOld, nextNew);
     }
 
     /**
@@ -219,7 +200,7 @@ class EntryOrderedSet<K, V> extends EntryArray<K, V> {
         // This is ABA problem and resolved via always changing deleted variation of the reference
         // Also value's off-heap slice is released to memory manager only after deleteValueFinish
         // is done.
-        if (casEntryFieldLong(ctx.entryIndex, VALUE_REF_OFFSET, expectedReference, newReference)) {
+        if (array.casEntryFieldLong(ctx.entryIndex, VALUE_REF_OFFSET, expectedReference, newReference)) {
             assert config.valuesMemoryManager.isReferenceConsistent(getValueReference(ctx.entryIndex));
             numOfEntries.getAndDecrement();
             ctx.value.getSlice().release();
@@ -281,7 +262,7 @@ class EntryOrderedSet<K, V> extends EntryArray<K, V> {
         // the first field in an entry is next, and it is not copied since it should be assigned elsewhere
         // therefore, to copy the rest of the entry we use the offset of next (which we assume is 0) and
         // add 1 to start the copying from the subsequent field of the entry.
-        copyEntriesFrom(srcEntryOrderedSet, srcEntryIdx, destEntryIndex, 2);
+        array.copyEntryFrom(srcEntryOrderedSet.array, srcEntryIdx, destEntryIndex, 2);
 
         assert config.valuesMemoryManager.isReferenceConsistent(getValueReference(destEntryIndex));
         assert config.keysMemoryManager.isReferenceConsistent(getKeyReference(destEntryIndex));
@@ -315,19 +296,19 @@ class EntryOrderedSet<K, V> extends EntryArray<K, V> {
 
         return true;
     }
-    
+
     void releaseAllDeletedKeys() {
         KeyBuffer key = new KeyBuffer(config.keysMemoryManager.getEmptySlice());
         for (int i = 0; i < numOfEntries.get() ; i++) {
             if (!config.valuesMemoryManager.isReferenceDeleted(getValueReference(i))) {
                 continue;
             }
-            
+
             long keyRef = getKeyReference(i);
             if (!key.s.decodeReference(keyRef) || key.s.logicalDelete() != ValueResult.TRUE) {
                 continue;
             }
-            
+
             setKeyReference(i, config.keysMemoryManager.alterReferenceForDelete(keyRef));
             key.s.release();
         }
