@@ -809,8 +809,9 @@ class InternalOakHash<K, V> extends InternalOakBasics<K, V> {
         }
 
         public T next() {
+            ValueUtils.ValueResult res;
             advance(true);
-            ValueUtils.ValueResult res = ctx.value.s.preRead();
+            res = ctx.value.s.preRead();        
             if (res == ValueUtils.ValueResult.FALSE) {
                 return next();
             } else if (res == ValueUtils.ValueResult.RETRY) {
@@ -827,7 +828,11 @@ class InternalOakHash<K, V> extends InternalOakBasics<K, V> {
                     new AbstractMap.SimpleEntry<>(ctx.key, ctx.value);
 
             T transformation = transformer.apply(entry);
-            ctx.value.s.postRead();
+            try {
+                ctx.value.s.postRead();
+            } catch (DeletedMemoryAccessException e) {
+                return next();
+            }
             return transformation;
         }
     }

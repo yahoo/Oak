@@ -701,7 +701,8 @@ class OrderedChunk<K, V> extends BasicChunk<K, V> {
         abstract boolean isKeyOutOfEndBound(OakScopedReadBuffer boundKey) throws DeletedMemoryAccessException;
 
         protected void setIsEndBoundCheckNeeded(
-            ThreadContext ctx, K to, boolean toInclusive, OakScopedReadBuffer chunkBoundaryKey) throws DeletedMemoryAccessException {
+            ThreadContext ctx, K to, boolean toInclusive, OakScopedReadBuffer chunkBoundaryKey) 
+                    throws DeletedMemoryAccessException {
             this.endBound = to;
             this.endBoundInclusive = toInclusive;
 
@@ -854,7 +855,8 @@ class OrderedChunk<K, V> extends BasicChunk<K, V> {
             initNext(tempKeyBuff);
         }
 
-        DescendingIter(ThreadContext ctx, K from, boolean fromInclusive, K to, boolean toInclusive) throws DeletedMemoryAccessException {
+        DescendingIter(ThreadContext ctx, K from, boolean fromInclusive, K to, boolean toInclusive)
+                throws DeletedMemoryAccessException {
             KeyBuffer tempKeyBuff = ctx.tempKey;
 
             this.from = from;
@@ -921,7 +923,8 @@ class OrderedChunk<K, V> extends BasicChunk<K, V> {
          * @param firstTimeInvocation
          * @throws DeletedMemoryAccessException 
          */
-        private void traverseLinkedList(KeyBuffer tempKeyBuff, boolean firstTimeInvocation) throws DeletedMemoryAccessException {
+        private void traverseLinkedList(KeyBuffer tempKeyBuff, boolean firstTimeInvocation) 
+                throws DeletedMemoryAccessException {
             assert stack.size() == 1;   // anchor is in the stack
             if (prevAnchor == entryOrderedSet.getNextEntryIndex(anchor)) {
                 next = NONE_NEXT;   // there is no next;

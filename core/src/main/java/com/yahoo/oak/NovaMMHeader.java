@@ -47,10 +47,11 @@ class NovaMMHeader {
     }
     
     
-    ValueUtils.ValueResult preRead(final int onHeapVersion, long headerAddress) throws DeletedMemoryAccessException {
+    ValueUtils.ValueResult preRead(final int onHeapVersion, long headerAddress) {
         long offHeapHeader = getOffHeapHeader(headerAddress);
         if (RC.isReferenceDeleted(offHeapHeader)) {
-            throw new DeletedMemoryAccessException();
+            return ValueUtils.ValueResult.FALSE;
+            //throw new DeletedMemoryAccessException();
         }
         return ValueUtils.ValueResult.TRUE;
     }

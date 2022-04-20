@@ -170,7 +170,8 @@ abstract class InternalOakBasics<K, V> {
                 chunk.lookUp(ctx, key);
             } catch (DeletedMemoryAccessException e) {
                 continue;
-            }            if (!ctx.isValueValid()) {
+            }
+            if (!ctx.isValueValid()) {
                 return null;
             }
 
@@ -187,7 +188,8 @@ abstract class InternalOakBasics<K, V> {
         throw new RuntimeException("replace failed: reached retry limit (1024).");
     }
 
-    boolean replace(K key, V oldValue, V newValue, OakTransformer<V> valueDeserializeTransformer) throws DeletedMemoryAccessException {
+    boolean replace(K key, V oldValue, V newValue, OakTransformer<V> valueDeserializeTransformer) 
+            throws DeletedMemoryAccessException {
         ThreadContext ctx = getThreadContext();
 
         for (int i = 0; i < MAX_RETRIES; i++) {
@@ -474,7 +476,8 @@ abstract class InternalOakBasics<K, V> {
 
         protected abstract BasicChunk<K, V> getNextChunk(BasicChunk<K, V> current);
 
-        protected abstract BasicChunk.BasicChunkIter getChunkIter(BasicChunk<K, V> current) throws DeletedMemoryAccessException;
+        protected abstract BasicChunk.BasicChunkIter getChunkIter(BasicChunk<K, V> current)
+                throws DeletedMemoryAccessException;
 
         /**
          * advance state to the new position
@@ -496,7 +499,7 @@ abstract class InternalOakBasics<K, V> {
                         return false;
                     }
                     try {
-                    chunkIter = getChunkIter(chunk);
+                        chunkIter = getChunkIter(chunk);
                     } catch (DeletedMemoryAccessException e) {
                         continue;
                     }

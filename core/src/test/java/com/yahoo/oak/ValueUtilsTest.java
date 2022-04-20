@@ -279,7 +279,11 @@ public class ValueUtilsTest {
         int a = getInt(0);
         int b = getInt(4);
         int c = getInt(8);
-        s.getSlice().postRead();
+        try {
+            s.getSlice().postRead();
+        } catch (DeletedMemoryAccessException e) {
+            e.printStackTrace();
+        }
         putter.join();
         Assert.assertNotEquals(randomValues[0], a);
         Assert.assertNotEquals(randomValues[1], b);
@@ -413,7 +417,11 @@ public class ValueUtilsTest {
         for (int i = 0; i < 3; i++) {
             results[i] = getInt(i * 4);
         }
-        s.getSlice().postRead();
+        try {
+            s.getSlice().postRead();
+        } catch (DeletedMemoryAccessException e) {
+            e.printStackTrace();
+        }
         computer.join();
         Assert.assertArrayEquals(randomValues, results);
     }

@@ -946,10 +946,10 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
             K nextKey = null;
             while (true) {
                 while (!getState().getChunk().readKeyFromEntryIndex(ctx.tempKey, getState().getIndex())) {
-                        advanceState();
-                        if (getState() == null) {
-                            throw new NoSuchElementException();
-                        }
+                    advanceState();
+                    if (getState() == null) {
+                        throw new NoSuchElementException();
+                    }
                 }
                 nextKey = null;
                 try {
@@ -1082,8 +1082,8 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
                         if (nextOrderedChunk != null) {
                             OakScopedReadBuffer upperBoundKeyForChunk = getNextChunkMinKey(nextOrderedChunk);
                             nextChunkIter = lowerBound != null ?
-                                nextOrderedChunk.ascendingIter(ctx, lowerBound, lowerInclusive, upperBound, upperInclusive,
-                                    upperBoundKeyForChunk)
+                                nextOrderedChunk.ascendingIter
+                                (ctx, lowerBound, lowerInclusive, upperBound, upperInclusive, upperBoundKeyForChunk)
                                 : nextOrderedChunk
                                 .ascendingIter(ctx, upperBound, upperInclusive, upperBoundKeyForChunk);
                         } else {
@@ -1111,6 +1111,7 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
                 } catch (DeletedMemoryAccessException e) {
                     continue;
                 }
+                return;
             }
             throw new RuntimeException("put failed: reached retry limit (1024).");
         }
@@ -1310,8 +1311,9 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
         }
 
         public T next() {
+            ValueUtils.ValueResult res;
             advance(true);
-            ValueUtils.ValueResult res = ctx.value.s.preRead();
+            res = ctx.value.s.preRead();
             if (res == ValueUtils.ValueResult.FALSE) {
                 return next();
             } else if (res == ValueUtils.ValueResult.RETRY) {
@@ -1328,7 +1330,12 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
                     new AbstractMap.SimpleEntry<>(ctx.key, ctx.value);
 
             T transformation = transformer.apply(entry);
-            ctx.value.s.postRead();
+            try {
+                ctx.value.s.postRead();
+            } catch (DeletedMemoryAccessException e) {
+                return next();
+            }
+
             return transformation;
         }
     }

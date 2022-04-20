@@ -44,7 +44,11 @@ class UnscopedValueBufferSynced extends UnscopedBuffer<ValueBuffer> {
         try {
             return transformer.apply(internalScopedReadBuffer);
         } finally {
-            end();
+            try {
+                end();
+            } catch (DeletedMemoryAccessException e) {
+                throw new RuntimeException();
+            }
         }
     }
 
@@ -56,7 +60,11 @@ class UnscopedValueBufferSynced extends UnscopedBuffer<ValueBuffer> {
         try {
             return getter.get(internalScopedReadBuffer, index);
         } finally {
-            end();
+            try {
+                end();
+            } catch (DeletedMemoryAccessException e) {
+                throw new RuntimeException();
+            }
         }
     }
 
@@ -78,7 +86,7 @@ class UnscopedValueBufferSynced extends UnscopedBuffer<ValueBuffer> {
         throw new RuntimeException("Op failed: reached retry limit (1024).");
     }
 
-    private void end() {
+    private void end() throws DeletedMemoryAccessException {
         internalScopedReadBuffer.s.postRead();
     }
 

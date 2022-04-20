@@ -275,7 +275,7 @@ public class OakMap<K, V> extends AbstractMap<K, V>
             
             try {
                 return internalOakMap.lowerEntry(key);
-            } catch(DeletedMemoryAccessException e) {
+            } catch (DeletedMemoryAccessException e) {
                 continue;
             }
         }
@@ -302,7 +302,7 @@ public class OakMap<K, V> extends AbstractMap<K, V>
 
             try {
                 return internalOakMap.lowerEntry(key).getKey();
-            } catch(DeletedMemoryAccessException e) {
+            } catch (DeletedMemoryAccessException e) {
                 continue;
             }
         }

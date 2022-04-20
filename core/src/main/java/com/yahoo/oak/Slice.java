@@ -118,7 +118,7 @@ interface Slice {
      * {@code FALSE} if the value is marked as deleted
      * {@code RETRY} if the value was moved, or the version of the off-heap value does not match {@code version}.
      */
-    ValueUtils.ValueResult postRead();
+    ValueUtils.ValueResult postRead() throws DeletedMemoryAccessException;
 
     /**
      * Acquires a write lock
