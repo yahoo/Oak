@@ -267,12 +267,20 @@ public class OakMap<K, V> extends AbstractMap<K, V>
         if (this.isSubmap()) {
             throw new UnsupportedOperationException();
         }
+        for (int i = 0; i < InternalOakBasics.MAX_RETRIES; i++) {
 
-        if (key == null) {
-            throw new NullPointerException();
+            if (key == null) {
+                throw new NullPointerException();
+            }
+            
+            try {
+                return internalOakMap.lowerEntry(key);
+            } catch(DeletedMemoryAccessException e) {
+                continue;
+            }
         }
 
-        return internalOakMap.lowerEntry(key);
+        throw new RuntimeException("replace failed: reached retry limit (1024).");
     }
 
     /**
@@ -290,7 +298,16 @@ public class OakMap<K, V> extends AbstractMap<K, V>
             throw new NullPointerException();
         }
 
-        return internalOakMap.lowerEntry(key).getKey();
+        for (int i = 0; i < InternalOakBasics.MAX_RETRIES; i++) {
+
+            try {
+                return internalOakMap.lowerEntry(key).getKey();
+            } catch(DeletedMemoryAccessException e) {
+                continue;
+            }
+        }
+
+        throw new RuntimeException("replace failed: reached retry limit (1024).");
     }
 
 

@@ -66,7 +66,7 @@ abstract class BasicChunk<K, V> {
 
     abstract boolean readValueFromEntryIndex(ValueBuffer value, int ei);
 
-    abstract void lookUp(ThreadContext ctx, K key);
+    abstract void lookUp(ThreadContext ctx, K key) throws DeletedMemoryAccessException;
 
     /*-------------- Publishing related methods and getters ---------------*/
     /**

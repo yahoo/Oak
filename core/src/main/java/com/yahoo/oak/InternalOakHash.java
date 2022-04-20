@@ -269,7 +269,11 @@ class InternalOakHash<K, V> extends InternalOakBasics<K, V> {
         for (int i = 0; i < MAX_RETRIES; i++) {
             // find chunk matching key, puts this key hash into ctx.operationKeyHash
             BasicChunk<K, V> c = findChunk(key, ctx);
-            c.lookUp(ctx, key);
+            try {
+                c.lookUp(ctx, key);
+            } catch (DeletedMemoryAccessException e) {
+                continue;
+            }
             if (!ctx.isValueValid()) {
                 return false;
             }
@@ -407,8 +411,11 @@ class InternalOakHash<K, V> extends InternalOakBasics<K, V> {
         for (int i = 0; i < MAX_RETRIES; i++) {
             // find chunk matching key, puts this key hash into ctx.operationKeyHash
             BasicChunk<K, V> c = findChunk(key, ctx);
-            c.lookUp(ctx, key);
-
+            try {
+                c.lookUp(ctx, key);
+            } catch (DeletedMemoryAccessException e) {
+                continue;
+            }
             if (ctx.isValueValid()) {
                 ValueUtils.ValueResult res = config.valueOperator.compute(ctx.value, computer);
                 if (res == ValueUtils.ValueResult.TRUE) {
@@ -441,8 +448,11 @@ class InternalOakHash<K, V> extends InternalOakBasics<K, V> {
         for (int i = 0; i < MAX_RETRIES; i++) {
             // find chunk matching key, puts this key hash into ctx.operationKeyHash
             BasicChunk<K, V> c = findChunk(key, ctx);
-            c.lookUp(ctx, key);
-
+            try {
+                c.lookUp(ctx, key);
+            } catch (DeletedMemoryAccessException e) {
+                continue;
+            }
             if (!ctx.isKeyValid()) {
                 // There is no such key. If we did logical deletion and someone else did the physical deletion,
                 // then the old value is saved in v. Otherwise v is (correctly) null

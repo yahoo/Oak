@@ -231,8 +231,9 @@ class OrderedChunk<K, V> extends BasicChunk<K, V> {
      * @param key         the key to compare
      * @param ei          the entry index to compare with
      * @return the comparison result
+     * @throws DeletedMemoryAccessException 
      */
-    int compareKeyAndEntryIndex(KeyBuffer tempKeyBuff, K key, int ei) {
+    int compareKeyAndEntryIndex(KeyBuffer tempKeyBuff, K key, int ei) throws DeletedMemoryAccessException {
         boolean isAllocated = entryOrderedSet.readKey(tempKeyBuff, ei);
         if (!isAllocated) {
             throw new DeletedMemoryAccessException();
@@ -260,8 +261,9 @@ class OrderedChunk<K, V> extends BasicChunk<K, V> {
      *                   This means that there is an entry with that key, but there is no value attached to this key.
      *                   Such entry can be reused after finishing the deletion process, if needed.
      * @param key the key to look up
+     * @throws DeletedMemoryAccessException 
      */
-    void lookUp(ThreadContext ctx, K key) {
+    void lookUp(ThreadContext ctx, K key) throws DeletedMemoryAccessException {
         // binary search sorted part of key array to quickly find node to start search at
         // it finds previous-to-key
         int curr = binaryFind(ctx.tempKey, key);
@@ -303,8 +305,9 @@ class OrderedChunk<K, V> extends BasicChunk<K, V> {
      * (1) the given key is less or equal than the smallest key in the chunk OR
      * (2) entries are unsorted so there is a need to start from the beginning of the linked list
      * NONE_NEXT is going to be returned
+     * @throws DeletedMemoryAccessException 
      */
-    private int binaryFind(KeyBuffer tempKey, K key) {
+    private int binaryFind(KeyBuffer tempKey, K key) throws DeletedMemoryAccessException {
         int sortedCount = this.sortedCount.get();
         // if there are no sorted keys, return NONE_NEXT to indicate that a regular linear search is needed
         if (sortedCount == 0) {
@@ -380,8 +383,9 @@ class OrderedChunk<K, V> extends BasicChunk<K, V> {
      * @param key the key to link
      * @return The previous entry index if the key was already added by another thread.
      *         Otherwise, if successful, it will return the current entry index.
+     * @throws DeletedMemoryAccessException 
      */
-    int linkEntry(ThreadContext ctx, K key) {
+    int linkEntry(ThreadContext ctx, K key) throws DeletedMemoryAccessException {
         int prev;
         int curr;
         int cmp;
@@ -629,9 +633,10 @@ class OrderedChunk<K, V> extends BasicChunk<K, V> {
      * Ascending iterator from the beginning of the chunk. The end boundary is given by parameter
      * key "to" might not be in this chunk. Parameter nextChunkMinKey - is the minimal key of the
      * next chunk, all current and future keys of this chunk are less than nextChunkMinKey
+     * @throws DeletedMemoryAccessException 
      */
     AscendingIter ascendingIter(ThreadContext ctx, K to, boolean toInclusive,
-        OakScopedReadBuffer nextChunkMinKey) {
+        OakScopedReadBuffer nextChunkMinKey) throws DeletedMemoryAccessException {
         return new AscendingIter(ctx, to, toInclusive, nextChunkMinKey);
     }
 
@@ -640,26 +645,29 @@ class OrderedChunk<K, V> extends BasicChunk<K, V> {
      * The end boundary is given by parameter key "to", but it might not be in this chunk.
      * Parameter nextChunkMinKey - is the minimal key of the next chunk,
      * all current and future keys of this chunk are less than nextChunkMinKey
+     * @throws DeletedMemoryAccessException 
      */
     AscendingIter ascendingIter(ThreadContext ctx, K from, boolean fromInclusive, K to,
-        boolean toInclusive, OakScopedReadBuffer nextChunkMinKey) {
+        boolean toInclusive, OakScopedReadBuffer nextChunkMinKey) throws DeletedMemoryAccessException {
         return new AscendingIter(ctx, from, fromInclusive, to, toInclusive, nextChunkMinKey);
     }
 
     /**
      * Descending iterator from the end of the chunk.
      * The lower bound given by parameter key "to" might not be in this chunk
+     * @throws DeletedMemoryAccessException 
      */
-    DescendingIter descendingIter(ThreadContext ctx, K to, boolean toInclusive) {
+    DescendingIter descendingIter(ThreadContext ctx, K to, boolean toInclusive) throws DeletedMemoryAccessException {
         return new DescendingIter(ctx, to, toInclusive);
     }
 
     /**
      * Descending iterator from key "from" given as parameter.
      * The lower bound given by parameter key "to" might not be in this chunk
+     * @throws DeletedMemoryAccessException 
      */
     DescendingIter descendingIter(ThreadContext ctx, K from, boolean fromInclusive, K to,
-        boolean toInclusive) {
+        boolean toInclusive) throws DeletedMemoryAccessException {
         return new DescendingIter(ctx, from, fromInclusive, to, toInclusive);
     }
 
@@ -690,10 +698,10 @@ class OrderedChunk<K, V> extends BasicChunk<K, V> {
         ** meaning that scan is near to its end.
         ** For descending scan it is the low key, for ascending scan it is the high.
         **/
-        abstract boolean isKeyOutOfEndBound(OakScopedReadBuffer boundKey);
+        abstract boolean isKeyOutOfEndBound(OakScopedReadBuffer boundKey) throws DeletedMemoryAccessException;
 
         protected void setIsEndBoundCheckNeeded(
-            ThreadContext ctx, K to, boolean toInclusive, OakScopedReadBuffer chunkBoundaryKey) {
+            ThreadContext ctx, K to, boolean toInclusive, OakScopedReadBuffer chunkBoundaryKey) throws DeletedMemoryAccessException {
             this.endBound = to;
             this.endBoundInclusive = toInclusive;
 
@@ -726,14 +734,18 @@ class OrderedChunk<K, V> extends BasicChunk<K, V> {
     class AscendingIter extends ChunkIter {
 
         AscendingIter(ThreadContext ctx, K to, boolean toInclusive,
-            OakScopedReadBuffer nextChunkMinKey) {
+            OakScopedReadBuffer nextChunkMinKey) throws DeletedMemoryAccessException {
             next = entryOrderedSet.getHeadNextEntryIndex();
             next = advanceNextIndexNoBound(next, ctx);
-            setIsEndBoundCheckNeeded(ctx, to, toInclusive, nextChunkMinKey);
+            try {
+                setIsEndBoundCheckNeeded(ctx, to, toInclusive, nextChunkMinKey);
+            } catch (DeletedMemoryAccessException e) {
+                throw new DeletedMemoryAccessException(); //TODO fix
+            }
         }
 
         AscendingIter(ThreadContext ctx, K from, boolean fromInclusive, K to, boolean toInclusive,
-            OakScopedReadBuffer nextChunkMinKey) {
+            OakScopedReadBuffer nextChunkMinKey) throws DeletedMemoryAccessException {
             KeyBuffer tempKeyBuff = ctx.tempKey;
             next = binaryFind(tempKeyBuff, from);
 
@@ -808,7 +820,7 @@ class OrderedChunk<K, V> extends BasicChunk<K, V> {
         }
 
         @Override
-        protected boolean isKeyOutOfEndBound(OakScopedReadBuffer key) {
+        protected boolean isKeyOutOfEndBound(OakScopedReadBuffer key) throws DeletedMemoryAccessException {
             if (endBound == null) {
                 return false;
             }
@@ -830,7 +842,7 @@ class OrderedChunk<K, V> extends BasicChunk<K, V> {
         private boolean fromInclusive;
         private final int skipEntriesForBiggerStack = Math.max(1, getMaxItems() / 10); // 1 is the lowest possible value
 
-        DescendingIter(ThreadContext ctx, K to, boolean toInclusive) {
+        DescendingIter(ThreadContext ctx, K to, boolean toInclusive) throws DeletedMemoryAccessException {
             KeyBuffer tempKeyBuff = ctx.tempKey;
             setIsEndBoundCheckNeeded(ctx, to, toInclusive, minKey);
             from = null;
@@ -842,7 +854,7 @@ class OrderedChunk<K, V> extends BasicChunk<K, V> {
             initNext(tempKeyBuff);
         }
 
-        DescendingIter(ThreadContext ctx, K from, boolean fromInclusive, K to, boolean toInclusive) {
+        DescendingIter(ThreadContext ctx, K from, boolean fromInclusive, K to, boolean toInclusive) throws DeletedMemoryAccessException {
             KeyBuffer tempKeyBuff = ctx.tempKey;
 
             this.from = from;
@@ -863,7 +875,7 @@ class OrderedChunk<K, V> extends BasicChunk<K, V> {
             setIsEndBoundCheckNeeded(ctx, to, toInclusive, minKey);
         }
 
-        private void initNext(KeyBuffer keyBuff) {
+        private void initNext(KeyBuffer keyBuff) throws DeletedMemoryAccessException {
             traverseLinkedList(keyBuff, true);
             advance(keyBuff);
         }
@@ -907,8 +919,9 @@ class OrderedChunk<K, V> extends BasicChunk<K, V> {
          * fill the stack
          *
          * @param firstTimeInvocation
+         * @throws DeletedMemoryAccessException 
          */
-        private void traverseLinkedList(KeyBuffer tempKeyBuff, boolean firstTimeInvocation) {
+        private void traverseLinkedList(KeyBuffer tempKeyBuff, boolean firstTimeInvocation) throws DeletedMemoryAccessException {
             assert stack.size() == 1;   // anchor is in the stack
             if (prevAnchor == entryOrderedSet.getNextEntryIndex(anchor)) {
                 next = NONE_NEXT;   // there is no next;
@@ -977,7 +990,11 @@ class OrderedChunk<K, V> extends BasicChunk<K, V> {
                     return;
                 }
                 findNewAnchor();
-                traverseLinkedList(keyBuff, false);
+                try {
+                    traverseLinkedList(keyBuff, false);
+                } catch (DeletedMemoryAccessException e) {
+                    continue;
+                }
             }
         }
 
@@ -994,7 +1011,7 @@ class OrderedChunk<K, V> extends BasicChunk<K, V> {
         }
 
         @Override
-        protected boolean isKeyOutOfEndBound(OakScopedReadBuffer key) {
+        protected boolean isKeyOutOfEndBound(OakScopedReadBuffer key) throws DeletedMemoryAccessException {
             if (endBound == null) {
                 return false;
             }

@@ -6,7 +6,7 @@
 
 package com.yahoo.oak;
 
-public class DeletedMemoryAccessException extends RuntimeException {
+public class DeletedMemoryAccessException extends Exception {
     public DeletedMemoryAccessException() {
         super();
     }
