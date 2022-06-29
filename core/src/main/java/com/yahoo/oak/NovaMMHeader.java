@@ -47,6 +47,9 @@ class NovaMMHeader {
     }
     
     
+    /** this method needs to be called before accessing off-heap memory for reading when using the Nova memory manager 
+    @return {@link ValueUtils.ValueResult} TRUE in case of the underlying memory is still valid to access, else FALSE.
+     */
     ValueUtils.ValueResult preRead(final int onHeapVersion, long headerAddress) {
         long offHeapHeader = getOffHeapHeader(headerAddress);
         if (RC.isReferenceDeleted(offHeapHeader)) {
@@ -56,6 +59,10 @@ class NovaMMHeader {
         return ValueUtils.ValueResult.TRUE;
     }
 
+    /** this method needs to be called after accessing off-heap memory for reading using the Nova memory manager 
+    @return {@link ValueUtils.ValueResult} TRUE in case of the underlying memory is still valid to access.
+    @throws DeletedMemoryAccessException in case of the underlying memory is deleted.
+     */
     ValueUtils.ValueResult postRead(final int onHeapVersion, long headerAddress) throws DeletedMemoryAccessException {
         DirectUtils.UNSAFE.loadFence();
         long offHeapHeader = getOffHeapHeader(headerAddress);

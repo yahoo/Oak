@@ -66,6 +66,9 @@ abstract class BasicChunk<K, V> {
 
     abstract boolean readValueFromEntryIndex(ValueBuffer value, int ei);
 
+    /* the lookUp method throws this exception for OrderedChunks only while trying to access a released chunk.
+     * the lookUp method is not allowed to throw the exception in the case of HashChunk.
+     */
     abstract void lookUp(ThreadContext ctx, K key) throws DeletedMemoryAccessException;
 
     /*-------------- Publishing related methods and getters ---------------*/

@@ -816,7 +816,7 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
         throw new RuntimeException("replace failed: reached retry limit (1024).");
     }
 
-    Map.Entry<K, V> lowerEntry(K key) throws DeletedMemoryAccessException {
+    Map.Entry<K, V> lowerEntry(K key)  {
         Map.Entry<Object, OrderedChunk<K, V>> lowerChunkEntry = skiplist.lowerEntry(key);
         if (lowerChunkEntry == null) {
             /* we were looking for the minimal key */
@@ -825,39 +825,48 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
 
         ThreadContext ctx = getThreadContext();
 
-        OrderedChunk<K, V> c = lowerChunkEntry.getValue();
-        /* Iterate orderedChunk to find prev(key), no upper limit */
-        OrderedChunk<K, V>.AscendingIter chunkIter = c.ascendingIter(ctx, null, false, null);
-        int prevIndex = chunkIter.next(ctx);
+        for (int i = 0; i < InternalOakBasics.MAX_RETRIES; i++) {
+            try {
 
-        while (chunkIter.hasNext()) {
-            int nextIndex = chunkIter.next(ctx);
-            if (c.compareKeyAndEntryIndex(ctx.tempKey, key, nextIndex) <= 0) {
-                break;
+                OrderedChunk<K, V> c = lowerChunkEntry.getValue();
+                /* Iterate orderedChunk to find prev(key), no upper limit */
+                OrderedChunk<K, V>.AscendingIter chunkIter = c.ascendingIter(ctx, null, false, null);
+                int prevIndex = chunkIter.next(ctx);
+        
+                while (chunkIter.hasNext()) {
+                    int nextIndex = chunkIter.next(ctx);
+                    if (c.compareKeyAndEntryIndex(ctx.tempKey, key, nextIndex) <= 0) {
+                        break;
+                    }
+                    prevIndex = nextIndex;
+                }
+        
+                /* Edge case: we're looking for the lowest key in the map and it's still greater than minkey
+                    (in which  case prevKey == key) */
+                if (c.compareKeyAndEntryIndex(ctx.tempKey, key, prevIndex) == 0) {
+                    return new AbstractMap.SimpleImmutableEntry<>(null, null);
+                }
+                // ctx.tempKey was updated with prevIndex key as a side effect of compareKeyAndEntryIndex()
+                K keyDeserialized = getKeySerializer().deserialize(ctx.tempKey);
+        
+                // get value associated with this (prev) key
+                boolean isAllocated = c.readValueFromEntryIndex(ctx.value, prevIndex);
+                if (!isAllocated) { // value reference was invalid, try again
+                    return lowerEntry(key);
+                }
+        
+                Result valueDeserialized = config.valueOperator.transform(ctx.result, ctx.value,
+                        getValueSerializer()::deserialize);
+                if (valueDeserialized.operationResult != ValueUtils.ValueResult.TRUE) {
+                    return lowerEntry(key);
+                }
+                return new AbstractMap.SimpleImmutableEntry<>(keyDeserialized, (V) valueDeserialized.value);
+            } catch (DeletedMemoryAccessException e) {
+                continue;
             }
-            prevIndex = nextIndex;
         }
 
-        /* Edge case: we're looking for the lowest key in the map and it's still greater than minkey
-            (in which  case prevKey == key) */
-        if (c.compareKeyAndEntryIndex(ctx.tempKey, key, prevIndex) == 0) {
-            return new AbstractMap.SimpleImmutableEntry<>(null, null);
-        }
-        // ctx.tempKey was updated with prevIndex key as a side effect of compareKeyAndEntryIndex()
-        K keyDeserialized = getKeySerializer().deserialize(ctx.tempKey);
-
-        // get value associated with this (prev) key
-        boolean isAllocated = c.readValueFromEntryIndex(ctx.value, prevIndex);
-        if (!isAllocated) { // value reference was invalid, try again
-            return lowerEntry(key);
-        }
-
-        Result valueDeserialized = config.valueOperator.transform(ctx.result, ctx.value,
-                getValueSerializer()::deserialize);
-        if (valueDeserialized.operationResult != ValueUtils.ValueResult.TRUE) {
-            return lowerEntry(key);
-        }
-        return new AbstractMap.SimpleImmutableEntry<>(keyDeserialized, (V) valueDeserialized.value);
+        throw new RuntimeException("replace failed: reached retry limit (1024).");
     }
 
     /*-------------- Iterators --------------*/
@@ -976,8 +985,6 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
         /**
          * Advances next to higher entry.
          * Return previous index
-         * @throws DeletedMemoryAccessException 
-         *
          *
          */
         @Override

@@ -191,7 +191,6 @@ class NovaMemoryManager extends SyncRecycleMemoryManager {
          * {@code FALSE} if the header/off-heap-cut is marked as deleted
          * {@code RETRY} if the header/off-heap-cut was moved, or the version of the off-heap header
          * does not match {@code version}.
-         * @throws DeletedMemoryAccessException 
          */
         public ValueUtils.ValueResult preRead() {
             assert version != ReferenceCodecSyncRecycle.INVALID_VERSION;

@@ -169,6 +169,7 @@ abstract class InternalOakBasics<K, V> {
             try {
                 chunk.lookUp(ctx, key);
             } catch (DeletedMemoryAccessException e) {
+                assert !(chunk instanceof  HashChunk);
                 continue;
             }
             if (!ctx.isValueValid()) {
@@ -188,30 +189,7 @@ abstract class InternalOakBasics<K, V> {
         throw new RuntimeException("replace failed: reached retry limit (1024).");
     }
 
-    boolean replace(K key, V oldValue, V newValue, OakTransformer<V> valueDeserializeTransformer) 
-            throws DeletedMemoryAccessException {
-        ThreadContext ctx = getThreadContext();
-
-        for (int i = 0; i < MAX_RETRIES; i++) {
-            // find chunk matching key, puts this key hash into ctx.operationKeyHash
-            BasicChunk<K, V> c = findChunk(key, ctx); // find orderedChunk matching key
-            c.lookUp(ctx, key);
-            if (!ctx.isValueValid()) {
-                return false;
-            }
-
-            ValueUtils.ValueResult res = getValueOperator().compareExchange(c, ctx, oldValue, newValue,
-                    valueDeserializeTransformer, getValueSerializer());
-            if (res == ValueUtils.ValueResult.RETRY) {
-                // it might be that this chunk is proceeding with rebalance -> help
-                helpRebalanceIfInProgress(c);
-                continue;
-            }
-            return res == ValueUtils.ValueResult.TRUE;
-        }
-
-        throw new RuntimeException("replace failed: reached retry limit (1024).");
-    }
+    abstract boolean replace(K key, V oldValue, V newValue, OakTransformer<V> valueDeserializeTransformer);
 
     abstract boolean putIfAbsentComputeIfPresent(K key, V value, Consumer<OakScopedWriteBuffer> computer);
 
@@ -360,7 +338,7 @@ abstract class InternalOakBasics<K, V> {
             return (state != null);
         }
 
-        protected abstract void initAfterRebalance() throws DeletedMemoryAccessException;
+        protected abstract void initAfterRebalance();
 
         // the actual next()
         public abstract T next();
