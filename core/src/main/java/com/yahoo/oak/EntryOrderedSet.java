@@ -299,7 +299,7 @@ class EntryOrderedSet<K, V> extends EntryArray<K, V> {
 
     void releaseAllDeletedKeys() {
         KeyBuffer key = new KeyBuffer(config.keysMemoryManager.getEmptySlice());
-        for (int i = 0; i < numOfEntries.get() ; i++) {
+        for (int i = 0; i < nextFreeIndex.get() - 1 ; i++) {
             if (!config.valuesMemoryManager.isReferenceDeleted(getValueReference(i))) {
                 continue;
             }

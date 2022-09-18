@@ -721,7 +721,8 @@ class OrderedChunk<K, V> extends BasicChunk<K, V> {
                 // it is caught when traversing to the start bound and midIdx is set to -1
 
                 // is the key in the middle index already above the upper limit to stop on?
-                readKeyFromEntryIndex(ctx.tempKey, midIdx);
+                if (!readKeyFromEntryIndex(ctx.tempKey, midIdx))
+                    throw new DeletedMemoryAccessException();
                 if (!isKeyOutOfEndBound(ctx.tempKey)) {
                     isEndBoundCheckNeeded = IterEndBoundCheck.MID_END_BOUNDARY_CHECK;
                 }

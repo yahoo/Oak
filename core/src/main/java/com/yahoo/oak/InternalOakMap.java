@@ -981,6 +981,28 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
             // Update the state to point to last returned key.
             initState(isDescending, lo, loInclusive, hi, hiInclusive);
         }
+        
+        @Override
+        protected void initStateWithNotDeletedChunk(BasicChunk chunk) {
+            OrderedChunk Ochunk = (OrderedChunk)chunk;
+            K nextKey = null;
+            try {
+            nextKey = KeyUtils.deSerializedKey(Ochunk.minKey, getKeySerializer());
+            } catch (DeletedMemoryAccessException e) {
+                return ;//should not happen
+            }
+            if (isDescending) {
+                hiInclusive = true;
+                hi = nextKey;
+            } else {
+                loInclusive = true;
+                lo = nextKey;
+            }
+
+            // Update the state to point to last returned key.
+            initState(isDescending, lo, loInclusive, hi, hiInclusive);
+        }
+       
 
         /**
          * Advances next to higher entry.
@@ -1120,16 +1142,16 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
                 }
                 return;
             }
-            throw new RuntimeException("put failed: reached retry limit (1024).");
+            throw new RuntimeException("reached retry limit (1024).");
         }
 
         @Override
         protected BasicChunk<K, V> getNextChunk(BasicChunk<K, V> current) {
-            OrderedChunk<K, V> currentHashChunk = (OrderedChunk<K, V>) current;
+            OrderedChunk<K, V> currenChunk = (OrderedChunk<K, V>) current;
             if (!isDescending) {
-                return  currentHashChunk.next.getReference();
+                return  currenChunk.next.getReference();
             } else {
-                Map.Entry<Object, OrderedChunk<K, V>> entry = skiplist.lowerEntry(currentHashChunk.minKey);
+                Map.Entry<Object, OrderedChunk<K, V>> entry = skiplist.lowerEntry(currenChunk.minKey);
                 if (entry == null) {
                     return null;
                 } else {
@@ -1172,7 +1194,7 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
         @Override
         protected boolean advanceState() {
             while (true) {
-                boolean valueToReturn = super.advanceState();
+                boolean valueToReturn = super.advanceState(); //TODO changes names to continue or advnace 
                 
                 if (valueToReturn) {
                     BasicChunk<K, V> chunk = getState().getChunk();

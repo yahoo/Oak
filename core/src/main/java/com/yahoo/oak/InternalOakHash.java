@@ -579,6 +579,10 @@ class InternalOakHash<K, V> extends InternalOakBasics<K, V> {
             initState();
         }
 
+        @Override
+        protected void initStateWithNotDeletedChunk(BasicChunk c) { //nextKey is null here
+            initState();
+        }
 
         /**
          * Advances next to higher entry.

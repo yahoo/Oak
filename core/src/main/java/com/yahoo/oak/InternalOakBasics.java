@@ -338,6 +338,8 @@ abstract class InternalOakBasics<K, V> {
             return (state != null);
         }
 
+        protected abstract void initStateWithNotDeletedChunk(BasicChunk chunk);
+
         protected abstract void initAfterRebalance();
 
         // the actual next()
@@ -468,27 +470,26 @@ abstract class InternalOakBasics<K, V> {
 
             updatePreviousState();
             
-            for (int i = 0; i < MAX_RETRIES; i++) {
-                while (!chunkIter.hasNext()) { // skip empty chunks
-                    chunk = getNextChunk(chunk);
-                    if (chunk == null) {
-                        //End of iteration
-                        setState(null);
-                        return false;
-                    }
-                    try {
-                        chunkIter = getChunkIter(chunk);
-                    } catch (DeletedMemoryAccessException e) {
-                        continue;
-                    }
+            while (!chunkIter.hasNext()) { // skip empty chunks
+                chunk = getNextChunk(chunk);
+                if (chunk == null) {
+                    //End of iteration
+                    setState(null);
+                    return false;
                 }
+                try {
+                    chunkIter = getChunkIter(chunk);
+                } catch (DeletedMemoryAccessException e) {
+                    assert chunk.state.get() ==  BasicChunk.State.RELEASED;
+                    initStateWithNotDeletedChunk(chunk); 
+                    return true;
+                }
+            }
 
-                int nextIndex = chunkIter.next(ctx);
-                getState().set(chunk, chunkIter, nextIndex);
+            int nextIndex = chunkIter.next(ctx);
+            getState().set(chunk, chunkIter, nextIndex);
 
-                return true; 
-            } 
-            throw new RuntimeException("put failed: reached retry limit (1024).");
+            return true; 
         }
 
     }
