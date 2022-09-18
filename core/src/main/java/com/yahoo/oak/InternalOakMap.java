@@ -984,12 +984,12 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
         
         @Override
         protected void initStateWithNotDeletedChunk(BasicChunk chunk) {
-            OrderedChunk Ochunk = (OrderedChunk)chunk;
+            OrderedChunk oChunk = (OrderedChunk) chunk;
             K nextKey = null;
             try {
-            nextKey = KeyUtils.deSerializedKey(Ochunk.minKey, getKeySerializer());
+                nextKey = KeyUtils.deSerializedKey(oChunk.minKey, getKeySerializer());
             } catch (DeletedMemoryAccessException e) {
-                return ;//should not happen
+                return ; //should not happen
             }
             if (isDescending) {
                 hiInclusive = true;
