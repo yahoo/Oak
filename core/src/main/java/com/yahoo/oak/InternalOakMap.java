@@ -982,14 +982,16 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
             initState(isDescending, lo, loInclusive, hi, hiInclusive);
         }
         
+        //The same as initState, but always works on a released chunk minKey which is never deleted.
         @Override
-        protected void initStateWithNotDeletedChunk(BasicChunk chunk) {
-            OrderedChunk oChunk = (OrderedChunk) chunk;
+        protected void initStateWithMinKey(BasicChunk <K, V> chunk) {
+            OrderedChunk <K, V> oChunk = (OrderedChunk <K, V>) chunk;
             K nextKey = null;
             try {
                 nextKey = KeyUtils.deSerializedKey(oChunk.minKey, getKeySerializer());
             } catch (DeletedMemoryAccessException e) {
-                return ; //should not happen
+                assert e == null; //since we are not deleting minKeys (should not get here!)
+                return ; 
             }
             if (isDescending) {
                 hiInclusive = true;
@@ -1138,7 +1140,10 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
                     setState(IteratorState.newInstance(nextOrderedChunk, nextChunkIter));
                     advanceState();
                 } catch (DeletedMemoryAccessException e) {
-                    continue;
+                    assert e == null; 
+                    //The exception here is needed as the ascendingIter/descendingIter signature throws the 
+                    // exception in case that the key is deleted, this could not happen here since we are dealing with
+                    // minKey which we never delete even when using memory manager that deleted keys
                 }
                 return;
             }
@@ -1147,11 +1152,11 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
 
         @Override
         protected BasicChunk<K, V> getNextChunk(BasicChunk<K, V> current) {
-            OrderedChunk<K, V> currenChunk = (OrderedChunk<K, V>) current;
+            OrderedChunk<K, V> currentChunk = (OrderedChunk<K, V>) current;
             if (!isDescending) {
-                return  currenChunk.next.getReference();
+                return  currentChunk.next.getReference();
             } else {
-                Map.Entry<Object, OrderedChunk<K, V>> entry = skiplist.lowerEntry(currenChunk.minKey);
+                Map.Entry<Object, OrderedChunk<K, V>> entry = skiplist.lowerEntry(currentChunk.minKey);
                 if (entry == null) {
                     return null;
                 } else {
@@ -1160,6 +1165,8 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
             }
         }
 
+        //This method throws DeletedMemoryAccessException when checking if some deleted key,
+        // is in the boundary of some released chunk.
         protected BasicChunk.BasicChunkIter getChunkIter(BasicChunk<K, V> current) throws DeletedMemoryAccessException {
             if (!isDescending) {
                 OakScopedReadBuffer upperBoundKeyForChunk = getNextChunkMinKey((OrderedChunk<K, V>) current);

@@ -26,7 +26,8 @@ class OrderedChunk<K, V> extends BasicChunk<K, V> {
     public static final int ORDERED_CHUNK_MAX_ITEMS_DEFAULT = 4096;
 
     /*-------------- Members --------------*/
-    KeyBuffer minKey;       // minimal key that can be put in this chunk
+    KeyBuffer minKey;       // minimal key that can be put in this chunk.
+    //These keys are never released even when using Nova memory manager
     AtomicMarkableReference<OrderedChunk<K, V>> next;
     private final EntryOrderedSet<K, V> entryOrderedSet;
 
@@ -740,11 +741,7 @@ class OrderedChunk<K, V> extends BasicChunk<K, V> {
             OakScopedReadBuffer nextChunkMinKey) throws DeletedMemoryAccessException {
             next = entryOrderedSet.getHeadNextEntryIndex();
             next = advanceNextIndexNoBound(next, ctx);
-            try {
-                setIsEndBoundCheckNeeded(ctx, to, toInclusive, nextChunkMinKey);
-            } catch (DeletedMemoryAccessException e) {
-                throw new DeletedMemoryAccessException(); //TODO fix
-            }
+            setIsEndBoundCheckNeeded(ctx, to, toInclusive, nextChunkMinKey);
         }
 
         AscendingIter(ThreadContext ctx, K from, boolean fromInclusive, K to, boolean toInclusive,

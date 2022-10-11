@@ -297,11 +297,13 @@ class EntryOrderedSet<K, V> extends EntryArray<K, V> {
         return true;
     }
 
+    //This method is called by only one thread on a release chunk.
     void releaseAllDeletedKeys() {
         KeyBuffer key = new KeyBuffer(config.keysMemoryManager.getEmptySlice());
         for (int i = 0; i < nextFreeIndex.get() - 1 && i < numOfEntries.get() ; i++) {
-            //the second condiiton is for case where multiple threads increment the nextfreeIndex
-            //which results in being bigger than the array size
+            //the second condition is for case where multiple threads increment the nextfreeIndex
+            //which results in being bigger than the array size, this happens when multiple threads try
+            // to increase the nextFreeIndex
             if (!config.valuesMemoryManager.isReferenceDeleted(getValueReference(i))) {
                 continue;
             }

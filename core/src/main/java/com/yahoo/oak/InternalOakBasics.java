@@ -165,11 +165,14 @@ abstract class InternalOakBasics<K, V> {
         ThreadContext ctx = getThreadContext();
 
         for (int i = 0; i < MAX_RETRIES; i++) {
-            BasicChunk<K, V> chunk = findChunk(key, ctx); // find orderedChunk matching key
+            BasicChunk<K, V> chunk = findChunk(key, ctx); // find Chunk matching key
             try {
                 chunk.lookUp(ctx, key);
+                //the look up method might encounter a chunk which is released, while using Nova as a memory manager
+                //as a result we might access an already deleted key, thus the need to catch the exception 
             } catch (DeletedMemoryAccessException e) {
-                assert !(chunk instanceof  HashChunk);
+                assert !(chunk instanceof  HashChunk); 
+                //Hash deals with deleted keys in an earlier stage
                 continue;
             }
             if (!ctx.isValueValid()) {
@@ -338,7 +341,8 @@ abstract class InternalOakBasics<K, V> {
             return (state != null);
         }
 
-        protected abstract void initStateWithNotDeletedChunk(BasicChunk chunk);
+        // for more detail on this method see implementation 
+        protected abstract void initStateWithMinKey(BasicChunk<K, V> chunk);
 
         protected abstract void initAfterRebalance();
 
@@ -375,7 +379,7 @@ abstract class InternalOakBasics<K, V> {
          * The first long is the key's reference, the integer is the value's version and the second long is
          * the value's reference. If {@code needsValue == false}, then the value of the map entry is {@code null}.
          */
-        void advance(boolean needsValue) throws DeletedMemoryAccessException {
+        void advance(boolean needsValue) {
             boolean validState = false;
 
             while (!validState) {
@@ -481,7 +485,7 @@ abstract class InternalOakBasics<K, V> {
                     chunkIter = getChunkIter(chunk);
                 } catch (DeletedMemoryAccessException e) {
                     assert chunk.state.get() ==  BasicChunk.State.RELEASED;
-                    initStateWithNotDeletedChunk(chunk); 
+                    initStateWithMinKey(chunk); 
                     return true;
                 }
             }
