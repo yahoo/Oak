@@ -38,7 +38,11 @@ class ValueUtils {
             T transformation = transformer.apply(value);
             return result.withValue(transformation);
         } finally {
-            value.s.postRead();
+            try {
+                value.s.postRead();
+            } catch (DeletedMemoryAccessException e) {
+                return result.withFlag(false);
+            }
         }
     }
 

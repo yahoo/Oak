@@ -268,7 +268,7 @@ class InternalOakHash<K, V> extends InternalOakBasics<K, V> {
 
         for (int i = 0; i < MAX_RETRIES; i++) {
             // find chunk matching key, puts this key hash into ctx.operationKeyHash
-            BasicChunk<K, V> c = findChunk(key, ctx);
+            HashChunk<K, V> c = findChunk(key, ctx);
             c.lookUp(ctx, key);
             if (!ctx.isValueValid()) {
                 return false;
@@ -406,9 +406,8 @@ class InternalOakHash<K, V> extends InternalOakBasics<K, V> {
 
         for (int i = 0; i < MAX_RETRIES; i++) {
             // find chunk matching key, puts this key hash into ctx.operationKeyHash
-            BasicChunk<K, V> c = findChunk(key, ctx);
+            HashChunk<K, V> c = findChunk(key, ctx);
             c.lookUp(ctx, key);
-
             if (ctx.isValueValid()) {
                 ValueUtils.ValueResult res = config.valueOperator.compute(ctx.value, computer);
                 if (res == ValueUtils.ValueResult.TRUE) {
@@ -440,9 +439,8 @@ class InternalOakHash<K, V> extends InternalOakBasics<K, V> {
 
         for (int i = 0; i < MAX_RETRIES; i++) {
             // find chunk matching key, puts this key hash into ctx.operationKeyHash
-            BasicChunk<K, V> c = findChunk(key, ctx);
+            HashChunk<K, V> c = findChunk(key, ctx);
             c.lookUp(ctx, key);
-
             if (!ctx.isKeyValid()) {
                 // There is no such key. If we did logical deletion and someone else did the physical deletion,
                 // then the old value is saved in v. Otherwise v is (correctly) null
@@ -569,6 +567,10 @@ class InternalOakHash<K, V> extends InternalOakBasics<K, V> {
             initState();
         }
 
+        @Override
+        protected void initStateWithMinKey(BasicChunk c) { //nextKey is null here
+            initState();
+        }
 
         /**
          * Advances next to higher entry.
@@ -799,8 +801,9 @@ class InternalOakHash<K, V> extends InternalOakBasics<K, V> {
         }
 
         public T next() {
+            ValueUtils.ValueResult res;
             advance(true);
-            ValueUtils.ValueResult res = ctx.value.s.preRead();
+            res = ctx.value.s.preRead();        
             if (res == ValueUtils.ValueResult.FALSE) {
                 return next();
             } else if (res == ValueUtils.ValueResult.RETRY) {
@@ -817,7 +820,11 @@ class InternalOakHash<K, V> extends InternalOakBasics<K, V> {
                     new AbstractMap.SimpleEntry<>(ctx.key, ctx.value);
 
             T transformation = transformer.apply(entry);
-            ctx.value.s.postRead();
+            try {
+                ctx.value.s.postRead();
+            } catch (DeletedMemoryAccessException e) {
+                return next();
+            }
             return transformation;
         }
     }

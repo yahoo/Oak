@@ -391,6 +391,7 @@ class SyncRecycleMemoryManager implements MemoryManager {
          * {@code FALSE} if the header/off-heap-cut is marked as deleted
          * {@code RETRY} if the header/off-heap-cut was moved, or the version of the off-heap header
          * does not match {@code version}.
+         * @throws DeletedMemoryAccessException 
          */
         public ValueUtils.ValueResult preRead() {
             assert version != ReferenceCodecSyncRecycle.INVALID_VERSION;
@@ -403,8 +404,9 @@ class SyncRecycleMemoryManager implements MemoryManager {
          * @return {@code TRUE} if the read lock was released successfully
          * {@code FALSE} if the value is marked as deleted
          * {@code RETRY} if the value was moved, or the version of the off-heap value does not match {@code version}.
+         * @throws DeletedMemoryAccessException 
          */
-        public ValueUtils.ValueResult postRead() {
+        public ValueUtils.ValueResult postRead() throws DeletedMemoryAccessException {
             assert version != ReferenceCodecSyncRecycle.INVALID_VERSION;
             return HEADER.unlockRead(version, getMetadataAddress());
         }

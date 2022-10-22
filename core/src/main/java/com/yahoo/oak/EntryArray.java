@@ -182,9 +182,9 @@ public class EntryArray<K, V> {
         int nextIndex = currentIndex;
         while (!isNotZero && isIndexInBound(++nextIndex)) {
 
-            isNotZero = getEntryFieldLong(nextIndex, KEY_REF_OFFSET) != 0 ||
-                        getEntryFieldLong(nextIndex, VALUE_REF_OFFSET) != 0 ||
-                        getEntryFieldLong(nextIndex, OPT_FIELD_OFFSET) != 0;
+            isNotZero = array.getEntryFieldLong(nextIndex, KEY_REF_OFFSET) != 0 ||
+                        array.getEntryFieldLong(nextIndex, VALUE_REF_OFFSET) != 0 ||
+                        array.getEntryFieldLong(nextIndex, OPT_FIELD_OFFSET) != 0;
         }
         if (isIndexInBound(nextIndex)) {
             return nextIndex;

@@ -165,8 +165,16 @@ abstract class InternalOakBasics<K, V> {
         ThreadContext ctx = getThreadContext();
 
         for (int i = 0; i < MAX_RETRIES; i++) {
-            BasicChunk<K, V> chunk = findChunk(key, ctx); // find orderedChunk matching key
-            chunk.lookUp(ctx, key);
+            BasicChunk<K, V> chunk = findChunk(key, ctx); // find Chunk matching key
+            try {
+                chunk.lookUp(ctx, key);
+                //the look up method might encounter a chunk which is released, while using Nova as a memory manager
+                //as a result we might access an already deleted key, thus the need to catch the exception 
+            } catch (DeletedMemoryAccessException e) {
+                assert !(chunk instanceof  HashChunk); 
+                //Hash deals with deleted keys in an earlier stage
+                continue;
+            }
             if (!ctx.isValueValid()) {
                 return null;
             }
@@ -184,29 +192,7 @@ abstract class InternalOakBasics<K, V> {
         throw new RuntimeException("replace failed: reached retry limit (1024).");
     }
 
-    boolean replace(K key, V oldValue, V newValue, OakTransformer<V> valueDeserializeTransformer) {
-        ThreadContext ctx = getThreadContext();
-
-        for (int i = 0; i < MAX_RETRIES; i++) {
-            // find chunk matching key, puts this key hash into ctx.operationKeyHash
-            BasicChunk<K, V> c = findChunk(key, ctx); // find orderedChunk matching key
-            c.lookUp(ctx, key);
-            if (!ctx.isValueValid()) {
-                return false;
-            }
-
-            ValueUtils.ValueResult res = getValueOperator().compareExchange(c, ctx, oldValue, newValue,
-                    valueDeserializeTransformer, getValueSerializer());
-            if (res == ValueUtils.ValueResult.RETRY) {
-                // it might be that this chunk is proceeding with rebalance -> help
-                helpRebalanceIfInProgress(c);
-                continue;
-            }
-            return res == ValueUtils.ValueResult.TRUE;
-        }
-
-        throw new RuntimeException("replace failed: reached retry limit (1024).");
-    }
+    abstract boolean replace(K key, V oldValue, V newValue, OakTransformer<V> valueDeserializeTransformer);
 
     abstract boolean putIfAbsentComputeIfPresent(K key, V value, Consumer<OakScopedWriteBuffer> computer);
 
@@ -355,6 +341,9 @@ abstract class InternalOakBasics<K, V> {
             return (state != null);
         }
 
+        // for more detail on this method see implementation 
+        protected abstract void initStateWithMinKey(BasicChunk<K, V> chunk);
+
         protected abstract void initAfterRebalance();
 
         // the actual next()
@@ -471,7 +460,8 @@ abstract class InternalOakBasics<K, V> {
 
         protected abstract BasicChunk<K, V> getNextChunk(BasicChunk<K, V> current);
 
-        protected abstract BasicChunk.BasicChunkIter getChunkIter(BasicChunk<K, V> current);
+        protected abstract BasicChunk.BasicChunkIter getChunkIter(BasicChunk<K, V> current)
+                throws DeletedMemoryAccessException;
 
         /**
          * advance state to the new position
@@ -483,7 +473,7 @@ abstract class InternalOakBasics<K, V> {
             BasicChunk.BasicChunkIter chunkIter = getState().getChunkIter();
 
             updatePreviousState();
-
+            
             while (!chunkIter.hasNext()) { // skip empty chunks
                 chunk = getNextChunk(chunk);
                 if (chunk == null) {
@@ -491,13 +481,19 @@ abstract class InternalOakBasics<K, V> {
                     setState(null);
                     return false;
                 }
-                chunkIter = getChunkIter(chunk);
+                try {
+                    chunkIter = getChunkIter(chunk);
+                } catch (DeletedMemoryAccessException e) {
+                    assert chunk.state.get() ==  BasicChunk.State.RELEASED;
+                    initStateWithMinKey(chunk); 
+                    return true;
+                }
             }
 
             int nextIndex = chunkIter.next(ctx);
             getState().set(chunk, chunkIter, nextIndex);
 
-            return true;
+            return true; 
         }
 
     }

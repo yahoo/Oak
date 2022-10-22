@@ -271,8 +271,9 @@ public class OakMap<K, V> extends AbstractMap<K, V>
         if (key == null) {
             throw new NullPointerException();
         }
-
+            
         return internalOakMap.lowerEntry(key);
+
     }
 
     /**
@@ -289,7 +290,6 @@ public class OakMap<K, V> extends AbstractMap<K, V>
         if (key == null) {
             throw new NullPointerException();
         }
-
         return internalOakMap.lowerEntry(key).getKey();
     }
 

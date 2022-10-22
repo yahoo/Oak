@@ -264,7 +264,8 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
 
     // returns false when restart is needed
     // (if rebalance happened or another valid entry with same key was found)
-    private boolean allocateAndLinkEntry(OrderedChunk<K, V> c, ThreadContext ctx, K key, boolean isPutIfAbsent) {
+    private boolean allocateAndLinkEntry(OrderedChunk<K, V> c, ThreadContext ctx, K key, boolean isPutIfAbsent) 
+        throws DeletedMemoryAccessException {
         // There was no such key found, going to allocate a new key.
         // EntryOrderedSet allocates the entry (holding the key) and ctx is going to be updated
         // to be used by EntryOrderedSet's subsequent requests to write value
@@ -815,7 +816,7 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
         throw new RuntimeException("replace failed: reached retry limit (1024).");
     }
 
-    Map.Entry<K, V> lowerEntry(K key) {
+    Map.Entry<K, V> lowerEntry(K key)  {
         Map.Entry<Object, OrderedChunk<K, V>> lowerChunkEntry = skiplist.lowerEntry(key);
         if (lowerChunkEntry == null) {
             /* we were looking for the minimal key */
@@ -824,39 +825,48 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
 
         ThreadContext ctx = getThreadContext();
 
-        OrderedChunk<K, V> c = lowerChunkEntry.getValue();
-        /* Iterate orderedChunk to find prev(key), no upper limit */
-        OrderedChunk<K, V>.AscendingIter chunkIter = c.ascendingIter(ctx, null, false, null);
-        int prevIndex = chunkIter.next(ctx);
+        for (int i = 0; i < InternalOakBasics.MAX_RETRIES; i++) {
+            try {
 
-        while (chunkIter.hasNext()) {
-            int nextIndex = chunkIter.next(ctx);
-            if (c.compareKeyAndEntryIndex(ctx.tempKey, key, nextIndex) <= 0) {
-                break;
+                OrderedChunk<K, V> c = lowerChunkEntry.getValue();
+                /* Iterate orderedChunk to find prev(key), no upper limit */
+                OrderedChunk<K, V>.AscendingIter chunkIter = c.ascendingIter(ctx, null, false, null);
+                int prevIndex = chunkIter.next(ctx);
+        
+                while (chunkIter.hasNext()) {
+                    int nextIndex = chunkIter.next(ctx);
+                    if (c.compareKeyAndEntryIndex(ctx.tempKey, key, nextIndex) <= 0) {
+                        break;
+                    }
+                    prevIndex = nextIndex;
+                }
+        
+                /* Edge case: we're looking for the lowest key in the map and it's still greater than minkey
+                    (in which  case prevKey == key) */
+                if (c.compareKeyAndEntryIndex(ctx.tempKey, key, prevIndex) == 0) {
+                    return new AbstractMap.SimpleImmutableEntry<>(null, null);
+                }
+                // ctx.tempKey was updated with prevIndex key as a side effect of compareKeyAndEntryIndex()
+                K keyDeserialized = getKeySerializer().deserialize(ctx.tempKey);
+        
+                // get value associated with this (prev) key
+                boolean isAllocated = c.readValueFromEntryIndex(ctx.value, prevIndex);
+                if (!isAllocated) { // value reference was invalid, try again
+                    return lowerEntry(key);
+                }
+        
+                Result valueDeserialized = config.valueOperator.transform(ctx.result, ctx.value,
+                        getValueSerializer()::deserialize);
+                if (valueDeserialized.operationResult != ValueUtils.ValueResult.TRUE) {
+                    return lowerEntry(key);
+                }
+                return new AbstractMap.SimpleImmutableEntry<>(keyDeserialized, (V) valueDeserialized.value);
+            } catch (DeletedMemoryAccessException e) {
+                continue;
             }
-            prevIndex = nextIndex;
         }
 
-        /* Edge case: we're looking for the lowest key in the map and it's still greater than minkey
-            (in which  case prevKey == key) */
-        if (c.compareKeyAndEntryIndex(ctx.tempKey, key, prevIndex) == 0) {
-            return new AbstractMap.SimpleImmutableEntry<>(null, null);
-        }
-        // ctx.tempKey was updated with prevIndex key as a side effect of compareKeyAndEntryIndex()
-        K keyDeserialized = getKeySerializer().deserialize(ctx.tempKey);
-
-        // get value associated with this (prev) key
-        boolean isAllocated = c.readValueFromEntryIndex(ctx.value, prevIndex);
-        if (!isAllocated) { // value reference was invalid, try again
-            return lowerEntry(key);
-        }
-
-        Result valueDeserialized = config.valueOperator.transform(ctx.result, ctx.value,
-                getValueSerializer()::deserialize);
-        if (valueDeserialized.operationResult != ValueUtils.ValueResult.TRUE) {
-            return lowerEntry(key);
-        }
-        return new AbstractMap.SimpleImmutableEntry<>(keyDeserialized, (V) valueDeserialized.value);
+        throw new RuntimeException("replace failed: reached retry limit (1024).");
     }
 
     /*-------------- Iterators --------------*/
@@ -913,7 +923,7 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
             initState(isDescending, lo, loInclusive, hi, hiInclusive);
         }
 
-        private boolean tooLow(OakScopedReadBuffer key) {
+        private boolean tooLow(OakScopedReadBuffer key) throws DeletedMemoryAccessException {
             if (lo == null) {
                 return false;
             }
@@ -922,7 +932,7 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
             return c > 0 || (c == 0 && !loInclusive);
         }
 
-        private boolean tooHigh(OakScopedReadBuffer key) {
+        private boolean tooHigh(OakScopedReadBuffer key) throws DeletedMemoryAccessException {
             if (hi == null) {
                 return false;
             }
@@ -931,7 +941,7 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
         }
 
 
-        private boolean inBounds(OakScopedReadBuffer key) {
+        private boolean inBounds(OakScopedReadBuffer key) throws DeletedMemoryAccessException {
             if (!isDescending) {
                 return !tooHigh(key);
             } else {
@@ -971,11 +981,34 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
             // Update the state to point to last returned key.
             initState(isDescending, lo, loInclusive, hi, hiInclusive);
         }
+        
+        //The same as initState, but always works on a released chunk minKey which is never deleted.
+        @Override
+        protected void initStateWithMinKey(BasicChunk <K, V> chunk) {
+            OrderedChunk <K, V> oChunk = (OrderedChunk <K, V>) chunk;
+            K nextKey = null;
+            try {
+                nextKey = KeyUtils.deSerializedKey(oChunk.minKey, getKeySerializer());
+            } catch (DeletedMemoryAccessException e) {
+                assert e == null; //since we are not deleting minKeys (should not get here!)
+                return ; 
+            }
+            if (isDescending) {
+                hiInclusive = true;
+                hi = nextKey;
+            } else {
+                loInclusive = true;
+                lo = nextKey;
+            }
+
+            // Update the state to point to last returned key.
+            initState(isDescending, lo, loInclusive, hi, hiInclusive);
+        }
+       
 
         /**
          * Advances next to higher entry.
          * Return previous index
-         *
          *
          */
         @Override
@@ -1067,52 +1100,63 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
 
             OrderedChunk<K, V>.ChunkIter nextChunkIter;
             OrderedChunk<K, V> nextOrderedChunk;
-
-            if (!isDescending) {
-                if (lowerBound != null) {
-                    nextOrderedChunk = skiplist.floorEntry(lowerBound).getValue();
-                } else {
-                    nextOrderedChunk = skiplist.firstEntry().getValue();
-                    // need to iterate from the beginning of the orderedChunk till the end
+       
+            for (int i = 0; i < MAX_RETRIES; i++) {
+                try {
+                    if (!isDescending) {
+                        if (lowerBound != null) {
+                            nextOrderedChunk = skiplist.floorEntry(lowerBound).getValue();
+                        } else {
+                            nextOrderedChunk = skiplist.firstEntry().getValue();
+                            // need to iterate from the beginning of the orderedChunk till the end
+                        }
+                        if (nextOrderedChunk != null) {
+                            OakScopedReadBuffer upperBoundKeyForChunk = getNextChunkMinKey(nextOrderedChunk);
+                            nextChunkIter = lowerBound != null ?
+                                nextOrderedChunk.ascendingIter
+                                (ctx, lowerBound, lowerInclusive, upperBound, upperInclusive, upperBoundKeyForChunk)
+                                : nextOrderedChunk
+                                .ascendingIter(ctx, upperBound, upperInclusive, upperBoundKeyForChunk);
+                        } else {
+                            setState(null);
+                            return;
+                        }
+                    } else {
+                        nextOrderedChunk = upperBound != null ? skiplist.floorEntry(upperBound).getValue()
+                                : skiplist.lastEntry().getValue();
+                        if (nextOrderedChunk != null) {
+                            nextChunkIter = upperBound != null ?
+                                    nextOrderedChunk
+                                        .descendingIter(ctx, upperBound, upperInclusive, lowerBound, lowerInclusive)
+                                : nextOrderedChunk.descendingIter(ctx, lowerBound, lowerInclusive);
+                        } else {
+                            setState(null);
+                            return;
+                        }
+                    }
+        
+                    //Init state, not valid yet, must move forward
+                    setPrevState(InternalOakMap.IteratorState.newInstance(null, null));
+                    setState(IteratorState.newInstance(nextOrderedChunk, nextChunkIter));
+                    advanceState();
+                } catch (DeletedMemoryAccessException e) {
+                    assert e == null; 
+                    //The exception here is needed as the ascendingIter/descendingIter signature throws the 
+                    // exception in case that the key is deleted, this could not happen here since we are dealing with
+                    // minKey which we never delete even when using memory manager that deleted keys
                 }
-                if (nextOrderedChunk != null) {
-                    OakScopedReadBuffer upperBoundKeyForChunk = getNextChunkMinKey(nextOrderedChunk);
-                    nextChunkIter = lowerBound != null ?
-                        nextOrderedChunk.ascendingIter(ctx, lowerBound, lowerInclusive, upperBound, upperInclusive,
-                            upperBoundKeyForChunk)
-                        : nextOrderedChunk
-                        .ascendingIter(ctx, upperBound, upperInclusive, upperBoundKeyForChunk);
-                } else {
-                    setState(null);
-                    return;
-                }
-            } else {
-                nextOrderedChunk = upperBound != null ? skiplist.floorEntry(upperBound).getValue()
-                        : skiplist.lastEntry().getValue();
-                if (nextOrderedChunk != null) {
-                    nextChunkIter = upperBound != null ?
-                            nextOrderedChunk
-                                .descendingIter(ctx, upperBound, upperInclusive, lowerBound, lowerInclusive)
-                        : nextOrderedChunk.descendingIter(ctx, lowerBound, lowerInclusive);
-                } else {
-                    setState(null);
-                    return;
-                }
+                return;
             }
-
-            //Init state, not valid yet, must move forward
-            setPrevState(InternalOakMap.IteratorState.newInstance(null, null));
-            setState(IteratorState.newInstance(nextOrderedChunk, nextChunkIter));
-            advanceState();
+            throw new RuntimeException("reached retry limit (1024).");
         }
 
         @Override
         protected BasicChunk<K, V> getNextChunk(BasicChunk<K, V> current) {
-            OrderedChunk<K, V> currentHashChunk = (OrderedChunk<K, V>) current;
+            OrderedChunk<K, V> currentChunk = (OrderedChunk<K, V>) current;
             if (!isDescending) {
-                return  currentHashChunk.next.getReference();
+                return  currentChunk.next.getReference();
             } else {
-                Map.Entry<Object, OrderedChunk<K, V>> entry = skiplist.lowerEntry(currentHashChunk.minKey);
+                Map.Entry<Object, OrderedChunk<K, V>> entry = skiplist.lowerEntry(currentChunk.minKey);
                 if (entry == null) {
                     return null;
                 } else {
@@ -1121,7 +1165,9 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
             }
         }
 
-        protected BasicChunk.BasicChunkIter getChunkIter(BasicChunk<K, V> current) {
+        //This method throws DeletedMemoryAccessException when checking if some deleted key,
+        // is in the boundary of some released chunk.
+        protected BasicChunk.BasicChunkIter getChunkIter(BasicChunk<K, V> current) throws DeletedMemoryAccessException {
             if (!isDescending) {
                 OakScopedReadBuffer upperBoundKeyForChunk = getNextChunkMinKey((OrderedChunk<K, V>) current);
                 return ((OrderedChunk<K, V>) current).ascendingIter(ctx, hi, hiInclusive, upperBoundKeyForChunk);
@@ -1155,7 +1201,7 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
         @Override
         protected boolean advanceState() {
             while (true) {
-                boolean valueToReturn = super.advanceState();
+                boolean valueToReturn = super.advanceState(); //TODO changes names to continue or advnace 
                 
                 if (valueToReturn) {
                     BasicChunk<K, V> chunk = getState().getChunk();
@@ -1167,9 +1213,13 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
                         if (!chunk.readKeyFromEntryIndex(ctx.tempKey, nextIndex)) {
                             continue;
                         }
-                        if (!inBounds(ctx.tempKey)) {
-                            setState(null);
-                            valueToReturn = false;
+                        try {
+                            if (!inBounds(ctx.tempKey)) {
+                                setState(null);
+                                valueToReturn = false;
+                            }
+                        } catch (DeletedMemoryAccessException e) {
+                            continue;
                         }
                     }
                 }
@@ -1297,8 +1347,9 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
         }
 
         public T next() {
+            ValueUtils.ValueResult res;
             advance(true);
-            ValueUtils.ValueResult res = ctx.value.s.preRead();
+            res = ctx.value.s.preRead();
             if (res == ValueUtils.ValueResult.FALSE) {
                 return next();
             } else if (res == ValueUtils.ValueResult.RETRY) {
@@ -1315,7 +1366,12 @@ class InternalOakMap<K, V>  extends InternalOakBasics<K, V> {
                     new AbstractMap.SimpleEntry<>(ctx.key, ctx.value);
 
             T transformation = transformer.apply(entry);
-            ctx.value.s.postRead();
+            try {
+                ctx.value.s.postRead();
+            } catch (DeletedMemoryAccessException e) {
+                return next();
+            }
+
             return transformation;
         }
     }

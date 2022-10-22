@@ -81,7 +81,11 @@ public class ValueUtilsSimpleTest {
             }
             Assert.assertEquals(ValueUtils.ValueResult.TRUE, s.preRead());
             flag.incrementAndGet();
-            s.postRead();
+            try {
+                s.postRead();
+            } catch (DeletedMemoryAccessException e) {
+                e.printStackTrace();
+            }
         });
         Assert.assertEquals(ValueUtils.ValueResult.TRUE, s.preRead());
         writer.start();
@@ -93,7 +97,11 @@ public class ValueUtilsSimpleTest {
         }
         Thread.sleep(2000);
         flag.incrementAndGet();
-        s.postRead();
+        try {
+            s.postRead();
+        } catch (DeletedMemoryAccessException e) {
+            e.printStackTrace();
+        }
         reader.join();
         writer.join();
     }
@@ -119,7 +127,11 @@ public class ValueUtilsSimpleTest {
             }
             Assert.assertEquals(ValueUtils.ValueResult.TRUE, s.preRead());
             flag.incrementAndGet();
-            s.postRead();
+            try {
+                s.postRead();
+            } catch (DeletedMemoryAccessException e) {
+                e.printStackTrace();
+            }
         });
         Assert.assertEquals(ValueUtils.ValueResult.TRUE, s.preRead());
         deleter.start();
@@ -131,7 +143,11 @@ public class ValueUtilsSimpleTest {
         }
         Thread.sleep(2000);
         flag.incrementAndGet();
-        s.postRead();
+        try {
+            s.postRead();
+        } catch (DeletedMemoryAccessException e) {
+            e.printStackTrace();
+        }
         reader.join();
         deleter.join();
     }
